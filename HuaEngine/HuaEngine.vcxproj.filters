@@ -1,0 +1,31 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<Project ToolsVersion="4.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <ItemGroup>
+    <Filter Include="HuaEngine">
+      <UniqueIdentifier>{F965F882-65D0-ACF9-AE0E-5E9F1AB88A4E}</UniqueIdentifier>
+    </Filter>
+  </ItemGroup>
+  <ItemGroup>
+    <ClInclude Include="src\HuaEngine.h" />
+    <ClInclude Include="src\HuaEngine\Application.h">
+      <Filter>HuaEngine</Filter>
+    </ClInclude>
+    <ClInclude Include="src\HuaEngine\Core.h">
+      <Filter>HuaEngine</Filter>
+    </ClInclude>
+    <ClInclude Include="src\HuaEngine\EntryPoint.h">
+      <Filter>HuaEngine</Filter>
+    </ClInclude>
+    <ClInclude Include="src\HuaEngine\Log.h">
+      <Filter>HuaEngine</Filter>
+    </ClInclude>
+  </ItemGroup>
+  <ItemGroup>
+    <ClCompile Include="src\HuaEngine\Application.cpp">
+      <Filter>HuaEngine</Filter>
+    </ClCompile>
+    <ClCompile Include="src\HuaEngine\Log.cpp">
+      <Filter>HuaEngine</Filter>
+    </ClCompile>
+  </ItemGroup>
+</Project>
