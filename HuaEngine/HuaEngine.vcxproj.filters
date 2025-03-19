@@ -4,28 +4,87 @@
     <Filter Include="HuaEngine">
       <UniqueIdentifier>{F965F882-65D0-ACF9-AE0E-5E9F1AB88A4E}</UniqueIdentifier>
     </Filter>
+    <Filter Include="HuaEngine\Core">
+      <UniqueIdentifier>{F12D4DFF-DDFB-4005-C68F-B12BB2FC1C6A}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="HuaEngine\Events">
+      <UniqueIdentifier>{BD7F720C-A978-915E-D2AA-76E3BE02716A}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="HuaEngine\Platform">
+      <UniqueIdentifier>{6D6A2F0F-594E-F064-C2AE-EAB7AEB1DAE6}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="HuaEngine\Platform\Windows">
+      <UniqueIdentifier>{A7310374-9341-AF44-FCFA-1363E8299EDD}</UniqueIdentifier>
+    </Filter>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="src\HuaEngine.h" />
     <ClInclude Include="src\HuaEngine\Application.h">
       <Filter>HuaEngine</Filter>
     </ClInclude>
-    <ClInclude Include="src\HuaEngine\Core.h">
-      <Filter>HuaEngine</Filter>
+    <ClInclude Include="src\HuaEngine\Core\Assert.h">
+      <Filter>HuaEngine\Core</Filter>
+    </ClInclude>
+    <ClInclude Include="src\HuaEngine\Core\Core.h">
+      <Filter>HuaEngine\Core</Filter>
+    </ClInclude>
+    <ClInclude Include="src\HuaEngine\Core\KeyCodes.h">
+      <Filter>HuaEngine\Core</Filter>
+    </ClInclude>
+    <ClInclude Include="src\HuaEngine\Core\Layer.h">
+      <Filter>HuaEngine\Core</Filter>
+    </ClInclude>
+    <ClInclude Include="src\HuaEngine\Core\LayerStack.h">
+      <Filter>HuaEngine\Core</Filter>
+    </ClInclude>
+    <ClInclude Include="src\HuaEngine\Core\Log.h">
+      <Filter>HuaEngine\Core</Filter>
+    </ClInclude>
+    <ClInclude Include="src\HuaEngine\Core\MouseCodes.h">
+      <Filter>HuaEngine\Core</Filter>
     </ClInclude>
     <ClInclude Include="src\HuaEngine\EntryPoint.h">
       <Filter>HuaEngine</Filter>
     </ClInclude>
-    <ClInclude Include="src\HuaEngine\Log.h">
+    <ClInclude Include="src\HuaEngine\Events\ApplicationEvent.h">
+      <Filter>HuaEngine\Events</Filter>
+    </ClInclude>
+    <ClInclude Include="src\HuaEngine\Events\Event.h">
+      <Filter>HuaEngine\Events</Filter>
+    </ClInclude>
+    <ClInclude Include="src\HuaEngine\Events\KeyEvent.h">
+      <Filter>HuaEngine\Events</Filter>
+    </ClInclude>
+    <ClInclude Include="src\HuaEngine\Events\MouseEvent.h">
+      <Filter>HuaEngine\Events</Filter>
+    </ClInclude>
+    <ClInclude Include="src\HuaEngine\Platform\Windows\WindowsWindow.h">
+      <Filter>HuaEngine\Platform\Windows</Filter>
+    </ClInclude>
+    <ClInclude Include="src\HuaEngine\Window.h">
       <Filter>HuaEngine</Filter>
     </ClInclude>
+    <ClInclude Include="src\enginepch.h" />
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="src\HuaEngine\Application.cpp">
       <Filter>HuaEngine</Filter>
     </ClCompile>
-    <ClCompile Include="src\HuaEngine\Log.cpp">
+    <ClCompile Include="src\HuaEngine\Core\Layer.cpp">
+      <Filter>HuaEngine\Core</Filter>
+    </ClCompile>
+    <ClCompile Include="src\HuaEngine\Core\LayerStack.cpp">
+      <Filter>HuaEngine\Core</Filter>
+    </ClCompile>
+    <ClCompile Include="src\HuaEngine\Core\Log.cpp">
+      <Filter>HuaEngine\Core</Filter>
+    </ClCompile>
+    <ClCompile Include="src\HuaEngine\Platform\Windows\WindowsWindow.cpp">
+      <Filter>HuaEngine\Platform\Windows</Filter>
+    </ClCompile>
+    <ClCompile Include="src\HuaEngine\Window.cpp">
       <Filter>HuaEngine</Filter>
     </ClCompile>
+    <ClCompile Include="src\enginepch.cpp" />
   </ItemGroup>
 </Project>

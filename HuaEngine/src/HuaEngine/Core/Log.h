@@ -1,7 +1,7 @@
 #pragma once
-#include <memory>
-#include "Core.h"
+#include "HuaEngine/Core/Core.h"
 #include "spdlog/spdlog.h"
+#include "spdlog/fmt/ostr.h"
 
 namespace HE {
 	class ENGINE_API Log {

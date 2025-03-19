@@ -8,4 +8,6 @@
 	#endif
 #else
 	#error Hua Engine only support windows !	
-#endif // HUA_ENGINE_WINDOWS
+#endif
+
+#define BIT(x) (1 << x)
