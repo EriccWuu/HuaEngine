@@ -2,7 +2,6 @@
 #include "ImguiLayer.h"
 #include "imgui.h"
 
-#define IMGUI_IMPL_API
 #include "backends/imgui_impl_glfw.h"
 #include "backends/imgui_impl_opengl3.h"
 
@@ -194,8 +193,8 @@ namespace HE {
         Application& app = Application::GetInstance();
         auto window = static_cast<GLFWwindow*>(app.GetWindow().GetNativeWindow());
         ImGuiIO& io = ImGui::GetIO();
-        io.DisplaySize.x = app.GetWindow().GetWidth();
-        io.DisplaySize.y = app.GetWindow().GetHeight();
+        io.DisplaySize.x = (float)app.GetWindow().GetWidth();
+        io.DisplaySize.y = (float)app.GetWindow().GetHeight();
 
         // Rendering
         ImGui::Render();
