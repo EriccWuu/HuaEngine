@@ -13,6 +13,7 @@ namespace HE {
 
 	void LayerStack::PushLayer(Layer* layer) {
 		m_Layers.emplace(m_Layers.begin() + m_LayerInsertIdx, layer);
+		m_LayerInsertIdx++;
 	}
 
 	void LayerStack::PopLayer(Layer* layer) {
