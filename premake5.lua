@@ -23,8 +23,10 @@ include "Dependencies/imgui"
 
 project "HuaEngine"
     location "HuaEngine"
-    kind "SharedLib"
+    kind "StaticLib"
     language "C++"
+    cppdialect "C++17"
+    staticruntime "on"
 
     targetdir ("bin/" .. outputdir .. "/%{prj.name}")
     objdir ("bin-int/" .. outputdir .. "/%{prj.name}")
@@ -62,21 +64,19 @@ project "HuaEngine"
     }
 
     filter "system:windows"
-        cppdialect "C++17"
-        staticruntime "off"
         systemversion "latest"
     
         defines
         {
             "HE_PLATFORM_WINDOWS",
             "HE_BUILD_DLL",
-            "GLFW_INCLUDE_NONE"
+            "GLFW_INCLUDE_NONE",
+            "_CRT_SECURE_NO_WARNINGS"
         }
-
-        postbuildcommands
+        buildoptions
         {
-            "{MKDIR} ../bin/%{outputdir}/Sandbox",
-            "{COPY} %{cfg.targetdir}/%{prj.name}.dll ../bin/%{outputdir}/Sandbox/"
+            "/utf-8",
+            "/external:W0"
         }
 
     filter "configurations:Debug"
@@ -85,22 +85,24 @@ project "HuaEngine"
             "HE_ENABLE_ASSERTS"
         }
         runtime "Debug"
-        symbols "On"
+        symbols "on"
 
     filter "configurations:Release"
         defines "HE_RELEASE"
         runtime "Release"
-        optimize "On"
+        optimize "on"
     
     filter "configurations:Dist"
         defines "HE_DIST"
         runtime "Release"
-        optimize "On"
+        optimize "on"
 
 project "Sandbox"
     location "Sandbox"
     kind "ConsoleApp"
     language "C++"
+    cppdialect "C++17"
+    staticruntime "on"
 
     targetdir ("bin/" .. outputdir .. "/%{prj.name}")
     objdir ("bin-int/" .. outputdir .. "/%{prj.name}")
@@ -115,40 +117,41 @@ project "Sandbox"
     {
         "%{IncludeDirs.spdlog}",
         "HuaEngine/src",
-        "%{IncludeDirs.glm}"
+        "%{IncludeDirs.glm}",
+        "%{IncludeDirs.imgui}"
     }
 
     links
     {
-        "HuaEngine"
+        "HuaEngine",
+        "imgui"
     }
 
     buildoptions
     {
-        "/utf-8"
+        "/utf-8",
+        "/external:W0"
     }
 
     filter "system:windows"
-        cppdialect "C++17"
-        staticruntime "off"
         systemversion "latest"
-
         defines
-        {
             "HE_PLATFORM_WINDOWS"
-        }
 
     filter "configurations:Debug"
-        defines "HE_DEBUG"
+        defines {
+            "HE_DEBUG",
+            "HE_ENABLE_ASSERTS"
+        }
         runtime "Debug"
-        symbols "On"
+        symbols "on"
 
     filter "configurations:Release"
         defines "HE_RELEASE"
         runtime "Release"
-        optimize "On"
+        optimize "on"
     
     filter "configurations:Dist"
         defines "HE_DIST"
         runtime "Release"
-        optimize "On"
+        optimize "on"
