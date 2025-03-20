@@ -13,7 +13,7 @@ namespace HE {
 		uint32_t Width;
 		uint32_t Height;
 
-		WindowProps(const std::string& title = "Hazel Engine",
+		WindowProps(const std::string& title = "Hua Engine",
 			        uint32_t width = 1960,
 			        uint32_t height = 1080)
 			: Title(title), Width(width), Height(height)
