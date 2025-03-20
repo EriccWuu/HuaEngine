@@ -6,8 +6,8 @@ namespace HE {
 	public:
 		WindowResizeEvent(const unsigned int width, const unsigned int height): m_width(width), m_Height(height) {}
 
-		float GetWidth() const { return m_width; }
-		float GetHeight() const { return m_Height; }
+		float GetWidth() const { return (float)m_width; }
+		float GetHeight() const { return (float)m_Height; }
 
 		std::string ToString() {
 			std::stringstream ss;
