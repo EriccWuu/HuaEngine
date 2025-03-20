@@ -3,7 +3,6 @@
 
 namespace HE {
 	LayerStack::LayerStack() {
-		m_LayerInsert = m_Layers.begin();
 	}
 
 	LayerStack::~LayerStack() {
@@ -13,14 +12,15 @@ namespace HE {
 	}
 
 	void LayerStack::PushLayer(Layer* layer) {
-		m_LayerInsert = m_Layers.emplace(m_LayerInsert, layer);
+		m_Layers.emplace(m_Layers.begin() + m_LayerInsertIdx, layer);
 	}
 
 	void LayerStack::PopLayer(Layer* layer) {
-		auto it = std::find(m_Layers.begin(), m_Layers.end(), layer);
+		auto it = std::find(m_Layers.begin(), m_Layers.begin() + m_LayerInsertIdx, layer);
 		if (it != m_Layers.end()) {
+			layer->OnDetach();
 			m_Layers.erase(it);
-			m_LayerInsert--;
+			m_LayerInsertIdx--;
 		}
 	}
 
@@ -31,6 +31,7 @@ namespace HE {
 	void LayerStack::PopOverlay(Layer* overlay) {
 		auto it = std::find(m_Layers.begin(), m_Layers.end(), overlay);
 		if (it != m_Layers.end()) {
+			overlay->OnDetach();
 			m_Layers.erase(it);
 		}
 	}
