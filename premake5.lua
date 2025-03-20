@@ -15,6 +15,7 @@ IncludeDirs["spdlog"] = "Dependencies/spdlog/include"
 IncludeDirs["glfw"] = "Dependencies/glfw/include"
 IncludeDirs["glad"] = "Dependencies/glad/include"
 IncludeDirs["imgui"] = "Dependencies/imgui"
+IncludeDirs["glm"] = "Dependencies/glm"
 
 include "Dependencies/glfw"
 include "Dependencies/glad"
@@ -34,7 +35,8 @@ project "HuaEngine"
         "%{IncludeDirs.spdlog}",
         "%{IncludeDirs.glfw}",
         "%{IncludeDirs.glad}",
-        "%{IncludeDirs.imgui}"
+        "%{IncludeDirs.imgui}",
+        "%{IncludeDirs.glm}"
     }
 
     files
@@ -112,7 +114,8 @@ project "Sandbox"
     includedirs
     {
         "%{IncludeDirs.spdlog}",
-        "HuaEngine/src"
+        "HuaEngine/src",
+        "%{IncludeDirs.glm}"
     }
 
     links

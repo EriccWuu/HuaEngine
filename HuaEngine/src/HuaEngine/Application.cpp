@@ -2,8 +2,10 @@
 #include "Application.h"
 #include "Events/KeyEvent.h"
 #include "Events/ApplicationEvent.h"
+#include "Core/Input.h"
 
 #include "glad/glad.h"
+#include "glm/glm.hpp"
 
 namespace HE
 {

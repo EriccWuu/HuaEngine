@@ -34,6 +34,9 @@
     <ClInclude Include="src\HuaEngine\Core\Core.h">
       <Filter>HuaEngine\Core</Filter>
     </ClInclude>
+    <ClInclude Include="src\HuaEngine\Core\Input.h">
+      <Filter>HuaEngine\Core</Filter>
+    </ClInclude>
     <ClInclude Include="src\HuaEngine\Core\KeyCodes.h">
       <Filter>HuaEngine\Core</Filter>
     </ClInclude>
@@ -73,6 +76,9 @@
     <ClInclude Include="src\HuaEngine\Platform\OpenGL\ImGuiOpenGLRenderer.h">
       <Filter>HuaEngine\Platform\OpenGL</Filter>
     </ClInclude>
+    <ClInclude Include="src\HuaEngine\Platform\Windows\WindowsInput.h">
+      <Filter>HuaEngine\Platform\Windows</Filter>
+    </ClInclude>
     <ClInclude Include="src\HuaEngine\Platform\Windows\WindowsWindow.h">
       <Filter>HuaEngine\Platform\Windows</Filter>
     </ClInclude>
@@ -99,6 +105,9 @@
     </ClCompile>
     <ClCompile Include="src\HuaEngine\Platform\OpenGL\ImGuiOpenGLRenderer.cpp">
       <Filter>HuaEngine\Platform\OpenGL</Filter>
+    </ClCompile>
+    <ClCompile Include="src\HuaEngine\Platform\Windows\WindowsInput.cpp">
+      <Filter>HuaEngine\Platform\Windows</Filter>
     </ClCompile>
     <ClCompile Include="src\HuaEngine\Platform\Windows\WindowsWindow.cpp">
       <Filter>HuaEngine\Platform\Windows</Filter>
