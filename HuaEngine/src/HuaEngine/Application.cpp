@@ -18,6 +18,9 @@ namespace HE
 
 		m_Window = std::unique_ptr<Window>(Window::Create());
 		m_Window->SetEventCallback(BIND_EVENT_FUNC(Application::OnEvent));
+
+		m_GuiLayer = new ImguiLayer();
+		PushOverlay(m_GuiLayer);
 	}
 
 	Application::~Application()
@@ -45,6 +48,13 @@ namespace HE
 			for (auto layer : m_LayerStack) {
 				layer->OnUpdate();
 			}
+
+			m_GuiLayer->Begin();
+			for (auto layer : m_LayerStack) {
+				layer->OnGuiRender();
+			}
+			m_GuiLayer->End();
+
 			m_Window->OnUpdate();
 		}
 	}

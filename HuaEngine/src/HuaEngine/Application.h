@@ -2,6 +2,7 @@
 #include "Core/Core.h"
 #include "HuaEngine/Core/Window.h"
 #include "Core/LayerStack.h"
+#include "GUI/ImguiLayer.h"
 
 namespace HE
 {
@@ -25,6 +26,7 @@ namespace HE
 
 	private:
 		std::unique_ptr<Window> m_Window;
+		ImguiLayer* m_GuiLayer;
 		bool m_Running = true;
 		LayerStack m_LayerStack;
 		static Application* ms_Instance;
