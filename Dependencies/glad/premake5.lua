@@ -19,10 +19,6 @@ project "GLAD"
 
     filter "system:windows"
         systemversion "latest"
-        buildoptions
-        {
-            "/external:W0"
-        }
 
 	filter "configurations:Debug"
 		runtime "Debug"

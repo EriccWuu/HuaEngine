@@ -15,10 +15,6 @@ project "ImGui"
 
     filter "system:windows"
 		systemversion "latest"
-        buildoptions
-        {
-            "/external:W0"
-        }
 
 	filter "system:linux"
 		pic "On"

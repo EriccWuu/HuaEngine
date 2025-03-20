@@ -103,15 +103,10 @@ project "GLFW"
 		symbols "on"
 		sanitize { "Address" }
 		flags { "NoRuntimeChecks", "NoIncrementalLink" }
-        buildoptions
-        {
-            "/external:W0"
-        }
 
 	filter "configurations:Debug"
 		runtime "Debug"
 		symbols "on"
-
 
 	filter "configurations:Release"
 		runtime "Release"

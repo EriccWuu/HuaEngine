@@ -75,8 +75,7 @@ project "HuaEngine"
         }
         buildoptions
         {
-            "/utf-8",
-            "/external:W0"
+            "/utf-8"
         }
 
     filter "configurations:Debug"
@@ -129,8 +128,7 @@ project "Sandbox"
 
     buildoptions
     {
-        "/utf-8",
-        "/external:W0"
+        "/utf-8"
     }
 
     filter "system:windows"
