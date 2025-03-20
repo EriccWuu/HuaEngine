@@ -11,20 +11,10 @@ namespace HE {
 		ImguiLayer(): Layer("ImGuiLayer") {}
 		~ImguiLayer() {}
 
-		void OnUpdate() override;
-		void OnEvent(Event& e) override;
-		void OnAttach() override;
-		void OnDetach() override;
-	private:
-		float m_Time = 0.f;
-
-		bool OnMouseButtonPressed(MouseButtonPressedEvent& e);
-		bool OnMouseButtonReleased(MouseButtonReleasedEvent& e);
-		bool OnMouseMoved(MouseMovedEvent& e);
-		bool OnMouseScrolled(MouseScrolledEvent& e);
-		bool OnKeyPressed(KeyPressedEvent& e);
-		bool OnKeyReleased(KeyReleasedEvent& e);
-		bool OnKeyTyped(KeyTypedEvent& e);
-		bool OnWindowResized(WindowResizeEvent& e);
+		virtual void OnAttach() override;
+		virtual void OnDetach() override;
+		virtual void OnGuiRender() override;
+		void Begin();
+		void End();
 	};
 }
