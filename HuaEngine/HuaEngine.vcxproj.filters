@@ -10,8 +10,14 @@
     <Filter Include="HuaEngine\Events">
       <UniqueIdentifier>{BD7F720C-A978-915E-D2AA-76E3BE02716A}</UniqueIdentifier>
     </Filter>
+    <Filter Include="HuaEngine\GUI">
+      <UniqueIdentifier>{8DB95774-F979-D3AA-C2B4-1C282E341887}</UniqueIdentifier>
+    </Filter>
     <Filter Include="HuaEngine\Platform">
       <UniqueIdentifier>{6D6A2F0F-594E-F064-C2AE-EAB7AEB1DAE6}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="HuaEngine\Platform\OpenGL">
+      <UniqueIdentifier>{0177D800-6D39-0C8B-B6E9-9A1722EBE468}</UniqueIdentifier>
     </Filter>
     <Filter Include="HuaEngine\Platform\Windows">
       <UniqueIdentifier>{A7310374-9341-AF44-FCFA-1363E8299EDD}</UniqueIdentifier>
@@ -43,6 +49,9 @@
     <ClInclude Include="src\HuaEngine\Core\MouseCodes.h">
       <Filter>HuaEngine\Core</Filter>
     </ClInclude>
+    <ClInclude Include="src\HuaEngine\Core\Window.h">
+      <Filter>HuaEngine\Core</Filter>
+    </ClInclude>
     <ClInclude Include="src\HuaEngine\EntryPoint.h">
       <Filter>HuaEngine</Filter>
     </ClInclude>
@@ -58,11 +67,14 @@
     <ClInclude Include="src\HuaEngine\Events\MouseEvent.h">
       <Filter>HuaEngine\Events</Filter>
     </ClInclude>
+    <ClInclude Include="src\HuaEngine\GUI\ImguiLayer.h">
+      <Filter>HuaEngine\GUI</Filter>
+    </ClInclude>
+    <ClInclude Include="src\HuaEngine\Platform\OpenGL\ImGuiOpenGLRenderer.h">
+      <Filter>HuaEngine\Platform\OpenGL</Filter>
+    </ClInclude>
     <ClInclude Include="src\HuaEngine\Platform\Windows\WindowsWindow.h">
       <Filter>HuaEngine\Platform\Windows</Filter>
-    </ClInclude>
-    <ClInclude Include="src\HuaEngine\Window.h">
-      <Filter>HuaEngine</Filter>
     </ClInclude>
     <ClInclude Include="src\enginepch.h" />
   </ItemGroup>
@@ -79,11 +91,17 @@
     <ClCompile Include="src\HuaEngine\Core\Log.cpp">
       <Filter>HuaEngine\Core</Filter>
     </ClCompile>
+    <ClCompile Include="src\HuaEngine\Core\Window.cpp">
+      <Filter>HuaEngine\Core</Filter>
+    </ClCompile>
+    <ClCompile Include="src\HuaEngine\GUI\ImguiLayer.cpp">
+      <Filter>HuaEngine\GUI</Filter>
+    </ClCompile>
+    <ClCompile Include="src\HuaEngine\Platform\OpenGL\ImGuiOpenGLRenderer.cpp">
+      <Filter>HuaEngine\Platform\OpenGL</Filter>
+    </ClCompile>
     <ClCompile Include="src\HuaEngine\Platform\Windows\WindowsWindow.cpp">
       <Filter>HuaEngine\Platform\Windows</Filter>
-    </ClCompile>
-    <ClCompile Include="src\HuaEngine\Window.cpp">
-      <Filter>HuaEngine</Filter>
     </ClCompile>
     <ClCompile Include="src\enginepch.cpp" />
   </ItemGroup>

@@ -11,10 +11,14 @@ workspace "HuaEngine"
 outputdir = "%{cfg.buildcfg}-%{cfg.system}-%{cfg.architecture}"
 
 IncludeDirs = {}
-IncludeDirs["glfw"] = "Dependencies/glfw"
-IncludeDirs["spdlog"] = "Dependencies/spdlog"
+IncludeDirs["spdlog"] = "Dependencies/spdlog/include"
+IncludeDirs["glfw"] = "Dependencies/glfw/include"
+IncludeDirs["glad"] = "Dependencies/glad/include"
+IncludeDirs["imgui"] = "Dependencies/imgui"
 
 include "Dependencies/glfw"
+include "Dependencies/glad"
+include "Dependencies/imgui"
 
 project "HuaEngine"
     location "HuaEngine"
@@ -27,8 +31,10 @@ project "HuaEngine"
     includedirs
     {
         "%{prj.name}/src",
-        "%{IncludeDirs.spdlog}/include",
-        "%{IncludeDirs.glfw}/include"
+        "%{IncludeDirs.spdlog}",
+        "%{IncludeDirs.glfw}",
+        "%{IncludeDirs.glad}",
+        "%{IncludeDirs.imgui}"
     }
 
     files
@@ -40,6 +46,8 @@ project "HuaEngine"
     links
     {
         "GLFW",
+        "GLAD",
+        "ImGui",
         "opengl32.lib"
     }
 
@@ -59,7 +67,8 @@ project "HuaEngine"
         defines
         {
             "HE_PLATFORM_WINDOWS",
-            "HE_BUILD_DLL"
+            "HE_BUILD_DLL",
+            "GLFW_INCLUDE_NONE"
         }
 
         postbuildcommands
@@ -69,7 +78,10 @@ project "HuaEngine"
         }
 
     filter "configurations:Debug"
-        defines "HE_DEBUG"
+        defines {
+            "HE_DEBUG",
+            "HE_ENABLE_ASSERTS"
+        }
         runtime "Debug"
         symbols "On"
 
@@ -99,7 +111,7 @@ project "Sandbox"
 
     includedirs
     {
-        "%{IncludeDirs.spdlog}/include",
+        "%{IncludeDirs.spdlog}",
         "HuaEngine/src"
     }
 

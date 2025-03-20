@@ -5,9 +5,12 @@
 #include "HuaEngine/Events/MouseEvent.h"
 #include "HuaEngine/Events/KeyEvent.h"
 
+#include "glad/glad.h"
+
 namespace HE {
 	
 	static uint8_t ms_GLFWWindowCount = 0;
+	static bool ms_GLFWInitialized = false;
 
 	static void GLFWErrorCallback(int error, const char* description)
 	{
@@ -32,21 +35,17 @@ namespace HE {
 
 		HE_CORE_INFO("Creating window {0} ({1}, {2})", props.Title, props.Width, props.Height);
 
-		if (ms_GLFWWindowCount == 0)
-		{
+		if (!ms_GLFWInitialized) {
 			int success = glfwInit();
 			HE_CORE_ASSERT(success, "Could not initialize GLFW!");
 			glfwSetErrorCallback(GLFWErrorCallback);
+			ms_GLFWInitialized = true;
 		}
 
-		{
-		#if defined(HZ_DEBUG)
-			if (Renderer::GetAPI() == RendererAPI::API::OpenGL)
-				glfwWindowHint(GLFW_OPENGL_DEBUG_CONTEXT, GLFW_TRUE);
-		#endif
-			m_Window = glfwCreateWindow((int)props.Width, (int)props.Height, m_Data.Title.c_str(), nullptr, nullptr);
-			++ms_GLFWWindowCount;
-		}
+		m_Window = glfwCreateWindow((int)props.Width, (int)props.Height, m_Data.Title.c_str(), nullptr, nullptr);
+		glfwMakeContextCurrent(m_Window);
+		int status = gladLoadGLLoader((GLADloadproc)glfwGetProcAddress);
+		HE_CORE_ASSERT(status, "Failed to initialize Glad!");  
 
 		glfwSetWindowUserPointer(m_Window, &m_Data);
 		SetVSync(true);
@@ -137,6 +136,12 @@ namespace HE {
 					break;
 				}
 			}
+		});
+
+		glfwSetCharCallback(m_Window, [](GLFWwindow* window, unsigned int codepoint) {
+			WindowData& data = *(WindowData*)glfwGetWindowUserPointer(window);
+			auto event = KeyTypedEvent(codepoint);
+			data.EventCallback(event);
 		});
 	}
 
