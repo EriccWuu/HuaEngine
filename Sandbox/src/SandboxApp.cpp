@@ -4,7 +4,7 @@
 class SandboxApp : public HE::Application {
 public:
 	SandboxApp() {
-		PushLayer(new HE::ImguiLayer());
+
 	}
 
 	~SandboxApp() {
