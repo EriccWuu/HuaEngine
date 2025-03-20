@@ -1,4 +1,5 @@
 #pragma once
+
 #include "Event.h"
 #include "HuaEngine/Core/MouseCodes.h"
 
@@ -12,7 +13,7 @@ namespace HE {
 
 		std::string ToString() const override {
 			std::stringstream ss;
-			ss << "MouseMovedEvent£º Position (" << m_x << ", " << m_y << ")";
+			ss << "MouseMovedEventï¿½ï¿½ Position (" << m_x << ", " << m_y << ")";
 			return ss.str();
 		}
 
@@ -32,7 +33,7 @@ namespace HE {
 
 		std::string ToString() const override {
 			std::stringstream ss;
-			ss << "MouseScrolledEvent£º Offset (" << m_xoffset << ", " << m_yoffset << ")";
+			ss << "MouseScrolledEventï¿½ï¿½ Offset (" << m_xoffset << ", " << m_yoffset << ")";
 			return ss.str();
 		}
 
@@ -61,7 +62,7 @@ namespace HE {
 
 		std::string ToString() const override {
 			std::stringstream ss;
-			ss << "MouseButtonPressedEvent£º MouseCode " << m_Code;
+			ss << "MouseButtonPressedEventï¿½ï¿½ MouseCode " << m_Code;
 			return ss.str();
 		}
 
@@ -74,7 +75,7 @@ namespace HE {
 
 		std::string ToString() const override {
 			std::stringstream ss;
-			ss << "MouseButtonReleasedEvent£º MouseCode " << m_Code;
+			ss << "MouseButtonReleasedEventï¿½ï¿½ MouseCode " << m_Code;
 			return ss.str();
 		}
 
