@@ -16,9 +16,6 @@
     <Filter Include="HuaEngine\Platform">
       <UniqueIdentifier>{6D6A2F0F-594E-F064-C2AE-EAB7AEB1DAE6}</UniqueIdentifier>
     </Filter>
-    <Filter Include="HuaEngine\Platform\OpenGL">
-      <UniqueIdentifier>{0177D800-6D39-0C8B-B6E9-9A1722EBE468}</UniqueIdentifier>
-    </Filter>
     <Filter Include="HuaEngine\Platform\Windows">
       <UniqueIdentifier>{A7310374-9341-AF44-FCFA-1363E8299EDD}</UniqueIdentifier>
     </Filter>
@@ -73,9 +70,6 @@
     <ClInclude Include="src\HuaEngine\GUI\ImguiLayer.h">
       <Filter>HuaEngine\GUI</Filter>
     </ClInclude>
-    <ClInclude Include="src\HuaEngine\Platform\OpenGL\ImGuiOpenGLRenderer.h">
-      <Filter>HuaEngine\Platform\OpenGL</Filter>
-    </ClInclude>
     <ClInclude Include="src\HuaEngine\Platform\Windows\WindowsInput.h">
       <Filter>HuaEngine\Platform\Windows</Filter>
     </ClInclude>
@@ -100,11 +94,11 @@
     <ClCompile Include="src\HuaEngine\Core\Window.cpp">
       <Filter>HuaEngine\Core</Filter>
     </ClCompile>
-    <ClCompile Include="src\HuaEngine\GUI\ImguiLayer.cpp">
+    <ClCompile Include="src\HuaEngine\GUI\ImguiBuild.cpp">
       <Filter>HuaEngine\GUI</Filter>
     </ClCompile>
-    <ClCompile Include="src\HuaEngine\Platform\OpenGL\ImGuiOpenGLRenderer.cpp">
-      <Filter>HuaEngine\Platform\OpenGL</Filter>
+    <ClCompile Include="src\HuaEngine\GUI\ImguiLayer.cpp">
+      <Filter>HuaEngine\GUI</Filter>
     </ClCompile>
     <ClCompile Include="src\HuaEngine\Platform\Windows\WindowsInput.cpp">
       <Filter>HuaEngine\Platform\Windows</Filter>

@@ -175,7 +175,6 @@ IF EXIST ..\bin\Dist-windows-x86_64\HuaEngine\$(ProjectName).dll\ (xcopy /Q /E /
     <ClInclude Include="src\HuaEngine\Events\KeyEvent.h" />
     <ClInclude Include="src\HuaEngine\Events\MouseEvent.h" />
     <ClInclude Include="src\HuaEngine\GUI\ImguiLayer.h" />
-    <ClInclude Include="src\HuaEngine\Platform\OpenGL\ImGuiOpenGLRenderer.h" />
     <ClInclude Include="src\HuaEngine\Platform\Windows\WindowsInput.h" />
     <ClInclude Include="src\HuaEngine\Platform\Windows\WindowsWindow.h" />
     <ClInclude Include="src\enginepch.h" />
@@ -186,8 +185,8 @@ IF EXIST ..\bin\Dist-windows-x86_64\HuaEngine\$(ProjectName).dll\ (xcopy /Q /E /
     <ClCompile Include="src\HuaEngine\Core\LayerStack.cpp" />
     <ClCompile Include="src\HuaEngine\Core\Log.cpp" />
     <ClCompile Include="src\HuaEngine\Core\Window.cpp" />
+    <ClCompile Include="src\HuaEngine\GUI\ImguiBuild.cpp" />
     <ClCompile Include="src\HuaEngine\GUI\ImguiLayer.cpp" />
-    <ClCompile Include="src\HuaEngine\Platform\OpenGL\ImGuiOpenGLRenderer.cpp" />
     <ClCompile Include="src\HuaEngine\Platform\Windows\WindowsInput.cpp" />
     <ClCompile Include="src\HuaEngine\Platform\Windows\WindowsWindow.cpp" />
     <ClCompile Include="src\enginepch.cpp">
