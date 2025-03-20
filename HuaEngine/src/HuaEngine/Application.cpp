@@ -44,7 +44,7 @@ namespace HE
 		{
 			glClearColor(1, 0, 0, 1);
 			glClear(GL_COLOR_BUFFER_BIT);
-
+			
 			for (auto layer : m_LayerStack) {
 				layer->OnUpdate();
 			}
@@ -70,7 +70,7 @@ namespace HE
 	}
 
 	void Application::PushOverlay(Layer* layer) {
-		m_LayerStack.PushLayer(layer);
+		m_LayerStack.PushOverlay(layer);
 		layer->OnAttach();
 	}
 }
