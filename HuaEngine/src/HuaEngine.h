@@ -5,8 +5,17 @@
 #include "HuaEngine/Core/Layer.h"
 #include "HuaEngine/Core/Input.h"
 
+// UI
 #include "HuaEngine/GUI/ImguiLayer.h"
+#include "imgui.h"
+
+// Render
+#include "HuaEngine/Renderer/Renderer.h"
+#include "HuaEngine/Renderer/VertexBuffer.h"
+#include "HuaEngine/Renderer/IndexBuffer.h"
+#include "HuaEngine/Renderer/VertexArray.h"
+#include "HuaEngine/Renderer/Shader.h"
 
 #include "HuaEngine/EntryPoint.h"  
 
-#include "imgui.h"
+
