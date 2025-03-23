@@ -1,13 +1,14 @@
 #include "enginepch.h"
 #include "HuaEngine/Platform/Windows/WindowsWindow.h"
+#include "HuaEngine/Platform/OpenGL/OpenGLContext.h"
+#include "HuaEngine/Platform/OpenGL/OpenGLShader.h"
 
 #include "HuaEngine/Events/ApplicationEvent.h"
 #include "HuaEngine/Events/MouseEvent.h"
 #include "HuaEngine/Events/KeyEvent.h"
 
-#include "glad/glad.h"
-
 namespace HE {
+	unsigned int shaderProgram;
 	
 	static uint8_t ms_GLFWWindowCount = 0;
 	static bool ms_GLFWInitialized = false;
@@ -43,9 +44,9 @@ namespace HE {
 		}
 
 		m_Window = glfwCreateWindow((int)props.Width, (int)props.Height, m_Data.Title.c_str(), nullptr, nullptr);
-		glfwMakeContextCurrent(m_Window);
-		int status = gladLoadGLLoader((GLADloadproc)glfwGetProcAddress);
-		HE_CORE_ASSERT(status, "Failed to initialize Glad!");  
+
+		m_Context = new OpenGLContext(m_Window);
+		m_Context->Init();
 
 		glfwSetWindowUserPointer(m_Window, &m_Data);
 		SetVSync(true);
@@ -74,12 +75,12 @@ namespace HE {
 		glfwSetWindowFocusCallback(m_Window, [](GLFWwindow* window, int focused) {
 			WindowData& data = *(WindowData*)glfwGetWindowUserPointer(window);
 			switch (focused) {
-				case GL_TRUE: {
+				case GLFW_TRUE: {
 					auto event = WindowFocusEvent();
 					data.EventCallback(event);
 					break;
 				}
-				case GL_FALSE: {
+				case GLFW_FALSE: {
 					auto event = WindowLostFocusEvent();
 					data.EventCallback(event);
 					break;
@@ -159,7 +160,7 @@ namespace HE {
 	void WindowsWindow::OnUpdate()
 	{
 		glfwPollEvents();
-		glfwSwapBuffers(m_Window);
+		m_Context->SwapBuffers();
 	}
 
 	void WindowsWindow::SetVSync(bool enabled)

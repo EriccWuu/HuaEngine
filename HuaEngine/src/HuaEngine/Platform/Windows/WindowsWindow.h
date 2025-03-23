@@ -1,6 +1,7 @@
 #pragma once
 
 #include "HuaEngine/Core/Window.h"
+#include "HuaEngine/Renderer/RenderContext.h"
 #include <GLFW/glfw3.h>
 
 namespace HE {
@@ -22,9 +23,13 @@ namespace HE {
 		bool IsVSync() const override;
 
 		virtual void* GetNativeWindow() const { return m_Window; }
+
 	private:
 		virtual void Init(const WindowProps& props);
 		virtual void Shutdown();
+
+		RenderContext* m_Context;
+
 	private:
 		GLFWwindow* m_Window;
 
