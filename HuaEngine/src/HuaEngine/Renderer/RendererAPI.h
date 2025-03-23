@@ -1,0 +1,23 @@
+#pragma once
+#include "VertexArray.h"
+#include "glm/glm.hpp"
+
+namespace HE {
+	class RendererAPI {
+	public:
+		enum class API {
+			None = 0,
+			OpenGL = 1
+		};
+
+		inline static API GetAPI() { return m_API; }
+		static RendererAPI* Create();
+
+		virtual void DrawIndexed(const std::shared_ptr<VertexArray>& vertexArray) = 0;
+		virtual void SetClearColor(const glm::vec4& clearColor) = 0;
+		virtual void Clear() = 0;
+
+	private:
+		static API m_API;
+	};
+}
