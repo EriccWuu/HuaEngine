@@ -3,9 +3,8 @@
 #include "Events/KeyEvent.h"
 #include "Events/ApplicationEvent.h"
 #include "Core/Input.h"
-
-#include "glad/glad.h"
-#include "glm/glm.hpp"
+#include "Renderer/Renderer.h"
+#include "Renderer/RenderCommand.h"
 
 namespace HE
 {
@@ -42,9 +41,9 @@ namespace HE
 	{
 		while (m_Running)
 		{
-			glClearColor(1, 0, 0, 1);
-			glClear(GL_COLOR_BUFFER_BIT);
-			
+			RenderCommand::SetClearColor({ 0.1f, 0.1f, 0.1f, 1.0f });
+			RenderCommand::Clear();
+
 			for (auto layer : m_LayerStack) {
 				layer->OnUpdate();
 			}

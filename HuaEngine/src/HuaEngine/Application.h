@@ -1,8 +1,8 @@
 #pragma once
-#include "Core/Core.h"
+#include "HuaEngine/Core/Core.h"
 #include "HuaEngine/Core/Window.h"
-#include "Core/LayerStack.h"
-#include "GUI/ImguiLayer.h"
+#include "HuaEngine/Core/LayerStack.h"
+#include "HuaEngine/GUI/ImguiLayer.h"
 
 namespace HE
 {
