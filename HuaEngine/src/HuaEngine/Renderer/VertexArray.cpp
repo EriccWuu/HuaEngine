@@ -4,7 +4,7 @@
 #include "HuaEngine/Platform/OpenGL/OpenGLVertexArray.h"
 
 namespace HE {
-	VertexArray* VertexArray::Create()
+	Ref<VertexArray> VertexArray::Create()
 	{
 		switch (RendererAPI::GetAPI()) {
 		case RendererAPI::API::None: {
@@ -12,7 +12,7 @@ namespace HE {
 			return nullptr;
 		}
 		case RendererAPI::API::OpenGL: {
-			return new OpenGLVertexArray();
+			return std::make_shared<OpenGLVertexArray>();
 		}
 		}
 		HE_CORE_ASSERT(false, "Create vertex array failed!");

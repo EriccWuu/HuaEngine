@@ -3,6 +3,10 @@
 #include "RenderCommand.h"
 
 namespace HE {
+	void Renderer::Init() {
+		RenderCommand::Init();
+	}
+
 	void Renderer::Begin() {
 
 	}
@@ -11,7 +15,7 @@ namespace HE {
 
 	}
 
-	void Renderer::Submit(const std::shared_ptr<VertexArray>& vertexArray) {
+	void Renderer::Submit(const Ref<VertexArray>& vertexArray) {
 		vertexArray->Bind();
 		RenderCommand::DrawIndexed(vertexArray);
 	}

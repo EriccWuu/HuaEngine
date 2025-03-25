@@ -6,8 +6,9 @@ namespace HE {
 
 	class Renderer {
 	public:
+		static void Init();
 		static void Begin();
 		static void End();
-		static void Submit(const std::shared_ptr<VertexArray>& vaertexArray);
+		static void Submit(const Ref<VertexArray>& vaertexArray);
 	};
 }

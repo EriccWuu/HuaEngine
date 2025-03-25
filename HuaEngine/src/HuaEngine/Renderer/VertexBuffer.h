@@ -94,7 +94,7 @@ namespace HE {
 	class VertexBuffer : public Buffer {
 	public:
 		virtual ~VertexBuffer() {}
-		static VertexBuffer* Create(float* vertices, uint32_t size);
+		static Ref<VertexBuffer> Create(float* vertices, uint32_t size);
 		virtual inline void SetLayout(BufferLayout& layout) = 0;
 		virtual inline const BufferLayout& GetLayout() const = 0;
 	};

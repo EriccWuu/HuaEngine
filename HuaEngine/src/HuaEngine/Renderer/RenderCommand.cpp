@@ -4,6 +4,10 @@
 namespace HE {
 	RendererAPI* RenderCommand::m_RendererAPI = RendererAPI::Create();
 
+	void RenderCommand::Init() {
+		m_RendererAPI->Init();
+	}
+
 	void RenderCommand::Clear() {
 		m_RendererAPI->Clear();
 	}
@@ -12,7 +16,7 @@ namespace HE {
 		m_RendererAPI->SetClearColor(clearColor);
 	}
 
-	void RenderCommand::DrawIndexed(const std::shared_ptr<VertexArray>& vertexArray) {
+	void RenderCommand::DrawIndexed(const Ref<VertexArray>& vertexArray) {
 		m_RendererAPI->DrawIndexed(vertexArray);
 	}
 

@@ -1,5 +1,7 @@
 #pragma once
 
+#include <memory>
+
 #ifdef HE_PLATFORM_WINDOWS
 	#ifdef HE_DYNAMIC_BUILD
 		#ifdef HE_BUILD_DLL
@@ -17,3 +19,11 @@
 #define BIT(x) (1 << x)
 
 #define BIND_EVENT_FUNC(x) std::bind(&x, this, std::placeholders::_1)
+
+namespace HE {
+	template<typename T>
+	using Ref = std::shared_ptr<T>;
+
+	template<typename T>
+	using Scope = std::unique_ptr<T>;
+}

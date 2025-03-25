@@ -4,9 +4,10 @@
 namespace HE {
 	class RenderCommand {
 	public:
+		static void Init();
 		static void Clear();
 		static void SetClearColor(const glm::vec4& clearColor);
-		static void DrawIndexed(const std::shared_ptr<VertexArray>& vaertexArray);
+		static void DrawIndexed(const Ref<VertexArray>& vaertexArray);
 
 	private:
 		static RendererAPI* m_RendererAPI;

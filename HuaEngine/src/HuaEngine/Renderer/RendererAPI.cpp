@@ -18,4 +18,7 @@ namespace HE {
 		HE_CORE_ASSERT(false, "No matching graphic API!");
 		return nullptr;
 	}
+	void RendererAPI::Init()
+	{
+	}
 }

@@ -4,7 +4,7 @@
 #include "HuaEngine/Platform/OpenGL/OpenGLIndexBuffer.h"
 
 namespace HE {
-	IndexBuffer* IndexBuffer::Create(uint32_t* indices, uint32_t count)
+	Ref<IndexBuffer> IndexBuffer::Create(uint32_t* indices, uint32_t count)
 	{
 		switch (RendererAPI::GetAPI()) {
 		case RendererAPI::API::None: {
@@ -12,7 +12,7 @@ namespace HE {
 				return nullptr;
 			}
 			case RendererAPI::API::OpenGL: {
-				return new OpenGLIndexBuffer(indices, count);
+				return std::make_shared<OpenGLIndexBuffer>(indices, count);
 			}
 		}
 		HE_CORE_ASSERT(false, "Create index buffer failed!");

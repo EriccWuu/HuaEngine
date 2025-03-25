@@ -5,7 +5,8 @@
 namespace HE {
 	class OpenGLRendererAPI : public RendererAPI {
 	public:
-		virtual void DrawIndexed(const std::shared_ptr<VertexArray>& vertexArray) override;
+		virtual void Init() override;
+		virtual void DrawIndexed(const Ref<VertexArray>& vertexArray) override;
 		virtual void SetClearColor(const glm::vec4& clearColor) override;
 		virtual void Clear() override;
 	};
