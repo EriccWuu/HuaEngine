@@ -14,3 +14,4 @@
 
 #include "HuaEngine/Core/Log.h"
 #include "HuaEngine/Core/Assert.h"
+#include "HuaEngine/Profiling/Profiler.h"

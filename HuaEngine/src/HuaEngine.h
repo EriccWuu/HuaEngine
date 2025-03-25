@@ -15,6 +15,7 @@
 #include "HuaEngine/Renderer/IndexBuffer.h"
 #include "HuaEngine/Renderer/VertexArray.h"
 #include "HuaEngine/Renderer/Shader.h"
+#include "HuaEngine/Renderer/Texture.h"
 
 #include "HuaEngine/EntryPoint.h"  
 
