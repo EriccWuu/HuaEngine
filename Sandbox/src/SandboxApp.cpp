@@ -2,90 +2,34 @@
 #include <HuaEngine.h>
 
 #include "HuaEngine/Platform/OpenGL/OpenGLShader.h"
+#include "HuaEngine/Platform/OpenGL/OpenGLTexture2D.h"
 
 using namespace HE;
 
 class CustomLayer : public HE::Layer {
 public:
 	CustomLayer(): Layer("CumsomLayer") {
-		float vertices[3 * 7] = {
-			-0.5f, -0.5f, 0.0f, 1.f, 0.0f, 0.0f, 0.0f,
-			0.0f, 0.5f, 0.0f, 0.0f, 1.0f, 0.0f, 0.0f,
-			0.5f, -0.5f, 0.0f, 0.0f, 0.0f, 1.0f, 0.0f
-		};
-
-		unsigned int indices[3] = {
-			0, 1, 2
-		};
-
-		m_VertexArray.reset(VertexArray::Create());
-
-		std::shared_ptr<VertexBuffer> vertexBuffer;
-		vertexBuffer.reset(VertexBuffer::Create(vertices, sizeof(vertices)));
-		std::shared_ptr<IndexBuffer> indexBuffer;
-		indexBuffer.reset(IndexBuffer::Create(indices, sizeof(indices) / sizeof(uint32_t)));
-
-		BufferLayout layout = {
-		{ ShaderDataType::Float3, "aPos" },
-		{ ShaderDataType::Float4, "aColor" }
-		};
-
-		vertexBuffer->SetLayout(layout);
-
-		m_VertexArray->AddVertexBuffer(vertexBuffer);
-		m_VertexArray->SetIndexBuffer(indexBuffer);
-
-		std::string vertexSource = R"(
-			#version 330 core
-
-			layout(location = 0) in vec3 aPos;
-			layout(location = 1) in vec4 aColor;
-
-			out vec3 vPos;
-			out vec4 vColor;
-
-			void main() {
-				vPos = aPos;
-				vColor = aColor;
-				gl_Position = vec4(aPos, 1.0);
-			}
-		)";
-
-		std::string fragmentSource = R"(
-			#version 330 core
-
-			out vec4 FragColor;
-			in vec3 vPos;
-			in vec4 vColor;
-
-			void main() {
-				FragColor = vec4(vPos + 0.5, 1.0);
-				FragColor = vColor;
-			}
-		)";
-
-		m_Shader.reset(new OpenGLShader(vertexSource, fragmentSource));
-
-		float squareVertices[4 * 3] = {
-			-0.8f, -0.8f, 0.0f,
-			 0.8f, -0.8f, 0.0f,
-			 0.8f,  0.8f, 0.0f,
-			-0.8f,  0.8f, 0.0f
+		float squareVertices[4 * 5] = {
+			-0.8f, -0.8f, 0.0f, 0.0 , 0.0,
+			 0.8f, -0.8f, 0.0f, 1.0 , 0.0,
+			 0.8f,  0.8f, 0.0f, 1.0 , 1.0,
+			-0.8f,  0.8f, 0.0f, 0.0 , 1.0
 		};
 
 		unsigned int squareIndices[6] = {
 			0, 1, 2, 2, 3, 0
 		};
 
-		m_SquareVA.reset(VertexArray::Create());
+		m_SquareVA = VertexArray::Create();
 
-		std::shared_ptr<VertexBuffer> squareVertexBuffer;
-		squareVertexBuffer.reset(VertexBuffer::Create(squareVertices, sizeof(squareVertices)));
-		std::shared_ptr<IndexBuffer> squareIndexBuffer;
-		squareIndexBuffer.reset(IndexBuffer::Create(squareIndices, sizeof(squareIndices) / sizeof(uint32_t)));
+		Ref<VertexBuffer> squareVertexBuffer;
+		squareVertexBuffer = VertexBuffer::Create(squareVertices, sizeof(squareVertices));
+		Ref<IndexBuffer> squareIndexBuffer;
+		squareIndexBuffer = IndexBuffer::Create(squareIndices, sizeof(squareIndices) / sizeof(uint32_t));
 
 		BufferLayout squareLayout = {
-			{ ShaderDataType::Float3, "aPos" }
+			{ ShaderDataType::Float3, "aPosition" },
+			{ ShaderDataType::Float2, "aTexCoord" }
 		};
 
 		squareVertexBuffer->SetLayout(squareLayout);
@@ -96,13 +40,16 @@ public:
 		std::string squareVS = R"(
 			#version 330 core
 
-			layout(location = 0) in vec3 aPos;
+			layout(location = 0) in vec3 aPosition;
+			layout(location = 1) in vec2 aTexCoord;
 
-			out vec3 vPos;
+			out vec3 vPosition;
+			out vec2 vTexCoord;
 
 			void main() {
-				vPos = aPos;
-				gl_Position = vec4(aPos, 1.0);
+				vPosition = aPosition;
+				vTexCoord = aTexCoord;
+				gl_Position = vec4(aPosition, 1.0);
 			}
 		)";
 
@@ -110,14 +57,21 @@ public:
 			#version 330 core
 
 			out vec4 FragColor;
-			in vec3 vPos;
+			in vec3 vPosition;
+			in vec2 vTexCoord;
+
+			uniform sampler2D uTexture;
 
 			void main() {
-				FragColor = vec4(0.2, 0.3, 0.8, 1.0);
+				FragColor = texture(uTexture, vTexCoord);
 			}
 		)";
 
 		m_SquareShader.reset(new OpenGLShader(squareVS, squareFS));
+
+		m_Texture = Texture2D::Create("assets/textures/hutao.png");
+		m_Texture->Bind(0);
+		std::dynamic_pointer_cast<OpenGLShader>(m_SquareShader)->UploadUniformInt("uTexture", 0);
 	}
 
 	void OnUpdate() override {
@@ -126,16 +80,13 @@ public:
 		m_SquareShader->Bind();
 		Renderer::Submit(m_SquareVA);
 
-		m_Shader->Bind();
-		Renderer::Submit(m_VertexArray);
-
 		Renderer::End();
 	}
 
 private:
-	std::shared_ptr<Shader> m_Shader;
-	std::shared_ptr<Shader> m_SquareShader;
-	std::shared_ptr<VertexArray> m_VertexArray, m_SquareVA;
+	Ref<Shader> m_SquareShader;
+	Ref<VertexArray> m_SquareVA;
+	Ref<Texture2D> m_Texture;
 };
 
 class SandboxApp : public HE::Application {
