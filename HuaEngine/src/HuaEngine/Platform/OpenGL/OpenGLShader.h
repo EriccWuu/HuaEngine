@@ -11,6 +11,8 @@ namespace HE {
 		virtual void Bind() override;
 		virtual void Unbind() override;
 
+		void UploadUniformInt(const std::string name, uint32_t value);
+
 	private:
 		unsigned int m_Program;
 		unsigned int m_FragShader, m_VertShader;

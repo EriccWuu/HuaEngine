@@ -125,6 +125,11 @@ namespace HE {
 	void OpenGLShader::Unbind() {
 
 	}
+
+	void OpenGLShader::UploadUniformInt(const std::string name, uint32_t value) {
+		GLint location = glGetUniformLocation(m_Program, name.c_str());
+		glUniform1i(location, value);
+	}
 }
 
 
