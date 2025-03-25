@@ -1,198 +1,237 @@
 ﻿<?xml version="1.0" encoding="utf-8"?>
 <Project ToolsVersion="4.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
   <ItemGroup>
-    <Filter Include="HuaEngine">
-      <UniqueIdentifier>{F965F882-65D0-ACF9-AE0E-5E9F1AB88A4E}</UniqueIdentifier>
+    <Filter Include="Dependencies">
+      <UniqueIdentifier>{6C01343A-5864-C3DE-01EA-FB94ED2B8F61}</UniqueIdentifier>
     </Filter>
-    <Filter Include="HuaEngine\Core">
-      <UniqueIdentifier>{F12D4DFF-DDFB-4005-C68F-B12BB2FC1C6A}</UniqueIdentifier>
+    <Filter Include="Dependencies\stb_image">
+      <UniqueIdentifier>{0669C0A7-F262-E9F9-DBCF-7F0AC7684F66}</UniqueIdentifier>
     </Filter>
-    <Filter Include="HuaEngine\Events">
-      <UniqueIdentifier>{BD7F720C-A978-915E-D2AA-76E3BE02716A}</UniqueIdentifier>
+    <Filter Include="src">
+      <UniqueIdentifier>{2DAB880B-99B4-887C-2230-9F7C8E38947C}</UniqueIdentifier>
     </Filter>
-    <Filter Include="HuaEngine\GUI">
-      <UniqueIdentifier>{8DB95774-F979-D3AA-C2B4-1C282E341887}</UniqueIdentifier>
+    <Filter Include="src\HuaEngine">
+      <UniqueIdentifier>{D0C7B2C2-3C88-2EF9-05C3-7776714273D5}</UniqueIdentifier>
     </Filter>
-    <Filter Include="HuaEngine\Platform">
-      <UniqueIdentifier>{6D6A2F0F-594E-F064-C2AE-EAB7AEB1DAE6}</UniqueIdentifier>
+    <Filter Include="src\HuaEngine\Core">
+      <UniqueIdentifier>{284E315D-1432-F2B2-7D92-EC056995DC34}</UniqueIdentifier>
     </Filter>
-    <Filter Include="HuaEngine\Platform\OpenGL">
-      <UniqueIdentifier>{0177D800-6D39-0C8B-B6E9-9A1722EBE468}</UniqueIdentifier>
+    <Filter Include="src\HuaEngine\Events">
+      <UniqueIdentifier>{B489DF73-A018-693D-4937-7D3835A579E3}</UniqueIdentifier>
     </Filter>
-    <Filter Include="HuaEngine\Platform\Windows">
-      <UniqueIdentifier>{A7310374-9341-AF44-FCFA-1363E8299EDD}</UniqueIdentifier>
+    <Filter Include="src\HuaEngine\GUI">
+      <UniqueIdentifier>{E42E8DEB-5045-8B81-99BC-16A305125C09}</UniqueIdentifier>
     </Filter>
-    <Filter Include="HuaEngine\Renderer">
-      <UniqueIdentifier>{BF710CEA-AB55-CD3F-14B6-C79200B9B7C1}</UniqueIdentifier>
+    <Filter Include="src\HuaEngine\Platform">
+      <UniqueIdentifier>{24CE0606-10C8-2F58-F934-C668E5CD95C4}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="src\HuaEngine\Platform\OpenGL">
+      <UniqueIdentifier>{D8A63158-44BF-1882-0D6C-A81B7943AD1B}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="src\HuaEngine\Platform\Windows">
+      <UniqueIdentifier>{5E5C82B6-4A82-4C1D-33C8-D1E81F8D71E9}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="src\HuaEngine\Profiling">
+      <UniqueIdentifier>{4928A765-B55F-EFFC-BE69-53202A2016F6}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="src\HuaEngine\Renderer">
+      <UniqueIdentifier>{76D5E3E0-62CF-0C33-4B3C-A34337D5729F}</UniqueIdentifier>
     </Filter>
   </ItemGroup>
   <ItemGroup>
-    <ClInclude Include="src\HuaEngine.h" />
+    <ClInclude Include="..\Dependencies\stb_image\stb_image.h">
+      <Filter>Dependencies\stb_image</Filter>
+    </ClInclude>
+    <ClInclude Include="src\HuaEngine.h">
+      <Filter>src</Filter>
+    </ClInclude>
     <ClInclude Include="src\HuaEngine\Application.h">
-      <Filter>HuaEngine</Filter>
+      <Filter>src\HuaEngine</Filter>
     </ClInclude>
     <ClInclude Include="src\HuaEngine\Core\Assert.h">
-      <Filter>HuaEngine\Core</Filter>
+      <Filter>src\HuaEngine\Core</Filter>
     </ClInclude>
     <ClInclude Include="src\HuaEngine\Core\Core.h">
-      <Filter>HuaEngine\Core</Filter>
+      <Filter>src\HuaEngine\Core</Filter>
     </ClInclude>
     <ClInclude Include="src\HuaEngine\Core\Input.h">
-      <Filter>HuaEngine\Core</Filter>
+      <Filter>src\HuaEngine\Core</Filter>
     </ClInclude>
     <ClInclude Include="src\HuaEngine\Core\KeyCodes.h">
-      <Filter>HuaEngine\Core</Filter>
+      <Filter>src\HuaEngine\Core</Filter>
     </ClInclude>
     <ClInclude Include="src\HuaEngine\Core\Layer.h">
-      <Filter>HuaEngine\Core</Filter>
+      <Filter>src\HuaEngine\Core</Filter>
     </ClInclude>
     <ClInclude Include="src\HuaEngine\Core\LayerStack.h">
-      <Filter>HuaEngine\Core</Filter>
+      <Filter>src\HuaEngine\Core</Filter>
     </ClInclude>
     <ClInclude Include="src\HuaEngine\Core\Log.h">
-      <Filter>HuaEngine\Core</Filter>
+      <Filter>src\HuaEngine\Core</Filter>
     </ClInclude>
     <ClInclude Include="src\HuaEngine\Core\MouseCodes.h">
-      <Filter>HuaEngine\Core</Filter>
+      <Filter>src\HuaEngine\Core</Filter>
     </ClInclude>
     <ClInclude Include="src\HuaEngine\Core\Window.h">
-      <Filter>HuaEngine\Core</Filter>
+      <Filter>src\HuaEngine\Core</Filter>
     </ClInclude>
     <ClInclude Include="src\HuaEngine\EntryPoint.h">
-      <Filter>HuaEngine</Filter>
+      <Filter>src\HuaEngine</Filter>
     </ClInclude>
     <ClInclude Include="src\HuaEngine\Events\ApplicationEvent.h">
-      <Filter>HuaEngine\Events</Filter>
+      <Filter>src\HuaEngine\Events</Filter>
     </ClInclude>
     <ClInclude Include="src\HuaEngine\Events\Event.h">
-      <Filter>HuaEngine\Events</Filter>
+      <Filter>src\HuaEngine\Events</Filter>
     </ClInclude>
     <ClInclude Include="src\HuaEngine\Events\KeyEvent.h">
-      <Filter>HuaEngine\Events</Filter>
+      <Filter>src\HuaEngine\Events</Filter>
     </ClInclude>
     <ClInclude Include="src\HuaEngine\Events\MouseEvent.h">
-      <Filter>HuaEngine\Events</Filter>
+      <Filter>src\HuaEngine\Events</Filter>
     </ClInclude>
     <ClInclude Include="src\HuaEngine\GUI\ImguiLayer.h">
-      <Filter>HuaEngine\GUI</Filter>
+      <Filter>src\HuaEngine\GUI</Filter>
     </ClInclude>
     <ClInclude Include="src\HuaEngine\Platform\OpenGL\OpenGLContext.h">
-      <Filter>HuaEngine\Platform\OpenGL</Filter>
+      <Filter>src\HuaEngine\Platform\OpenGL</Filter>
     </ClInclude>
     <ClInclude Include="src\HuaEngine\Platform\OpenGL\OpenGLIndexBuffer.h">
-      <Filter>HuaEngine\Platform\OpenGL</Filter>
+      <Filter>src\HuaEngine\Platform\OpenGL</Filter>
     </ClInclude>
     <ClInclude Include="src\HuaEngine\Platform\OpenGL\OpenGLRendererAPI.h">
-      <Filter>HuaEngine\Platform\OpenGL</Filter>
+      <Filter>src\HuaEngine\Platform\OpenGL</Filter>
     </ClInclude>
     <ClInclude Include="src\HuaEngine\Platform\OpenGL\OpenGLShader.h">
-      <Filter>HuaEngine\Platform\OpenGL</Filter>
+      <Filter>src\HuaEngine\Platform\OpenGL</Filter>
+    </ClInclude>
+    <ClInclude Include="src\HuaEngine\Platform\OpenGL\OpenGLTexture2D.h">
+      <Filter>src\HuaEngine\Platform\OpenGL</Filter>
     </ClInclude>
     <ClInclude Include="src\HuaEngine\Platform\OpenGL\OpenGLVertexArray.h">
-      <Filter>HuaEngine\Platform\OpenGL</Filter>
+      <Filter>src\HuaEngine\Platform\OpenGL</Filter>
     </ClInclude>
     <ClInclude Include="src\HuaEngine\Platform\OpenGL\OpenGLVertexBuffer.h">
-      <Filter>HuaEngine\Platform\OpenGL</Filter>
+      <Filter>src\HuaEngine\Platform\OpenGL</Filter>
     </ClInclude>
     <ClInclude Include="src\HuaEngine\Platform\Windows\WindowsInput.h">
-      <Filter>HuaEngine\Platform\Windows</Filter>
+      <Filter>src\HuaEngine\Platform\Windows</Filter>
     </ClInclude>
     <ClInclude Include="src\HuaEngine\Platform\Windows\WindowsWindow.h">
-      <Filter>HuaEngine\Platform\Windows</Filter>
+      <Filter>src\HuaEngine\Platform\Windows</Filter>
+    </ClInclude>
+    <ClInclude Include="src\HuaEngine\Profiling\Profiler.h">
+      <Filter>src\HuaEngine\Profiling</Filter>
     </ClInclude>
     <ClInclude Include="src\HuaEngine\Renderer\Buffer.h">
-      <Filter>HuaEngine\Renderer</Filter>
+      <Filter>src\HuaEngine\Renderer</Filter>
     </ClInclude>
     <ClInclude Include="src\HuaEngine\Renderer\IndexBuffer.h">
-      <Filter>HuaEngine\Renderer</Filter>
+      <Filter>src\HuaEngine\Renderer</Filter>
     </ClInclude>
     <ClInclude Include="src\HuaEngine\Renderer\RenderCommand.h">
-      <Filter>HuaEngine\Renderer</Filter>
+      <Filter>src\HuaEngine\Renderer</Filter>
     </ClInclude>
     <ClInclude Include="src\HuaEngine\Renderer\RenderContext.h">
-      <Filter>HuaEngine\Renderer</Filter>
+      <Filter>src\HuaEngine\Renderer</Filter>
     </ClInclude>
     <ClInclude Include="src\HuaEngine\Renderer\Renderer.h">
-      <Filter>HuaEngine\Renderer</Filter>
+      <Filter>src\HuaEngine\Renderer</Filter>
     </ClInclude>
     <ClInclude Include="src\HuaEngine\Renderer\RendererAPI.h">
-      <Filter>HuaEngine\Renderer</Filter>
+      <Filter>src\HuaEngine\Renderer</Filter>
     </ClInclude>
     <ClInclude Include="src\HuaEngine\Renderer\Shader.h">
-      <Filter>HuaEngine\Renderer</Filter>
+      <Filter>src\HuaEngine\Renderer</Filter>
+    </ClInclude>
+    <ClInclude Include="src\HuaEngine\Renderer\Texture.h">
+      <Filter>src\HuaEngine\Renderer</Filter>
     </ClInclude>
     <ClInclude Include="src\HuaEngine\Renderer\VertexArray.h">
-      <Filter>HuaEngine\Renderer</Filter>
+      <Filter>src\HuaEngine\Renderer</Filter>
     </ClInclude>
     <ClInclude Include="src\HuaEngine\Renderer\VertexBuffer.h">
-      <Filter>HuaEngine\Renderer</Filter>
+      <Filter>src\HuaEngine\Renderer</Filter>
     </ClInclude>
-    <ClInclude Include="src\enginepch.h" />
+    <ClInclude Include="src\enginepch.h">
+      <Filter>src</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
+    <ClCompile Include="..\Dependencies\stb_image\stb_image.cpp">
+      <Filter>Dependencies\stb_image</Filter>
+    </ClCompile>
     <ClCompile Include="src\HuaEngine\Application.cpp">
-      <Filter>HuaEngine</Filter>
+      <Filter>src\HuaEngine</Filter>
     </ClCompile>
     <ClCompile Include="src\HuaEngine\Core\Layer.cpp">
-      <Filter>HuaEngine\Core</Filter>
+      <Filter>src\HuaEngine\Core</Filter>
     </ClCompile>
     <ClCompile Include="src\HuaEngine\Core\LayerStack.cpp">
-      <Filter>HuaEngine\Core</Filter>
+      <Filter>src\HuaEngine\Core</Filter>
     </ClCompile>
     <ClCompile Include="src\HuaEngine\Core\Log.cpp">
-      <Filter>HuaEngine\Core</Filter>
+      <Filter>src\HuaEngine\Core</Filter>
     </ClCompile>
     <ClCompile Include="src\HuaEngine\Core\Window.cpp">
-      <Filter>HuaEngine\Core</Filter>
+      <Filter>src\HuaEngine\Core</Filter>
     </ClCompile>
     <ClCompile Include="src\HuaEngine\GUI\ImguiBuild.cpp">
-      <Filter>HuaEngine\GUI</Filter>
+      <Filter>src\HuaEngine\GUI</Filter>
     </ClCompile>
     <ClCompile Include="src\HuaEngine\GUI\ImguiLayer.cpp">
-      <Filter>HuaEngine\GUI</Filter>
+      <Filter>src\HuaEngine\GUI</Filter>
     </ClCompile>
     <ClCompile Include="src\HuaEngine\Platform\OpenGL\OpenGLContext.cpp">
-      <Filter>HuaEngine\Platform\OpenGL</Filter>
+      <Filter>src\HuaEngine\Platform\OpenGL</Filter>
     </ClCompile>
     <ClCompile Include="src\HuaEngine\Platform\OpenGL\OpenGLIndexBuffer.cpp">
-      <Filter>HuaEngine\Platform\OpenGL</Filter>
+      <Filter>src\HuaEngine\Platform\OpenGL</Filter>
     </ClCompile>
     <ClCompile Include="src\HuaEngine\Platform\OpenGL\OpenGLRendererAPI.cpp">
-      <Filter>HuaEngine\Platform\OpenGL</Filter>
+      <Filter>src\HuaEngine\Platform\OpenGL</Filter>
     </ClCompile>
     <ClCompile Include="src\HuaEngine\Platform\OpenGL\OpenGLShader.cpp">
-      <Filter>HuaEngine\Platform\OpenGL</Filter>
+      <Filter>src\HuaEngine\Platform\OpenGL</Filter>
+    </ClCompile>
+    <ClCompile Include="src\HuaEngine\Platform\OpenGL\OpenGLTexture2D.cpp">
+      <Filter>src\HuaEngine\Platform\OpenGL</Filter>
     </ClCompile>
     <ClCompile Include="src\HuaEngine\Platform\OpenGL\OpenGLVertexArray.cpp">
-      <Filter>HuaEngine\Platform\OpenGL</Filter>
+      <Filter>src\HuaEngine\Platform\OpenGL</Filter>
     </ClCompile>
     <ClCompile Include="src\HuaEngine\Platform\OpenGL\OpenGLVertexBuffer.cpp">
-      <Filter>HuaEngine\Platform\OpenGL</Filter>
+      <Filter>src\HuaEngine\Platform\OpenGL</Filter>
     </ClCompile>
     <ClCompile Include="src\HuaEngine\Platform\Windows\WindowsInput.cpp">
-      <Filter>HuaEngine\Platform\Windows</Filter>
+      <Filter>src\HuaEngine\Platform\Windows</Filter>
     </ClCompile>
     <ClCompile Include="src\HuaEngine\Platform\Windows\WindowsWindow.cpp">
-      <Filter>HuaEngine\Platform\Windows</Filter>
+      <Filter>src\HuaEngine\Platform\Windows</Filter>
     </ClCompile>
     <ClCompile Include="src\HuaEngine\Renderer\IndexBuffer.cpp">
-      <Filter>HuaEngine\Renderer</Filter>
+      <Filter>src\HuaEngine\Renderer</Filter>
     </ClCompile>
     <ClCompile Include="src\HuaEngine\Renderer\RenderCommand.cpp">
-      <Filter>HuaEngine\Renderer</Filter>
+      <Filter>src\HuaEngine\Renderer</Filter>
     </ClCompile>
     <ClCompile Include="src\HuaEngine\Renderer\Renderer.cpp">
-      <Filter>HuaEngine\Renderer</Filter>
+      <Filter>src\HuaEngine\Renderer</Filter>
     </ClCompile>
     <ClCompile Include="src\HuaEngine\Renderer\RendererAPI.cpp">
-      <Filter>HuaEngine\Renderer</Filter>
+      <Filter>src\HuaEngine\Renderer</Filter>
+    </ClCompile>
+    <ClCompile Include="src\HuaEngine\Renderer\Texture.cpp">
+      <Filter>src\HuaEngine\Renderer</Filter>
     </ClCompile>
     <ClCompile Include="src\HuaEngine\Renderer\VertexArray.cpp">
-      <Filter>HuaEngine\Renderer</Filter>
+      <Filter>src\HuaEngine\Renderer</Filter>
     </ClCompile>
     <ClCompile Include="src\HuaEngine\Renderer\VertexBuffer.cpp">
-      <Filter>HuaEngine\Renderer</Filter>
+      <Filter>src\HuaEngine\Renderer</Filter>
     </ClCompile>
-    <ClCompile Include="src\enginepch.cpp" />
+    <ClCompile Include="src\enginepch.cpp">
+      <Filter>src</Filter>
+    </ClCompile>
   </ItemGroup>
 </Project>

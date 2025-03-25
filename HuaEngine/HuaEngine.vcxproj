@@ -77,7 +77,7 @@
       <PrecompiledHeaderFile>enginepch.h</PrecompiledHeaderFile>
       <WarningLevel>Level3</WarningLevel>
       <PreprocessorDefinitions>HE_PLATFORM_WINDOWS;HE_BUILD_DLL;GLFW_INCLUDE_NONE;_CRT_SECURE_NO_WARNINGS;HE_DEBUG;HE_ENABLE_ASSERTS;%(PreprocessorDefinitions)</PreprocessorDefinitions>
-      <AdditionalIncludeDirectories>src;..\Dependencies\spdlog\include;..\Dependencies\glfw\include;..\Dependencies\glad\include;..\Dependencies\imgui;..\Dependencies\glm;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>src;..\Dependencies\spdlog\include;..\Dependencies\glfw\include;..\Dependencies\glad\include;..\Dependencies\imgui;..\Dependencies\glm;..\Dependencies\stb_image;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
       <DebugInformationFormat>EditAndContinue</DebugInformationFormat>
       <Optimization>Disabled</Optimization>
       <RuntimeLibrary>MultiThreadedDebug</RuntimeLibrary>
@@ -99,7 +99,7 @@
       <PrecompiledHeaderFile>enginepch.h</PrecompiledHeaderFile>
       <WarningLevel>Level3</WarningLevel>
       <PreprocessorDefinitions>HE_PLATFORM_WINDOWS;HE_BUILD_DLL;GLFW_INCLUDE_NONE;_CRT_SECURE_NO_WARNINGS;HE_RELEASE;%(PreprocessorDefinitions)</PreprocessorDefinitions>
-      <AdditionalIncludeDirectories>src;..\Dependencies\spdlog\include;..\Dependencies\glfw\include;..\Dependencies\glad\include;..\Dependencies\imgui;..\Dependencies\glm;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>src;..\Dependencies\spdlog\include;..\Dependencies\glfw\include;..\Dependencies\glad\include;..\Dependencies\imgui;..\Dependencies\glm;..\Dependencies\stb_image;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
       <Optimization>Full</Optimization>
       <FunctionLevelLinking>true</FunctionLevelLinking>
       <IntrinsicFunctions>true</IntrinsicFunctions>
@@ -125,7 +125,7 @@
       <PrecompiledHeaderFile>enginepch.h</PrecompiledHeaderFile>
       <WarningLevel>Level3</WarningLevel>
       <PreprocessorDefinitions>HE_PLATFORM_WINDOWS;HE_BUILD_DLL;GLFW_INCLUDE_NONE;_CRT_SECURE_NO_WARNINGS;HE_DIST;%(PreprocessorDefinitions)</PreprocessorDefinitions>
-      <AdditionalIncludeDirectories>src;..\Dependencies\spdlog\include;..\Dependencies\glfw\include;..\Dependencies\glad\include;..\Dependencies\imgui;..\Dependencies\glm;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>src;..\Dependencies\spdlog\include;..\Dependencies\glfw\include;..\Dependencies\glad\include;..\Dependencies\imgui;..\Dependencies\glm;..\Dependencies\stb_image;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
       <Optimization>Full</Optimization>
       <FunctionLevelLinking>true</FunctionLevelLinking>
       <IntrinsicFunctions>true</IntrinsicFunctions>
@@ -146,6 +146,7 @@
     </Lib>
   </ItemDefinitionGroup>
   <ItemGroup>
+    <ClInclude Include="..\Dependencies\stb_image\stb_image.h" />
     <ClInclude Include="src\HuaEngine.h" />
     <ClInclude Include="src\HuaEngine\Application.h" />
     <ClInclude Include="src\HuaEngine\Core\Assert.h" />
@@ -167,10 +168,12 @@
     <ClInclude Include="src\HuaEngine\Platform\OpenGL\OpenGLIndexBuffer.h" />
     <ClInclude Include="src\HuaEngine\Platform\OpenGL\OpenGLRendererAPI.h" />
     <ClInclude Include="src\HuaEngine\Platform\OpenGL\OpenGLShader.h" />
+    <ClInclude Include="src\HuaEngine\Platform\OpenGL\OpenGLTexture2D.h" />
     <ClInclude Include="src\HuaEngine\Platform\OpenGL\OpenGLVertexArray.h" />
     <ClInclude Include="src\HuaEngine\Platform\OpenGL\OpenGLVertexBuffer.h" />
     <ClInclude Include="src\HuaEngine\Platform\Windows\WindowsInput.h" />
     <ClInclude Include="src\HuaEngine\Platform\Windows\WindowsWindow.h" />
+    <ClInclude Include="src\HuaEngine\Profiling\Profiler.h" />
     <ClInclude Include="src\HuaEngine\Renderer\Buffer.h" />
     <ClInclude Include="src\HuaEngine\Renderer\IndexBuffer.h" />
     <ClInclude Include="src\HuaEngine\Renderer\RenderCommand.h" />
@@ -178,11 +181,13 @@
     <ClInclude Include="src\HuaEngine\Renderer\Renderer.h" />
     <ClInclude Include="src\HuaEngine\Renderer\RendererAPI.h" />
     <ClInclude Include="src\HuaEngine\Renderer\Shader.h" />
+    <ClInclude Include="src\HuaEngine\Renderer\Texture.h" />
     <ClInclude Include="src\HuaEngine\Renderer\VertexArray.h" />
     <ClInclude Include="src\HuaEngine\Renderer\VertexBuffer.h" />
     <ClInclude Include="src\enginepch.h" />
   </ItemGroup>
   <ItemGroup>
+    <ClCompile Include="..\Dependencies\stb_image\stb_image.cpp" />
     <ClCompile Include="src\HuaEngine\Application.cpp" />
     <ClCompile Include="src\HuaEngine\Core\Layer.cpp" />
     <ClCompile Include="src\HuaEngine\Core\LayerStack.cpp" />
@@ -194,6 +199,7 @@
     <ClCompile Include="src\HuaEngine\Platform\OpenGL\OpenGLIndexBuffer.cpp" />
     <ClCompile Include="src\HuaEngine\Platform\OpenGL\OpenGLRendererAPI.cpp" />
     <ClCompile Include="src\HuaEngine\Platform\OpenGL\OpenGLShader.cpp" />
+    <ClCompile Include="src\HuaEngine\Platform\OpenGL\OpenGLTexture2D.cpp" />
     <ClCompile Include="src\HuaEngine\Platform\OpenGL\OpenGLVertexArray.cpp" />
     <ClCompile Include="src\HuaEngine\Platform\OpenGL\OpenGLVertexBuffer.cpp" />
     <ClCompile Include="src\HuaEngine\Platform\Windows\WindowsInput.cpp" />
@@ -202,6 +208,7 @@
     <ClCompile Include="src\HuaEngine\Renderer\RenderCommand.cpp" />
     <ClCompile Include="src\HuaEngine\Renderer\Renderer.cpp" />
     <ClCompile Include="src\HuaEngine\Renderer\RendererAPI.cpp" />
+    <ClCompile Include="src\HuaEngine\Renderer\Texture.cpp" />
     <ClCompile Include="src\HuaEngine\Renderer\VertexArray.cpp" />
     <ClCompile Include="src\HuaEngine\Renderer\VertexBuffer.cpp" />
     <ClCompile Include="src\enginepch.cpp">
