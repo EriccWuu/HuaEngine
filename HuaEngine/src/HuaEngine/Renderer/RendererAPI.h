@@ -13,6 +13,7 @@ namespace HE {
 		inline static API GetAPI() { return m_API; }
 		static RendererAPI* Create();
 
+		virtual ~RendererAPI() = default;
 		virtual void Init() = 0;
 		virtual void DrawIndexed(const Ref<VertexArray>& vertexArray) = 0;
 		virtual void SetClearColor(const glm::vec4& clearColor) = 0;
