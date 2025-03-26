@@ -166,16 +166,6 @@
     <ClInclude Include="src\HuaEngine\Events\KeyEvent.h" />
     <ClInclude Include="src\HuaEngine\Events\MouseEvent.h" />
     <ClInclude Include="src\HuaEngine\GUI\ImguiLayer.h" />
-    <ClInclude Include="src\HuaEngine\Platform\OpenGL\OpenGLContext.h" />
-    <ClInclude Include="src\HuaEngine\Platform\OpenGL\OpenGLFrameBuffer.h" />
-    <ClInclude Include="src\HuaEngine\Platform\OpenGL\OpenGLIndexBuffer.h" />
-    <ClInclude Include="src\HuaEngine\Platform\OpenGL\OpenGLRendererAPI.h" />
-    <ClInclude Include="src\HuaEngine\Platform\OpenGL\OpenGLShader.h" />
-    <ClInclude Include="src\HuaEngine\Platform\OpenGL\OpenGLTexture2D.h" />
-    <ClInclude Include="src\HuaEngine\Platform\OpenGL\OpenGLVertexArray.h" />
-    <ClInclude Include="src\HuaEngine\Platform\OpenGL\OpenGLVertexBuffer.h" />
-    <ClInclude Include="src\HuaEngine\Platform\Windows\WindowsInput.h" />
-    <ClInclude Include="src\HuaEngine\Platform\Windows\WindowsWindow.h" />
     <ClInclude Include="src\HuaEngine\Profiling\Profiler.h" />
     <ClInclude Include="src\HuaEngine\Renderer\Buffer.h" />
     <ClInclude Include="src\HuaEngine\Renderer\FrameBuffer.h" />
@@ -188,6 +178,16 @@
     <ClInclude Include="src\HuaEngine\Renderer\Texture.h" />
     <ClInclude Include="src\HuaEngine\Renderer\VertexArray.h" />
     <ClInclude Include="src\HuaEngine\Renderer\VertexBuffer.h" />
+    <ClInclude Include="src\Platform\OpenGL\OpenGLContext.h" />
+    <ClInclude Include="src\Platform\OpenGL\OpenGLFrameBuffer.h" />
+    <ClInclude Include="src\Platform\OpenGL\OpenGLIndexBuffer.h" />
+    <ClInclude Include="src\Platform\OpenGL\OpenGLRendererAPI.h" />
+    <ClInclude Include="src\Platform\OpenGL\OpenGLShader.h" />
+    <ClInclude Include="src\Platform\OpenGL\OpenGLTexture2D.h" />
+    <ClInclude Include="src\Platform\OpenGL\OpenGLVertexArray.h" />
+    <ClInclude Include="src\Platform\OpenGL\OpenGLVertexBuffer.h" />
+    <ClInclude Include="src\Platform\Windows\WindowsInput.h" />
+    <ClInclude Include="src\Platform\Windows\WindowsWindow.h" />
     <ClInclude Include="src\enginepch.h" />
   </ItemGroup>
   <ItemGroup>
@@ -200,16 +200,6 @@
     <ClCompile Include="src\HuaEngine\Core\Window.cpp" />
     <ClCompile Include="src\HuaEngine\GUI\ImguiBuild.cpp" />
     <ClCompile Include="src\HuaEngine\GUI\ImguiLayer.cpp" />
-    <ClCompile Include="src\HuaEngine\Platform\OpenGL\OpenGLContext.cpp" />
-    <ClCompile Include="src\HuaEngine\Platform\OpenGL\OpenGLFrameBuffer.cpp" />
-    <ClCompile Include="src\HuaEngine\Platform\OpenGL\OpenGLIndexBuffer.cpp" />
-    <ClCompile Include="src\HuaEngine\Platform\OpenGL\OpenGLRendererAPI.cpp" />
-    <ClCompile Include="src\HuaEngine\Platform\OpenGL\OpenGLShader.cpp" />
-    <ClCompile Include="src\HuaEngine\Platform\OpenGL\OpenGLTexture2D.cpp" />
-    <ClCompile Include="src\HuaEngine\Platform\OpenGL\OpenGLVertexArray.cpp" />
-    <ClCompile Include="src\HuaEngine\Platform\OpenGL\OpenGLVertexBuffer.cpp" />
-    <ClCompile Include="src\HuaEngine\Platform\Windows\WindowsInput.cpp" />
-    <ClCompile Include="src\HuaEngine\Platform\Windows\WindowsWindow.cpp" />
     <ClCompile Include="src\HuaEngine\Renderer\FranmeBuffer.cpp" />
     <ClCompile Include="src\HuaEngine\Renderer\IndexBuffer.cpp" />
     <ClCompile Include="src\HuaEngine\Renderer\RenderCommand.cpp" />
@@ -218,6 +208,16 @@
     <ClCompile Include="src\HuaEngine\Renderer\Texture.cpp" />
     <ClCompile Include="src\HuaEngine\Renderer\VertexArray.cpp" />
     <ClCompile Include="src\HuaEngine\Renderer\VertexBuffer.cpp" />
+    <ClCompile Include="src\Platform\OpenGL\OpenGLContext.cpp" />
+    <ClCompile Include="src\Platform\OpenGL\OpenGLFrameBuffer.cpp" />
+    <ClCompile Include="src\Platform\OpenGL\OpenGLIndexBuffer.cpp" />
+    <ClCompile Include="src\Platform\OpenGL\OpenGLRendererAPI.cpp" />
+    <ClCompile Include="src\Platform\OpenGL\OpenGLShader.cpp" />
+    <ClCompile Include="src\Platform\OpenGL\OpenGLTexture2D.cpp" />
+    <ClCompile Include="src\Platform\OpenGL\OpenGLVertexArray.cpp" />
+    <ClCompile Include="src\Platform\OpenGL\OpenGLVertexBuffer.cpp" />
+    <ClCompile Include="src\Platform\Windows\WindowsInput.cpp" />
+    <ClCompile Include="src\Platform\Windows\WindowsWindow.cpp" />
     <ClCompile Include="src\enginepch.cpp">
       <PrecompiledHeader>Create</PrecompiledHeader>
     </ClCompile>

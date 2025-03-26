@@ -25,20 +25,20 @@
     <Filter Include="src\HuaEngine\GUI">
       <UniqueIdentifier>{E42E8DEB-5045-8B81-99BC-16A305125C09}</UniqueIdentifier>
     </Filter>
-    <Filter Include="src\HuaEngine\Platform">
-      <UniqueIdentifier>{24CE0606-10C8-2F58-F934-C668E5CD95C4}</UniqueIdentifier>
-    </Filter>
-    <Filter Include="src\HuaEngine\Platform\OpenGL">
-      <UniqueIdentifier>{D8A63158-44BF-1882-0D6C-A81B7943AD1B}</UniqueIdentifier>
-    </Filter>
-    <Filter Include="src\HuaEngine\Platform\Windows">
-      <UniqueIdentifier>{5E5C82B6-4A82-4C1D-33C8-D1E81F8D71E9}</UniqueIdentifier>
-    </Filter>
     <Filter Include="src\HuaEngine\Profiling">
       <UniqueIdentifier>{4928A765-B55F-EFFC-BE69-53202A2016F6}</UniqueIdentifier>
     </Filter>
     <Filter Include="src\HuaEngine\Renderer">
       <UniqueIdentifier>{76D5E3E0-62CF-0C33-4B3C-A34337D5729F}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="src\Platform">
+      <UniqueIdentifier>{21CA02E5-0D2D-9289-B6B2-CA3FA2F45D0C}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="src\Platform\OpenGL">
+      <UniqueIdentifier>{35A49437-A105-7245-2A73-B8F796D3A804}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="src\Platform\Windows">
+      <UniqueIdentifier>{5B054582-4794-CE4B-F0B2-E246DC20DFF1}</UniqueIdentifier>
     </Filter>
   </ItemGroup>
   <ItemGroup>
@@ -102,36 +102,6 @@
     <ClInclude Include="src\HuaEngine\GUI\ImguiLayer.h">
       <Filter>src\HuaEngine\GUI</Filter>
     </ClInclude>
-    <ClInclude Include="src\HuaEngine\Platform\OpenGL\OpenGLContext.h">
-      <Filter>src\HuaEngine\Platform\OpenGL</Filter>
-    </ClInclude>
-    <ClInclude Include="src\HuaEngine\Platform\OpenGL\OpenGLFrameBuffer.h">
-      <Filter>src\HuaEngine\Platform\OpenGL</Filter>
-    </ClInclude>
-    <ClInclude Include="src\HuaEngine\Platform\OpenGL\OpenGLIndexBuffer.h">
-      <Filter>src\HuaEngine\Platform\OpenGL</Filter>
-    </ClInclude>
-    <ClInclude Include="src\HuaEngine\Platform\OpenGL\OpenGLRendererAPI.h">
-      <Filter>src\HuaEngine\Platform\OpenGL</Filter>
-    </ClInclude>
-    <ClInclude Include="src\HuaEngine\Platform\OpenGL\OpenGLShader.h">
-      <Filter>src\HuaEngine\Platform\OpenGL</Filter>
-    </ClInclude>
-    <ClInclude Include="src\HuaEngine\Platform\OpenGL\OpenGLTexture2D.h">
-      <Filter>src\HuaEngine\Platform\OpenGL</Filter>
-    </ClInclude>
-    <ClInclude Include="src\HuaEngine\Platform\OpenGL\OpenGLVertexArray.h">
-      <Filter>src\HuaEngine\Platform\OpenGL</Filter>
-    </ClInclude>
-    <ClInclude Include="src\HuaEngine\Platform\OpenGL\OpenGLVertexBuffer.h">
-      <Filter>src\HuaEngine\Platform\OpenGL</Filter>
-    </ClInclude>
-    <ClInclude Include="src\HuaEngine\Platform\Windows\WindowsInput.h">
-      <Filter>src\HuaEngine\Platform\Windows</Filter>
-    </ClInclude>
-    <ClInclude Include="src\HuaEngine\Platform\Windows\WindowsWindow.h">
-      <Filter>src\HuaEngine\Platform\Windows</Filter>
-    </ClInclude>
     <ClInclude Include="src\HuaEngine\Profiling\Profiler.h">
       <Filter>src\HuaEngine\Profiling</Filter>
     </ClInclude>
@@ -168,6 +138,36 @@
     <ClInclude Include="src\HuaEngine\Renderer\VertexBuffer.h">
       <Filter>src\HuaEngine\Renderer</Filter>
     </ClInclude>
+    <ClInclude Include="src\Platform\OpenGL\OpenGLContext.h">
+      <Filter>src\Platform\OpenGL</Filter>
+    </ClInclude>
+    <ClInclude Include="src\Platform\OpenGL\OpenGLFrameBuffer.h">
+      <Filter>src\Platform\OpenGL</Filter>
+    </ClInclude>
+    <ClInclude Include="src\Platform\OpenGL\OpenGLIndexBuffer.h">
+      <Filter>src\Platform\OpenGL</Filter>
+    </ClInclude>
+    <ClInclude Include="src\Platform\OpenGL\OpenGLRendererAPI.h">
+      <Filter>src\Platform\OpenGL</Filter>
+    </ClInclude>
+    <ClInclude Include="src\Platform\OpenGL\OpenGLShader.h">
+      <Filter>src\Platform\OpenGL</Filter>
+    </ClInclude>
+    <ClInclude Include="src\Platform\OpenGL\OpenGLTexture2D.h">
+      <Filter>src\Platform\OpenGL</Filter>
+    </ClInclude>
+    <ClInclude Include="src\Platform\OpenGL\OpenGLVertexArray.h">
+      <Filter>src\Platform\OpenGL</Filter>
+    </ClInclude>
+    <ClInclude Include="src\Platform\OpenGL\OpenGLVertexBuffer.h">
+      <Filter>src\Platform\OpenGL</Filter>
+    </ClInclude>
+    <ClInclude Include="src\Platform\Windows\WindowsInput.h">
+      <Filter>src\Platform\Windows</Filter>
+    </ClInclude>
+    <ClInclude Include="src\Platform\Windows\WindowsWindow.h">
+      <Filter>src\Platform\Windows</Filter>
+    </ClInclude>
     <ClInclude Include="src\enginepch.h">
       <Filter>src</Filter>
     </ClInclude>
@@ -200,36 +200,6 @@
     <ClCompile Include="src\HuaEngine\GUI\ImguiLayer.cpp">
       <Filter>src\HuaEngine\GUI</Filter>
     </ClCompile>
-    <ClCompile Include="src\HuaEngine\Platform\OpenGL\OpenGLContext.cpp">
-      <Filter>src\HuaEngine\Platform\OpenGL</Filter>
-    </ClCompile>
-    <ClCompile Include="src\HuaEngine\Platform\OpenGL\OpenGLFrameBuffer.cpp">
-      <Filter>src\HuaEngine\Platform\OpenGL</Filter>
-    </ClCompile>
-    <ClCompile Include="src\HuaEngine\Platform\OpenGL\OpenGLIndexBuffer.cpp">
-      <Filter>src\HuaEngine\Platform\OpenGL</Filter>
-    </ClCompile>
-    <ClCompile Include="src\HuaEngine\Platform\OpenGL\OpenGLRendererAPI.cpp">
-      <Filter>src\HuaEngine\Platform\OpenGL</Filter>
-    </ClCompile>
-    <ClCompile Include="src\HuaEngine\Platform\OpenGL\OpenGLShader.cpp">
-      <Filter>src\HuaEngine\Platform\OpenGL</Filter>
-    </ClCompile>
-    <ClCompile Include="src\HuaEngine\Platform\OpenGL\OpenGLTexture2D.cpp">
-      <Filter>src\HuaEngine\Platform\OpenGL</Filter>
-    </ClCompile>
-    <ClCompile Include="src\HuaEngine\Platform\OpenGL\OpenGLVertexArray.cpp">
-      <Filter>src\HuaEngine\Platform\OpenGL</Filter>
-    </ClCompile>
-    <ClCompile Include="src\HuaEngine\Platform\OpenGL\OpenGLVertexBuffer.cpp">
-      <Filter>src\HuaEngine\Platform\OpenGL</Filter>
-    </ClCompile>
-    <ClCompile Include="src\HuaEngine\Platform\Windows\WindowsInput.cpp">
-      <Filter>src\HuaEngine\Platform\Windows</Filter>
-    </ClCompile>
-    <ClCompile Include="src\HuaEngine\Platform\Windows\WindowsWindow.cpp">
-      <Filter>src\HuaEngine\Platform\Windows</Filter>
-    </ClCompile>
     <ClCompile Include="src\HuaEngine\Renderer\FranmeBuffer.cpp">
       <Filter>src\HuaEngine\Renderer</Filter>
     </ClCompile>
@@ -253,6 +223,36 @@
     </ClCompile>
     <ClCompile Include="src\HuaEngine\Renderer\VertexBuffer.cpp">
       <Filter>src\HuaEngine\Renderer</Filter>
+    </ClCompile>
+    <ClCompile Include="src\Platform\OpenGL\OpenGLContext.cpp">
+      <Filter>src\Platform\OpenGL</Filter>
+    </ClCompile>
+    <ClCompile Include="src\Platform\OpenGL\OpenGLFrameBuffer.cpp">
+      <Filter>src\Platform\OpenGL</Filter>
+    </ClCompile>
+    <ClCompile Include="src\Platform\OpenGL\OpenGLIndexBuffer.cpp">
+      <Filter>src\Platform\OpenGL</Filter>
+    </ClCompile>
+    <ClCompile Include="src\Platform\OpenGL\OpenGLRendererAPI.cpp">
+      <Filter>src\Platform\OpenGL</Filter>
+    </ClCompile>
+    <ClCompile Include="src\Platform\OpenGL\OpenGLShader.cpp">
+      <Filter>src\Platform\OpenGL</Filter>
+    </ClCompile>
+    <ClCompile Include="src\Platform\OpenGL\OpenGLTexture2D.cpp">
+      <Filter>src\Platform\OpenGL</Filter>
+    </ClCompile>
+    <ClCompile Include="src\Platform\OpenGL\OpenGLVertexArray.cpp">
+      <Filter>src\Platform\OpenGL</Filter>
+    </ClCompile>
+    <ClCompile Include="src\Platform\OpenGL\OpenGLVertexBuffer.cpp">
+      <Filter>src\Platform\OpenGL</Filter>
+    </ClCompile>
+    <ClCompile Include="src\Platform\Windows\WindowsInput.cpp">
+      <Filter>src\Platform\Windows</Filter>
+    </ClCompile>
+    <ClCompile Include="src\Platform\Windows\WindowsWindow.cpp">
+      <Filter>src\Platform\Windows</Filter>
     </ClCompile>
     <ClCompile Include="src\enginepch.cpp">
       <Filter>src</Filter>
