@@ -4,6 +4,9 @@
     <Filter Include="Dependencies">
       <UniqueIdentifier>{6C01343A-5864-C3DE-01EA-FB94ED2B8F61}</UniqueIdentifier>
     </Filter>
+    <Filter Include="Dependencies\entt">
+      <UniqueIdentifier>{368A550F-A2A0-53A5-EB17-DFC6576D242D}</UniqueIdentifier>
+    </Filter>
     <Filter Include="Dependencies\stb_image">
       <UniqueIdentifier>{0669C0A7-F262-E9F9-DBCF-7F0AC7684F66}</UniqueIdentifier>
     </Filter>
@@ -39,7 +42,13 @@
     </Filter>
   </ItemGroup>
   <ItemGroup>
+    <ClInclude Include="..\Dependencies\entt\entt.hpp">
+      <Filter>Dependencies\entt</Filter>
+    </ClInclude>
     <ClInclude Include="..\Dependencies\stb_image\stb_image.h">
+      <Filter>Dependencies\stb_image</Filter>
+    </ClInclude>
+    <ClInclude Include="..\Dependencies\stb_image\stb_image_write.h">
       <Filter>Dependencies\stb_image</Filter>
     </ClInclude>
     <ClInclude Include="src\HuaEngine.h">
@@ -96,6 +105,9 @@
     <ClInclude Include="src\HuaEngine\Platform\OpenGL\OpenGLContext.h">
       <Filter>src\HuaEngine\Platform\OpenGL</Filter>
     </ClInclude>
+    <ClInclude Include="src\HuaEngine\Platform\OpenGL\OpenGLFrameBuffer.h">
+      <Filter>src\HuaEngine\Platform\OpenGL</Filter>
+    </ClInclude>
     <ClInclude Include="src\HuaEngine\Platform\OpenGL\OpenGLIndexBuffer.h">
       <Filter>src\HuaEngine\Platform\OpenGL</Filter>
     </ClInclude>
@@ -124,6 +136,9 @@
       <Filter>src\HuaEngine\Profiling</Filter>
     </ClInclude>
     <ClInclude Include="src\HuaEngine\Renderer\Buffer.h">
+      <Filter>src\HuaEngine\Renderer</Filter>
+    </ClInclude>
+    <ClInclude Include="src\HuaEngine\Renderer\FrameBuffer.h">
       <Filter>src\HuaEngine\Renderer</Filter>
     </ClInclude>
     <ClInclude Include="src\HuaEngine\Renderer\IndexBuffer.h">
@@ -161,6 +176,9 @@
     <ClCompile Include="..\Dependencies\stb_image\stb_image.cpp">
       <Filter>Dependencies\stb_image</Filter>
     </ClCompile>
+    <ClCompile Include="..\Dependencies\stb_image\stb_image_write.cpp">
+      <Filter>Dependencies\stb_image</Filter>
+    </ClCompile>
     <ClCompile Include="src\HuaEngine\Application.cpp">
       <Filter>src\HuaEngine</Filter>
     </ClCompile>
@@ -183,6 +201,9 @@
       <Filter>src\HuaEngine\GUI</Filter>
     </ClCompile>
     <ClCompile Include="src\HuaEngine\Platform\OpenGL\OpenGLContext.cpp">
+      <Filter>src\HuaEngine\Platform\OpenGL</Filter>
+    </ClCompile>
+    <ClCompile Include="src\HuaEngine\Platform\OpenGL\OpenGLFrameBuffer.cpp">
       <Filter>src\HuaEngine\Platform\OpenGL</Filter>
     </ClCompile>
     <ClCompile Include="src\HuaEngine\Platform\OpenGL\OpenGLIndexBuffer.cpp">
@@ -208,6 +229,9 @@
     </ClCompile>
     <ClCompile Include="src\HuaEngine\Platform\Windows\WindowsWindow.cpp">
       <Filter>src\HuaEngine\Platform\Windows</Filter>
+    </ClCompile>
+    <ClCompile Include="src\HuaEngine\Renderer\FranmeBuffer.cpp">
+      <Filter>src\HuaEngine\Renderer</Filter>
     </ClCompile>
     <ClCompile Include="src\HuaEngine\Renderer\IndexBuffer.cpp">
       <Filter>src\HuaEngine\Renderer</Filter>

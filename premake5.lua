@@ -17,6 +17,7 @@ IncludeDirs["glad"] = "Dependencies/glad/include"
 IncludeDirs["imgui"] = "Dependencies/imgui"
 IncludeDirs["glm"] = "Dependencies/glm"
 IncludeDirs["stb_image"] = "Dependencies/stb_image"
+IncludeDirs["entt"] = "Dependencies/entt"
 
 include "Dependencies/glfw"
 include "Dependencies/glad"
@@ -40,7 +41,8 @@ project "HuaEngine"
         "%{IncludeDirs.glad}",
         "%{IncludeDirs.imgui}",
         "%{IncludeDirs.glm}",
-        "%{IncludeDirs.stb_image}"
+        "%{IncludeDirs.stb_image}",
+        "%{IncludeDirs.entt}"
     }
 
     files
@@ -48,7 +50,8 @@ project "HuaEngine"
         "%{prj.name}/src/**.h",
         "%{prj.name}/src/**.cpp",
         "%{IncludeDirs.stb_image}/**.h",
-        "%{IncludeDirs.stb_image}/**.cpp"
+        "%{IncludeDirs.stb_image}/**.cpp",
+        "%{IncludeDirs.entt}/**.hpp"
     }
 
     links
@@ -122,7 +125,8 @@ project "Sandbox"
         "HuaEngine/src",
         "%{IncludeDirs.glm}",
         "%{IncludeDirs.imgui}",
-        "%{IncludeDirs.stb_image}"
+        "%{IncludeDirs.stb_image}",
+        "%{IncludeDirs.entt}"
     }
 
     links
