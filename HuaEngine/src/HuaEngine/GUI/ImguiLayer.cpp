@@ -176,8 +176,7 @@ namespace HE {
 
     void ImguiLayer::OnGuiRender()
     {
-        static bool show = true;
-        ImGui::ShowDemoWindow(&show);
+
     }
 
     void ImguiLayer::Begin()
