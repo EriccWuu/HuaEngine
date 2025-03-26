@@ -1,8 +1,8 @@
 #include <iostream>
 #include <HuaEngine.h>
 
-#include "HuaEngine/Platform/OpenGL/OpenGLShader.h"
-#include "HuaEngine/Platform/OpenGL/OpenGLTexture2D.h"
+#include "Platform/OpenGL/OpenGLShader.h"
+#include "Platform/OpenGL/OpenGLTexture2D.h"
 
 using namespace HE;
 

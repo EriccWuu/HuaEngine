@@ -1,7 +1,7 @@
 #include "enginepch.h"
 #include "VertexArray.h"
 #include "Renderer.h"
-#include "HuaEngine/Platform/OpenGL/OpenGLVertexArray.h"
+#include "Platform/OpenGL/OpenGLVertexArray.h"
 
 namespace HE {
 	Ref<VertexArray> VertexArray::Create()

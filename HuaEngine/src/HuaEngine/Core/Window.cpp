@@ -2,7 +2,7 @@
 #include "Window.h"
 
 #ifdef HE_PLATFORM_WINDOWS
-	#include "HuaEngine/Platform/Windows/WindowsWindow.h"
+	#include "Platform/Windows/WindowsWindow.h"
 #endif
 
 namespace HE

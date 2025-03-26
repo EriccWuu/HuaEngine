@@ -1,7 +1,7 @@
 #include "enginepch.h"
 #include "RendererAPI.h"
 #include "Texture.h"
-#include "HuaEngine/Platform/OpenGL/OpenGLTexture2D.h"
+#include "Platform/OpenGL/OpenGLTexture2D.h"
 
 namespace HE {
 	Ref<Texture2D> Texture2D::Create(const std::string& path)

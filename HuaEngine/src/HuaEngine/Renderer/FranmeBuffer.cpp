@@ -1,7 +1,7 @@
 #include "enginepch.h"
 #include "FrameBuffer.h"
 #include "RendererAPI.h"
-#include "HuaEngine/Platform/OpenGL/OpenGLFrameBuffer.h"
+#include "Platform/OpenGL/OpenGLFrameBuffer.h"
 
 namespace HE {
 	Ref<FrameBuffer> FrameBuffer::Create(const FrameBufferSpecification& specification)

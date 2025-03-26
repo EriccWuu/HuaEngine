@@ -1,7 +1,7 @@
 #include "enginepch.h"
-#include "HuaEngine/Platform/Windows/WindowsWindow.h"
-#include "HuaEngine/Platform/OpenGL/OpenGLContext.h"
-#include "HuaEngine/Platform/OpenGL/OpenGLShader.h"
+#include "Platform/Windows/WindowsWindow.h"
+#include "Platform/OpenGL/OpenGLContext.h"
+#include "Platform/OpenGL/OpenGLShader.h"
 
 #include "HuaEngine/Events/ApplicationEvent.h"
 #include "HuaEngine/Events/MouseEvent.h"

@@ -1,7 +1,7 @@
 #include "enginepch.h"
 #include "Renderer.h"
 #include "IndexBuffer.h"
-#include "HuaEngine/Platform/OpenGL/OpenGLIndexBuffer.h"
+#include "Platform/OpenGL/OpenGLIndexBuffer.h"
 
 namespace HE {
 	Ref<IndexBuffer> IndexBuffer::Create(uint32_t* indices, uint32_t count)

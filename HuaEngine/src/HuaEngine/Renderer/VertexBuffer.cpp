@@ -1,7 +1,7 @@
 #include "enginepch.h"
 #include "Renderer.h"
 #include "VertexBuffer.h"
-#include "HuaEngine/Platform/OpenGL/OpenGLVertexBuffer.h"
+#include "Platform/OpenGL/OpenGLVertexBuffer.h"
 
 namespace HE {
 	Ref<VertexBuffer> VertexBuffer::Create(float* vertices, uint32_t size)
