@@ -5,17 +5,17 @@
 namespace HE {
 	OpenGLIndexBuffer::OpenGLIndexBuffer(uint32_t* indices, uint32_t count)
 	: m_Count(count) {
-		glGenBuffers(1, &m_BufferId);
-		glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, m_BufferId);
+		glGenBuffers(1, &m_RenderID);
+		glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, m_RenderID);
 		glBufferData(GL_ELEMENT_ARRAY_BUFFER, count * sizeof(uint32_t), indices, GL_STATIC_DRAW);
 	}
 
 	OpenGLIndexBuffer::~OpenGLIndexBuffer() {
-		glDeleteBuffers(1, &m_BufferId);
+		glDeleteBuffers(1, &m_RenderID);
 	}
 
 	void OpenGLIndexBuffer::Bind() const {
-		glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, m_BufferId);
+		glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, m_RenderID);
 	}
 
 	void OpenGLIndexBuffer::Unbind() const {

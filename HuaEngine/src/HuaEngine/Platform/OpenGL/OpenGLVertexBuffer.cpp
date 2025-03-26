@@ -4,17 +4,17 @@
 
 namespace HE {
 	OpenGLVertexBuffer::OpenGLVertexBuffer(float* vertices, uint32_t size) {
-		glGenBuffers(1, &m_BufferId);
-		glBindBuffer(GL_ARRAY_BUFFER, m_BufferId);
+		glGenBuffers(1, &m_RenderID);
+		glBindBuffer(GL_ARRAY_BUFFER, m_RenderID);
 		glBufferData(GL_ARRAY_BUFFER, size, vertices, GL_STATIC_DRAW);
 	}
 
 	OpenGLVertexBuffer::~OpenGLVertexBuffer() {
-		glDeleteBuffers(1, &m_BufferId);
+		glDeleteBuffers(1, &m_RenderID);
 	}
 
 	void OpenGLVertexBuffer::Bind() const {
-		glBindBuffer(GL_ARRAY_BUFFER, m_BufferId);
+		glBindBuffer(GL_ARRAY_BUFFER, m_RenderID);
 	}
 
 	void OpenGLVertexBuffer::Unbind() const {

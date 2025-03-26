@@ -11,6 +11,6 @@ namespace HE {
 		virtual void Unbind() const override;
 		virtual uint32_t GetCount() const override;
 	private:
-		uint32_t m_BufferId, m_Count;
+		uint32_t m_RenderID, m_Count;
 	};
 }

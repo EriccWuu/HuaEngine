@@ -13,7 +13,7 @@ namespace HE {
 		virtual const BufferLayout& GetLayout() const override;
 
 	private:
-		unsigned int m_BufferId;
+		unsigned int m_RenderID;
 		BufferLayout m_BufferLayout;
 	};
 }

@@ -22,15 +22,15 @@ namespace HE {
 	}
 
 	OpenGLVertexArray::OpenGLVertexArray() {
-		glGenVertexArrays(1, &m_RenderId);
+		glGenVertexArrays(1, &m_RenderID);
 	}
 
 	OpenGLVertexArray::~OpenGLVertexArray() {
-		glDeleteVertexArrays(1, &m_RenderId);
+		glDeleteVertexArrays(1, &m_RenderID);
 	}
 
 	void OpenGLVertexArray::Bind() {
-		glBindVertexArray(m_RenderId);
+		glBindVertexArray(m_RenderID);
 	}
 
 	void OpenGLVertexArray::Unbind() {
@@ -39,7 +39,7 @@ namespace HE {
 
 	void OpenGLVertexArray::AddVertexBuffer(const std::shared_ptr<VertexBuffer> vertexBuffer) {
 		HE_CORE_ASSERT(vertexBuffer->GetLayout().GetElements().size(), "Vertex buffer layout not set!");
-		glBindVertexArray(m_RenderId);
+		glBindVertexArray(m_RenderID);
 		vertexBuffer->Bind();
 		
 		uint32_t idx = 0;
@@ -59,7 +59,7 @@ namespace HE {
 	}
 
 	void OpenGLVertexArray::SetIndexBuffer(const std::shared_ptr<IndexBuffer> indexBuffer) {
-		glBindVertexArray(m_RenderId);
+		glBindVertexArray(m_RenderID);
 		indexBuffer->Bind();
 
 		m_IndexBuffer = indexBuffer;

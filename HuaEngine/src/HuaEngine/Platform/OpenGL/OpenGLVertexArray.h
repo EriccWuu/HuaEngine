@@ -15,7 +15,7 @@ namespace HE {
 		virtual const Ref<IndexBuffer> GetIndexBuffer() const override;
 
 	private:
-		unsigned int m_RenderId;
+		unsigned int m_RenderID;
 		std::vector<Ref<VertexBuffer>> m_VertexBuffers;
 		Ref<IndexBuffer> m_IndexBuffer;
 	};

@@ -16,7 +16,7 @@ namespace HE {
 		switch (channels) {
 			case 3: {
 				internalFormat = GL_RGB8; 
-				format = GL_RGBA;
+				format = GL_RGB;
 				break;
 			}
 			case 4: {
