@@ -1,1 +1,1 @@
-call e:/Program/Premake/premake5 vs2022
+call d:/Application/Premake/premake5.exe vs2022

@@ -1,0 +1,15 @@
+#pragma once
+
+#include "HuaEngine/Core/Core.h"
+#include "HuaEngine/ECS/Entity.h"
+
+namespace HE {
+	class Selection {
+	public:
+		static void SetSelection(Entity& selection) { m_Selection = selection; }
+		static Entity& GetSelection() { return m_Selection; }
+		static bool HasSelection() { return m_Selection.IsValid(); }
+	private:
+		static Entity m_Selection;
+	};
+}

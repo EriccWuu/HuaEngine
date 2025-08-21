@@ -1,3 +1,111 @@
+# Visual Studio
 .vs/
-bin-int/
 *.user
+*.suo
+*.sdf
+*.opensdf
+*.vcxproj.filters
+*.vcxproj.user
+
+# Build outputs
+bin/
+bin-int/
+build/
+out/
+
+# CMake generated files
+CMakeCache.txt
+CMakeFiles/
+cmake_install.cmake
+Makefile
+*.cmake
+!cmake/Config.cmake
+!CMakeLists.txt
+!**/CMakeLists.txt
+
+# Premake generated files
+*.sln
+*.vcxproj
+!Dependencies/*/**.vcxproj
+!Dependencies/*/**.sln
+
+# Compiled Object files
+*.o
+*.obj
+*.lo
+*.slo
+
+# Compiled Dynamic libraries
+*.so
+*.dylib
+*.dll
+
+# Compiled Static libraries
+*.a
+*.lib
+*.lai
+*.la
+
+# Executables
+*.exe
+*.out
+*.app
+
+# Debug files
+*.pdb
+*.idb
+*.ilk
+*.exp
+
+# Logs
+*.log
+
+# Temporary files
+*.tmp
+*.temp
+*~
+
+# OS generated files
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+Desktop.ini
+
+# IDE files
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# Package managers
+node_modules/
+packages/
+
+# Documentation build
+docs/_build/
+
+# ImGui configuration
+imgui.ini
+
+# Test results
+TestResults/
+
+# Additional ignore patterns specific to this project
+# Dependency build artifacts
+Dependencies/*/bin/
+Dependencies/*/bin-int/
+Dependencies/*/*.vcxproj
+Dependencies/*/*.vcxproj.filters
+Dependencies/*/*.vcxproj.user
+Dependencies/*/*.sln
+
+# ImGui examples (usually not needed in main project)
+Dependencies/imgui/examples/**/*.vcxproj*
+Dependencies/imgui/examples/**/*.sln
+Dependencies/imgui/examples/**/build/
+Dependencies/imgui/examples/**/bin/
