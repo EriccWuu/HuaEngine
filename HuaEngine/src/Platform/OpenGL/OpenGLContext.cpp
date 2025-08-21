@@ -13,7 +13,7 @@ namespace HE {
 		int status = gladLoadGLLoader((GLADloadproc)glfwGetProcAddress);
 		HE_CORE_ASSERT(status, "Failed to initialize Glad!");
 
-		HE_CORE_INFO("OpenGL Renderer Info:");
+		HE_CORE_INFO("OpenGL Rendering Info:");
 		HE_CORE_INFO("\t{0}", (const char*)glGetString(GL_VENDOR));
 		HE_CORE_INFO("\t{0}", (const char*)glGetString(GL_RENDERER));
 		HE_CORE_INFO("\t{0}", (const char*)glGetString(GL_VERSION));

@@ -1,6 +1,6 @@
 #pragma once
 
-#include "HuaEngine/Renderer/VertexBuffer.h"
+#include "HuaEngine/Rendering/VertexBuffer.h"
 
 namespace HE {
 	class OpenGLVertexBuffer : public VertexBuffer {

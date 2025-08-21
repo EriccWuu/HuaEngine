@@ -1,24 +1,31 @@
 #include <iostream>
 #include <HuaEngine.h>
 
-#include "Platform/OpenGL/OpenGLShader.h"
-#include "Platform/OpenGL/OpenGLTexture2D.h"
+#define GLM_ENABLE_EXPERIMENTAL
+#include "glm/gtx/quaternion.hpp"
+
+#include "HuaEngine/ECS/Components.h"
+#include "Module/Rendering/RenderingComponent.h"
+#include "HuaEngine/ECS/ScriptableEntity.h"
 
 using namespace HE;
 
 class CustomLayer : public HE::Layer {
 public:
 	CustomLayer(): Layer("CumsomLayer") {
-        
+        // Initialize camera
+        m_EditorCamera.reset(new EditorCamera());
+        m_Scene.reset(new Scene());
+        m_RenderSystem.reset(new RenderSystem(m_Scene));
 	}
 
     void OnAttach() override {
         // Create vertex buffer
 		float squareVertices[4 * 5] = {
-			-0.5f, -0.5f, 0.0f, 0.0 , 0.0,
-			 0.5f, -0.5f, 0.0f, 1.0 , 0.0,
-			 0.5f,  0.5f, 0.0f, 1.0 , 1.0,
-			-0.5f,  0.5f, 0.0f, 0.0 , 1.0
+			-0.5f, -0.5f, -3.0f, 0.0 , 0.0,
+			 0.5f, -0.5f, -3.0f, 1.0 , 0.0,
+			 0.5f,  0.5f, -3.0f, 1.0 , 1.0,
+			-0.5f,  0.5f, -3.0f, 0.0 , 1.0
 		};
 
 		Ref<VertexBuffer> squareVertexBuffer;
@@ -34,8 +41,8 @@ public:
 
         // Create vertex array
 		BufferLayout squareLayout = {
-			{ ShaderDataType::Float3, "aPosition" },
-			{ ShaderDataType::Float2, "aTexCoord" }
+			{ ShaderDataType::Float3, "a_Position" },
+			{ ShaderDataType::Float2, "a_TexCoord" }
 		};
 
 		squareVertexBuffer->SetLayout(squareLayout);
@@ -48,16 +55,18 @@ public:
 		std::string squareVS = R"(
 			#version 330 core
 
-			layout(location = 0) in vec3 aPosition;
-			layout(location = 1) in vec2 aTexCoord;
+			layout(location = 0) in vec3 a_Position;
+			layout(location = 1) in vec2 a_TexCoord;
 
-			out vec3 vPosition;
-			out vec2 vTexCoord;
+			out vec3 v_Position;
+			out vec2 v_TexCoord;
+
+            uniform mat4 u_ViewProjection;
+            uniform mat4 u_Transform;
 
 			void main() {
-				vPosition = aPosition;
-				vTexCoord = aTexCoord;
-				gl_Position = vec4(aPosition, 1.0);
+				v_TexCoord = a_TexCoord;
+				gl_Position = u_ViewProjection * u_Transform * vec4(a_Position, 1.0);
 			}
 		)";
 
@@ -65,22 +74,19 @@ public:
 			#version 330 core
 
 			out vec4 FragColor;
-			in vec3 vPosition;
-			in vec2 vTexCoord;
+			in vec2 v_TexCoord;
 
-			uniform sampler2D uTexture;
+			uniform sampler2D u_Texture;
 
 			void main() {
-				FragColor = texture(uTexture, vTexCoord);
-                // FragColor = vec4(vTexCoord, 0.0, 0.0);
+				// FragColor = texture(u_Texture, v_TexCoord);
+                FragColor = vec4(v_TexCoord, 0.0, 1.0);
 			}
 		)";
 
-		m_SquareShader.reset(new OpenGLShader(squareVS, squareFS));
+		m_SquareShader = Shader::Create(squareVS, squareFS);
 
 		m_Texture = Texture2D::Create("assets/textures/hutao.png");
-		m_Texture->Bind(0);
-		std::dynamic_pointer_cast<OpenGLShader>(m_SquareShader)->UploadUniformInt("uTexture", 0);
 
         // Create framebuffer
         FrameBufferSpecification spec;
@@ -88,23 +94,26 @@ public:
         spec.Height = 720;
         spec.Attachments = { FrameBufferTextureFormat::RGBA8 };
         m_FrameBuffer = FrameBuffer::Create(spec);
+
+        m_Square = std::make_shared<Entity>(m_Scene->GetEntityManager().CreateEntity());
+        m_Square->AddComponent<MeshComponent>(m_SquareVA);
+        m_Square->AddComponent<RendererComponent>(m_SquareShader, m_Texture);
+
+        auto square = std::make_shared<Entity>(m_Scene->GetEntityManager().CreateEntity());
+        square->AddComponent<MeshComponent>(m_SquareVA);
+        square->AddComponent<RendererComponent>(m_SquareShader, m_Texture);
+        auto& trans = square->GetComponent<TransformComponent>();
+        trans.Position += glm::vec3{0.5, 0.5, 0.0};
+
+        m_RenderSystem->SetFrameBuffer(m_FrameBuffer);
+
+        m_Scene->AddSyetem(m_RenderSystem);
     }
 
 	void OnUpdate() override {
-        Renderer::Begin();
-        m_FrameBuffer->Bind();
-
-        RenderCommand::SetClearColor({ 0.1f, 0.1f, 0.1f, 1.0f });
-        RenderCommand::Clear();
-
-        m_Texture->Bind(0);
-        std::dynamic_pointer_cast<OpenGLShader>(m_SquareShader)->UploadUniformInt("uTexture", 0);
-
-		m_SquareShader->Bind();
-		Renderer::Submit(m_SquareVA);
-        
-        m_FrameBuffer->Unbind();
-		Renderer::End();
+        m_EditorCamera->OnUpdate();
+        m_RenderSystem->RenderSingleCamera(*m_Scene, *m_EditorCamera);
+        m_Scene->Update();
 	}
 
 	void OnGuiRender() override {
@@ -220,19 +229,80 @@ public:
         ImGui::PopStyleVar();
 	}
 
+    void OnEvent(Event& event) override {
+        auto dispatcher = EventDispatcher(event);
+        dispatcher.Dispatch<WindowResizeEvent>(BIND_EVENT_FUNC(CustomLayer::OnWindowResize));
+    }
+
+    bool OnWindowResize(WindowResizeEvent& event) {
+        m_EditorCamera->SetViewport(event.GetWidth(), event.GetHeight());
+        return false;
+    }
+
 private:
 	Ref<Shader> m_SquareShader;
 	Ref<VertexArray> m_SquareVA;
 	Ref<Texture2D> m_Texture;
     Ref<FrameBuffer> m_FrameBuffer;
+    Ref<EditorCamera> m_EditorCamera;
+    Ref<Entity> m_Square, m_SceneCamera;
+    Ref<Scene> m_Scene;
+    Ref<RenderSystem> m_RenderSystem;
 
     glm::vec2 m_SceneViewportSize = {0, 0};
 };
+
+// For Test, remember to remove this
+class Person {
+public:
+    void Pubfunc() {
+        std::cout << "Pubfunc" << std::endl;
+    }
+    bool Pubfunc1(int, float, std::string) {
+        std::cout << "Pubfunc1" << std::endl;
+        return true;
+    }
+
+    int a = 0;
+    const float b = 1.0;
+
+private:
+    void Prifunc() {}
+    bool Prifunc1(int, float, std::string) {}
+
+    int m_a;
+    float m_b;
+};
+
+srefl_class(Person,
+    fields(
+        field(a),
+        field(b)
+    )
+)
+
+void TestRefl() {
+    TransformComponent p;
+    auto typeInfo = Refl::reflect<TransformComponent>();
+
+    typeInfo.visit_member_variables([&p](auto&& field) {
+        std::cout << field.GetValue(&p) << std::endl;
+    });
+    
+    typeInfo.visit_member_variables([&p](auto&& field) {
+        field.SetValue(&p, glm::vec3(2));
+    });
+    
+    typeInfo.visit_member_variables([&p](auto&& field) {
+        std::cout << field.GetValue(&p) << std::endl;
+    });
+}
 
 class SandboxApp : public HE::Application {
 public:
 	SandboxApp() {
 		PushLayer(new CustomLayer());
+        TestRefl();
 	}
 
 	~SandboxApp() {

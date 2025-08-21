@@ -2,9 +2,6 @@
 #include "Application.h"
 #include "Events/KeyEvent.h"
 #include "Events/ApplicationEvent.h"
-#include "Core/Input.h"
-#include "Renderer/Renderer.h"
-#include "Renderer/RenderCommand.h"
 
 namespace HE
 {

@@ -16,6 +16,10 @@ namespace HE {
 		glClearColor(clearColor.r, clearColor.g, clearColor.b, clearColor.a);
 	}
 
+	void OpenGLRendererAPI::SetViewport(const float width, const float height) {
+		glViewport(0, 0, (GLsizei)width, (GLsizei)height);
+	}
+
 	void OpenGLRendererAPI::Clear() {
 		glClear(GL_COLOR_BUFFER_BIT);
 	}

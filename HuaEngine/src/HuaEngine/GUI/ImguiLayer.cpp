@@ -163,7 +163,7 @@ namespace HE {
         Application& app = Application::GetInstance();
         auto window = static_cast<GLFWwindow*>(app.GetWindow().GetNativeWindow());
 
-        // Setup Platform/Renderer backends
+        // Setup Platform/Rendering backends
         ImGui_ImplGlfw_InitForOpenGL(window, true);
         ImGui_ImplOpenGL3_Init("#version 410");
 	}

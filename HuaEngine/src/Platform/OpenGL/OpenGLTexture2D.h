@@ -1,7 +1,7 @@
 #pragma once
 
 #include <string>
-#include "HuaEngine/Renderer/Texture.h"
+#include "HuaEngine/Rendering/Texture.h"
 #include "stb_image.h"
 
 namespace HE {

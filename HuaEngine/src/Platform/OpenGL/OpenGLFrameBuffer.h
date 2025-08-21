@@ -1,6 +1,6 @@
 #pragma once 
 
-#include "HuaEngine/Renderer/FrameBuffer.h"
+#include "HuaEngine/Rendering/FrameBuffer.h"
 
 namespace HE {
 	class OpenGLFrameBuffer : public FrameBuffer {

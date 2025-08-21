@@ -1,7 +1,7 @@
 #pragma once
 
 #include "HuaEngine/Core/Window.h"
-#include "HuaEngine/Renderer/RenderContext.h"
+#include "HuaEngine/Rendering/RenderContext.h"
 #include <GLFW/glfw3.h>
 
 namespace HE {

@@ -1,6 +1,6 @@
 #pragma once
 
-#include "HuaEngine/Renderer/RenderContext.h"
+#include "HuaEngine/Rendering/RenderContext.h"
 #include "GLFW/glfw3.h"
 
 namespace HE {

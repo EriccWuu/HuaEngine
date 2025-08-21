@@ -1,6 +1,6 @@
 #pragma once
 
-#include "HuaEngine/Renderer/IndexBuffer.h"
+#include "HuaEngine/Rendering/IndexBuffer.h"
 
 namespace HE {
 	class OpenGLIndexBuffer : public IndexBuffer {
