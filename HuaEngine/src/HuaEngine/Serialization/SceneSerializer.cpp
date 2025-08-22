@@ -102,12 +102,16 @@ namespace HE {
         for (auto&& [id, storage] : registry.storage()) {
             if (storage.contains(entity)) {
                 backend.BeginArrayElement(componentIndex++);
+
+                backend.BeginObject("");
                 
                 // Serialize component type ID
                 backend.Serialize("component_type_id", static_cast<uint32_t>(id));
                 
                 // Serialize component data based on type
                 SerializeComponentData(backend, entity, id);
+
+                backend.EndObject();
                 
                 backend.EndArrayElement();
             }
@@ -133,11 +137,15 @@ namespace HE {
         for (uint32_t i = 0; i < componentCount; ++i) {
             backend.BeginArrayElement(i);
 
+            backend.BeginObject("");
+
             uint32_t componentTypeId;
             backend.Deserialize("component_type_id", componentTypeId);
 
             // Deserialize component data based on type
             DeserializeComponentData(backend, entity, static_cast<entt::id_type>(componentTypeId));
+
+            backend.EndObject();
 
             backend.EndArrayElement();
         }
@@ -153,7 +161,49 @@ namespace HE {
         if (componentTypeId == entt::type_hash<TransformComponent>::value()) {
             auto& component = registry.get<TransformComponent>(entity);
             backend.BeginObject("data");
-            Serializer<TransformComponent>::Serialize(backend, "", component);
+            
+            // Directly serialize the transform component fields instead of using Serializer<>
+            backend.BeginObject("Position");
+            backend.Serialize("x", component.Position.x);
+            backend.Serialize("y", component.Position.y);
+            backend.Serialize("z", component.Position.z);
+            backend.EndObject();
+            
+            backend.BeginObject("Rotation");
+            backend.Serialize("x", component.Rotation.x);
+            backend.Serialize("y", component.Rotation.y);
+            backend.Serialize("z", component.Rotation.z);
+            backend.EndObject();
+            
+            backend.BeginObject("Scale");
+            backend.Serialize("x", component.Scale.x);
+            backend.Serialize("y", component.Scale.y);
+            backend.Serialize("z", component.Scale.z);
+            backend.EndObject();
+            
+            backend.EndObject();
+        }
+        else if (componentTypeId == entt::type_hash<CameraComponent>::value()) {
+            auto& component = registry.get<CameraComponent>(entity);
+            backend.BeginObject("data");
+            backend.Serialize("Primary", component.Primary);
+            backend.Serialize("FixedAspectRatio", component.FixedAspectRatio);
+            backend.EndObject();
+        }
+        else if (componentTypeId == entt::type_hash<RendererComponent>::value()) {
+            backend.BeginObject("data");
+            backend.Serialize("shader_name", "default_shader");
+            backend.Serialize("texture_name", "default_texture");
+            backend.EndObject();
+        }
+        else if (componentTypeId == entt::type_hash<MeshComponent>::value()) {
+            backend.BeginObject("data");
+            backend.Serialize("vertex_array_name", "default_mesh");
+            backend.EndObject();
+        }
+        else if (componentTypeId == entt::type_hash<NativeScriptComponent>::value()) {
+            backend.BeginObject("data");
+            backend.Serialize("script_type", "native_script");
             backend.EndObject();
         }
         else if (componentTypeId == entt::type_hash<CameraComponent>::value()) {
@@ -185,7 +235,6 @@ namespace HE {
             backend.Serialize("script_type", "native_script");
             backend.EndObject();
         }
-        // Add more component types here as needed
         else {
             // Unknown component type, just create empty data
             backend.BeginObject("data");
