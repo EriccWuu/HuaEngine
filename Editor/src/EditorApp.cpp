@@ -1,6 +1,8 @@
 #include "enginepch.h"
-#include "HuaEngine/EntryPoint.h"  
 #include "EditorLayer.h"
+
+// Entry Point - Must be included in main application file only
+#include "HuaEngine/EntryPoint.h"
 
 namespace HE {
 	class EditorApp : public Application {

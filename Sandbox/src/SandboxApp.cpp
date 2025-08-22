@@ -1,6 +1,9 @@
 #include <iostream>
 #include <HuaEngine.h>
 
+// Entry Point - Must be included in main application file only
+#include "HuaEngine/EntryPoint.h"
+
 #define GLM_ENABLE_EXPERIMENTAL
 #include "glm/gtx/quaternion.hpp"
 

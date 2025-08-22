@@ -57,7 +57,7 @@ target_link_libraries(HuaEngine
 # Platform specific linking
 if(WIN32)
     target_link_libraries(HuaEngine PUBLIC opengl32)
-    target_compile_definitions(HuaEngine PRIVATE HE_BUILD_DLL)
+    target_compile_definitions(HuaEngine PRIVATE HE_BUILD_DLL GLFW_INCLUDE_NONE)
 endif()
 
 # Precompiled headers
@@ -77,5 +77,5 @@ endif()
 
 # Set output directory
 set_target_properties(HuaEngine PROPERTIES
-    ARCHIVE_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/bin/${CMAKE_BUILD_TYPE}-${CMAKE_SYSTEM_NAME}-${ARCHITECTURE}/HuaEngine"
+    ARCHIVE_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/bin/$<CONFIG>-${CMAKE_SYSTEM_NAME}-${ARCHITECTURE}/HuaEngine"
 )

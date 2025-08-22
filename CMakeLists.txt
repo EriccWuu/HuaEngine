@@ -1,5 +1,8 @@
 cmake_minimum_required(VERSION 3.16)
 
+# Enable compile commands export for IntelliSense
+set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
+
 # Include custom configuration
 include(${CMAKE_SOURCE_DIR}/cmake/Config.cmake)
 
@@ -53,7 +56,6 @@ endif()
 # Platform defines
 if(WIN32)
     add_compile_definitions(HE_PLATFORM_WINDOWS)
-    add_compile_definitions(GLFW_INCLUDE_NONE)
 endif()
 
 # Configuration specific defines
@@ -80,3 +82,6 @@ add_subdirectory(Dependencies/imgui)
 add_subdirectory(HuaEngine)
 add_subdirectory(Sandbox)
 add_subdirectory(Editor)
+
+# Set Editor as the startup project for Visual Studio
+set_property(DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR} PROPERTY VS_STARTUP_PROJECT Editor)

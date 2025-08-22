@@ -34,6 +34,7 @@ target_link_libraries(Sandbox PRIVATE
 
 # Platform specific settings
 if(WIN32)
+    target_compile_definitions(Sandbox PRIVATE GLFW_INCLUDE_NONE)
     if(MSVC)
         set_target_properties(Sandbox PROPERTIES
             MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>"
@@ -44,7 +45,8 @@ endif()
 
 # Set output directory
 set_target_properties(Sandbox PROPERTIES
-    RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/bin/${CMAKE_BUILD_TYPE}-${CMAKE_SYSTEM_NAME}-${ARCHITECTURE}/Sandbox"
+    RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/bin/$<CONFIG>-${CMAKE_SYSTEM_NAME}-${ARCHITECTURE}"
+    VS_DEBUGGER_WORKING_DIRECTORY "${CMAKE_BINARY_DIR}/bin/$<CONFIG>-${CMAKE_SYSTEM_NAME}-${ARCHITECTURE}"
 )
 
 # Copy assets to output directory

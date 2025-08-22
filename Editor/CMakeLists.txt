@@ -35,6 +35,7 @@ target_link_libraries(Editor PRIVATE
 
 # Platform specific settings
 if(WIN32)
+    target_compile_definitions(Editor PRIVATE GLFW_INCLUDE_NONE)
     if(MSVC)
         set_target_properties(Editor PROPERTIES
             MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>"
@@ -45,7 +46,8 @@ endif()
 
 # Set output directory
 set_target_properties(Editor PROPERTIES
-    RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/bin/${CMAKE_BUILD_TYPE}-${CMAKE_SYSTEM_NAME}-${ARCHITECTURE}/Editor"
+    RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/bin/$<CONFIG>-${CMAKE_SYSTEM_NAME}-${ARCHITECTURE}"
+    VS_DEBUGGER_WORKING_DIRECTORY "${CMAKE_BINARY_DIR}/bin/$<CONFIG>-${CMAKE_SYSTEM_NAME}-${ARCHITECTURE}"
 )
 
 # Copy assets to output directory

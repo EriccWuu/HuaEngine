@@ -23,7 +23,7 @@ Makefile
 !CMakeLists.txt
 !**/CMakeLists.txt
 
-# Premake generated files
+# Generated project files
 *.sln
 *.vcxproj
 !Dependencies/*/**.vcxproj
