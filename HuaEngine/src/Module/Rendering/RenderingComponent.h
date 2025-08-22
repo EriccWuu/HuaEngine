@@ -36,3 +36,10 @@ namespace HE {
 		Ref<VertexArray> VertexArray;
 	};
 }
+
+srefl_class(HE::CameraComponent,
+	fields(
+		field(Primary),
+		field(FixedAspectRatio)
+	)
+)

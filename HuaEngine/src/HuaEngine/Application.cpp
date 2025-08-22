@@ -2,6 +2,7 @@
 #include "Application.h"
 #include "Events/KeyEvent.h"
 #include "Events/ApplicationEvent.h"
+#include "Serialization/SerializationCore.h"
 
 namespace HE
 {
@@ -11,6 +12,9 @@ namespace HE
 	{
 		HE_CORE_ASSERT(!ms_Instance, "There is already an exesisting Application instance!");
 		ms_Instance = this;
+
+		// Initialize serialization system
+		InitializeSerialization();
 
 		m_Window = std::unique_ptr<Window>(Window::Create());
 		m_Window->SetEventCallback(BIND_EVENT_FUNC(Application::OnEvent));

@@ -45,7 +45,7 @@ namespace HE {
 	};
 }
 
-srefl_class(TransformComponent,
+srefl_class(HE::TransformComponent,
 	fields(
 		field(Position),
 		field(Rotation),

@@ -10,6 +10,7 @@
 #include "HuaEngine/ECS/Components.h"
 #include "Module/Rendering/RenderingComponent.h"
 #include "HuaEngine/ECS/ScriptableEntity.h"
+#include "HuaEngine/Serialization/SerializationExamples.h"
 
 using namespace HE;
 
@@ -23,6 +24,8 @@ public:
 	}
 
     void OnAttach() override {
+        Examples::SerializationExamples();
+
         // Create vertex buffer
 		float squareVertices[4 * 5] = {
 			-0.5f, -0.5f, -3.0f, 0.0 , 0.0,

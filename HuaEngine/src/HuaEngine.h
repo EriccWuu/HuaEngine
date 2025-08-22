@@ -32,6 +32,9 @@
 // Reflection
 #include "HuaEngine/Reflection/Reflection.h"
 
+// Serialization
+#include "HuaEngine/Serialization/SerializationCore.h"
+
 // Math
 #include "HuaEngine/Math/Math.h"
 

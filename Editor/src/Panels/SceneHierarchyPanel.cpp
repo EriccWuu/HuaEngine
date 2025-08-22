@@ -59,8 +59,6 @@ namespace HE {
 		if (node_open) {
 			ImGui::TreePop();
 		}
-			
-		HE_CORE_INFO("Entity {0} {1}", entity.GetName(), entity.GetUid());
 
 		ImGui::PopID();
 	}
