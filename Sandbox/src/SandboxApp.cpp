@@ -12,6 +12,8 @@
 #include "HuaEngine/ECS/ScriptableEntity.h"
 #include "HuaEngine/Serialization/SerializationExamples.h"
 #include "HuaEngine/Serialization/SerializationCore.h"
+#include "HuaEngine/Serialization/MaterialSerializationDemo.h"
+#include "HuaEngine/Rendering/Material/Material.h"
 
 using namespace HE;
 
@@ -25,6 +27,8 @@ public:
 	}
 
     void OnAttach() override {
+        MaterialSerializationDemo::RunDemo();
+
         // Create vertex buffer
 		float squareVertices[4 * 5] = {
 			-0.5f, -0.5f, -3.0f, 0.0 , 0.0,
@@ -57,12 +61,46 @@ public:
 		m_SquareVA->SetIndexBuffer(squareIndexBuffer);
 
         // Create shaders - Load from file
-		m_SquareShader = Shader::CreateFromFile("assets/shaders/sandbox.glsl");
-		if (!m_SquareShader) {
+		auto shader = Shader::CreateFromFile("assets/shaders/sandbox.glsl");
+		if (!shader) {
 			HE_CORE_ERROR("Failed to load sandbox shader!");
 		}
 
-		m_Texture = Texture2D::Create("assets/textures/hutao.png");
+		auto texture = Texture2D::Create("assets/textures/hutao.png");
+
+        // Create Material instead of using shader and texture directly
+        m_SandboxMaterial = Material::Create("SandboxMaterial", MaterialType::Unlit);
+        m_SandboxMaterial->SetShader(shader);
+        
+        // Add texture parameter to material
+        m_SandboxMaterial->AddParameter(MaterialParameter(
+            "u_MainTexture", 
+            MaterialParameterType::Texture2D, 
+            texture,
+            true // isTexture
+        ));
+
+        // Add color tint parameter
+        m_SandboxMaterial->AddParameter(MaterialParameter(
+            "u_Color", 
+            MaterialParameterType::Vec4, 
+            glm::vec4(1.0f, 1.0f, 1.0f, 1.0f), // 白色
+            false
+        ));
+
+        // Add texture scale parameter
+        m_SandboxMaterial->AddParameter(MaterialParameter(
+            "u_TextureScale", 
+            MaterialParameterType::Vec2, 
+            glm::vec2(1.0f, 1.0f), // 默认不缩放
+            false
+        ));
+
+        // Create material instance
+        m_MaterialInstance = m_SandboxMaterial->CreateInstance();
+        
+        // 可以在实例中覆盖参数
+        // m_MaterialInstance->SetParameter("u_Color", glm::vec4(1.0f, 0.5f, 0.8f, 1.0f)); // 粉色调
 
         // Create framebuffer
         FrameBufferSpecification spec;
@@ -73,11 +111,16 @@ public:
 
         m_Square = std::make_shared<Entity>(m_Scene->GetEntityManager().CreateEntity());
         m_Square->AddComponent<MeshComponent>(m_SquareVA);
-        m_Square->AddComponent<RendererComponent>(m_SquareShader, m_Texture);
+        m_Square->AddComponent<MaterialComponent>(m_MaterialInstance);
+
+        // 为第二个正方形创建不同的材质实例
+        auto secondMaterialInstance = m_SandboxMaterial->CreateInstance();
+        secondMaterialInstance->SetParameter("u_Color", glm::vec4(0.8f, 0.4f, 0.9f, 1.0f)); // 紫色调
+        secondMaterialInstance->SetParameter("u_TextureScale", glm::vec2(2.0f, 2.0f)); // 2倍纹理缩放
 
         auto square = std::make_shared<Entity>(m_Scene->GetEntityManager().CreateEntity());
         square->AddComponent<MeshComponent>(m_SquareVA);
-        square->AddComponent<RendererComponent>(m_SquareShader, m_Texture);
+        square->AddComponent<MaterialComponent>(secondMaterialInstance);
         auto& trans = square->GetComponent<TransformComponent>();
         trans.Position += glm::vec3{0.5, 0.5, 0.0};
 
@@ -224,14 +267,14 @@ public:
     }
 
 private:
-	Ref<Shader> m_SquareShader;
 	Ref<VertexArray> m_SquareVA;
-	Ref<Texture2D> m_Texture;
     Ref<FrameBuffer> m_FrameBuffer;
     Ref<EditorCamera> m_EditorCamera;
     Ref<Entity> m_Square, m_SceneCamera;
     Ref<Scene> m_Scene;
     Ref<RenderSystem> m_RenderSystem;
+    Ref<Material> m_SandboxMaterial;
+    Ref<MaterialInstance> m_MaterialInstance;
 
     glm::vec2 m_SceneViewportSize = {0, 0};
 };

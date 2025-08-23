@@ -15,9 +15,12 @@
 #include "HuaEngine/Rendering/VertexBuffer.h"
 #include "HuaEngine/Rendering/IndexBuffer.h"
 #include "HuaEngine/Rendering/VertexArray.h"
-#include "HuaEngine/Rendering/Shader.h"
+#include "HuaEngine/Rendering/Shader/Shader.h"
 #include "HuaEngine/Rendering/Texture.h"
 #include "HuaEngine/Rendering/FrameBuffer.h"
+#include "HuaEngine/Rendering/Material/Material.h"
+#include "HuaEngine/Rendering/Material/MaterialTypes.h"
+#include "HuaEngine/Rendering/Material/MaterialLibrary.h"
 #include "HuaEngine/Rendering/Camera.h"
 #include "HuaEngine/Rendering/EditorCamera.h"
 

@@ -1,0 +1,242 @@
+#pragma once
+
+#include "Material.h"
+#include "HuaEngine/Serialization/Serialization.h"
+#include "HuaEngine/Serialization/GLMSerialization.h"
+
+namespace HE {
+
+    // 材质参数值序列化
+    class MaterialParameterSerializer {
+    public:
+        static void Serialize(SerializationBackend& backend, const std::string& name, const MaterialParameterValue& value);
+        static bool Deserialize(SerializationBackend& backend, const std::string& name, MaterialParameterValue& value, MaterialParameterType type);
+        
+        // 辅助函数：从类型名称获取类型枚举
+        static MaterialParameterType StringToParameterType(const std::string& typeStr);
+        static std::string ParameterTypeToString(MaterialParameterType type);
+    };
+
+    // 材质参数序列化
+    template<>
+    struct Serializer<MaterialParameter> {
+        static void Serialize(SerializationBackend& backend, const std::string& name, const MaterialParameter& param) {
+            backend.BeginObject(name);
+            backend.Serialize("name", param.Name);
+            backend.Serialize("type", MaterialParameterSerializer::ParameterTypeToString(param.Type));
+            backend.Serialize("is_texture", param.IsTexture);
+            
+            // 序列化默认值
+            MaterialParameterSerializer::Serialize(backend, "default_value", param.DefaultValue);
+            
+            backend.EndObject();
+        }
+
+        static bool Deserialize(SerializationBackend& backend, const std::string& name, MaterialParameter& param) {
+            if (!(backend.HasField("name") &&
+                backend.HasField("type") &&
+                backend.HasField("is_texture") &&
+                backend.HasField("default_value")))
+                return false;
+
+            backend.BeginObject(name);
+                
+            backend.Deserialize("name", param.Name);
+                
+            std::string typeStr;
+            backend.Deserialize("type", typeStr);
+            param.Type = MaterialParameterSerializer::StringToParameterType(typeStr);
+                
+            backend.Deserialize("is_texture", param.IsTexture);
+                
+            // 反序列化默认值
+            MaterialParameterSerializer::Deserialize(backend, "default_value", param.DefaultValue, param.Type);
+                
+            backend.EndObject();
+            return true;
+        }
+    };
+
+    // 材质类型序列化
+    inline std::string MaterialTypeToString(MaterialType type) {
+        switch (type) {
+            case MaterialType::Standard: return "Standard";
+            case MaterialType::Unlit: return "Unlit";
+            case MaterialType::Custom: return "Custom";
+            default: return "Unknown";
+        }
+    }
+
+    inline MaterialType StringToMaterialType(const std::string& typeStr) {
+        if (typeStr == "Standard") return MaterialType::Standard;
+        if (typeStr == "Unlit") return MaterialType::Unlit;
+        if (typeStr == "Custom") return MaterialType::Custom;
+        return MaterialType::Custom; // 默认为自定义
+    }
+
+    // 材质基类序列化
+    template<>
+    struct Serializer<Material> {
+        static void Serialize(SerializationBackend& backend, const std::string& name, const Material& material) {
+            // 基本属性
+            backend.Serialize("name", material.GetName());
+            backend.Serialize("type", MaterialTypeToString(material.GetType()));
+            
+            // Shader 路径 (简化处理，只保存路径)
+            // TODO: 需要 Shader 类支持路径存储才能完整实现
+            std::string shaderPath = ""; // 暂时为空，等待 Shader 类扩展
+            if (material.GetShader()) {
+                // 当 Shader 支持路径存储时，可以这样获取：
+                // shaderPath = material.GetShader()->GetPath();
+            }
+            backend.Serialize("shader_path", shaderPath);
+            
+            // 参数列表
+            const auto& parameters = material.GetParameters();
+            backend.BeginArray("parameters", parameters.size());
+            
+            size_t index = 0;
+            for (const auto& [paramName, param] : parameters) {
+                backend.BeginArrayElement(index++);
+                Serializer<MaterialParameter>::Serialize(backend, "", param);
+                backend.EndArrayElement();
+            }
+            backend.EndArray();
+            
+            // 纹理槽信息
+            const auto& textureSlots = material.GetTextureSlots();
+            if (!textureSlots.empty()) {
+                backend.BeginObject("texture_slots");
+                for (const auto& [slotName, slotIndex] : textureSlots) {
+                    backend.Serialize(slotName, static_cast<int>(slotIndex));
+                }
+                backend.EndObject();
+            }
+        }
+
+        static bool Deserialize(SerializationBackend& backend, const std::string& name, Material& material) {    
+            // 基本属性在构造时已设置，这里主要恢复参数
+            if (!(backend.HasField("texture_slots") &&
+                backend.HasField("type") &&
+                backend.HasField("name") &&
+                backend.HasField("parameters")))
+                return false;
+
+            std::string shaderPath;
+            backend.Deserialize("shader_path", shaderPath);
+
+            std::string typeStr;
+            backend.Deserialize("type", typeStr);
+            material.SetType(StringToMaterialType(typeStr));
+
+            std::string matName;
+            backend.Deserialize("name", matName);
+            material.SetName(matName);
+
+            // TODO: 根据 shaderPath 加载 Shader
+            // 这里需要资源管理器来加载 Shader
+            // if (!shaderPath.empty()) {
+            //     auto shader = ResourceManager::LoadShader(shaderPath);
+            //     material.SetShader(shader);
+            // }
+
+            // 参数列表
+            // 先获取数组大小，再进入数组
+            size_t paramCount = backend.GetArraySize("parameters");
+            backend.BeginArray("parameters");
+
+            for (size_t i = 0; i < paramCount; ++i) {
+                backend.BeginArrayElement(i);
+                MaterialParameter param;
+                Serializer<MaterialParameter>::Deserialize(backend, "", param);
+                material.AddParameter(param);
+                backend.EndArrayElement();
+            }
+            backend.EndArray();
+
+            // 纹理槽信息
+            backend.BeginObject("texture_slots");
+            // 注意：具体的字段名需要在运行时确定，这里提供一个示例
+            // 实际实现可能需要遍历对象的所有字段
+            // 暂时跳过具体实现，留待后续完善
+            backend.EndObject();
+
+            return true;
+        }
+    };
+
+    // 材质实例序列化
+    template<>
+    struct Serializer<MaterialInstance> {
+        static void Serialize(SerializationBackend& backend, const std::string& name, const MaterialInstance& instance) {
+            backend.BeginObject(name);
+            
+            // 基础材质名称
+            backend.Serialize("base_material_name", instance.GetBaseMaterial()->GetName());
+            
+            // 参数覆盖
+            backend.BeginArray("parameter_overrides");
+            const auto& overrideParams = instance.GetParameterOverrides();
+
+            size_t index = 0;
+            for (const auto& [paramName, param] : overrideParams) {
+                backend.BeginArrayElement(index++);
+                backend.BeginObject();
+                MaterialParameterSerializer::Serialize(backend, paramName, param);
+                backend.EndObject();
+                backend.EndArrayElement();
+            }
+            backend.EndArray();
+            
+            backend.EndObject();
+        }
+
+        static bool Deserialize(SerializationBackend& backend, const std::string& name, MaterialInstance& instance) {
+            if (!(backend.HasField("base_material_name") &&
+                backend.HasField("parameter_overrides")))
+                return false;
+            
+            // 注意：MaterialInstance 的反序列化需要先有基础材质
+            // 通常在创建时就指定基础材质，这里主要恢复参数覆盖
+                
+            std::string baseMaterialName;
+            backend.Deserialize("base_material_name", baseMaterialName);
+                
+            // 参数覆盖
+            // 先获取数组大小，再进入数组
+            size_t paramCount = backend.GetArraySize("parameter_overrides");
+            backend.BeginArray("parameter_overrides");
+
+            // 清除现有的参数覆盖
+            instance.ClearParameterOverrides();
+
+            for (size_t i = 0; i < paramCount; ++i) {
+                backend.BeginArrayElement(i);
+                backend.BeginObject("");
+                        
+                // 获取参数名和对应的基础材质参数信息
+                auto baseMaterial = instance.GetBaseMaterial();
+                if (baseMaterial) {
+                    const auto& parameters = baseMaterial->GetParameters();
+                            
+                    // 遍历所有可能的参数名
+                    for (const auto& [paramName, baseParam] : parameters) {
+                        if (backend.HasField(paramName)) {
+                            MaterialParameterValue value;
+                            if (MaterialParameterSerializer::Deserialize(backend, paramName, value, baseParam.Type)) {
+                                instance.SetParameter(paramName, value);
+                            }
+                        }
+                    }
+                }
+                        
+                backend.EndObject();
+                backend.EndArrayElement();
+            }
+            backend.EndArray();
+                
+            return true;
+        }
+    };
+
+}

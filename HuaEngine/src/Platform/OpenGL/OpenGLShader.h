@@ -1,7 +1,7 @@
 #pragma once
 
 #include <string>
-#include "HuaEngine/Rendering/Shader.h"
+#include "HuaEngine/Rendering/Shader/Shader.h"
 
 namespace HE {
 	class OpenGLShader : public Shader {
