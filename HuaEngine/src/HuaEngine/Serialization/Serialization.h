@@ -7,6 +7,7 @@
 #include <functional>
 #include <cstdint>
 #include "HuaEngine/Core/Core.h"
+#include "HuaEngine/Reflection/Reflection.h"
 
 namespace HE {
 

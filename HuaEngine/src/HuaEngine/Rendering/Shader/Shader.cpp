@@ -85,7 +85,8 @@ namespace HE {
 
 		std::string vertexSource = shaderSources[GL_VERTEX_SHADER];
 		std::string fragmentSource = shaderSources[GL_FRAGMENT_SHADER];
-
-		return Create(vertexSource, fragmentSource);
+		auto shader = Create(vertexSource, fragmentSource);
+		shader->m_Path = shaderPath;
+		return shader;
 	}
 }

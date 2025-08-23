@@ -93,6 +93,8 @@ public:
             false
         ));
 
+        SERIALIZE_TO_FILE(*m_SandboxMaterial, "assets/sandboxMaterial.json", SerializationFormat::JSON);
+
         // Create material instance
         m_MaterialInstance = m_SandboxMaterial->CreateInstance();
         

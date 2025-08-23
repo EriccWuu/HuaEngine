@@ -11,6 +11,7 @@
 
 // Scene serialization
 #include "SceneSerializer.h"
+#include "HuaEngine/Rendering/Material/MaterialSerialization.h"
 
 namespace HE {
 

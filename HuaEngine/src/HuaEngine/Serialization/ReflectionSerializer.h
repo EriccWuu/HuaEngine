@@ -1,7 +1,6 @@
 #pragma once
 
 #include "Serialization.h"
-#include "HuaEngine/Reflection/Reflection.h"
 #include "glm/glm.hpp"
 
 namespace HE {
@@ -83,6 +82,26 @@ namespace HE {
         }
     };
 
+    // Specialization for glm::vec2 (commonly used in engines)
+    template<>
+    struct Serializer<glm::vec2> {
+        static void Serialize(SerializationBackend& backend, const std::string& name, const glm::vec2& value) {
+            backend.BeginObject(name);
+            backend.Serialize("x", value.x);
+            backend.Serialize("y", value.y);
+            backend.EndObject();
+        }
+
+        static void Deserialize(SerializationBackend& backend, const std::string& name, glm::vec2& value) {
+            if (backend.HasField(name)) {
+                backend.BeginObject(name);
+                backend.Deserialize("x", value.x);
+                backend.Deserialize("y", value.y);
+                backend.EndObject();
+            }
+        }
+    };
+
     // Specialization for glm::vec3 (commonly used in engines)
     template<>
     struct Serializer<glm::vec3> {
@@ -130,6 +149,36 @@ namespace HE {
             success &= backend.Deserialize("w", vec.w);
             backend.EndObject();
             return success;
+        }
+    };
+
+    // Specialization for glm::mat3 (if needed)
+    template<>
+    struct Serializer<glm::mat3> {
+        static void Serialize(SerializationBackend& backend, const std::string& name, const glm::mat3& value) {
+            backend.BeginArray(name, 9);
+            for (int i = 0; i < 3; ++i) {
+                for (int j = 0; j < 3; ++j) {
+                    backend.BeginArrayElement(i * 3 + j);
+                    backend.Serialize("", value[i][j]);
+                    backend.EndArrayElement();
+                }
+            }
+            backend.EndArray();
+        }
+
+        static void Deserialize(SerializationBackend& backend, const std::string& name, glm::mat3& value) {
+            if (backend.HasField(name)) {
+                backend.BeginArray(name);
+                for (int i = 0; i < 3; ++i) {
+                    for (int j = 0; j < 3; ++j) {
+                        backend.BeginArrayElement(i * 3 + j);
+                        backend.Deserialize("", value[i][j]);
+                        backend.EndArrayElement();
+                    }
+                }
+                backend.EndArray();
+            }
         }
     };
 

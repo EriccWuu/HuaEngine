@@ -1,7 +1,6 @@
 #include "enginepch.h"
 #include "MaterialSerializationTest.h"
-#include "HuaEngine/Serialization/SerializationManager.h"
-#include "HuaEngine/Rendering/Material/MaterialSerialization.h"
+#include "HuaEngine/Serialization/SerializationCore.h"
 #include "Platform/OpenGL/OpenGLShader.h"
 #include <iostream>
 

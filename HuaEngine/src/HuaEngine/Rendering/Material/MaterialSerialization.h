@@ -2,7 +2,7 @@
 
 #include "Material.h"
 #include "HuaEngine/Serialization/Serialization.h"
-#include "HuaEngine/Serialization/GLMSerialization.h"
+#include "HuaEngine/Serialization/ReflectionSerializer.h"
 
 namespace HE {
 
@@ -87,7 +87,7 @@ namespace HE {
             std::string shaderPath = ""; // 暂时为空，等待 Shader 类扩展
             if (material.GetShader()) {
                 // 当 Shader 支持路径存储时，可以这样获取：
-                // shaderPath = material.GetShader()->GetPath();
+                shaderPath = material.GetShader()->GetPath();
             }
             backend.Serialize("shader_path", shaderPath);
             

@@ -20,5 +20,10 @@ namespace HE {
 		static Ref<Shader> Create(const std::string& vertSrc, const std::string& fragSrc);
 		static Ref<Shader> CreateFromFile(const std::string& vertexPath, const std::string& fragmentPath);
 		static Ref<Shader> CreateFromFile(const std::string& shaderPath); // For combined shader files
+
+		std::string GetPath() { return m_Path; }
+
+	protected:
+		std::string m_Path;
 	};
 }
