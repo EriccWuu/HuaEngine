@@ -85,3 +85,8 @@ add_subdirectory(Editor)
 
 # Set Editor as the startup project for Visual Studio
 set_property(DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR} PROPERTY VS_STARTUP_PROJECT Editor)
+
+# Organize projects in Visual Studio solution folders
+set_property(TARGET glfw PROPERTY FOLDER "Dependencies")
+set_property(TARGET GLAD PROPERTY FOLDER "Dependencies")
+set_property(TARGET ImGui PROPERTY FOLDER "Dependencies")

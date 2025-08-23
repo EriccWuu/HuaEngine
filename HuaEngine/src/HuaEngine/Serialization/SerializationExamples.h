@@ -110,14 +110,15 @@ namespace HE::Examples {
                 registry.emplace<TransformComponent>(entity, transform);
             }
 
-            // Save the scene
-            if (SaveScene(&scene, "test_scene.json")) {
-                std::cout << "Scene saved successfully!" << std::endl;
+            // Save the scene to Sandbox assets folder (use absolute path)
+            std::string assetPath = "d:/Workspace/VS Workspace/HuaEngine/Sandbox/assets/test_scene.json";
+            if (SaveScene(&scene, assetPath)) {
+                std::cout << "Scene saved successfully to: " << assetPath << std::endl;
             }
 
-            // Load the scene
+            // Load the scene from Sandbox assets folder (use absolute path)
             Scene loadedScene;
-            if (LoadScene(&loadedScene, "test_scene.json")) {
+            if (LoadScene(&loadedScene, assetPath)) {
                 std::cout << "Scene loaded successfully!" << std::endl;
                 
                 // Count entities in loaded scene

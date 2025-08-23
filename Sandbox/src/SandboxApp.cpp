@@ -11,6 +11,7 @@
 #include "Module/Rendering/RenderingComponent.h"
 #include "HuaEngine/ECS/ScriptableEntity.h"
 #include "HuaEngine/Serialization/SerializationExamples.h"
+#include "HuaEngine/Serialization/SerializationCore.h"
 
 using namespace HE;
 
@@ -24,8 +25,6 @@ public:
 	}
 
     void OnAttach() override {
-        Examples::SerializationExamples();
-
         // Create vertex buffer
 		float squareVertices[4 * 5] = {
 			-0.5f, -0.5f, -3.0f, 0.0 , 0.0,
@@ -114,6 +113,14 @@ public:
         m_RenderSystem->SetFrameBuffer(m_FrameBuffer);
 
         m_Scene->AddSyetem(m_RenderSystem);
+
+        // Serialize the created scene to assets folder
+        std::string assetPath = "assets/sandbox_scene.json";
+        if (SaveScene(m_Scene.get(), assetPath)) {
+            std::cout << "Sandbox scene saved successfully to: " << assetPath << std::endl;
+        } else {
+            std::cout << "Failed to save sandbox scene to: " << assetPath << std::endl;
+        }
     }
 
 	void OnUpdate() override {

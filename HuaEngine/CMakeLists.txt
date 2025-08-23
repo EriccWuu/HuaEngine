@@ -31,6 +31,29 @@ add_library(HuaEngine STATIC
     ${ENTT_SOURCES}
 )
 
+# Create source groups to maintain folder structure in Visual Studio
+foreach(source IN ITEMS ${HUAENGINE_SOURCES})
+    get_filename_component(source_path "${source}" PATH)
+    file(RELATIVE_PATH source_path_rel "${CMAKE_CURRENT_SOURCE_DIR}/src" "${source_path}")
+    string(REPLACE "/" "\\" group_path "${source_path_rel}")
+    # Handle empty group path (root files)
+    if("${group_path}" STREQUAL "")
+        source_group("Source Files" FILES "${source}")
+    else()
+        source_group("Source Files\\${group_path}" FILES "${source}")
+    endif()
+endforeach()
+
+# Create source groups for STB Image
+foreach(source IN ITEMS ${STB_IMAGE_SOURCES})
+    source_group("Dependencies\\STB Image" FILES "${source}")
+endforeach()
+
+# Create source groups for ENTT
+foreach(source IN ITEMS ${ENTT_SOURCES})
+    source_group("Dependencies\\ENTT" FILES "${source}")
+endforeach()
+
 # Include directories
 target_include_directories(HuaEngine
     PUBLIC
