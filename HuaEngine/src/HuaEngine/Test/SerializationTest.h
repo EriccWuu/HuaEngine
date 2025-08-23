@@ -27,14 +27,14 @@ srefl_class(PlayerComponent,
 )
 
 
-namespace HE::Examples {
+namespace HE::Test {
 
-    // Example usage of the serialization system
-    void SerializationExamples() {
+    // Test usage of the serialization system
+    void SerializationTest() {
         // Initialize serialization system
         InitializeSerialization();
 
-        // Example 1: Serialize a simple component
+        // Test 1: Serialize a simple component
         {
             PlayerComponent player;
             player.name = "Hero";
@@ -65,7 +65,7 @@ namespace HE::Examples {
             }
         }
 
-        // Example 2: Serialize a transform component
+        // Test 2: Serialize a transform component
         {
             TransformComponent transform;
             transform.Position = {1.0f, 2.0f, 3.0f};
@@ -76,7 +76,7 @@ namespace HE::Examples {
             std::cout << "Transform Component JSON:\n" << transformJson << std::endl;
         }
 
-        // Example 3: Serialize a vector of components
+        // Test 3: Serialize a vector of components
         {
             std::vector<TransformComponent> transforms;
             transforms.resize(3);
@@ -95,7 +95,7 @@ namespace HE::Examples {
             }
         }
 
-        // Example 4: Scene serialization
+        // Test 4: Scene serialization
         {
             Scene scene;
             auto& entityManager = scene.GetEntityManager();
@@ -131,8 +131,8 @@ namespace HE::Examples {
         }
     }
 
-    // Example of how to extend serialization for custom types
-    void CustomSerializationExample() {
+    // Test case for extending serialization for custom types
+    void CustomSerializationTest() {
         // This would be implemented in a separate file where PlayerComponent is defined
         
         /*

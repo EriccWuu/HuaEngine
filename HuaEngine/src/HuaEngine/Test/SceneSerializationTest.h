@@ -7,18 +7,18 @@
 
 namespace HE {
 
-    // 创建一个简单的场景来演示序列化功能
-    class SceneSerializationDemo {
+    // Create a simple scene to test serialization functionality
+    class SceneSerializationTest {
     public:
-        static void RunDemo() {
-            HE_CORE_INFO("========== Scene Serialization Demo ==========");
+        static void RunTest() {
+            HE_CORE_INFO("========== Scene Serialization Test ==========");
 
-            // 创建场景
+            // Create scene
             Scene scene;
             auto& entityManager = scene.GetEntityManager();
             auto& registry = entityManager.GetRegistry();
 
-            // 创建实体1 - Transform组件
+            // Create entity1 - Transform component
             auto entity1 = registry.create();
             TransformComponent transform1;
             transform1.Position = {1.0f, 2.0f, 3.0f};
@@ -26,7 +26,7 @@ namespace HE {
             transform1.Scale = {2.0f, 1.5f, 1.0f};
             registry.emplace<TransformComponent>(entity1, transform1);
 
-            // 创建实体2 - 不同的Transform
+            // Create entity2 - Different Transform
             auto entity2 = registry.create();
             TransformComponent transform2;
             transform2.Position = {-5.0f, 0.0f, 10.0f};
@@ -34,9 +34,9 @@ namespace HE {
             transform2.Scale = {0.5f, 0.5f, 0.5f};
             registry.emplace<TransformComponent>(entity2, transform2);
 
-            // 创建实体3 - 默认Transform
+            // Create entity3 - Default Transform
             auto entity3 = registry.create();
-            TransformComponent transform3; // 使用默认值
+            TransformComponent transform3; // Use default values
             registry.emplace<TransformComponent>(entity3, transform3);
 
             HE_CORE_INFO("Created scene with 3 entities:");
@@ -45,9 +45,9 @@ namespace HE {
                 transform1.Rotation.x, transform1.Rotation.y, transform1.Rotation.z,
                 transform1.Scale.x, transform1.Scale.y, transform1.Scale.z);
 
-            // 序列化场景
+            // Serialize scene
             SceneSerializer serializer(&scene);
-            std::string filename = "demo_scene.json";
+            std::string filename = "test_scene.json";
             
             HE_CORE_INFO("Serializing scene to '{}'...", filename);
             if (serializer.SerializeScene(filename, SerializationFormat::JSON)) {
@@ -57,7 +57,7 @@ namespace HE {
                 return;
             }
 
-            // 创建新场景并反序列化
+            // Create new scene and deserialize
             Scene loadedScene;
             SceneSerializer deserializer(&loadedScene);
             
@@ -65,7 +65,7 @@ namespace HE {
             if (deserializer.DeserializeScene(filename, SerializationFormat::JSON)) {
                 HE_CORE_INFO("✅ Scene deserialization successful!");
                 
-                // 验证加载的数据
+                // Verify loaded data
                 auto& loadedRegistry = loadedScene.GetEntityManager().GetRegistry();
                 uint32_t entityCount = 0;
                 uint32_t transformCount = 0;
@@ -89,14 +89,14 @@ namespace HE {
                 return;
             }
 
-            HE_CORE_INFO("========== Demo Complete ==========");
+            HE_CORE_INFO("========== Test Complete ==========");
         }
 
-        // 演示单个组件的序列化
-        static void RunComponentDemo() {
-            HE_CORE_INFO("========== Component Serialization Demo ==========");
+        // Test single component serialization
+        static void RunComponentTest() {
+            HE_CORE_INFO("========== Component Serialization Test ==========");
 
-            // 创建一个Transform组件
+            // Create a Transform component
             TransformComponent originalTransform;
             originalTransform.Position = {10.0f, 20.0f, 30.0f};
             originalTransform.Rotation = {45.0f, 90.0f, 0.0f};
@@ -110,7 +110,7 @@ namespace HE {
             HE_CORE_INFO("- Scale: ({}, {}, {})", 
                 originalTransform.Scale.x, originalTransform.Scale.y, originalTransform.Scale.z);
 
-            // 序列化为JSON字符串
+            // Serialize to JSON string
             auto backend = SerializationManager::Instance().CreateBackend(SerializationFormat::JSON);
             backend->Reset();
             backend->BeginObject();
@@ -123,7 +123,7 @@ namespace HE {
             HE_CORE_INFO("Serialized JSON:");
             HE_CORE_INFO("{}", jsonString);
 
-            // 反序列化
+            // Deserialize
             auto loadBackend = SerializationManager::Instance().CreateBackend(SerializationFormat::JSON);
             loadBackend->FromString(jsonString);
             
@@ -141,7 +141,7 @@ namespace HE {
                 HE_CORE_ERROR("❌ Component deserialization failed!");
             }
 
-            HE_CORE_INFO("========== Component Demo Complete ==========");
+            HE_CORE_INFO("========== Component Test Complete ==========");
         }
     };
 

@@ -1,5 +1,5 @@
 #include "enginepch.h"
-#include "MaterialSerializationDemo.h"
+#include "MaterialSerializationTest.h"
 #include "HuaEngine/Serialization/SerializationManager.h"
 #include "HuaEngine/Rendering/Material/MaterialSerialization.h"
 #include "Platform/OpenGL/OpenGLShader.h"
@@ -7,114 +7,114 @@
 
 namespace HE {
 
-	void MaterialSerializationDemo::RunDemo()
+	void MaterialSerializationTest::RunTest()
 	{
-		HE_CORE_INFO("=== 材质序列化演示开始 ===");
+		HE_CORE_INFO("=== Material Serialization Test Start ===");
 		
 		try {
-			// 演示基础材质的序列化
-			CreateStandardMaterialDemo();
-			CreateUnlitMaterialDemo();
-			CreateCustomMaterialDemo();
+			// Test basic material serialization
+			CreateStandardMaterialTest();
+			CreateUnlitMaterialTest();
+			CreateCustomMaterialTest();
 			
-			// 演示材质实例的序列化
+			// Test material instance serialization
 			TestMaterialInstanceSerialization();
 			
-			HE_CORE_INFO("=== 材质序列化演示完成 ===");
+			HE_CORE_INFO("=== Material Serialization Test Complete ===");
 		}
 		catch (const std::exception& e) {
-			HE_CORE_ERROR("材质序列化演示失败: {0}", e.what());
+			HE_CORE_ERROR("Material serialization test failed: {0}", e.what());
 		}
 	}
 
-	void MaterialSerializationDemo::CreateStandardMaterialDemo()
+	void MaterialSerializationTest::CreateStandardMaterialTest()
 	{
-		HE_CORE_INFO("--- 标准材质 (PBR) 序列化演示 ---");
+		HE_CORE_INFO("--- Standard Material (PBR) Serialization Test ---");
 		
-		// 创建标准材质
-		auto standardMaterial = MaterialLibrary::Instance().CreateStandardMaterial("DemoStandardMaterial");
+		// Create standard material
+		auto standardMaterial = MaterialLibrary::Instance().CreateStandardMaterial("TestStandardMaterial");
 		
-		// 设置参数
+		// Set parameters
 		standardMaterial->SetParameter("u_BaseColor", glm::vec3(0.8f, 0.2f, 0.3f));
 		standardMaterial->SetParameter("u_Metallic", 0.7f);
 		standardMaterial->SetParameter("u_Roughness", 0.3f);
 		standardMaterial->SetParameter("u_AO", 1.0f);
 		
-		PrintMaterialInfo(standardMaterial, "原始标准材质");
+		PrintMaterialInfo(standardMaterial, "Original Standard Material");
 		
-		// 保存到文件 - 转换为基类Material进行序列化
-		std::string filename = "standard_material_demo.json";
+		// Save to file - convert to base Material class for serialization
+		std::string filename = "standard_material_test.json";
 		Ref<Material> materialBase = std::static_pointer_cast<Material>(standardMaterial);
 		if (SerializationManager::Instance().SerializeToFile(*materialBase, filename, SerializationFormat::JSON)) {
 			HE_CORE_INFO("Standard material saved to file: {0}", filename);
 			
-			// 重新加载材质 - 注意：需要先创建一个对象，然后反序列化到其中
+			// Reload material - note: need to create an object first, then deserialize into it
 			auto loadedMaterial = MaterialLibrary::Instance().CreateStandardMaterial("LoadedStandardMaterial");
 			loadedMaterial->ClearParameters();
 			Ref<Material> loadedMaterialBase = std::static_pointer_cast<Material>(loadedMaterial);
 			if (SerializationManager::Instance().DeserializeFromFile(filename, *loadedMaterialBase, SerializationFormat::JSON)) {
 				HE_CORE_INFO("Standard material loaded from file: {0}", filename);
-				PrintMaterialInfo(loadedMaterial, "Load standard material");
+				PrintMaterialInfo(loadedMaterial, "Loaded Standard Material");
 				
-				// 验证材质是否相同
+				// Verify materials are the same
 				if (VerifyMaterialsEqual(standardMaterial, loadedMaterial)) {
-					HE_CORE_INFO("✓ Standard Material Serialization Varify Successfully");
+					HE_CORE_INFO("✓ Standard Material Serialization Verification Successful");
 				} else {
-					HE_CORE_WARN("✗ Standard Material Serialization Varify Failed");
+					HE_CORE_WARN("✗ Standard Material Serialization Verification Failed");
 				}
 			} else {
-				HE_CORE_ERROR("Can not load standard material from file");
+				HE_CORE_ERROR("Cannot load standard material from file");
 			}
 		} else {
-			HE_CORE_ERROR("Can not save standard material to file");
+			HE_CORE_ERROR("Cannot save standard material to file");
 		}
 	}
 
-	void MaterialSerializationDemo::CreateUnlitMaterialDemo()
+	void MaterialSerializationTest::CreateUnlitMaterialTest()
 	{
-		HE_CORE_INFO("--- 无光照材质序列化演示 ---");
+		HE_CORE_INFO("--- Unlit Material Serialization Test ---");
 		
-		// 创建无光照材质
-		auto unlitMaterial = MaterialLibrary::Instance().CreateUnlitMaterial("DemoUnlitMaterial");
+		// Create unlit material
+		auto unlitMaterial = MaterialLibrary::Instance().CreateUnlitMaterial("TestUnlitMaterial");
 		
-		// 设置参数
+		// Set parameters
 		unlitMaterial->SetParameter("u_Color", glm::vec4(1.0f, 0.5f, 0.0f, 1.0f));
 		
-		PrintMaterialInfo(unlitMaterial, "原始无光照材质");
+		PrintMaterialInfo(unlitMaterial, "Original Unlit Material");
 		
-		// 保存到文件 - 转换为基类Material进行序列化
-		std::string filename = "unlit_material_demo.json";
+		// Save to file - convert to base Material class for serialization
+		std::string filename = "unlit_material_test.json";
 		Ref<Material> materialBase = std::static_pointer_cast<Material>(unlitMaterial);
 		if (SerializationManager::Instance().SerializeToFile(*materialBase, filename, SerializationFormat::JSON)) {
 			HE_CORE_INFO("Unlit material saved to file: {0}", filename);
 			
-			// 重新加载材质
+			// Reload material
 			auto loadedMaterial = MaterialLibrary::Instance().CreateUnlitMaterial("LoadedUnlitMaterial");
 			loadedMaterial->ClearParameters();
 			Ref<Material> loadedMaterialBase = std::static_pointer_cast<Material>(loadedMaterial);
 			if (SerializationManager::Instance().DeserializeFromFile(filename, *loadedMaterialBase, SerializationFormat::JSON)) {
 				HE_CORE_INFO("Unlit material loaded from file: {0}", filename);
-				PrintMaterialInfo(loadedMaterial, "Load unlit material");
+				PrintMaterialInfo(loadedMaterial, "Loaded Unlit Material");
 				
-				// 验证材质是否相同
+				// Verify materials are the same
 				if (VerifyMaterialsEqual(unlitMaterial, loadedMaterial)) {
-					HE_CORE_INFO("✓ Unlit Material Serialization Varify Successfully");
+					HE_CORE_INFO("✓ Unlit Material Serialization Verification Successful");
 				} else {
-					HE_CORE_WARN("✗ Unlit Material Serialization Varify Failed");
+					HE_CORE_WARN("✗ Unlit Material Serialization Verification Failed");
 				}
 			} else {
-				HE_CORE_ERROR("Can not load unlit material from file");
+				HE_CORE_ERROR("Cannot load unlit material from file");
 			}
 		} else {
-			HE_CORE_ERROR("Can not save unlit material to file");
+			HE_CORE_ERROR("Cannot save unlit material to file");
 		}
 	}
 
-	void MaterialSerializationDemo::CreateCustomMaterialDemo()
+	void MaterialSerializationTest::CreateCustomMaterialTest()
 	{
-		HE_CORE_INFO("--- 自定义材质序列化演示 ---");
+		HE_CORE_INFO("--- Custom Material Serialization Test ---");
 		
-		// 创建一个简单的着色器用于自定义材质
+		// Create a simple shader for custom material
 		std::string vertexSource = R"(
 			#version 330 core
 			layout (location = 0) in vec3 a_Position;
@@ -133,96 +133,96 @@ namespace HE {
 		
 		auto customShader = CreateRef<OpenGLShader>(vertexSource, fragmentSource);
 		
-		// 创建自定义材质
-		auto customMaterial = MaterialLibrary::Instance().CreateCustomMaterial("DemoCustomMaterial", customShader);
+		// Create custom material
+		auto customMaterial = MaterialLibrary::Instance().CreateCustomMaterial("TestCustomMaterial", customShader);
 
 		customMaterial->AddParameter({ "custom_float", MaterialParameterType::Float, 1.0f});
 		customMaterial->AddParameter({ "custom_vec3", MaterialParameterType::Vec3, glm::vec3{1.0f, 1.0f, 1.0f } });
 		customMaterial->AddParameter({ "custom_color", MaterialParameterType::Vec4, glm::vec4{1.0f, 1.0f, 1.0f, 0.f } });
 		
-		PrintMaterialInfo(customMaterial, "原始自定义材质");
+		PrintMaterialInfo(customMaterial, "Original Custom Material");
 		
-		// 保存到文件 - 转换为基类Material进行序列化
-		std::string filename = "custom_material_demo.json";
+		// Save to file - convert to base Material class for serialization
+		std::string filename = "custom_material_test.json";
 		Ref<Material> materialBase = std::static_pointer_cast<Material>(customMaterial);
 		if (SerializationManager::Instance().SerializeToFile(*materialBase, filename, SerializationFormat::JSON)) {
-			HE_CORE_INFO("自定义材质已保存到文件: {0}", filename);
+			HE_CORE_INFO("Custom material saved to file: {0}", filename);
 			
-			// 重新加载材质
+			// Reload material
 			auto loadedMaterial = MaterialLibrary::Instance().CreateCustomMaterial("LoadedCustomMaterial", customShader);
 			loadedMaterial->ClearParameters();
 			Ref<Material> loadedMaterialBase = std::static_pointer_cast<Material>(loadedMaterial);
 			if (SerializationManager::Instance().DeserializeFromFile(filename, *loadedMaterialBase, SerializationFormat::JSON)) {
 				HE_CORE_INFO("Custom material loaded from file: {0}", filename);
-				PrintMaterialInfo(loadedMaterial, "Load custom material");
+				PrintMaterialInfo(loadedMaterial, "Loaded Custom Material");
 				
-				// 验证材质是否相同
+				// Verify materials are the same
 				if (VerifyMaterialsEqual(customMaterial, loadedMaterial)) {
-					HE_CORE_INFO("✓ Custom Material Serialization Varify Successfully.");
+					HE_CORE_INFO("✓ Custom Material Serialization Verification Successful");
 				} else {
-					HE_CORE_WARN("✗ Custom Material Serialization Varify Failed");
+					HE_CORE_WARN("✗ Custom Material Serialization Verification Failed");
 				}
 			} else {
-				HE_CORE_ERROR("Can not load custom material from file.");
+				HE_CORE_ERROR("Cannot load custom material from file");
 			}
 		} else {
-			HE_CORE_ERROR("Can not save custom material to file");
+			HE_CORE_ERROR("Cannot save custom material to file");
 		}
 	}
 
-	void MaterialSerializationDemo::TestMaterialInstanceSerialization()
+	void MaterialSerializationTest::TestMaterialInstanceSerialization()
 	{
-		HE_CORE_INFO("--- 材质实例序列化演示 ---");
+		HE_CORE_INFO("--- Material Instance Serialization Test ---");
 		
-		// 创建基础材质
+		// Create base material
 		auto baseMaterial = MaterialLibrary::Instance().CreateStandardMaterial("BaseStandardMaterial");
 		baseMaterial->SetParameter("u_BaseColor", glm::vec3(0.5f, 0.5f, 0.5f));
 		baseMaterial->SetParameter("u_Metallic", 0.0f);
 		baseMaterial->SetParameter("u_Roughness", 0.5f);
 		baseMaterial->SetParameter("u_AO", 1.0f);
 		
-		// 创建材质实例并覆盖一些参数
+		// Create material instance and override some parameters
 		auto materialInstance = CreateRef<MaterialInstance>(baseMaterial);
-		materialInstance->SetParameter("u_BaseColor", glm::vec3(1.0f, 0.0f, 0.0f)); // 覆盖为红色
-		materialInstance->SetParameter("u_Metallic", 1.0f); // 覆盖为金属材质
+		materialInstance->SetParameter("u_BaseColor", glm::vec3(1.0f, 0.0f, 0.0f)); // Override to red
+		materialInstance->SetParameter("u_Metallic", 1.0f); // Override to metallic material
 		
-		HE_CORE_INFO("Create origin material complete");
+		HE_CORE_INFO("Original material instance creation complete");
 		
-		// 保存材质实例到文件
-		std::string filename = "material_instance_demo.json";
+		// Save material instance to file
+		std::string filename = "material_instance_test.json";
 		if (SerializationManager::Instance().SerializeToFile(*materialInstance, filename, SerializationFormat::JSON)) {
 			HE_CORE_INFO("Material instance saved to file: {0}", filename);
 			
-			// 重新加载材质实例（需要相同的基础材质）
+			// Reload material instance (requires same base material)
 			auto loadedInstance = CreateRef<MaterialInstance>(baseMaterial);
 			if (SerializationManager::Instance().DeserializeFromFile(filename, *loadedInstance, SerializationFormat::JSON)) {
 				HE_CORE_INFO("Material instance loaded from file: {0}", filename);
-				HE_CORE_INFO("✓ Material instance Serialization Varify Successfully");
+				HE_CORE_INFO("✓ Material Instance Serialization Verification Successful");
 				const auto& overrides = loadedInstance->GetParameterOverrides();
 				for (auto& [k, v] : overrides) {
-					HE_CORE_ERROR("{0}.", k);
+					HE_CORE_INFO("Parameter override: {0}", k);
 				}
 			} else {
-				HE_CORE_ERROR("Can not load material instance from file.");
+				HE_CORE_ERROR("Cannot load material instance from file");
 			}
 		} else {
-			HE_CORE_ERROR("Can not save material instance to file");
+			HE_CORE_ERROR("Cannot save material instance to file");
 		}
 	}
 
-	bool MaterialSerializationDemo::VerifyMaterialsEqual(const Ref<Material>& originalMaterial, const Ref<Material>& loadedMaterial)
+	bool MaterialSerializationTest::VerifyMaterialsEqual(const Ref<Material>& originalMaterial, const Ref<Material>& loadedMaterial)
 	{
-		// 检查材质类型
+		// Check material type
 		if (originalMaterial->GetType() != loadedMaterial->GetType()) {
 			return false;
 		}
 		
-		// 检查材质名称
+		// Check material name
 		if (originalMaterial->GetName() != loadedMaterial->GetName()) {
 			return false;
 		}
 		
-		// 检查参数数量
+		// Check parameter count
 		const auto& originalParams = originalMaterial->GetParameters();
 		const auto& loadedParams = loadedMaterial->GetParameters();
 		
@@ -230,24 +230,25 @@ namespace HE {
 			return false;
 		}
 		
-		// 检查每个参数
+		// Check each parameter
 		for (const auto& [name, param] : originalParams) {
 			auto it = loadedParams.find(name);
 			if (it == loadedParams.end()) {
-				return false; // 参数不存在
+				return false; // Parameter doesn't exist
 			}
 			
 			if (param.Type != it->second.Type) {
-				return false; // 参数类型不匹配
+				return false; // Parameter type mismatch
 			}
 			
-			// 注意：这里应该比较具体的值，但为了简化演示，我们只检查类型和存在性
+			// Note: Here we should compare specific values, but for simplicity in this test,
+			// we only check type and existence
 		}
 		
 		return true;
 	}
 
-	void MaterialSerializationDemo::PrintMaterialInfo(const Ref<Material>& material, const std::string& title)
+	void MaterialSerializationTest::PrintMaterialInfo(const Ref<Material>& material, const std::string& title)
 	{
 		HE_CORE_INFO("=== {0} ===", title);
 		HE_CORE_INFO("Material Name: {0}", material->GetName());

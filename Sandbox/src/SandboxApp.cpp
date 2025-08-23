@@ -10,9 +10,9 @@
 #include "HuaEngine/ECS/Components.h"
 #include "Module/Rendering/RenderingComponent.h"
 #include "HuaEngine/ECS/ScriptableEntity.h"
-#include "HuaEngine/Serialization/SerializationExamples.h"
 #include "HuaEngine/Serialization/SerializationCore.h"
-#include "HuaEngine/Serialization/MaterialSerializationDemo.h"
+#include "HuaEngine/Test/MaterialSerializationTest.h"
+#include "HuaEngine/Test/SerializationTest.h"
 #include "HuaEngine/Rendering/Material/Material.h"
 
 using namespace HE;
@@ -27,7 +27,7 @@ public:
 	}
 
     void OnAttach() override {
-        MaterialSerializationDemo::RunDemo();
+        MaterialSerializationTest::RunTest();
 
         // Create vertex buffer
 		float squareVertices[4 * 5] = {
