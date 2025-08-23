@@ -206,4 +206,3 @@ if "%RUN_CHOICE%"=="1" (
 )
 
 echo.
-pause

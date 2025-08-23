@@ -18,5 +18,3 @@ if %errorlevel% equ 0 (
     echo.
     echo CMake project generation failed!
 )
-
-pause

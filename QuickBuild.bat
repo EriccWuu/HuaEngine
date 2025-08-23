@@ -58,5 +58,4 @@ if %errorlevel% equ 0 (
     echo ===============================================
     echo Build failed! Check the output above for details.
     echo ===============================================
-    pause
 )
