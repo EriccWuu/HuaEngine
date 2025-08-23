@@ -11,7 +11,6 @@
 #include "Module/Rendering/RenderingComponent.h"
 #include "HuaEngine/ECS/ScriptableEntity.h"
 #include "HuaEngine/Serialization/SerializationCore.h"
-#include "HuaEngine/Test/MaterialSerializationTest.h"
 #include "HuaEngine/Test/SerializationTest.h"
 #include "HuaEngine/Rendering/Material/Material.h"
 
@@ -27,8 +26,6 @@ public:
 	}
 
     void OnAttach() override {
-        MaterialSerializationTest::RunTest();
-
         // Create vertex buffer
 		float squareVertices[4 * 5] = {
 			-0.5f, -0.5f, -3.0f, 0.0 , 0.0,
@@ -100,7 +97,7 @@ public:
         m_MaterialInstance = m_SandboxMaterial->CreateInstance();
         
         // 可以在实例中覆盖参数
-        // m_MaterialInstance->SetParameter("u_Color", glm::vec4(1.0f, 0.5f, 0.8f, 1.0f)); // 粉色调
+        m_MaterialInstance->SetParameter("u_Color", glm::vec4(1.0f, 1.0f, 0.8f, 1.0f)); // 粉色调
 
         // Create framebuffer
         FrameBufferSpecification spec;
