@@ -3,11 +3,46 @@
 #include "glad/glad.h"
 #include "glm/glm.hpp"
 #include <glm/gtc/type_ptr.hpp>
+#include <fstream>
+#include <sstream>
+#include <unordered_map>
 
 namespace HE {
 	OpenGLShader::OpenGLShader(const std::string& vertexSrc, const std::string& fragmentSrc) {
+		CreateShader(vertexSrc, fragmentSrc);
+	}
+
+	OpenGLShader::OpenGLShader(const std::string& vertexPath, const std::string& fragmentPath, bool fromFile) {
+		std::string vertexSource = ReadFile(vertexPath);
+		std::string fragmentSource = ReadFile(fragmentPath);
+		
+		if (vertexSource.empty() || fragmentSource.empty()) {
+			HE_CORE_ERROR("Failed to read shader files");
+			return;
+		}
+		
+		CreateShader(vertexSource, fragmentSource);
+	}
+
+	OpenGLShader::OpenGLShader(const std::string& shaderPath) {
+		std::string source = ReadFile(shaderPath);
+		if (source.empty()) {
+			HE_CORE_ERROR("Failed to read shader file: {0}", shaderPath);
+			return;
+		}
+
+		auto shaderSources = PreprocessShader(source);
+		HE_CORE_ASSERT(shaderSources.size() == 2, "Only vertex and fragment shaders are supported");
+
+		std::string vertexSource = shaderSources[GL_VERTEX_SHADER];
+		std::string fragmentSource = shaderSources[GL_FRAGMENT_SHADER];
+
+		CreateShader(vertexSource, fragmentSource);
+	}
+
+	void OpenGLShader::CreateShader(const std::string& vertexSrc, const std::string& fragmentSrc) {
 		// Create an empty vertex shader handle
-		GLuint m_VertShader = glCreateShader(GL_VERTEX_SHADER);
+		m_VertShader = glCreateShader(GL_VERTEX_SHADER);
 
 		// Send the vertex shader source code to GL
 		// Note that std::string's .c_str is NULL character terminated.
@@ -39,7 +74,7 @@ namespace HE {
 		}
 
 		// Create an empty fragment shader handle
-		GLuint m_FragShader = glCreateShader(GL_FRAGMENT_SHADER);
+		m_FragShader = glCreateShader(GL_FRAGMENT_SHADER);
 
 		// Send the fragment shader source code to GL
 		// Note that std::string's .c_str is NULL character terminated.
@@ -114,8 +149,45 @@ namespace HE {
 		glDetachShader(m_Program, m_FragShader);
 	}
 
+	std::string OpenGLShader::ReadFile(const std::string& filepath) {
+		std::ifstream file(filepath);
+		if (!file.is_open()) {
+			HE_CORE_ERROR("Failed to open file: {0}", filepath);
+			return "";
+		}
+
+		std::stringstream stringStream;
+		stringStream << file.rdbuf();
+		file.close();
+		return stringStream.str();
+	}
+
+	std::unordered_map<unsigned int, std::string> OpenGLShader::PreprocessShader(const std::string& source) {
+		std::unordered_map<unsigned int, std::string> shaderSources;
+
+		const char* typeToken = "#type";
+		size_t typeTokenLength = strlen(typeToken);
+		size_t pos = source.find(typeToken, 0);
+		while (pos != std::string::npos) {
+			size_t eol = source.find_first_of("\r\n", pos);
+			HE_CORE_ASSERT(eol != std::string::npos, "Syntax error");
+			size_t begin = pos + typeTokenLength + 1;
+			std::string type = source.substr(begin, eol - begin);
+			HE_CORE_ASSERT(type == "vertex" || type == "fragment" || type == "pixel", "Invalid shader type specified");
+
+			size_t nextLinePos = source.find_first_not_of("\r\n", eol);
+			pos = source.find(typeToken, nextLinePos);
+			unsigned int shaderType = (type == "vertex") ? GL_VERTEX_SHADER : GL_FRAGMENT_SHADER;
+			shaderSources[shaderType] = source.substr(nextLinePos, 
+				pos - (nextLinePos == std::string::npos ? source.size() - 1 : nextLinePos));
+		}
+
+		return shaderSources;
+	}
+
 	OpenGLShader::~OpenGLShader()
 	{
+		glDeleteProgram(m_Program);
 		glDeleteShader(m_VertShader);
 		glDeleteShader(m_FragShader);
 	}

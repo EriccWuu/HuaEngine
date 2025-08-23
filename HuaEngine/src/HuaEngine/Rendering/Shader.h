@@ -18,5 +18,7 @@ namespace HE {
 		virtual void SetMat4(const std::string& name, const glm::mat4 value) = 0;
 
 		static Ref<Shader> Create(const std::string& vertSrc, const std::string& fragSrc);
+		static Ref<Shader> CreateFromFile(const std::string& vertexPath, const std::string& fragmentPath);
+		static Ref<Shader> CreateFromFile(const std::string& shaderPath); // For combined shader files
 	};
 }

@@ -56,40 +56,11 @@ public:
 		m_SquareVA->AddVertexBuffer(squareVertexBuffer);
 		m_SquareVA->SetIndexBuffer(squareIndexBuffer);
 
-        // Create shaders
-		std::string squareVS = R"(
-			#version 330 core
-
-			layout(location = 0) in vec3 a_Position;
-			layout(location = 1) in vec2 a_TexCoord;
-
-			out vec3 v_Position;
-			out vec2 v_TexCoord;
-
-            uniform mat4 u_ViewProjection;
-            uniform mat4 u_Transform;
-
-			void main() {
-				v_TexCoord = a_TexCoord;
-				gl_Position = u_ViewProjection * u_Transform * vec4(a_Position, 1.0);
-			}
-		)";
-
-		std::string squareFS = R"(
-			#version 330 core
-
-			out vec4 FragColor;
-			in vec2 v_TexCoord;
-
-			uniform sampler2D u_Texture;
-
-			void main() {
-				// FragColor = texture(u_Texture, v_TexCoord);
-                FragColor = vec4(v_TexCoord, 0.0, 1.0);
-			}
-		)";
-
-		m_SquareShader = Shader::Create(squareVS, squareFS);
+        // Create shaders - Load from file
+		m_SquareShader = Shader::CreateFromFile("assets/shaders/sandbox.glsl");
+		if (!m_SquareShader) {
+			HE_CORE_ERROR("Failed to load sandbox shader!");
+		}
 
 		m_Texture = Texture2D::Create("assets/textures/hutao.png");
 
