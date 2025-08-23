@@ -1,9 +1,8 @@
 #pragma once
 
-#include "HuaEngine/Scene/Scene.h"
+#include "Scene.h"
 #include "HuaEngine/ECS/Components.h"
-#include "HuaEngine/Serialization/Serialization.h"
-#include "HuaEngine/Serialization/ReflectionSerializer.h"
+#include "HuaEngine/Serialization/SerializationCore.h"
 #include "HuaEngine/Serialization/SerializationManager.h"
 #include "entt.hpp"
 
@@ -64,4 +63,14 @@ namespace HE {
         bool active = true;
     };
 
+    // Scene-specific convenience functions
+    inline bool SaveScene(Scene* scene, const std::string& filename, SerializationFormat format = SerializationFormat::JSON) {
+        SceneSerializer serializer(scene);
+        return serializer.SerializeScene(filename, format);
+    }
+
+    inline bool LoadScene(Scene* scene, const std::string& filename, SerializationFormat format = SerializationFormat::JSON) {
+        SceneSerializer serializer(scene);
+        return serializer.DeserializeScene(filename, format);
+    }
 }

@@ -1,6 +1,6 @@
 #pragma once
 
-#include "Serialization.h"
+#include "SerializationCore.h"
 #include <unordered_map>
 #include <memory>
 #include <functional>

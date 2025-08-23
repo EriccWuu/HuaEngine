@@ -10,9 +10,13 @@
 #include "HuaEngine/ECS/Components.h"
 #include "Module/Rendering/RenderingComponent.h"
 #include "HuaEngine/ECS/ScriptableEntity.h"
-#include "HuaEngine/Serialization/SerializationCore.h"
-#include "HuaEngine/Test/SerializationTest.h"
+#include "HuaEngine/Serialization/Serialization.h"
 #include "HuaEngine/Rendering/Material/Material.h"
+
+#include "HuaEngine/Test/SerializationTest.h"
+#include "HuaEngine/Test/MaterialSerializationTest.h"
+// #include "HuaEngine/Test/SceneSerializationTest.h"
+
 
 using namespace HE;
 

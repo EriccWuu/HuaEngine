@@ -2,8 +2,6 @@
 
 #include "HuaEngine/Core/Core.h"
 #include "HuaEngine/Rendering/Material/Material.h"
-#include "HuaEngine/Rendering/Material/MaterialLibrary.h"
-#include "HuaEngine/Rendering/Material/MaterialTypes.h"
 
 namespace HE {
 

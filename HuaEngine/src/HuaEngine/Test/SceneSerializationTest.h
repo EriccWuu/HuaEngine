@@ -1,7 +1,7 @@
 #pragma once
 
-#include "HuaEngine/Serialization/SceneSerializer.h"
-#include "HuaEngine/Serialization/SerializationCore.h"
+#include "HuaEngine/Serialization/Serialization.h"
+#include "HuaEngine/Scene/SceneSerializer.h"
 #include "HuaEngine/ECS/Components.h"
 #include "HuaEngine/Scene/Scene.h"
 

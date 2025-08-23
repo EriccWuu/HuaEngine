@@ -4,84 +4,6 @@
 #include "glm/glm.hpp"
 
 namespace HE {
-
-    // Default serializer using reflection
-    template<typename T>
-    struct Serializer {
-        static void Serialize(SerializationBackend& backend, const std::string& name, const T& obj) {
-            if constexpr (std::is_arithmetic_v<T> || std::is_same_v<T, std::string>) {
-                // For basic types, use direct serialization
-                SerializeValue(backend, name, obj);
-            } else {
-                // For complex types, use reflection
-                if (!name.empty()) {
-                    backend.BeginObject(name);
-                } else {
-                    backend.BeginObject();
-                }
-
-                auto fieldInfo = Refl::reflect<T>();
-                fieldInfo.visit_fields([&](auto&& field) {
-                    const auto& fieldValue = field.GetValue(&obj);
-                    SerializeValue(backend, std::string(field.name().data(), field.name().size()), fieldValue);
-                });
-
-                backend.EndObject();
-            }
-        }
-
-        static bool Deserialize(SerializationBackend& backend, const std::string& name, T& obj) {
-            if constexpr (std::is_arithmetic_v<T> || std::is_same_v<T, std::string>) {
-                // For basic types, use direct deserialization
-                return DeserializeValue(backend, name, obj);
-            } else {
-                // For complex types, use reflection
-                if (!name.empty()) {
-                    if (!backend.HasField(name)) return false;
-                    backend.BeginObject(name);
-                } else {
-                    backend.BeginObject();
-                }
-
-                bool success = true;
-                auto fieldInfo = Refl::reflect<T>();
-                fieldInfo.visit_fields([&](auto&& field) {
-                    std::string fieldName(field.name().data(), field.name().size());
-                    
-                    // Create a temporary variable to hold the deserialized value
-                    using FieldType = std::remove_cv_t<std::remove_reference_t<
-                        decltype(field.GetValue(&obj))>>;
-                    FieldType tempValue{};
-                    
-                    if (DeserializeValue(backend, fieldName, tempValue)) {
-                        // Use direct assignment through offset rather than SetValue
-                        auto* fieldPtr = reinterpret_cast<FieldType*>(
-                            reinterpret_cast<char*>(&obj) + field.offset());
-                        *fieldPtr = tempValue;
-                    } else {
-                        // For optional fields, we might not want to fail completely
-                        // success = false;
-                    }
-                });
-
-                backend.EndObject();
-                return success;
-            }
-        }
-    };
-
-    // Specialization for std::vector
-    template<typename T>
-    struct Serializer<std::vector<T>> {
-        static void Serialize(SerializationBackend& backend, const std::string& name, const std::vector<T>& vec) {
-            SerializeArray(backend, name, vec);
-        }
-
-        static bool Deserialize(SerializationBackend& backend, const std::string& name, std::vector<T>& vec) {
-            return DeserializeArray(backend, name, vec);
-        }
-    };
-
     // Specialization for glm::vec2 (commonly used in engines)
     template<>
     struct Serializer<glm::vec2> {
@@ -115,7 +37,7 @@ namespace HE {
 
         static bool Deserialize(SerializationBackend& backend, const std::string& name, glm::vec3& vec) {
             if (!backend.HasField(name)) return false;
-            
+
             backend.BeginObject(name);
             bool success = true;
             success &= backend.Deserialize("x", vec.x);
@@ -140,7 +62,7 @@ namespace HE {
 
         static bool Deserialize(SerializationBackend& backend, const std::string& name, glm::vec4& vec) {
             if (!backend.HasField(name)) return false;
-            
+
             backend.BeginObject(name);
             bool success = true;
             success &= backend.Deserialize("x", vec.x);
@@ -199,7 +121,7 @@ namespace HE {
 
         static bool Deserialize(SerializationBackend& backend, const std::string& name, glm::mat4& mat) {
             if (!backend.HasField(name) || backend.GetArraySize(name) != 16) return false;
-            
+
             backend.BeginArray(name);
             bool success = true;
             for (int i = 0; i < 4; ++i) {

@@ -1,8 +1,7 @@
 #pragma once
 
-#include "Material.h"
+#include "MaterialCore.h"
 #include "HuaEngine/Serialization/Serialization.h"
-#include "HuaEngine/Serialization/ReflectionSerializer.h"
 
 namespace HE {
 

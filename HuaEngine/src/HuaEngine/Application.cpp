@@ -2,7 +2,7 @@
 #include "Application.h"
 #include "Events/KeyEvent.h"
 #include "Events/ApplicationEvent.h"
-#include "Serialization/SerializationCore.h"
+#include "Serialization/Serialization.h"
 
 namespace HE
 {

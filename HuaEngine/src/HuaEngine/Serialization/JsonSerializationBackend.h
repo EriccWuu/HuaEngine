@@ -1,6 +1,6 @@
 #pragma once
 
-#include "Serialization.h"
+#include "SerializationCore.h"
 #include <sstream>
 #include <stack>
 #include <variant>
