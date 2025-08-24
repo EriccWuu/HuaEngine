@@ -1,4 +1,19 @@
 @echo off
+setlocal enabledelayedexpansion
+
+:: 启用ANSI颜色代码支持
+for /f "tokens=2 delims=[]" %%i in ('cmd /c "ver"') do set winver=%%i
+if "%winver%" geq "10.0" (
+    reg add HKCU\Console /v VirtualTerminalLevel /t REG_DWORD /d 1 /f >nul 2>&1
+)
+
+:: 定义颜色代码
+set "RED=[91m"
+set "GREEN=[92m"
+set "YELLOW=[93m"
+set "BLUE=[94m"
+set "RESET=[0m"
+
 echo ===============================================
 echo         HuaEngine Quick Build Script
 echo ===============================================
@@ -16,12 +31,18 @@ cd build
 
 :: 快速构建 Debug 版本
 echo Building Debug configuration...
-cmake --build . --config Debug
+cmake --build . --config Debug 2>&1 | findstr /c:"error" /c:"Error" /c:"ERROR" > "%TEMP%\quick_build_errors.txt"
+if exist "%TEMP%\quick_build_errors.txt" (
+    for /f "delims=" %%i in (%TEMP%\quick_build_errors.txt%) do (
+        echo %RED%%%i%RESET%
+    )
+    del "%TEMP%\quick_build_errors.txt"
+)
 
 if %errorlevel% equ 0 (
     echo.
     echo ===============================================
-    echo Quick build completed successfully!
+    echo %GREEN%Quick build completed successfully!%RESET%
     echo Debug binaries: build\bin\Debug-Windows-x64\
     echo ===============================================
     
@@ -56,6 +77,6 @@ if %errorlevel% equ 0 (
 ) else (
     echo.
     echo ===============================================
-    echo Build failed! Check the output above for details.
+    echo %RED%Build failed! Check the output above for details.%RESET%
     echo ===============================================
 )

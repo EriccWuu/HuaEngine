@@ -1,6 +1,19 @@
 @echo off
 setlocal enabledelayedexpansion
 
+:: 启用ANSI颜色代码支持
+for /f "tokens=2 delims=[]" %%i in ('cmd /c "ver"') do set winver=%%i
+if "%winver%" geq "10.0" (
+    reg add HKCU\Console /v VirtualTerminalLevel /t REG_DWORD /d 1 /f >nul 2>&1
+)
+
+:: 定义颜色代码
+set "RED=[91m"
+set "GREEN=[92m"
+set "YELLOW=[93m"
+set "BLUE=[94m"
+set "RESET=[0m"
+
 echo ===============================================
 echo      HuaEngine MSBuild Direct Build Script
 echo ===============================================
@@ -52,7 +65,13 @@ for %%v in (%VS_VERSIONS%) do (
 :: 如果没找到，尝试使用 CMAKE 构建
 echo MSBuild not found! Falling back to CMake build...
 cd build
-cmake --build . --config Debug
+cmake --build . --config Debug 2>&1 | findstr /c:"error" /c:"Error" /c:"ERROR" > "%TEMP%\build_errors.txt"
+if exist "%TEMP%\build_errors.txt" (
+    for /f "delims=" %%i in (%TEMP%\build_errors.txt%) do (
+        echo %RED%%%i%RESET%
+    )
+    del "%TEMP%\build_errors.txt"
+)
 goto end
 
 :found_msbuild
@@ -71,31 +90,61 @@ cd build
 
 if "%CONFIG_CHOICE%"=="1" (
     echo Building Debug configuration with MSBuild...
-    "%MSBUILD_PATH%" HuaEngine.sln /p:Configuration=Debug /p:Platform=x64 /m
+    "%MSBUILD_PATH%" HuaEngine.sln /p:Configuration=Debug /p:Platform=x64 /m /verbosity:quiet /nologo 2>&1 | findstr /c:"error" /c:"Error" /c:"ERROR" > "%TEMP%\msbuild_errors.txt"
+    if exist "%TEMP%\msbuild_errors.txt" (
+        for /f "delims=" %%i in (%TEMP%\msbuild_errors.txt%) do (
+            echo %RED%%%i%RESET%
+        )
+        del "%TEMP%\msbuild_errors.txt"
+    )
 ) else if "%CONFIG_CHOICE%"=="2" (
     echo Building Release configuration with MSBuild...
-    "%MSBUILD_PATH%" HuaEngine.sln /p:Configuration=Release /p:Platform=x64 /m
+    "%MSBUILD_PATH%" HuaEngine.sln /p:Configuration=Release /p:Platform=x64 /m /verbosity:quiet /nologo 2>&1 | findstr /c:"error" /c:"Error" /c:"ERROR" > "%TEMP%\msbuild_errors.txt"
+    if exist "%TEMP%\msbuild_errors.txt" (
+        for /f "delims=" %%i in (%TEMP%\msbuild_errors.txt%) do (
+            echo %RED%%%i%RESET%
+        )
+        del "%TEMP%\msbuild_errors.txt"
+    )
 ) else if "%CONFIG_CHOICE%"=="3" (
     echo Building Debug configuration with MSBuild...
-    "%MSBUILD_PATH%" HuaEngine.sln /p:Configuration=Debug /p:Platform=x64 /m
+    "%MSBUILD_PATH%" HuaEngine.sln /p:Configuration=Debug /p:Platform=x64 /m /verbosity:quiet /nologo 2>&1 | findstr /c:"error" /c:"Error" /c:"ERROR" > "%TEMP%\msbuild_errors_debug.txt"
+    if exist "%TEMP%\msbuild_errors_debug.txt" (
+        for /f "delims=" %%i in (%TEMP%\msbuild_errors_debug.txt%) do (
+            echo %RED%%%i%RESET%
+        )
+        del "%TEMP%\msbuild_errors_debug.txt"
+    )
     echo.
     echo Building Release configuration with MSBuild...
-    "%MSBUILD_PATH%" HuaEngine.sln /p:Configuration=Release /p:Platform=x64 /m
+    "%MSBUILD_PATH%" HuaEngine.sln /p:Configuration=Release /p:Platform=x64 /m /verbosity:quiet /nologo 2>&1 | findstr /c:"error" /c:"Error" /c:"ERROR" > "%TEMP%\msbuild_errors_release.txt"
+    if exist "%TEMP%\msbuild_errors_release.txt" (
+        for /f "delims=" %%i in (%TEMP%\msbuild_errors_release.txt%) do (
+            echo %RED%%%i%RESET%
+        )
+        del "%TEMP%\msbuild_errors_release.txt"
+    )
 ) else (
     echo Invalid choice! Building Debug by default...
-    "%MSBUILD_PATH%" HuaEngine.sln /p:Configuration=Debug /p:Platform=x64 /m
+    "%MSBUILD_PATH%" HuaEngine.sln /p:Configuration=Debug /p:Platform=x64 /m /verbosity:quiet /nologo 2>&1 | findstr /c:"error" /c:"Error" /c:"ERROR" > "%TEMP%\msbuild_errors.txt"
+    if exist "%TEMP%\msbuild_errors.txt" (
+        for /f "delims=" %%i in (%TEMP%\msbuild_errors.txt%) do (
+            echo %RED%%%i%RESET%
+        )
+        del "%TEMP%\msbuild_errors.txt"
+    )
 )
 
 :end
 if !errorlevel! equ 0 (
     echo.
     echo ===============================================
-    echo Build completed successfully!
+    echo %GREEN%Build completed successfully!%RESET%
     echo ===============================================
 ) else (
     echo.
     echo ===============================================
-    echo Build failed!
+    echo %RED%Build failed!%RESET%
     echo ===============================================
 )
 

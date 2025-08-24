@@ -1,6 +1,19 @@
 @echo off
 setlocal enabledelayedexpansion
 
+:: 启用ANSI颜色代码支持
+for /f "tokens=2 delims=[]" %%i in ('cmd /c "ver"') do set winver=%%i
+if "%winver%" geq "10.0" (
+    reg add HKCU\Console /v VirtualTerminalLevel /t REG_DWORD /d 1 /f >nul 2>&1
+)
+
+:: 定义颜色代码
+set "RED=[91m"
+set "GREEN=[92m"
+set "YELLOW=[93m"
+set "BLUE=[94m"
+set "RESET=[0m"
+
 echo ===============================================
 echo         HuaEngine Visual Studio Build Script
 echo ===============================================
@@ -99,10 +112,10 @@ cd build
 if "%CLEAN_BUILD%"=="true" (
     echo Cleaning previous build...
     if "%BUILD_CONFIG%"=="Both" (
-        cmake --build . --target clean --config Debug
-        cmake --build . --target clean --config Release
+        cmake --build . --target clean --config Debug 2>&1 | findstr /i "error"
+        cmake --build . --target clean --config Release 2>&1 | findstr /i "error"
     ) else (
-        cmake --build . --target clean --config %BUILD_CONFIG%
+        cmake --build . --target clean --config %BUILD_CONFIG% 2>&1 | findstr /i "error"
     )
     echo.
 )
@@ -110,47 +123,65 @@ if "%CLEAN_BUILD%"=="true" (
 :: 开始构建
 if "%BUILD_CONFIG%"=="Both" (
     echo Building Debug configuration...
-    cmake --build . --target %BUILD_TARGET% --config Debug
+    cmake --build . --target %BUILD_TARGET% --config Debug 2>&1 | findstr /c:"error" /c:"Error" /c:"ERROR" > "%TEMP%\build_errors_debug.txt"
+    if exist "%TEMP%\build_errors_debug.txt" (
+        for /f "delims=" %%i in (%TEMP%\build_errors_debug.txt%) do (
+            echo %RED%%%i%RESET%
+        )
+        del "%TEMP%\build_errors_debug.txt"
+    )
     set DEBUG_RESULT=!errorlevel!
     
     echo.
     echo Building Release configuration...
-    cmake --build . --target %BUILD_TARGET% --config Release
+    cmake --build . --target %BUILD_TARGET% --config Release 2>&1 | findstr /c:"error" /c:"Error" /c:"ERROR" > "%TEMP%\build_errors_release.txt"
+    if exist "%TEMP%\build_errors_release.txt" (
+        for /f "delims=" %%i in (%TEMP%\build_errors_release.txt%) do (
+            echo %RED%%%i%RESET%
+        )
+        del "%TEMP%\build_errors_release.txt"
+    )
     set RELEASE_RESULT=!errorlevel!
     
     echo.
     echo ===============================================
     echo Build Results:
     if !DEBUG_RESULT! equ 0 (
-        echo   Debug: SUCCESS
+        echo   %GREEN%Debug: SUCCESS%RESET%
     ) else (
-        echo   Debug: FAILED
+        echo   %RED%Debug: FAILED%RESET%
     )
     
     if !RELEASE_RESULT! equ 0 (
-        echo   Release: SUCCESS
+        echo   %GREEN%Release: SUCCESS%RESET%
     ) else (
-        echo   Release: FAILED
+        echo   %RED%Release: FAILED%RESET%
     )
     echo ===============================================
     
     if !DEBUG_RESULT! equ 0 if !RELEASE_RESULT! equ 0 (
         echo.
-        echo All builds completed successfully!
+        echo %GREEN%All builds completed successfully!%RESET%
         echo Debug binaries: build\bin\Debug-Windows-x64\
         echo Release binaries: build\bin\Release-Windows-x64\
     ) else (
         echo.
-        echo Some builds failed! Check the output above for details.
+        echo %RED%Some builds failed! Check the output above for details.%RESET%
     )
 ) else (
     echo Building %BUILD_CONFIG% configuration...
-    cmake --build . --target %BUILD_TARGET% --config %BUILD_CONFIG%
+    cmake --build . --target %BUILD_TARGET% --config %BUILD_CONFIG% 2>&1 | findstr /c:"error" /c:"Error" /c:"ERROR" > "%TEMP%\build_errors.txt"
+    if exist "%TEMP%\build_errors.txt" (
+        for /f "delims=" %%i in (%TEMP%\build_errors.txt%) do (
+            echo %RED%%%i%RESET%
+        )
+        del "%TEMP%\build_errors.txt"
+    )
     
     if !errorlevel! equ 0 (
         echo.
         echo ===============================================
-        echo Build completed successfully!
+        echo %GREEN%Build completed successfully!%RESET%
         echo Binaries: build\bin\%BUILD_CONFIG%-Windows-x64\
         echo ===============================================
         
@@ -166,7 +197,7 @@ if "%BUILD_CONFIG%"=="Both" (
     ) else (
         echo.
         echo ===============================================
-        echo Build failed! Check the output above for details.
+        echo %RED%Build failed! Check the output above for details.%RESET%
         echo ===============================================
     )
 )
