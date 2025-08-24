@@ -1,8 +1,68 @@
 #include "enginepch.h"
 #include "SceneSerializer.h"
 #include "Module/Rendering/RenderingComponent.h"
+#include <functional>
+#include <unordered_map>
 
 namespace HE {
+
+    // Component serialization registry
+    struct ComponentSerializers {
+        using SerializeFunc = std::function<void(SerializationBackend&, entt::registry&, entt::entity)>;
+        using DeserializeFunc = std::function<void(SerializationBackend&, entt::registry&, entt::entity)>;
+        
+        std::unordered_map<entt::id_type, SerializeFunc> serializeFuncs;
+        std::unordered_map<entt::id_type, DeserializeFunc> deserializeFuncs;
+        
+        template<typename T>
+        void RegisterComponent() {
+            auto typeId = entt::type_hash<T>::value();
+            
+            // Register serialization function
+            serializeFuncs[typeId] = [](SerializationBackend& backend, entt::registry& registry, entt::entity entity) {
+                if (registry.all_of<T>(entity)) {
+                    auto& component = registry.get<T>(entity);
+                    SerializeValue(backend, "data", component);
+                }
+            };
+            
+            // Register deserialization function
+            deserializeFuncs[typeId] = [](SerializationBackend& backend, entt::registry& registry, entt::entity entity) {
+                if (backend.HasField("data")) {
+                    T component{};
+                    if (DeserializeValue(backend, "data", component)) {
+                        registry.emplace_or_replace<T>(entity, std::move(component));
+                    }
+                }
+            };
+        }
+        
+        static ComponentSerializers& Instance() {
+            static ComponentSerializers instance;
+            static bool initialized = false;
+            
+            if (!initialized) {
+                // Register all known component types that can be automatically serialized
+                instance.RegisterComponent<TransformComponent>();
+                instance.RegisterComponent<CameraComponent>();
+                instance.RegisterComponent<MaterialComponent>();
+                
+                initialized = true;
+            }
+            
+            return instance;
+        }
+        
+        // Helper function to register additional components at runtime
+        template<typename T>
+        static void RegisterComponentType() {
+            Instance().RegisterComponent<T>();
+        }
+    };
+    
+    // Convenience macro for registering components
+    #define REGISTER_COMPONENT_SERIALIZER(ComponentType) \
+        ComponentSerializers::RegisterComponentType<ComponentType>();
 
     bool SceneSerializer::SerializeScene(const std::string& filename, SerializationFormat format) {
         try {
@@ -156,151 +216,27 @@ namespace HE {
 
     void SceneSerializer::SerializeComponentData(SerializationBackend& backend, entt::entity entity, entt::id_type componentTypeId) {
         auto& registry = m_Scene->GetEntityManager().GetRegistry();
+        auto& serializers = ComponentSerializers::Instance();
         
-        // Get component type hash for comparison
-        if (componentTypeId == entt::type_hash<TransformComponent>::value()) {
-            auto& component = registry.get<TransformComponent>(entity);
-            backend.BeginObject("data");
-            
-            // Directly serialize the transform component fields instead of using Serializer<>
-            backend.BeginObject("Position");
-            backend.Serialize("x", component.Position.x);
-            backend.Serialize("y", component.Position.y);
-            backend.Serialize("z", component.Position.z);
-            backend.EndObject();
-            
-            backend.BeginObject("Rotation");
-            backend.Serialize("x", component.Rotation.x);
-            backend.Serialize("y", component.Rotation.y);
-            backend.Serialize("z", component.Rotation.z);
-            backend.EndObject();
-            
-            backend.BeginObject("Scale");
-            backend.Serialize("x", component.Scale.x);
-            backend.Serialize("y", component.Scale.y);
-            backend.Serialize("z", component.Scale.z);
-            backend.EndObject();
-            
-            backend.EndObject();
-        }
-        else if (componentTypeId == entt::type_hash<CameraComponent>::value()) {
-            auto& component = registry.get<CameraComponent>(entity);
-            backend.BeginObject("data");
-            backend.Serialize("Primary", component.Primary);
-            backend.Serialize("FixedAspectRatio", component.FixedAspectRatio);
-            backend.EndObject();
-        }
-        else if (componentTypeId == entt::type_hash<RendererComponent>::value()) {
-            backend.BeginObject("data");
-            backend.Serialize("shader_name", "default_shader");
-            backend.Serialize("texture_name", "default_texture");
-            backend.EndObject();
-        }
-        else if (componentTypeId == entt::type_hash<MeshComponent>::value()) {
-            backend.BeginObject("data");
-            backend.Serialize("vertex_array_name", "default_mesh");
-            backend.EndObject();
-        }
-        else if (componentTypeId == entt::type_hash<NativeScriptComponent>::value()) {
-            backend.BeginObject("data");
-            backend.Serialize("script_type", "native_script");
-            backend.EndObject();
-        }
-        else if (componentTypeId == entt::type_hash<CameraComponent>::value()) {
-            auto& component = registry.get<CameraComponent>(entity);
-            backend.BeginObject("data");
-            Serializer<CameraComponent>::Serialize(backend, "", component);
-            backend.EndObject();
-        }
-        else if (componentTypeId == entt::type_hash<RendererComponent>::value()) {
-            auto& component = registry.get<RendererComponent>(entity);
-            backend.BeginObject("data");
-            // Note: RendererComponent contains Ref<> objects that cannot be directly serialized
-            // For now, we'll serialize placeholder data
-            backend.Serialize("shader_name", "default_shader");
-            backend.Serialize("texture_name", "default_texture");
-            backend.EndObject();
-        }
-        else if (componentTypeId == entt::type_hash<MeshComponent>::value()) {
-            auto& component = registry.get<MeshComponent>(entity);
-            backend.BeginObject("data");
-            // Note: MeshComponent contains Ref<> objects that cannot be directly serialized
-            // For now, we'll serialize placeholder data
-            backend.Serialize("vertex_array_name", "default_mesh");
-            backend.EndObject();
-        }
-        else if (componentTypeId == entt::type_hash<NativeScriptComponent>::value()) {
-            // NativeScriptComponent contains function pointers that cannot be serialized
-            backend.BeginObject("data");
-            backend.Serialize("script_type", "native_script");
-            backend.EndObject();
-        }
-        else {
-            // Unknown component type, just create empty data
-            backend.BeginObject("data");
-            backend.EndObject();
+        // Try to use registered serializer first
+        auto it = serializers.serializeFuncs.find(componentTypeId);
+        if (it != serializers.serializeFuncs.end()) {
+            it->second(backend, registry, entity);
+            return;
         }
     }
 
     void SceneSerializer::DeserializeComponentData(SerializationBackend& backend, Entity& entity, entt::id_type componentTypeId) {
         auto& registry = m_Scene->GetEntityManager().GetRegistry();
         auto entityHandle = static_cast<entt::entity>(entity);
+        auto& serializers = ComponentSerializers::Instance();
         
-        // Get component type hash for comparison
-        if (componentTypeId == entt::type_hash<TransformComponent>::value()) {
-            TransformComponent component;
-            if (backend.HasField("data")) {
-                backend.BeginObject("data");
-                Serializer<TransformComponent>::Deserialize(backend, "", component);
-                backend.EndObject();
-            }
-            registry.emplace<TransformComponent>(entityHandle, component);
+        // Try to use registered deserializer first
+        auto it = serializers.deserializeFuncs.find(componentTypeId);
+        if (it != serializers.deserializeFuncs.end()) {
+            it->second(backend, registry, entityHandle);
+            return;
         }
-        else if (componentTypeId == entt::type_hash<CameraComponent>::value()) {
-            CameraComponent component;
-            if (backend.HasField("data")) {
-                backend.BeginObject("data");
-                Serializer<CameraComponent>::Deserialize(backend, "", component);
-                backend.EndObject();
-            }
-            registry.emplace<CameraComponent>(entityHandle, component);
-        }
-        else if (componentTypeId == entt::type_hash<RendererComponent>::value()) {
-            RendererComponent component;
-            if (backend.HasField("data")) {
-                backend.BeginObject("data");
-                // Note: For now, we just create a default component
-                // In a real implementation, you would load the actual resources
-                std::string shaderName, textureName;
-                backend.Deserialize("shader_name", shaderName);
-                backend.Deserialize("texture_name", textureName);
-                backend.EndObject();
-            }
-            registry.emplace<RendererComponent>(entityHandle, component);
-        }
-        else if (componentTypeId == entt::type_hash<MeshComponent>::value()) {
-            MeshComponent component;
-            if (backend.HasField("data")) {
-                backend.BeginObject("data");
-                // Note: For now, we just create a default component
-                // In a real implementation, you would load the actual mesh
-                std::string meshName;
-                backend.Deserialize("vertex_array_name", meshName);
-                backend.EndObject();
-            }
-            registry.emplace<MeshComponent>(entityHandle, component);
-        }
-        else if (componentTypeId == entt::type_hash<NativeScriptComponent>::value()) {
-            NativeScriptComponent component;
-            if (backend.HasField("data")) {
-                backend.BeginObject("data");
-                std::string scriptType;
-                backend.Deserialize("script_type", scriptType);
-                backend.EndObject();
-            }
-            registry.emplace<NativeScriptComponent>(entityHandle, component);
-        }
-        // Add more component types here as needed
     }
 
 }

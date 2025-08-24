@@ -42,6 +42,7 @@ namespace HE {
 
 	class Material : public std::enable_shared_from_this<Material> {
 	public:
+		Material() = default;
 		Material(const std::string& name, MaterialType type);
 		virtual ~Material() = default;
 
@@ -104,6 +105,7 @@ namespace HE {
 
 	class MaterialInstance {
 	public:
+		MaterialInstance() = default;
 		MaterialInstance(Ref<Material> baseMaterial);
 		~MaterialInstance() = default;
 

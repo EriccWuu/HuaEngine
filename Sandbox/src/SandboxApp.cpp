@@ -14,8 +14,8 @@
 #include "HuaEngine/Serialization/Serialization.h"
 #include "HuaEngine/Rendering/Material/Material.h"
 
-#include "HuaEngine/Test/SerializationTest.h"
-#include "HuaEngine/Test/MaterialSerializationTest.h"
+// #include "HuaEngine/Test/SerializationTest.h"
+// #include "HuaEngine/Test/MaterialSerializationTest.h"
 // #include "HuaEngine/Test/SceneSerializationTest.h"
 
 
@@ -31,9 +31,6 @@ public:
 	}
 
     void OnAttach() override {
-        MaterialSerializationTest::RunTest();
-
-
         // Create vertex buffer
 		float squareVertices[4 * 5] = {
 			-0.5f, -0.5f, -3.0f, 0.0 , 0.0,
@@ -65,43 +62,8 @@ public:
 		m_SquareVA->AddVertexBuffer(squareVertexBuffer);
 		m_SquareVA->SetIndexBuffer(squareIndexBuffer);
 
-        // Create shaders - Load from file
-		auto shader = Shader::CreateFromFile("assets/shaders/sandbox.glsl");
-		if (!shader) {
-			HE_CORE_ERROR("Failed to load sandbox shader!");
-		}
-
-		auto texture = Texture2D::Create("assets/textures/hutao.png");
-
-        // Create Material instead of using shader and texture directly
         m_SandboxMaterial = Material::Create("SandboxMaterial", MaterialType::Unlit);
-        m_SandboxMaterial->SetShader(shader);
-        
-        // Add texture parameter to material
-        m_SandboxMaterial->AddParameter(MaterialParameter(
-            "u_MainTexture", 
-            MaterialParameterType::Texture2D, 
-            texture,
-            true // isTexture
-        ));
-
-        // Add color tint parameter
-        m_SandboxMaterial->AddParameter(MaterialParameter(
-            "u_Color", 
-            MaterialParameterType::Vec4, 
-            glm::vec4(1.0f, 1.0f, 1.0f, 1.0f), // 白色
-            false
-        ));
-
-        // Add texture scale parameter
-        m_SandboxMaterial->AddParameter(MaterialParameter(
-            "u_TextureScale", 
-            MaterialParameterType::Vec2, 
-            glm::vec2(1.0f, 1.0f), // 默认不缩放
-            false
-        ));
-
-        SERIALIZE_TO_FILE(*m_SandboxMaterial, "assets/sandboxMaterial.json", SerializationFormat::JSON);
+        LoadMaterial("SandboxMaterial.json", std::static_pointer_cast<Material>(m_SandboxMaterial).get());
 
         // Create material instance
         m_MaterialInstance = m_SandboxMaterial->CreateInstance();
@@ -136,7 +98,7 @@ public:
         m_Scene->AddSyetem(m_RenderSystem);
 
         // Serialize the created scene to assets folder
-        std::string assetPath = "assets/sandbox_scene.json";
+        std::string assetPath = "sandbox_scene.json";
         if (SaveScene(m_Scene.get(), assetPath)) {
             std::cout << "Sandbox scene saved successfully to: " << assetPath << std::endl;
         } else {

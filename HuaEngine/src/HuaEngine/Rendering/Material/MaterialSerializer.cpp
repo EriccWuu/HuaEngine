@@ -8,8 +8,7 @@ namespace HE {
         std::visit([&](auto&& val) {
             using T = std::decay_t<decltype(val)>;
             if constexpr (std::is_same_v<T, Ref<Texture2D>>) {
-                // 对于纹理，我们只保存路径
-                std::string texturePath = val ? "texture_path_placeholder" : "";
+                std::string texturePath = val ? val->GetPath() : "";
                 backend.Serialize(name, texturePath);
             }
             else {
@@ -81,9 +80,7 @@ namespace HE {
                 case MaterialParameterType::Texture2D: {
                     std::string texturePath;
                     if (backend.Deserialize(name, texturePath)) {
-                        // TODO: 根据路径加载纹理
-                        // value = Texture2D::Create(texturePath);
-                        value = Ref<Texture2D>(); // 暂时设为空
+                        value = Texture2D::Create(texturePath);
                         return true;
                     }
                     break;

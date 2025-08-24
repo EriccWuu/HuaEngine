@@ -31,14 +31,17 @@ namespace HE {
             backend.EndObject();
         }
 
-        static bool Deserialize(SerializationBackend& backend, const std::string& name, MaterialParameter& param) {
+        static bool Deserialize(SerializationBackend& backend, const std::string& name, MaterialParameter& param) {            
+            backend.BeginObject(name);
+            
+            // 在对象内部检查字段
             if (!(backend.HasField("name") &&
                 backend.HasField("type") &&
                 backend.HasField("is_texture") &&
-                backend.HasField("default_value")))
+                backend.HasField("default_value"))) {
+                backend.EndObject();
                 return false;
-
-            backend.BeginObject(name);
+            }
                 
             backend.Deserialize("name", param.Name);
                 
@@ -97,7 +100,7 @@ namespace HE {
             size_t index = 0;
             for (const auto& [paramName, param] : parameters) {
                 backend.BeginArrayElement(index++);
-                Serializer<MaterialParameter>::Serialize(backend, "", param);
+                SerializeValue(backend, "", param);
                 backend.EndArrayElement();
             }
             backend.EndArray();
@@ -114,15 +117,17 @@ namespace HE {
         }
 
         static bool Deserialize(SerializationBackend& backend, const std::string& name, Material& material) {    
-            // 基本属性在构造时已设置，这里主要恢复参数
-            if (!(backend.HasField("texture_slots") &&
-                backend.HasField("type") &&
+            // 检查必要字段
+            if (!(backend.HasField("type") &&
                 backend.HasField("name") &&
-                backend.HasField("parameters")))
+                backend.HasField("parameters"))) {
                 return false;
+            }
 
             std::string shaderPath;
-            backend.Deserialize("shader_path", shaderPath);
+            if (backend.HasField("shader_path")) {
+                backend.Deserialize("shader_path", shaderPath);
+            }
 
             std::string typeStr;
             backend.Deserialize("type", typeStr);
@@ -133,31 +138,32 @@ namespace HE {
             material.SetName(matName);
 
             // 根据 shaderPath 加载 Shader
-             if (!shaderPath.empty()) {
-                 auto shader = Shader::CreateFromFile(shaderPath);
-                 material.SetShader(shader);
-             }
+            if (!shaderPath.empty()) {
+                auto shader = Shader::CreateFromFile(shaderPath);
+                material.SetShader(shader);
+            }
 
             // 参数列表
             // 先获取数组大小，再进入数组
             size_t paramCount = backend.GetArraySize("parameters");
             backend.BeginArray("parameters");
-
             for (size_t i = 0; i < paramCount; ++i) {
                 backend.BeginArrayElement(i);
                 MaterialParameter param;
-                Serializer<MaterialParameter>::Deserialize(backend, "", param);
+                DeserializeValue(backend, "", param);
                 material.AddParameter(param);
                 backend.EndArrayElement();
             }
             backend.EndArray();
 
             // 纹理槽信息
-            backend.BeginObject("texture_slots");
-            // 注意：具体的字段名需要在运行时确定，这里提供一个示例
-            // 实际实现可能需要遍历对象的所有字段
-            // 暂时跳过具体实现，留待后续完善
-            backend.EndObject();
+            if (backend.HasField("texture_slots")) {
+                backend.BeginObject("texture_slots");
+                // 注意：具体的字段名需要在运行时确定，这里提供一个示例
+                // 实际实现可能需要遍历对象的所有字段
+                // 暂时跳过具体实现，留待后续完善
+                backend.EndObject();
+            }
 
             return true;
         }
@@ -236,5 +242,13 @@ namespace HE {
             return true;
         }
     };
+
+    inline bool SaveMaterial(Material* material, const std::string& filename, SerializationFormat format = SerializationFormat::JSON) {
+        return SERIALIZE_TO_FILE(*material, filename, format);
+    }
+
+    inline bool LoadMaterial(const std::string& filename, Material* material, SerializationFormat format = SerializationFormat::JSON) {
+        return DESERIALIZE_FROM_FILE(filename, *material, format);
+    }
 
 }

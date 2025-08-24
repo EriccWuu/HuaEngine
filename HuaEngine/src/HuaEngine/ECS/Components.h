@@ -28,8 +28,6 @@ namespace HE {
 		}
 	};
 
-
-
 	class ScriptableEntity;
 
 	struct NativeScriptComponent : Component {

@@ -4,7 +4,7 @@
 #include "glad/glad.h"
 
 namespace HE {
-	OpenGLTexture2D::OpenGLTexture2D(const std::string& path): m_Path(path) {
+	OpenGLTexture2D::OpenGLTexture2D(const std::string& path) {
 		stbi_set_flip_vertically_on_load(true);
 		int width, height, channels;
 		stbi_uc* data = stbi_load(path.c_str(), &width, &height, &channels, 0);
@@ -37,6 +37,7 @@ namespace HE {
 		glTextureSubImage2D(m_RenderID, 0, 0, 0, m_Width, m_Height, format, GL_UNSIGNED_BYTE, data);
 
 		stbi_image_free(data);
+		m_Path = path;
 	}
 
 	OpenGLTexture2D::~OpenGLTexture2D() {

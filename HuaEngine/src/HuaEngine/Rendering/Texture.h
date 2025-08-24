@@ -16,5 +16,10 @@ namespace HE{
 	class Texture2D : public Texture {
 	public:
 		static Ref<Texture2D> Create(const std::string& path);
+
+		std::string GetPath() const { return m_Path; }
+
+	protected:
+		std::string m_Path;
 	};
 }

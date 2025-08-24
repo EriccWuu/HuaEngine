@@ -9,7 +9,7 @@
 // #include "YamlSerializationBackend.h" // Uncomment when YAML-cpp is available
 
 #include "GLMSerializer.h"
-
+#include "HuaEngine/Scene/SceneSerializer.h"
 #include "HuaEngine/Rendering/Material/MaterialSerializer.h"
 
 namespace HE {
