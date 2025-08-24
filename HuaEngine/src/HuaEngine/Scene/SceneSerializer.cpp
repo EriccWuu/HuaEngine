@@ -29,11 +29,14 @@ namespace HE {
             };
             
             // Register deserialization function
-            deserializeFuncs[typeId] = [](HE::Serialization::SerializationBackend& backend, entt::registry& registry, entt::entity entity) {
+            deserializeFuncs[typeId] = [typeId](HE::Serialization::SerializationBackend& backend, entt::registry& registry, entt::entity entity) {
                 if (backend.HasField("data")) {
                     T component{};
                     if (HE::Serialization::DeserializeValue(backend, "data", component)) {
                         registry.emplace_or_replace<T>(entity, std::move(component));
+                    }
+                    else {
+                        HE_CORE_WARN("Failed to deserialize component {0}", typeId);
                     }
                 }
             };

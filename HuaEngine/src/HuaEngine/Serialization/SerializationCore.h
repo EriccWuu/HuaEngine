@@ -282,7 +282,7 @@ namespace HE::Serialization {
                         // Debug output for failed field deserialization
                         HE_CORE_WARN("Failed to deserialize field: {}", fieldName);
                         // For optional fields, we might not want to fail completely
-                        // success = false;
+                        success = false;
                     }
                 });
 
