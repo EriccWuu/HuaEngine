@@ -1,0 +1,36 @@
+{
+  "name": "SandboxMaterial",
+  "parameters": [
+    {
+      "default_value": "texture_path_placeholder",
+      "is_texture": true,
+      "name": "u_MainTexture",
+      "type": "Texture2D"
+    },
+    {
+      "default_value": {
+        "w": 1.000000,
+        "x": 1.000000,
+        "y": 1.000000,
+        "z": 1.000000
+      },
+      "is_texture": false,
+      "name": "u_Color",
+      "type": "Vec4"
+    },
+    {
+      "default_value": {
+        "x": 1.000000,
+        "y": 1.000000
+      },
+      "is_texture": false,
+      "name": "u_TextureScale",
+      "type": "Vec2"
+    }
+  ],
+  "shader_path": "assets/shaders/sandbox.glsl",
+  "texture_slots": {
+    "u_MainTexture": 0
+  },
+  "type": "Unlit"
+}

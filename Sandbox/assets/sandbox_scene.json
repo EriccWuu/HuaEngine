@@ -1,0 +1,150 @@
+{
+  "entities": [
+    {
+      "components": [
+        {
+          "component_type_id": 3977186500,
+          "data": {
+            "Position": {
+              "x": -1.500000,
+              "y": 0.000000,
+              "z": -3.000000
+            },
+            "Rotation": {
+              "x": 0.000000,
+              "y": 0.000000,
+              "z": 0.000000
+            },
+            "Scale": {
+              "x": 0.500000,
+              "y": 0.500000,
+              "z": 0.500000
+            }
+          }
+        },
+        {
+          "component_type_id": 1375701689
+        },
+        {
+          "component_type_id": 2618107021,
+          "data": {
+            "MaterialInstance": {
+              "base_material_name": "SandboxMaterial",
+              "parameter_overrides": [
+                {
+                  "u_Color": {
+                    "w": 1.000000,
+                    "x": 0.800000,
+                    "y": 0.000000,
+                    "z": 0.900000
+                  }
+                }
+              ]
+            }
+          }
+        }
+      ],
+      "entity_id": 2
+    },
+    {
+      "components": [
+        {
+          "component_type_id": 3977186500,
+          "data": {
+            "Position": {
+              "x": -0.500000,
+              "y": -0.500000,
+              "z": 0.000000
+            },
+            "Rotation": {
+              "x": 0.000000,
+              "y": 0.000000,
+              "z": 0.000000
+            },
+            "Scale": {
+              "x": 1.000000,
+              "y": 1.000000,
+              "z": 1.000000
+            }
+          }
+        },
+        {
+          "component_type_id": 1375701689
+        },
+        {
+          "component_type_id": 2618107021,
+          "data": {
+            "MaterialInstance": {
+              "base_material_name": "SandboxMaterial",
+              "parameter_overrides": [
+                {
+                  "u_Color": {
+                    "w": 1.000000,
+                    "x": 0.800000,
+                    "y": 0.400000,
+                    "z": 0.900000
+                  }
+                },
+                {
+                  "u_TextureScale": {
+                    "x": 2.000000,
+                    "y": 2.000000
+                  }
+                }
+              ]
+            }
+          }
+        }
+      ],
+      "entity_id": 1
+    },
+    {
+      "components": [
+        {
+          "component_type_id": 3977186500,
+          "data": {
+            "Position": {
+              "x": 0.500000,
+              "y": 0.500000,
+              "z": -3.000000
+            },
+            "Rotation": {
+              "x": 0.000000,
+              "y": 0.000000,
+              "z": 0.000000
+            },
+            "Scale": {
+              "x": 1.000000,
+              "y": 1.000000,
+              "z": 1.000000
+            }
+          }
+        },
+        {
+          "component_type_id": 1375701689
+        },
+        {
+          "component_type_id": 2618107021,
+          "data": {
+            "MaterialInstance": {
+              "base_material_name": "SandboxMaterial",
+              "parameter_overrides": [
+                {
+                  "u_Color": {
+                    "w": 1.000000,
+                    "x": 1.000000,
+                    "y": 1.000000,
+                    "z": 0.800000
+                  }
+                }
+              ]
+            }
+          }
+        }
+      ],
+      "entity_id": 0
+    }
+  ],
+  "scene_name": "Untitled Scene",
+  "scene_version": 1
+}
