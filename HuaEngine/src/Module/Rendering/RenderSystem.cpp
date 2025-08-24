@@ -17,9 +17,6 @@ namespace HE {
 		// 渲染使用新材质系统的对象
 		auto& materialEntityView = scene.View<TransformComponent, MeshComponent, MaterialComponent>();
 		
-		// 渲染使用旧组件系统的对象（向后兼容）
-		auto& rendererEntityView = scene.View<TransformComponent, MeshComponent, RendererComponent>();
-		
 		m_Framebuffer->Bind();
 		RenderCommand::SetClearColor({ 0.1f, 0.1f, 0.1f, 1.0f });
 		RenderCommand::Clear();
@@ -30,24 +27,10 @@ namespace HE {
 		for (auto entity : materialEntityView) {
 			auto [transform, mesh, materialComp] = materialEntityView.get<TransformComponent, MeshComponent, MaterialComponent>(entity);
 
-			if (materialComp.MaterialInstance && mesh.VertexArray) {
+			auto vertexArray = mesh.GetVertexArray();  // 使用延迟加载
+			if (materialComp.MaterialInstance && vertexArray) {
 				// 使用新的材质渲染方法
-				Renderer::Submit(materialComp.MaterialInstance, mesh.VertexArray, transform.GetTransformMat());
-			}
-		}
-
-		// 渲染旧组件系统的对象（向后兼容）
-		for (auto entity : rendererEntityView) {
-			auto [transform, mesh, renderer] = rendererEntityView.get<TransformComponent, MeshComponent, RendererComponent>(entity);
-
-			if (renderer.Shader && mesh.VertexArray) {
-				renderer.Shader->Bind();
-				if (renderer.Texture) {
-					renderer.Texture->Bind(0);
-					renderer.Shader->SetInt("u_Texture", 0);
-				}
-				Renderer::Submit(renderer.Shader, mesh.VertexArray, transform.GetTransformMat());
-				renderer.Shader->Unbind();
+				Renderer::Submit(materialComp.MaterialInstance, vertexArray, transform.GetTransformMat());
 			}
 		}
 

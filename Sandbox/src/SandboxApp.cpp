@@ -13,6 +13,8 @@
 #include "HuaEngine/ECS/ScriptableEntity.h"
 #include "HuaEngine/Serialization/Serialization.h"
 #include "HuaEngine/Rendering/Material/Material.h"
+#include "HuaEngine/Rendering/Mesh/MeshSerializer.h"
+#include "HuaEngine/Rendering/Mesh/MeshManager.h"
 
 // #include "HuaEngine/Test/TestReflection.h"
 // #include "HuaEngine/Test/SerializationTest.h"
@@ -32,45 +34,24 @@ public:
 	}
 
     void OnAttach() override {
-        // Create vertex buffer
-		float squareVertices[4 * 5] = {
-			-0.5f, -0.5f, -3.0f, 0.0 , 0.0,
-			 0.5f, -0.5f, -3.0f, 1.0 , 0.0,
-			 0.5f,  0.5f, -3.0f, 1.0 , 1.0,
-			-0.5f,  0.5f, -3.0f, 0.0 , 1.0
-		};
+        // Initialize camera
+        m_EditorCamera.reset(new EditorCamera());
+        m_Scene.reset(new Scene());
+        m_RenderSystem.reset(new RenderSystem(m_Scene));
 
-		Ref<VertexBuffer> squareVertexBuffer;
-		squareVertexBuffer = VertexBuffer::Create(squareVertices, sizeof(squareVertices));
+        // 初始化网格资产管理器并加载默认网格
+        MeshManager::Instance().LoadDefaultMeshes();
 
-        // Create index buffer
-        unsigned int squareIndices[6] = {
-            0, 1, 2 , 2, 3, 0
-        };
+        // 创建自定义网格并保存为资产
+        CreateAndSaveCustomMesh();
 
-		Ref<IndexBuffer> squareIndexBuffer;
-		squareIndexBuffer = IndexBuffer::Create(squareIndices, sizeof(squareIndices) / sizeof(uint32_t));
-
-        // Create vertex array
-		BufferLayout squareLayout = {
-			{ ShaderDataType::Float3, "a_Position" },
-			{ ShaderDataType::Float2, "a_TexCoord" }
-		};
-
-		squareVertexBuffer->SetLayout(squareLayout);
-
-        m_SquareVA = VertexArray::Create();
-		m_SquareVA->AddVertexBuffer(squareVertexBuffer);
-		m_SquareVA->SetIndexBuffer(squareIndexBuffer);
-
+        // 创建材质
         m_SandboxMaterial = Material::Create("SandboxMaterial");
         LoadMaterial("SandboxMaterial.json", std::static_pointer_cast<Material>(m_SandboxMaterial).get());
 
         // Create material instance
         m_MaterialInstance = m_SandboxMaterial->CreateInstance();
-        
-        // 可以在实例中覆盖参数
-        m_MaterialInstance->SetParameter("u_Color", glm::vec4(1.0f, 1.0f, 0.8f, 1.0f)); // 粉色调
+        m_MaterialInstance->SetParameter("u_Color", glm::vec4(1.0f, 1.0f, 0.8f, 1.0f));
 
         // Create framebuffer
         FrameBufferSpecification spec;
@@ -79,25 +60,87 @@ public:
         spec.Attachments = { FrameBufferTextureFormat::RGBA8 };
         m_FrameBuffer = FrameBuffer::Create(spec);
 
-        m_Square = std::make_shared<Entity>(m_Scene->GetEntityManager().CreateEntity());
-        m_Square->AddComponent<MeshComponent>(m_SquareVA);
-        m_Square->AddComponent<MaterialComponent>(m_MaterialInstance);
-
-        // 为第二个正方形创建不同的材质实例
-        auto secondMaterialInstance = m_SandboxMaterial->CreateInstance();
-        secondMaterialInstance->SetParameter("u_Color", glm::vec4(0.8f, 0.4f, 0.9f, 1.0f)); // 紫色调
-        secondMaterialInstance->SetParameter("u_TextureScale", glm::vec2(2.0f, 2.0f)); // 2倍纹理缩放
-
-        auto square = std::make_shared<Entity>(m_Scene->GetEntityManager().CreateEntity());
-        square->AddComponent<MeshComponent>(m_SquareVA);
-        square->AddComponent<MaterialComponent>(secondMaterialInstance);
-        auto& trans = square->GetComponent<TransformComponent>();
-        trans.Position += glm::vec3{0.5, 0.5, 0.0};
+        // 使用资产系统创建实体
+        CreateEntitiesWithAssets();
 
         m_RenderSystem->SetFrameBuffer(m_FrameBuffer);
-
         m_Scene->AddSyetem(m_RenderSystem);
 
+        // 序列化场景
+        SaveSceneWithAssets();
+    }
+
+    void CreateAndSaveCustomMesh() {
+        // 创建顶点数据
+        float squareVertices[4 * 5] = {
+            -0.5f, -0.5f, -3.0f, 0.0 , 0.0,
+             0.5f, -0.5f, -3.0f, 1.0 , 0.0,
+             0.5f,  0.5f, -3.0f, 1.0 , 1.0,
+            -0.5f,  0.5f, -3.0f, 0.0 , 1.0
+        };
+
+        unsigned int squareIndices[6] = {
+            0, 1, 2 , 2, 3, 0
+        };
+
+        // 创建 MeshData
+        MeshData meshData;
+        meshData.VertexData.assign(squareVertices, squareVertices + 20);
+        meshData.IndexData.assign(squareIndices, squareIndices + 6);
+        
+        // 设置布局
+        meshData.Layout.Elements = {
+            SerializableBufferElement{static_cast<uint8_t>(ShaderDataType::Float3), "a_Position", 12, 0, false},
+            SerializableBufferElement{static_cast<uint8_t>(ShaderDataType::Float2), "a_TexCoord", 8, 12, false}
+        };
+        meshData.Layout.Stride = 20;
+
+        // 创建网格资产
+        auto customMesh = CreateRef<Mesh>("CustomSquare", meshData);
+        
+        // 保存到文件
+        if (customMesh->SaveToFile("custom_square.mesh")) {
+            std::cout << "Custom square mesh saved to file successfully" << std::endl;
+        }
+
+        // 注册到管理器
+        MeshManager::Instance().RegisterMesh("CustomSquare", customMesh);
+    }
+
+    void CreateEntitiesWithAssets() {
+        // 创建第一个正方形实体（使用默认 Quad）
+        m_Square = std::make_shared<Entity>(m_Scene->GetEntityManager().CreateEntity());
+        m_Square->AddComponent<MeshComponent>("Quad");  // 使用资产名称
+        m_Square->AddComponent<MaterialComponent>(m_MaterialInstance);
+        auto& transform = m_Square->GetComponent<TransformComponent>();
+        transform.Position.z -= 3.f;
+        transform.Position += glm::vec3{ 0.5, 0.5, 0.0 };
+
+        // 创建第二个正方形实体（使用自定义网格）
+        auto secondMaterialInstance = m_SandboxMaterial->CreateInstance();
+        secondMaterialInstance->SetParameter("u_Color", glm::vec4(0.8f, 0.4f, 0.9f, 1.0f));
+        secondMaterialInstance->SetParameter("u_TextureScale", glm::vec2(2.0f, 2.0f));
+
+        auto square = std::make_shared<Entity>(m_Scene->GetEntityManager().CreateEntity());
+        square->AddComponent<MeshComponent>("CustomSquare");  // 使用自定义网格资产
+        square->AddComponent<MaterialComponent>(secondMaterialInstance);
+        auto& trans = square->GetComponent<TransformComponent>();
+        trans.Position -= glm::vec3{0.5, 0.5, 0.0};
+
+        auto thirdMaterialInstance = m_SandboxMaterial->CreateInstance();
+        thirdMaterialInstance->SetParameter("u_Color", glm::vec4(0.8f, 0.0f, 0.9f, 1.0f));
+
+        // 创建立方体实体
+        auto cubeEntity = std::make_shared<Entity>(m_Scene->GetEntityManager().CreateEntity());
+        cubeEntity->AddComponent<MeshComponent>("Cube");  // 使用默认 Cube
+        cubeEntity->AddComponent<MaterialComponent>(thirdMaterialInstance);
+        auto& cubeTransform = cubeEntity->GetComponent<TransformComponent>();
+        cubeTransform.Position.z = -3.f;
+        cubeTransform.Position += glm::vec3{-1.5, 0.0, 0.0};
+        cubeTransform.Scale *= 0.5f;
+    }
+
+    void SaveSceneWithAssets() {
         // Serialize the created scene to assets folder
         std::string assetPath = "sandbox_scene.json";
         if (SaveScene(m_Scene.get(), assetPath)) {
@@ -166,6 +209,15 @@ public:
         dispatcher.Dispatch<WindowResizeEvent>(BIND_EVENT_FUNC(CustomLayer::OnWindowResize));
     }
 
+    void ShowLoadedMeshes() {
+        auto meshNames = MeshManager::Instance().GetLoadedMeshNames();
+        std::cout << "Currently loaded meshes (" << meshNames.size() << "):" << std::endl;
+        for (const auto& name : meshNames) {
+            auto mesh = MeshManager::Instance().GetMesh(name);
+            std::cout << "  - " << name << " (GPU loaded: " << (mesh->IsLoadedToGPU() ? "Yes" : "No") << ")" << std::endl;
+        }
+    }
+
     bool OnWindowResize(WindowResizeEvent& event) {
         // Ensure minimum valid size to prevent crashes when window is minimized
         auto eventWidth = event.GetWidth();
@@ -179,7 +231,6 @@ public:
     }
 
 private:
-	Ref<VertexArray> m_SquareVA;
     Ref<FrameBuffer> m_FrameBuffer;
     Ref<EditorCamera> m_EditorCamera;
     Ref<Entity> m_Square, m_SceneCamera;
