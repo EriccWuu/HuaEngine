@@ -7,7 +7,7 @@
 #include <unordered_map>
 #include "glad/glad.h"
 
-namespace HE {
+namespace HE::Rendering {
 	
 	static std::string ReadFile(const std::string& filepath) {
 		std::ifstream file(filepath);

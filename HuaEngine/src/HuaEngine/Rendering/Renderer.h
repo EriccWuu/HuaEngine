@@ -5,7 +5,7 @@
 #include "Camera.h"
 #include "Material/Material.h"
 
-namespace HE {
+namespace HE::Rendering {
 
 	class Renderer {
 	public:

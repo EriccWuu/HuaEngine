@@ -2,7 +2,7 @@
 
 #include "MaterialCore.h"
 
-namespace HE {
+namespace HE::Rendering {
 
 	// 标准 PBR 材质
 	class StandardMaterial : public Material {

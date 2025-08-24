@@ -5,7 +5,7 @@
 #include <unordered_map>
 #include <string>
 
-namespace HE {
+namespace HE::Rendering {
     // Mesh 资产管理器 (单例模式)
     class MeshManager {
     public:

@@ -6,35 +6,35 @@
 
 namespace HE {
 	void RenderSystem::Update() {
-		auto& cameraView = m_Scene->View<CameraComponent>();
+		auto& cameraView = m_Scene->View<Rendering::CameraComponent>();
 		for (auto cameraEntity : cameraView) {
-			auto& camera = m_Scene->Get<CameraComponent>(cameraEntity);
+			auto& camera = m_Scene->Get<Rendering::CameraComponent>(cameraEntity);
 			RenderSingleCamera(*m_Scene, *camera.Camera);
 		}
 	}
 
-	void RenderSystem::RenderSingleCamera(Scene& scene, Camera& camera) {
+	void RenderSystem::RenderSingleCamera(Scene& scene, Rendering::Camera& camera) {
 		// 渲染使用新材质系统的对象
-		auto& materialEntityView = scene.View<TransformComponent, MeshComponent, MaterialComponent>();
+		auto& materialEntityView = scene.View<TransformComponent, Rendering::MeshComponent, Rendering::MaterialComponent>();
 		
 		m_Framebuffer->Bind();
-		RenderCommand::SetClearColor({ 0.1f, 0.1f, 0.1f, 1.0f });
-		RenderCommand::Clear();
+		Rendering::RenderCommand::SetClearColor({ 0.1f, 0.1f, 0.1f, 1.0f });
+		Rendering::RenderCommand::Clear();
 		
-		Renderer::Begin(std::make_shared<Camera>(camera));
+		Rendering::Renderer::Begin(std::make_shared<Rendering::Camera>(camera));
 
 		// 渲染新材质系统的对象
 		for (auto entity : materialEntityView) {
-			auto [transform, mesh, materialComp] = materialEntityView.get<TransformComponent, MeshComponent, MaterialComponent>(entity);
+			auto [transform, mesh, materialComp] = materialEntityView.get<TransformComponent, Rendering::MeshComponent, Rendering::MaterialComponent>(entity);
 
 			auto vertexArray = mesh.GetVertexArray();  // 使用延迟加载
 			if (materialComp.MaterialInstance && vertexArray) {
 				// 使用新的材质渲染方法
-				Renderer::Submit(materialComp.MaterialInstance, vertexArray, transform.GetTransformMat());
+				Rendering::Renderer::Submit(materialComp.MaterialInstance, vertexArray, transform.GetTransformMat());
 			}
 		}
 
-		Renderer::End();
+		Rendering::Renderer::End();
 		m_Framebuffer->Unbind();
 	}
 }

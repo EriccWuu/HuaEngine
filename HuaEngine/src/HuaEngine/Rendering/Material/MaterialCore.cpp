@@ -2,7 +2,7 @@
 #include "Material.h"
 #include "HuaEngine/Core/Log.h"
 
-namespace HE {
+namespace HE::Rendering {
 
 	// Material 实现
 	Material::Material(const std::string& name, MaterialType type)

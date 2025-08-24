@@ -4,7 +4,7 @@
 #include "Platform/OpenGL/OpenGLIndexBuffer.h"
 #include "glad/glad.h"
 
-namespace HE {
+namespace HE::Rendering {
     MeshData MeshData::FromVertexArray(const Ref<VertexArray>& vertexArray) {
         if (!vertexArray) {
             HE_CORE_WARN("MeshData::FromVertexArray - VertexArray is null");

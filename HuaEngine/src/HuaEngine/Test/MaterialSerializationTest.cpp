@@ -31,7 +31,7 @@ namespace HE {
 		HE_CORE_INFO("--- Standard Material (PBR) Serialization Test ---");
 		
 		// Create standard material
-		auto standardMaterial = MaterialLibrary::Instance().CreateStandardMaterial("TestStandardMaterial");
+		auto standardMaterial = Rendering::MaterialLibrary::Instance().CreateStandardMaterial("TestStandardMaterial");
 		
 		// Set parameters
 		standardMaterial->SetParameter("u_BaseColor", glm::vec3(0.8f, 0.2f, 0.3f));
@@ -43,14 +43,14 @@ namespace HE {
 		
 		// Save to file - convert to base Material class for serialization
 		std::string filename = "standard_material_test.json";
-		Ref<Material> materialBase = std::static_pointer_cast<Material>(standardMaterial);
+		Ref<Rendering::Material> materialBase = std::static_pointer_cast<Rendering::Material>(standardMaterial);
 		if (SerializationManager::Instance().SerializeToFile(materialBase, filename, SerializationFormat::JSON)) {
 			HE_CORE_INFO("Standard material saved to file: {0}", filename);
 			
 			// Reload material - note: need to create an object first, then deserialize into it
-			auto loadedMaterial = MaterialLibrary::Instance().CreateStandardMaterial("LoadedStandardMaterial");
+			auto loadedMaterial = Rendering::MaterialLibrary::Instance().CreateStandardMaterial("LoadedStandardMaterial");
 			loadedMaterial->ClearParameters();
-			Ref<Material> loadedMaterialBase = std::static_pointer_cast<Material>(loadedMaterial);
+			Ref<Rendering::Material> loadedMaterialBase = std::static_pointer_cast<Rendering::Material>(loadedMaterial);
 			if (SerializationManager::Instance().DeserializeFromFile(filename, *loadedMaterialBase, SerializationFormat::JSON)) {
 				HE_CORE_INFO("Standard material loaded from file: {0}", filename);
 				PrintMaterialInfo(loadedMaterial, "Loaded Standard Material");
@@ -74,7 +74,7 @@ namespace HE {
 		HE_CORE_INFO("--- Unlit Material Serialization Test ---");
 		
 		// Create unlit material
-		auto unlitMaterial = MaterialLibrary::Instance().CreateUnlitMaterial("TestUnlitMaterial");
+		auto unlitMaterial = Rendering::MaterialLibrary::Instance().CreateUnlitMaterial("TestUnlitMaterial");
 		
 		// Set parameters
 		unlitMaterial->SetParameter("u_Color", glm::vec4(1.0f, 0.5f, 0.0f, 1.0f));
@@ -83,14 +83,14 @@ namespace HE {
 		
 		// Save to file - convert to base Material class for serialization
 		std::string filename = "unlit_material_test.json";
-		Ref<Material> materialBase = std::static_pointer_cast<Material>(unlitMaterial);
+		Ref<Rendering::Material> materialBase = std::static_pointer_cast<Rendering::Material>(unlitMaterial);
 		if (SerializationManager::Instance().SerializeToFile(materialBase, filename, SerializationFormat::JSON)) {
 			HE_CORE_INFO("Unlit material saved to file: {0}", filename);
 			
 			// Reload material
-			auto loadedMaterial = MaterialLibrary::Instance().CreateUnlitMaterial("LoadedUnlitMaterial");
+			auto loadedMaterial = Rendering::MaterialLibrary::Instance().CreateUnlitMaterial("LoadedUnlitMaterial");
 			loadedMaterial->ClearParameters();
-			Ref<Material> loadedMaterialBase = std::static_pointer_cast<Material>(loadedMaterial);
+			Ref<Rendering::Material> loadedMaterialBase = std::static_pointer_cast<Rendering::Material>(loadedMaterial);
 			if (SerializationManager::Instance().DeserializeFromFile(filename, *loadedMaterialBase, SerializationFormat::JSON)) {
 				HE_CORE_INFO("Unlit material loaded from file: {0}", filename);
 				PrintMaterialInfo(loadedMaterial, "Loaded Unlit Material");
@@ -130,27 +130,27 @@ namespace HE {
 			}
 		)";
 		
-		auto customShader = CreateRef<OpenGLShader>(vertexSource, fragmentSource);
+		auto customShader = CreateRef<Rendering::OpenGLShader>(vertexSource, fragmentSource);
 		
 		// Create custom material
-		auto customMaterial = MaterialLibrary::Instance().CreateCustomMaterial("TestCustomMaterial", customShader);
+		auto customMaterial = Rendering::MaterialLibrary::Instance().CreateCustomMaterial("TestCustomMaterial", customShader);
 
-		customMaterial->AddParameter({ "custom_float", MaterialParameterType::Float, 1.0f});
-		customMaterial->AddParameter({ "custom_vec3", MaterialParameterType::Vec3, glm::vec3{1.0f, 1.0f, 1.0f } });
-		customMaterial->AddParameter({ "custom_color", MaterialParameterType::Vec4, glm::vec4{1.0f, 1.0f, 1.0f, 0.f } });
+		customMaterial->AddParameter({ "custom_float", Rendering::MaterialParameterType::Float, 1.0f});
+		customMaterial->AddParameter({ "custom_vec3", Rendering::MaterialParameterType::Vec3, glm::vec3{1.0f, 1.0f, 1.0f } });
+		customMaterial->AddParameter({ "custom_color", Rendering::MaterialParameterType::Vec4, glm::vec4{1.0f, 1.0f, 1.0f, 0.f } });
 		
 		PrintMaterialInfo(customMaterial, "Original Custom Material");
 		
 		// Save to file - convert to base Material class for serialization
 		std::string filename = "custom_material_test.json";
-		Ref<Material> materialBase = std::static_pointer_cast<Material>(customMaterial);
+		Ref<Rendering::Material> materialBase = std::static_pointer_cast<Rendering::Material>(customMaterial);
 		if (SerializationManager::Instance().SerializeToFile(materialBase, filename, SerializationFormat::JSON)) {
 			HE_CORE_INFO("Custom material saved to file: {0}", filename);
 			
 			// Reload material
-			auto loadedMaterial = MaterialLibrary::Instance().CreateCustomMaterial("LoadedCustomMaterial", customShader);
+			auto loadedMaterial = Rendering::MaterialLibrary::Instance().CreateCustomMaterial("LoadedCustomMaterial", customShader);
 			loadedMaterial->ClearParameters();
-			Ref<Material> loadedMaterialBase = std::static_pointer_cast<Material>(loadedMaterial);
+			Ref<Rendering::Material> loadedMaterialBase = std::static_pointer_cast<Rendering::Material>(loadedMaterial);
 			if (SerializationManager::Instance().DeserializeFromFile(filename, *loadedMaterialBase, SerializationFormat::JSON)) {
 				HE_CORE_INFO("Custom material loaded from file: {0}", filename);
 				PrintMaterialInfo(loadedMaterial, "Loaded Custom Material");
@@ -174,14 +174,14 @@ namespace HE {
 		HE_CORE_INFO("--- Material Instance Serialization Test ---");
 		
 		// Create base material
-		auto baseMaterial = MaterialLibrary::Instance().CreateStandardMaterial("BaseStandardMaterial");
+		auto baseMaterial = Rendering::MaterialLibrary::Instance().CreateStandardMaterial("BaseStandardMaterial");
 		baseMaterial->SetParameter("u_BaseColor", glm::vec3(0.5f, 0.5f, 0.5f));
 		baseMaterial->SetParameter("u_Metallic", 0.0f);
 		baseMaterial->SetParameter("u_Roughness", 0.5f);
 		baseMaterial->SetParameter("u_AO", 1.0f);
 		
 		// Create material instance and override some parameters
-		auto materialInstance = CreateRef<MaterialInstance>(baseMaterial);
+		auto materialInstance = CreateRef<Rendering::MaterialInstance>(baseMaterial);
 		materialInstance->SetParameter("u_BaseColor", glm::vec3(1.0f, 0.0f, 0.0f)); // Override to red
 		materialInstance->SetParameter("u_Metallic", 1.0f); // Override to metallic material
 		
@@ -193,7 +193,7 @@ namespace HE {
 			HE_CORE_INFO("Material instance saved to file: {0}", filename);
 			
 			// Reload material instance (requires same base material)
-			auto loadedInstance = CreateRef<MaterialInstance>(baseMaterial);
+			auto loadedInstance = CreateRef<Rendering::MaterialInstance>(baseMaterial);
 			if (SerializationManager::Instance().DeserializeFromFile(filename, *loadedInstance, SerializationFormat::JSON)) {
 				HE_CORE_INFO("Material instance loaded from file: {0}", filename);
 				HE_CORE_INFO("✓ Material Instance Serialization Verification Successful");
@@ -209,7 +209,7 @@ namespace HE {
 		}
 	}
 
-	bool MaterialSerializationTest::VerifyMaterialsEqual(const Ref<Material>& originalMaterial, const Ref<Material>& loadedMaterial)
+	bool MaterialSerializationTest::VerifyMaterialsEqual(const Ref<Rendering::Material>& originalMaterial, const Ref<Rendering::Material>& loadedMaterial)
 	{
 		// Check material type
 		if (originalMaterial->GetType() != loadedMaterial->GetType()) {
@@ -247,7 +247,7 @@ namespace HE {
 		return true;
 	}
 
-	void MaterialSerializationTest::PrintMaterialInfo(const Ref<Material>& material, const std::string& title)
+	void MaterialSerializationTest::PrintMaterialInfo(const Ref<Rendering::Material>& material, const std::string& title)
 	{
 		HE_CORE_INFO("=== {0} ===", title);
 		HE_CORE_INFO("Material Name: {0}", material->GetName());

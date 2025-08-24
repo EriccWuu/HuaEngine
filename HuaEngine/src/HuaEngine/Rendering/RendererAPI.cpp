@@ -2,7 +2,7 @@
 #include "RendererAPI.h"
 #include "Platform/OpenGL/OpenGLRendererAPI.h"
 
-namespace HE {
+namespace HE::Rendering {
 	RendererAPI::API RendererAPI::m_API = RendererAPI::API::OpenGL;
 
 	RendererAPI* RendererAPI::Create()

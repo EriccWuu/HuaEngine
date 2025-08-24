@@ -9,11 +9,8 @@
 #include "glm/gtx/quaternion.hpp"
 
 #include "HuaEngine/ECS/Components.h"
-#include "Module/Rendering/RenderingComponent.h"
 #include "HuaEngine/ECS/ScriptableEntity.h"
 #include "HuaEngine/Serialization/Serialization.h"
-#include "HuaEngine/Rendering/Material/Material.h"
-#include "HuaEngine/Rendering/Mesh/Mesh.h"
 
 // #include "HuaEngine/Test/TestReflection.h"
 // #include "HuaEngine/Test/SerializationTest.h"
@@ -27,14 +24,14 @@ class CustomLayer : public HE::Layer {
 public:
 	CustomLayer(): Layer("CumsomLayer") {
         // Initialize camera
-        m_EditorCamera.reset(new EditorCamera());
+        m_EditorCamera.reset(new Rendering::EditorCamera());
         m_Scene.reset(new Scene());
         m_RenderSystem.reset(new RenderSystem(m_Scene));
 	}
 
     void OnAttach() override {
         // Initialize camera
-        m_EditorCamera.reset(new EditorCamera());
+        m_EditorCamera.reset(new Rendering::EditorCamera());
         m_Scene.reset(new Scene());
         m_RenderSystem.reset(new RenderSystem(m_Scene));
 
@@ -203,7 +200,7 @@ public:
 
 private:
     Ref<FrameBuffer> m_FrameBuffer;
-    Ref<EditorCamera> m_EditorCamera;
+    Ref<Rendering::EditorCamera> m_EditorCamera;
     Ref<Entity> m_Square, m_SceneCamera;
     Ref<Scene> m_Scene;
     Ref<RenderSystem> m_RenderSystem;

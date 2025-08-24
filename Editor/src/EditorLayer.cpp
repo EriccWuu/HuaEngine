@@ -6,7 +6,7 @@
 namespace HE {
     EditorLayer::EditorLayer() : Layer("EditorLayer") {
         // Initialize camera
-        m_EditorCamera.reset(new EditorCamera());
+        m_EditorCamera.reset(new Rendering::EditorCamera());
         m_Scene.reset(new Scene());
         m_RenderSystem.reset(new RenderSystem(m_Scene));
         m_SceneHierarchy.reset(new SceneHierarchyPanel(m_Scene));

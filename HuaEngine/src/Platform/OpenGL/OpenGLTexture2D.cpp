@@ -3,7 +3,7 @@
 #include "stb_image.h"
 #include "glad/glad.h"
 
-namespace HE {
+namespace HE::Rendering {
 	OpenGLTexture2D::OpenGLTexture2D(const std::string& path) {
 		stbi_set_flip_vertically_on_load(true);
 		int width, height, channels;

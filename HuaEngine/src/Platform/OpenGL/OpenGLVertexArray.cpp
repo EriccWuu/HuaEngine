@@ -2,7 +2,7 @@
 #include "OpenGLVertexArray.h"
 #include "glad/glad.h"
 
-namespace HE {
+namespace HE::Rendering {
 	static uint32_t GetOpenGLType(ShaderDataType dataType) {
 		switch (dataType) {
 		case ShaderDataType::Float:  return GL_FLOAT;

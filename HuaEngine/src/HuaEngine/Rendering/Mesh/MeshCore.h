@@ -6,7 +6,7 @@
 #include "MeshData.h"
 #include <string>
 
-namespace HE {
+namespace HE::Rendering {
     // Mesh 资产类
     class Mesh {
     public:
@@ -57,9 +57,12 @@ namespace HE {
         void LoadToGPU();
     };
 
+} // namespace HE::Rendering
+
+namespace HE {
     template<>
-    struct Serializer<Mesh> {
-        static bool Serialize(SerializationBackend& backend, const std::string& name, const Mesh& value) {
+    struct Serializer<Rendering::Mesh> {
+        static bool Serialize(SerializationBackend& backend, const std::string& name, const Rendering::Mesh& value) {
             backend.BeginObject(name);
             SerializeValue(backend, "mesh_name", value.GetName());
             SerializeValue(backend, "mesh_data", value.GetMeshData());
@@ -67,7 +70,7 @@ namespace HE {
             return true;
         }
 
-        static bool Deserialize(SerializationBackend& backend, const std::string& name, Mesh& value) {
+        static bool Deserialize(SerializationBackend& backend, const std::string& name, Rendering::Mesh& value) {
             // backend.BeginObject(name);
             if (!(backend.HasField("mesh_name") && backend.HasField("mesh_data")))
                 return false;
@@ -76,7 +79,7 @@ namespace HE {
             DeserializeValue(backend, "mesh_name", meshName);
             value.SetName(meshName);
 
-            auto meshData = MeshData();
+            auto meshData = Rendering::MeshData();
             DeserializeValue(backend, "mesh_data", meshData);
             value.SetMeshData(meshData);
             // backend.EndObject();

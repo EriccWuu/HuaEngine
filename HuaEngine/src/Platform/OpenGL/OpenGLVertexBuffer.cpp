@@ -2,7 +2,7 @@
 #include "OpenGLVertexBuffer.h"
 #include "glad/glad.h"
 
-namespace HE {
+namespace HE::Rendering {
 	OpenGLVertexBuffer::OpenGLVertexBuffer(float* vertices, uint32_t size) {
 		glGenBuffers(1, &m_RenderID);
 		glBindBuffer(GL_ARRAY_BUFFER, m_RenderID);

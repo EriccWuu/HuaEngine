@@ -8,7 +8,7 @@
 #include <string>
 #include "glm/glm.hpp"
 
-namespace HE {
+namespace HE::Rendering {
 
 	enum class MaterialParameterType {
 		Int, Float, Vec2, Vec3, Vec4, Mat3, Mat4,

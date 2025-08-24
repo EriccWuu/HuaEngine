@@ -2,7 +2,7 @@
 
 #include "HuaEngine/Rendering/VertexBuffer.h"
 
-namespace HE {
+namespace HE::Rendering {
 	class OpenGLVertexBuffer : public VertexBuffer {
 	public:
 		OpenGLVertexBuffer(float* vertices, uint32_t size);

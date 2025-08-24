@@ -3,7 +3,7 @@
 #include "Buffer.h"
 #include <cstdint>
 
-namespace HE {
+namespace HE::Rendering {
 	enum class ShaderDataType : uint8_t {
 		None = 0,
 		Float, Float2, Float3, Float4,

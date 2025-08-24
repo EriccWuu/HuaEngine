@@ -3,7 +3,7 @@
 #include "HuaEngine/Events/Event.h"
 #include "Camera.h"
 
-namespace HE {
+namespace HE::Rendering {
 	class EditorCamera : public Camera {
 	public:
 		EditorCamera() = default;

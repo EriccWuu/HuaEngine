@@ -1,7 +1,7 @@
 #include "enginepch.h"
 #include "RenderCommand.h"
 
-namespace HE {
+namespace HE::Rendering {
 	RendererAPI* RenderCommand::m_RendererAPI = RendererAPI::Create();
 
 	void RenderCommand::Init() {

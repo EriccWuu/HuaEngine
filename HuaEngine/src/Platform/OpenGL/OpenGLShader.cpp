@@ -7,7 +7,7 @@
 #include <sstream>
 #include <unordered_map>
 
-namespace HE {
+namespace HE::Rendering {
 	OpenGLShader::OpenGLShader(const std::string& vertexSrc, const std::string& fragmentSrc) {
 		CreateShader(vertexSrc, fragmentSrc);
 	}

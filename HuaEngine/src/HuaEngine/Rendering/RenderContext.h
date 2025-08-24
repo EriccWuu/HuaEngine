@@ -1,6 +1,6 @@
 #pragma once
 
-namespace HE {
+namespace HE::Rendering {
 	class RenderContext {
 	public:
 		virtual void Init() = 0;

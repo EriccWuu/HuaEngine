@@ -2,7 +2,7 @@
 
 #include "HuaEngine/Rendering/FrameBuffer.h"
 
-namespace HE {
+namespace HE::Rendering {
 	class OpenGLFrameBuffer : public FrameBuffer {
 	public:
 		OpenGLFrameBuffer(const FrameBufferSpecification& specificationn);

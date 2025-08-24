@@ -3,7 +3,7 @@
 #include "MaterialCore.h"
 #include "HuaEngine/Serialization/Serialization.h"
 
-namespace HE {
+namespace HE::Rendering {
 
     // 材质参数值序列化
     class MaterialParameterSerializer {
@@ -14,49 +14,6 @@ namespace HE {
         // 辅助函数：从类型名称获取类型枚举
         static MaterialParameterType StringToParameterType(const std::string& typeStr);
         static std::string ParameterTypeToString(MaterialParameterType type);
-    };
-
-    // 材质参数序列化
-    template<>
-    struct Serializer<MaterialParameter> {
-        static void Serialize(SerializationBackend& backend, const std::string& name, const MaterialParameter& param) {
-            backend.BeginObject(name);
-            backend.Serialize("name", param.Name);
-            backend.Serialize("type", MaterialParameterSerializer::ParameterTypeToString(param.Type));
-            backend.Serialize("is_texture", param.IsTexture);
-            
-            // 序列化默认值
-            MaterialParameterSerializer::Serialize(backend, "default_value", param.DefaultValue);
-            
-            backend.EndObject();
-        }
-
-        static bool Deserialize(SerializationBackend& backend, const std::string& name, MaterialParameter& param) {            
-            backend.BeginObject(name);
-            
-            // 在对象内部检查字段
-            if (!(backend.HasField("name") &&
-                backend.HasField("type") &&
-                backend.HasField("is_texture") &&
-                backend.HasField("default_value"))) {
-                backend.EndObject();
-                return false;
-            }
-                
-            backend.Deserialize("name", param.Name);
-                
-            std::string typeStr;
-            backend.Deserialize("type", typeStr);
-            param.Type = MaterialParameterSerializer::StringToParameterType(typeStr);
-                
-            backend.Deserialize("is_texture", param.IsTexture);
-                
-            // 反序列化默认值
-            MaterialParameterSerializer::Deserialize(backend, "default_value", param.DefaultValue, param.Type);
-                
-            backend.EndObject();
-            return true;
-        }
     };
 
     // 材质类型序列化
@@ -76,13 +33,68 @@ namespace HE {
         return MaterialType::Custom; // 默认为自定义
     }
 
+    inline bool SaveMaterial(Material* material, const std::string& filename, SerializationFormat format = SerializationFormat::JSON) {
+        return SERIALIZE_TO_FILE(*material, filename, format);
+    }
+
+    inline bool LoadMaterial(const std::string& filename, Material* material, SerializationFormat format = SerializationFormat::JSON) {
+        return DESERIALIZE_FROM_FILE(filename, *material, format);
+    }
+
+} // namespace HE::Rendering
+
+namespace HE {
+
+    // 材质参数序列化
+    template<>
+    struct Serializer<Rendering::MaterialParameter> {
+        static void Serialize(SerializationBackend& backend, const std::string& name, const Rendering::MaterialParameter& param) {
+            backend.BeginObject(name);
+            backend.Serialize("name", param.Name);
+            backend.Serialize("type", Rendering::MaterialParameterSerializer::ParameterTypeToString(param.Type));
+            backend.Serialize("is_texture", param.IsTexture);
+            
+            // 序列化默认值
+            Rendering::MaterialParameterSerializer::Serialize(backend, "default_value", param.DefaultValue);
+            
+            backend.EndObject();
+        }
+
+        static bool Deserialize(SerializationBackend& backend, const std::string& name, Rendering::MaterialParameter& param) {            
+            backend.BeginObject(name);
+            
+            // 在对象内部检查字段
+            if (!(backend.HasField("name") &&
+                backend.HasField("type") &&
+                backend.HasField("is_texture") &&
+                backend.HasField("default_value"))) {
+                backend.EndObject();
+                return false;
+            }
+                
+            backend.Deserialize("name", param.Name);
+                
+            std::string typeStr;
+            backend.Deserialize("type", typeStr);
+            param.Type = Rendering::MaterialParameterSerializer::StringToParameterType(typeStr);
+                
+            backend.Deserialize("is_texture", param.IsTexture);
+                
+            // 反序列化默认值
+            Rendering::MaterialParameterSerializer::Deserialize(backend, "default_value", param.DefaultValue, param.Type);
+                
+            backend.EndObject();
+            return true;
+        }
+    };
+
     // 材质基类序列化
     template<>
-    struct Serializer<Material> {
-        static void Serialize(SerializationBackend& backend, const std::string& name, const Material& material) {
+    struct Serializer<Rendering::Material> {
+        static void Serialize(SerializationBackend& backend, const std::string& name, const Rendering::Material& material) {
             // 基本属性
             backend.Serialize("name", material.GetName());
-            backend.Serialize("type", MaterialTypeToString(material.GetType()));
+            backend.Serialize("type", Rendering::MaterialTypeToString(material.GetType()));
             
             // Shader 路径 (简化处理，只保存路径)
             // TODO: 需要 Shader 类支持路径存储才能完整实现
@@ -116,7 +128,7 @@ namespace HE {
             }
         }
 
-        static bool Deserialize(SerializationBackend& backend, const std::string& name, Material& material) {    
+        static bool Deserialize(SerializationBackend& backend, const std::string& name, Rendering::Material& material) {    
             // 检查必要字段
             if (!(backend.HasField("type") &&
                 backend.HasField("name") &&
@@ -131,7 +143,7 @@ namespace HE {
 
             std::string typeStr;
             backend.Deserialize("type", typeStr);
-            material.SetType(StringToMaterialType(typeStr));
+            material.SetType(Rendering::StringToMaterialType(typeStr));
 
             std::string matName;
             backend.Deserialize("name", matName);
@@ -139,7 +151,7 @@ namespace HE {
 
             // 根据 shaderPath 加载 Shader
             if (!shaderPath.empty()) {
-                auto shader = Shader::CreateFromFile(shaderPath);
+                auto shader = Rendering::Shader::CreateFromFile(shaderPath);
                 material.SetShader(shader);
             }
 
@@ -149,7 +161,7 @@ namespace HE {
             backend.BeginArray("parameters");
             for (size_t i = 0; i < paramCount; ++i) {
                 backend.BeginArrayElement(i);
-                MaterialParameter param;
+                Rendering::MaterialParameter param;
                 DeserializeValue(backend, "", param);
                 material.AddParameter(param);
                 backend.EndArrayElement();
@@ -171,8 +183,8 @@ namespace HE {
 
     // 材质实例序列化
     template<>
-    struct Serializer<MaterialInstance> {
-        static void Serialize(SerializationBackend& backend, const std::string& name, const MaterialInstance& instance) {
+    struct Serializer<Rendering::MaterialInstance> {
+        static void Serialize(SerializationBackend& backend, const std::string& name, const Rendering::MaterialInstance& instance) {
             backend.BeginObject(name);
             
             // 基础材质名称
@@ -186,7 +198,7 @@ namespace HE {
             for (const auto& [paramName, param] : overrideParams) {
                 backend.BeginArrayElement(index++);
                 backend.BeginObject();
-                MaterialParameterSerializer::Serialize(backend, paramName, param);
+                Rendering::MaterialParameterSerializer::Serialize(backend, paramName, param);
                 backend.EndObject();
                 backend.EndArrayElement();
             }
@@ -195,7 +207,7 @@ namespace HE {
             backend.EndObject();
         }
 
-        static bool Deserialize(SerializationBackend& backend, const std::string& name, MaterialInstance& instance) {
+        static bool Deserialize(SerializationBackend& backend, const std::string& name, Rendering::MaterialInstance& instance) {
             if (!(backend.HasField("base_material_name") &&
                 backend.HasField("parameter_overrides")))
                 return false;
@@ -226,8 +238,8 @@ namespace HE {
                     // 遍历所有可能的参数名
                     for (const auto& [paramName, baseParam] : parameters) {
                         if (backend.HasField(paramName)) {
-                            MaterialParameterValue value;
-                            if (MaterialParameterSerializer::Deserialize(backend, paramName, value, baseParam.Type)) {
+                            Rendering::MaterialParameterValue value;
+                            if (Rendering::MaterialParameterSerializer::Deserialize(backend, paramName, value, baseParam.Type)) {
                                 instance.SetParameter(paramName, value);
                             }
                         }
@@ -243,12 +255,4 @@ namespace HE {
         }
     };
 
-    inline bool SaveMaterial(Material* material, const std::string& filename, SerializationFormat format = SerializationFormat::JSON) {
-        return SERIALIZE_TO_FILE(*material, filename, format);
-    }
-
-    inline bool LoadMaterial(const std::string& filename, Material* material, SerializationFormat format = SerializationFormat::JSON) {
-        return DESERIALIZE_FROM_FILE(filename, *material, format);
-    }
-
-}
+} // namespace HE

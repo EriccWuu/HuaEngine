@@ -12,13 +12,13 @@ namespace HE {
 		RenderSystem(Ref<Scene> scene): m_Scene(scene) {}
 		virtual void Update() override;
 
-		void RenderSingleCamera(Scene& scene, Camera& camera);
-		void SetCamera(Ref<Camera>& camera) { m_Camera = camera; };
-		void SetFrameBuffer(Ref<FrameBuffer>& framebuffer) { m_Framebuffer = framebuffer; }
+		void RenderSingleCamera(Scene& scene, Rendering::Camera& camera);
+		void SetCamera(Ref<Rendering::Camera>& camera) { m_Camera = camera; };
+		void SetFrameBuffer(Ref<Rendering::FrameBuffer>& framebuffer) { m_Framebuffer = framebuffer; }
 
 	private:
 		Ref<Scene> m_Scene;
-		Ref<Camera> m_Camera;
-		Ref<FrameBuffer> m_Framebuffer;
+		Ref<Rendering::Camera> m_Camera;
+		Ref<Rendering::FrameBuffer> m_Framebuffer;
 	};
 }

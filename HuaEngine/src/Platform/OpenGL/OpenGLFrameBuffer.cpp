@@ -3,7 +3,7 @@
 
 #include "glad/glad.h"
 
-namespace HE {
+namespace HE::Rendering {
 	namespace Utils {
 		static GLenum TextureTarget(bool multisampled)
 		{

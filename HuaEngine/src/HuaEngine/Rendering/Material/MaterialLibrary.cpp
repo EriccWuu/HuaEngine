@@ -2,7 +2,7 @@
 #include "MaterialLibrary.h"
 #include "HuaEngine/Core/Log.h"
 
-namespace HE {
+namespace HE::Rendering {
 
 	MaterialLibrary& MaterialLibrary::Instance()
 	{

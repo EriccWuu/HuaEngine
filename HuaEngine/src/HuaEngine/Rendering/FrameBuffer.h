@@ -2,7 +2,7 @@
 
 #include "HuaEngine/Core/Core.h"
 
-namespace HE {
+namespace HE::Rendering {
 	enum class FrameBufferTextureFormat {
 		None = 0,
 		RGBA8,

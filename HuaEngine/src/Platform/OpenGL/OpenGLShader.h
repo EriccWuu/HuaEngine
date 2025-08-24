@@ -3,7 +3,7 @@
 #include <string>
 #include "HuaEngine/Rendering/Shader/Shader.h"
 
-namespace HE {
+namespace HE::Rendering {
 	class OpenGLShader : public Shader {
 	public:
 		OpenGLShader(const std::string& vertexSrc, const std::string& fragmentSrc);

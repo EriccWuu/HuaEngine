@@ -77,6 +77,11 @@ namespace HE {
         inline static bool IsRegistered = false;
     };
 
+    // 使用别名来避免宏问题
+    using CameraComponent = Rendering::CameraComponent;
+    using RendererComponent = Rendering::RendererComponent;
+    using MeshComponent = Rendering::MeshComponent;
+
 #define REGISTER_COMPONENT_EDITOR(Type) \
     static ComponentEditorAutoRegister<Type> s_autoRegister_##Type(#Type);
 

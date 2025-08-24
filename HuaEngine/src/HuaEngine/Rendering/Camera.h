@@ -2,7 +2,7 @@
 
 #include "glm/glm.hpp"
 
-namespace HE {
+namespace HE::Rendering {
 	class Camera {
 	public:
 		Camera() = default;

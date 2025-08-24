@@ -4,7 +4,7 @@
 #include "MaterialTypes.h"
 #include <unordered_map>
 
-namespace HE {
+namespace HE::Rendering {
 
 	class MaterialLibrary {
 	public:

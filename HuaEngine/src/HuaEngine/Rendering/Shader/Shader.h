@@ -1,7 +1,7 @@
 #pragma once
 #include "glm/glm.hpp"
 
-namespace HE {
+namespace HE::Rendering {
 	class Shader {
 	public:
 		virtual ~Shader() = default;

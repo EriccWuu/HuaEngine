@@ -3,7 +3,7 @@
 #include "IndexBuffer.h"
 #include "Platform/OpenGL/OpenGLIndexBuffer.h"
 
-namespace HE {
+namespace HE::Rendering {
 	Ref<IndexBuffer> IndexBuffer::Create(uint32_t* indices, uint32_t count)
 	{
 		switch (RendererAPI::GetAPI()) {

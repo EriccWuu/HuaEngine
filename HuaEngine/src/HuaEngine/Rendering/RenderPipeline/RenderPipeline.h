@@ -4,7 +4,7 @@
 #include "HuaEngine/Scene/Scene.h"
 #include "HuaEngine/Rendering/Camera.h"
 
-namespace HE {
+namespace HE::Rendering {
 	class RenderPipeline {
 	public:
 		virtual ~RenderPipeline();

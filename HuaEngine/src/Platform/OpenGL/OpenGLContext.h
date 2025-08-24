@@ -4,7 +4,7 @@
 #include "GLFW/glfw3.h"
 
 namespace HE {
-	class OpenGLContext : public RenderContext {
+	class OpenGLContext : public Rendering::RenderContext {
 	public:
 		OpenGLContext(GLFWwindow* windowHandle);
 		virtual void Init() override;

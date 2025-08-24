@@ -4,7 +4,7 @@
 #define GLM_ENABLE_EXPERIMENTAL
 #include "glm/gtx/quaternion.hpp"
 
-namespace HE {
+namespace HE::Rendering {
 	EditorCamera::EditorCamera(float fov, float aspectRatio, float nearClip, float farClip)
 		:m_Fov(fov), m_AspectRatio(aspectRatio), m_Near(nearClip), m_Far(farClip) {
 		UpdateViewMat();

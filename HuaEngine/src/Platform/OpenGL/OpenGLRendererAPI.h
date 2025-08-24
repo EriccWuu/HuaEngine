@@ -2,7 +2,7 @@
 
 #include "HuaEngine/Rendering/RendererAPI.h"
 
-namespace HE {
+namespace HE::Rendering {
 	class OpenGLRendererAPI : public RendererAPI {
 	public:
 		virtual void Init() override;

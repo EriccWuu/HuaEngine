@@ -30,12 +30,12 @@ namespace HE {
 		/// @param originalMaterial Original material
 		/// @param loadedMaterial Material loaded from file
 		/// @return Returns true if both materials are equal
-		static bool VerifyMaterialsEqual(const Ref<Material>& originalMaterial, const Ref<Material>& loadedMaterial);
+		static bool VerifyMaterialsEqual(const Ref<Rendering::Material>& originalMaterial, const Ref<Rendering::Material>& loadedMaterial);
 
 		/// @brief Print material information to console
 		/// @param material Material to print
 		/// @param title Title
-		static void PrintMaterialInfo(const Ref<Material>& material, const std::string& title);
+		static void PrintMaterialInfo(const Ref<Rendering::Material>& material, const std::string& title);
 	};
 
 }

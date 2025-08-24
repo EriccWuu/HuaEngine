@@ -2,7 +2,7 @@
 
 #include "HuaEngine/Rendering/IndexBuffer.h"
 
-namespace HE {
+namespace HE::Rendering {
 	class OpenGLIndexBuffer : public IndexBuffer {
 	public:
 		OpenGLIndexBuffer(uint32_t* indices, uint32_t count);

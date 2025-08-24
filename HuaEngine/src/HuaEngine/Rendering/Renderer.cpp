@@ -2,7 +2,7 @@
 #include "Renderer.h"
 #include "RenderCommand.h"
 
-namespace HE {
+namespace HE::Rendering {
 	Ref<Camera> Renderer::m_Camera = nullptr;
 
 	void Renderer::Init() {

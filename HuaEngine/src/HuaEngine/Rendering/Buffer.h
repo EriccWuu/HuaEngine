@@ -1,6 +1,6 @@
 #pragma once 
 
-namespace HE {
+namespace HE::Rendering {
 	class Buffer {
 	public:
 		virtual void Bind() const = 0;

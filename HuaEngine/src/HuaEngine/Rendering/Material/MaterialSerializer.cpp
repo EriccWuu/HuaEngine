@@ -2,7 +2,7 @@
 #include "MaterialSerializer.h"
 #include "HuaEngine/Core/Log.h"
 
-namespace HE {
+namespace HE::Rendering {
 
     void MaterialParameterSerializer::Serialize(SerializationBackend& backend, const std::string& name, const MaterialParameterValue& value) {
         std::visit([&](auto&& val) {

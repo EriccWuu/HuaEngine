@@ -3,7 +3,7 @@
 #include "Renderer.h"
 #include "Platform/OpenGL/OpenGLVertexArray.h"
 
-namespace HE {
+namespace HE::Rendering {
 	Ref<VertexArray> VertexArray::Create()
 	{
 		switch (RendererAPI::GetAPI()) {

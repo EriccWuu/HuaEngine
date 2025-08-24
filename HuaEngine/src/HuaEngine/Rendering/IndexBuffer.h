@@ -3,7 +3,7 @@
 #include "Buffer.h"
 #include <cstdint>
 
-namespace HE {
+namespace HE::Rendering {
 	class IndexBuffer : public Buffer {
 	public:
 		virtual ~IndexBuffer() {}

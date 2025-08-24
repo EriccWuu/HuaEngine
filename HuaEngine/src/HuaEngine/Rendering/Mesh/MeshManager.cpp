@@ -1,7 +1,7 @@
 #include "enginepch.h"
 #include "MeshManager.h"
 
-namespace HE {
+namespace HE::Rendering {
     Ref<Mesh> MeshManager::LoadMesh(const std::string& name, const std::string& filepath) {
         // 检查是否已经加载
         auto it = m_LoadedMeshes.find(name);

@@ -3,7 +3,7 @@
 #include "HuaEngine/Serialization/Serialization.h"
 #include "HuaEngine/Serialization/SerializationManager.h"
 
-namespace HE {
+namespace HE::Rendering {
     Mesh::Mesh(const std::string& name, const MeshData& meshData)
         : m_Name(name), m_MeshData(meshData) {
     }

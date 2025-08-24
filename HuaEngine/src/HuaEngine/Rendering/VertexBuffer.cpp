@@ -3,7 +3,7 @@
 #include "VertexBuffer.h"
 #include "Platform/OpenGL/OpenGLVertexBuffer.h"
 
-namespace HE {
+namespace HE::Rendering {
 	Ref<VertexBuffer> VertexBuffer::Create(float* vertices, uint32_t size)
 	{
 		switch (RendererAPI::GetAPI()) {

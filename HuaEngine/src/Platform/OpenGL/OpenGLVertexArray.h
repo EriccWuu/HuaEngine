@@ -2,7 +2,7 @@
 
 #include "HuaEngine/Rendering/VertexArray.h"
 
-namespace HE {
+namespace HE::Rendering {
 	class OpenGLVertexArray : public VertexArray {
 	public:
 		OpenGLVertexArray();

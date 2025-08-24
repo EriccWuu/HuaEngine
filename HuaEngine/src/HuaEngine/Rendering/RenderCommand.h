@@ -1,7 +1,7 @@
 #pragma once
 #include "RendererAPI.h"
 
-namespace HE {
+namespace HE::Rendering {
 	class RenderCommand {
 	public:
 		static void Init();

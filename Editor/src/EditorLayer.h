@@ -23,7 +23,7 @@ namespace HE {
         Ref<VertexArray> m_SquareVA;
         Ref<Texture2D> m_Texture;
         Ref<FrameBuffer> m_FrameBuffer;
-        Ref<EditorCamera> m_EditorCamera;
+        Ref<Rendering::EditorCamera> m_EditorCamera;
         Ref<Entity> m_Square, m_SceneCamera;
         Ref<Scene> m_Scene;
         Ref<RenderSystem> m_RenderSystem;

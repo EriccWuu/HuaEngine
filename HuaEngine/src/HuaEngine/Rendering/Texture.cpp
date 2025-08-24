@@ -3,7 +3,7 @@
 #include "Texture.h"
 #include "Platform/OpenGL/OpenGLTexture2D.h"
 
-namespace HE {
+namespace HE::Rendering {
 	Ref<Texture2D> Texture2D::Create(const std::string& path)
 	{
 		switch (RendererAPI::GetAPI()) {

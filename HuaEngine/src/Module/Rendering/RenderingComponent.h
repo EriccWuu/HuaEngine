@@ -8,16 +8,15 @@
 #include "HuaEngine/Rendering/Texture.h"
 #include "HuaEngine/Rendering/Material/Material.h"
 #include "HuaEngine/Rendering/Mesh/Mesh.h"
-#include "HuaEngine/Rendering/Mesh/MeshManager.h"
 #include "HuaEngine/Reflection/Reflection.h"
 
-namespace HE {
+namespace HE::Rendering {
 	struct CameraComponent : Component {
 		CameraComponent() = default;
-		CameraComponent(const Ref<Camera>& camera) 
+		CameraComponent(const Ref<HE::Rendering::Camera>& camera) 
 			: Camera(camera) {}
 
-		Ref<Camera> Camera;
+		Ref<HE::Rendering::Camera> Camera;
 		bool Primary = true;
 		bool FixedAspectRatio = false;
 	};
@@ -25,20 +24,20 @@ namespace HE {
 	// 新的材质组件
 	struct MaterialComponent : Component {
 		MaterialComponent() = default;
-		MaterialComponent(const Ref<MaterialInstance>& materialInstance)
+		MaterialComponent(const Ref<HE::Rendering::MaterialInstance>& materialInstance)
 			: MaterialInstance(materialInstance) {}
 
-		Ref<MaterialInstance> MaterialInstance;
+		Ref<HE::Rendering::MaterialInstance> MaterialInstance;
 	};
 
 	// 保留 RendererComponent 用于向后兼容（标记为已弃用）
 	struct RendererComponent : Component {
 		RendererComponent() = default;
-		RendererComponent(const Ref<Shader>& shader, const Ref<Texture>& texture)
+		RendererComponent(const Ref<HE::Rendering::Shader>& shader, const Ref<HE::Rendering::Texture>& texture)
 			: Shader(shader), Texture(texture) {}
 
-		Ref<Shader> Shader;
-		Ref<Texture> Texture;
+		Ref<HE::Rendering::Shader> Shader;
+		Ref<HE::Rendering::Texture> Texture;
 	};
 
 	struct MeshComponent : Component {
@@ -52,15 +51,15 @@ namespace HE {
 		Ref<VertexArray> m_CachedVertexArray;  // 运行时缓存的 VertexArray（不序列化）
 
 		// 获取网格资产
-		Ref<Mesh> GetMesh() const {
+		Ref<HE::Rendering::Mesh> GetMesh() const {
 			if (!MeshAssetName.empty()) {
-				return MeshManager::Instance().GetMesh(MeshAssetName);
+				return HE::Rendering::MeshManager::Instance().GetMesh(MeshAssetName);
 			}
 			return nullptr;
 		}
 
 		// 获取 VertexArray（延迟加载）
-		Ref<VertexArray> GetVertexArray() {
+		Ref<HE::Rendering::VertexArray> GetVertexArray() {
 			// 如果已经有缓存的 VertexArray，直接返回
 			if (m_CachedVertexArray) {
 				return m_CachedVertexArray;
@@ -97,20 +96,20 @@ namespace HE {
 	};
 }
 
-srefl_class(HE::CameraComponent,
+srefl_class(HE::Rendering::CameraComponent,
 	fields(
 		field(Primary),
 		field(FixedAspectRatio)
 	)
 )
 
-srefl_class(HE::MaterialComponent,
+srefl_class(HE::Rendering::MaterialComponent,
 	fields(
 		field(MaterialInstance)
 	)
 )
 
-srefl_class(HE::MeshComponent,
+srefl_class(HE::Rendering::MeshComponent,
 	fields(
 		field(MeshAssetName)
 	)

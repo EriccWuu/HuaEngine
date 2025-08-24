@@ -3,7 +3,7 @@
 #include <cstdint>
 #include "HuaEngine/Core/Core.h"
 
-namespace HE{
+namespace HE::Rendering{
 	class Texture {
 	public:
 		virtual ~Texture() = default;

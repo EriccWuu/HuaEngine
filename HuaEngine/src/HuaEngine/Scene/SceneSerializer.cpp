@@ -44,9 +44,9 @@ namespace HE {
             if (!initialized) {
                 // Register all known component types that can be automatically serialized
                 instance.RegisterComponent<TransformComponent>();
-                instance.RegisterComponent<CameraComponent>();
-                instance.RegisterComponent<MaterialComponent>();
-                instance.RegisterComponent<MeshComponent>();
+                instance.RegisterComponent<Rendering::CameraComponent>();
+                instance.RegisterComponent<Rendering::MaterialComponent>();
+                instance.RegisterComponent<Rendering::MeshComponent>();
                 
                 initialized = true;
             }

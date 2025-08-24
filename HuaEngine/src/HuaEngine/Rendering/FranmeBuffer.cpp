@@ -3,7 +3,7 @@
 #include "RendererAPI.h"
 #include "Platform/OpenGL/OpenGLFrameBuffer.h"
 
-namespace HE {
+namespace HE::Rendering {
 	Ref<FrameBuffer> FrameBuffer::Create(const FrameBufferSpecification& specification)
 	{
 		switch (RendererAPI::GetAPI()) {

@@ -2,7 +2,7 @@
 #include "VertexArray.h"
 #include "glm/glm.hpp"
 
-namespace HE {
+namespace HE::Rendering {
 	class RendererAPI {
 	public:
 		enum class API {

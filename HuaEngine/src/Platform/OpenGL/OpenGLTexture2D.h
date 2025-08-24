@@ -4,7 +4,7 @@
 #include "HuaEngine/Rendering/Texture.h"
 #include "stb_image.h"
 
-namespace HE {
+namespace HE::Rendering {
 	class OpenGLTexture2D : public Texture2D {
 	public:
 		OpenGLTexture2D(const std::string& path);

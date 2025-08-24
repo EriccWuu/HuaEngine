@@ -6,7 +6,7 @@
 #include "HuaEngine/Serialization/SerializationCore.h"
 #include <vector>
 
-namespace HE {
+namespace HE::Rendering {
     // 可序列化的缓冲区布局元素
     struct SerializableBufferElement {
         SerializableBufferElement() = default;
@@ -74,7 +74,7 @@ namespace HE {
 }
 
 // 反射注册
-srefl_class(HE::SerializableBufferElement,
+srefl_class(HE::Rendering::SerializableBufferElement,
     fields(
         field(Type),
         field(Name),
@@ -84,14 +84,14 @@ srefl_class(HE::SerializableBufferElement,
     )
 )
 
-srefl_class(HE::SerializableBufferLayout,
+srefl_class(HE::Rendering::SerializableBufferLayout,
     fields(
         field(Elements),
         field(Stride)
     )
 )
 
-srefl_class(HE::MeshData,
+srefl_class(HE::Rendering::MeshData,
     fields(
         field(VertexData),
         field(IndexData),

@@ -4,7 +4,7 @@
 #include "VertexBuffer.h"
 #include "IndexBuffer.h"
 
-namespace HE {
+namespace HE::Rendering {
 	class VertexArray {
 	public:
 		virtual ~VertexArray() = default;
