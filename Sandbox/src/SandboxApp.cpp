@@ -48,7 +48,7 @@ public:
 
         // 创建材质
         m_SandboxMaterial = Material::Create("SandboxMaterial");
-        LoadMaterial("assets/SandboxMaterial.json", std::static_pointer_cast<Material>(m_SandboxMaterial).get());
+        LoadMaterial("assets/SandboxMaterial.material", std::static_pointer_cast<Material>(m_SandboxMaterial).get());
 
         // Create material instance
         m_MaterialInstance = m_SandboxMaterial->CreateInstance();
@@ -102,11 +102,20 @@ public:
         cubeTransform.Position.z = -3.f;
         cubeTransform.Position += glm::vec3{-1.5, 0.0, 0.0};
         cubeTransform.Scale *= 0.5f;
+
+        // 创建球体实体
+        auto sphereEntity = std::make_shared<Entity>(m_Scene->GetEntityManager().CreateEntity());
+        sphereEntity->AddComponent<MeshComponent>("Sphere");  // 使用默认 Sphere
+        sphereEntity->AddComponent<MaterialComponent>(thirdMaterialInstance);
+        auto& sphereTransform = sphereEntity->GetComponent<TransformComponent>();
+        sphereTransform.Position.z = -3.f;
+        sphereTransform.Position -= glm::vec3{ -1.5, 0.0, 0.0 };
+        sphereTransform.Scale *= 0.5f;
     }
 
     void SaveSceneWithAssets() {
         // Serialize the created scene to assets folder
-        std::string assetPath = "sandbox_scene.json";
+        std::string assetPath = "SandboxScene.scene";
         if (SaveScene(m_Scene.get(), assetPath)) {
             std::cout << "Sandbox scene saved successfully to: " << assetPath << std::endl;
         } else {
