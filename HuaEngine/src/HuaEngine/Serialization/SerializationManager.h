@@ -6,7 +6,7 @@
 #include <memory>
 #include <functional>
 
-namespace HE {
+namespace HE::Serialization {
 
     enum class SerializationFormat {
         JSON,
@@ -155,27 +155,28 @@ namespace HE {
 
     // Helper macros for easy serialization
     #define SERIALIZE_TO_STRING(object, format) \
-        SerializationManager::Instance().SerializeToString(object, format)
+        HE::Serialization::SerializationManager::Instance().SerializeToString(object, format)
 
     #define DESERIALIZE_FROM_STRING(data, object, format) \
-        SerializationManager::Instance().DeserializeFromString(data, object, format)
+        HE::Serialization::SerializationManager::Instance().DeserializeFromString(data, object, format)
 
     #define SERIALIZE_TO_FILE(object, filename, format) \
-        SerializationManager::Instance().SerializeToFile(object, filename, format)
+        HE::Serialization::SerializationManager::Instance().SerializeToFile(object, filename, format)
 
     #define DESERIALIZE_FROM_FILE(filename, object, format) \
-        SerializationManager::Instance().DeserializeFromFile(filename, object, format)
+        HE::Serialization::SerializationManager::Instance().DeserializeFromFile(filename, object, format)
 
     // Helper macros for Ref<T> serialization
     #define SERIALIZE_REF_TO_STRING(ref_object, format) \
-        SerializationManager::Instance().SerializeToString(ref_object, format)
+        HE::Serialization::SerializationManager::Instance().SerializeToString(ref_object, format)
 
     #define DESERIALIZE_REF_FROM_STRING(data, ref_object, format) \
-        SerializationManager::Instance().DeserializeFromString(data, ref_object, format)
+        HE::Serialization::SerializationManager::Instance().DeserializeFromString(data, ref_object, format)
 
     #define SERIALIZE_REF_TO_FILE(ref_object, filename, format) \
-        SerializationManager::Instance().SerializeToFile(ref_object, filename, format)
+        HE::Serialization::SerializationManager::Instance().SerializeToFile(ref_object, filename, format)
 
     #define DESERIALIZE_REF_FROM_FILE(filename, ref_object, format) \
-        SerializationManager::Instance().DeserializeFromFile(filename, ref_object, format)
-}
+        HE::Serialization::SerializationManager::Instance().DeserializeFromFile(filename, ref_object, format)
+
+} // namespace HE::Serialization

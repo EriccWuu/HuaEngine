@@ -3,7 +3,7 @@
 #include "Serialization.h"
 #include "glm/glm.hpp"
 
-namespace HE {
+namespace HE::Serialization {
     // Specialization for glm::vec2 (commonly used in engines)
     template<>
     struct Serializer<glm::vec2> {
@@ -136,4 +136,4 @@ namespace HE {
         }
     };
 
-}
+} // namespace HE::Serialization

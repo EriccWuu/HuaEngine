@@ -8,8 +8,8 @@ namespace HE {
 
     // Component serialization registry
     struct ComponentSerializers {
-        using SerializeFunc = std::function<void(SerializationBackend&, entt::registry&, entt::entity)>;
-        using DeserializeFunc = std::function<void(SerializationBackend&, entt::registry&, entt::entity)>;
+        using SerializeFunc = std::function<void(HE::Serialization::SerializationBackend&, entt::registry&, entt::entity)>;
+        using DeserializeFunc = std::function<void(HE::Serialization::SerializationBackend&, entt::registry&, entt::entity)>;
         
         std::unordered_map<entt::id_type, SerializeFunc> serializeFuncs;
         std::unordered_map<entt::id_type, DeserializeFunc> deserializeFuncs;
@@ -19,18 +19,18 @@ namespace HE {
             auto typeId = entt::type_hash<T>::value();
             
             // Register serialization function
-            serializeFuncs[typeId] = [](SerializationBackend& backend, entt::registry& registry, entt::entity entity) {
+            serializeFuncs[typeId] = [](HE::Serialization::SerializationBackend& backend, entt::registry& registry, entt::entity entity) {
                 if (registry.all_of<T>(entity)) {
                     auto& component = registry.get<T>(entity);
-                    SerializeValue(backend, "data", component);
+                    HE::Serialization::SerializeValue(backend, "data", component);
                 }
             };
             
             // Register deserialization function
-            deserializeFuncs[typeId] = [](SerializationBackend& backend, entt::registry& registry, entt::entity entity) {
+            deserializeFuncs[typeId] = [](HE::Serialization::SerializationBackend& backend, entt::registry& registry, entt::entity entity) {
                 if (backend.HasField("data")) {
                     T component{};
-                    if (DeserializeValue(backend, "data", component)) {
+                    if (HE::Serialization::DeserializeValue(backend, "data", component)) {
                         registry.emplace_or_replace<T>(entity, std::move(component));
                     }
                 }
@@ -65,9 +65,9 @@ namespace HE {
     #define REGISTER_COMPONENT_SERIALIZER(ComponentType) \
         ComponentSerializers::RegisterComponentType<ComponentType>();
 
-    bool SceneSerializer::SerializeScene(const std::string& filename, SerializationFormat format) {
+    bool SceneSerializer::SerializeScene(const std::string& filename, HE::Serialization::SerializationFormat format) {
         try {
-            auto backend = SerializationManager::Instance().CreateBackend(format);
+            auto backend = HE::Serialization::SerializationManager::Instance().CreateBackend(format);
             if (!backend) {
                 HE_CORE_ERROR("Failed to create serialization backend for format");
                 return false;
@@ -104,9 +104,9 @@ namespace HE {
         }
     }
 
-    bool SceneSerializer::DeserializeScene(const std::string& filename, SerializationFormat format) {
+    bool SceneSerializer::DeserializeScene(const std::string& filename, HE::Serialization::SerializationFormat format) {
         try {
-            auto backend = SerializationManager::Instance().CreateBackend(format);
+            auto backend = HE::Serialization::SerializationManager::Instance().CreateBackend(format);
             if (!backend) {
                 HE_CORE_ERROR("Failed to create serialization backend for format");
                 return false;
@@ -145,7 +145,7 @@ namespace HE {
         }
     }
 
-    void SceneSerializer::SerializeEntity(SerializationBackend& backend, entt::entity entity) {
+    void SceneSerializer::SerializeEntity(HE::Serialization::SerializationBackend& backend, entt::entity entity) {
         auto& registry = m_Scene->GetEntityManager().GetRegistry();
         
         // Create entity object wrapper
@@ -182,7 +182,7 @@ namespace HE {
         backend.EndObject();
     }
 
-    entt::entity SceneSerializer::DeserializeEntity(SerializationBackend& backend) {
+    entt::entity SceneSerializer::DeserializeEntity(HE::Serialization::SerializationBackend& backend) {
         // Begin entity object wrapper
         backend.BeginObject("");
         
@@ -215,7 +215,7 @@ namespace HE {
         return entity;
     }
 
-    void SceneSerializer::SerializeComponentData(SerializationBackend& backend, entt::entity entity, entt::id_type componentTypeId) {
+    void SceneSerializer::SerializeComponentData(HE::Serialization::SerializationBackend& backend, entt::entity entity, entt::id_type componentTypeId) {
         auto& registry = m_Scene->GetEntityManager().GetRegistry();
         auto& serializers = ComponentSerializers::Instance();
         
@@ -227,7 +227,7 @@ namespace HE {
         }
     }
 
-    void SceneSerializer::DeserializeComponentData(SerializationBackend& backend, Entity& entity, entt::id_type componentTypeId) {
+    void SceneSerializer::DeserializeComponentData(HE::Serialization::SerializationBackend& backend, Entity& entity, entt::id_type componentTypeId) {
         auto& registry = m_Scene->GetEntityManager().GetRegistry();
         auto entityHandle = static_cast<entt::entity>(entity);
         auto& serializers = ComponentSerializers::Instance();

@@ -3,7 +3,7 @@
 #include "SerializationManager.h"
 #include "JsonSerializationBackend.h"
 
-namespace HE {
+namespace HE::Serialization {
 
     // Initialize the serialization system
     void InitializeSerialization() {
@@ -32,4 +32,4 @@ namespace HE {
         // );
     }
 
-}
+} // namespace HE::Serialization

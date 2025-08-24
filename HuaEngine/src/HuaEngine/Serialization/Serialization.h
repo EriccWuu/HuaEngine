@@ -12,7 +12,7 @@
 #include "HuaEngine/Scene/SceneSerializer.h"
 #include "HuaEngine/Rendering/Material/MaterialSerializer.h"
 
-namespace HE {
+namespace HE::Serialization {
 
     // Initialize the serialization system - call this during engine startup
     void InitializeSerialization();
@@ -43,4 +43,4 @@ namespace HE {
         return SerializationManager::Instance().DeserializeFromFile(filename, object, SerializationFormat::JSON);
     }
 
-}
+} // namespace HE::Serialization

@@ -14,7 +14,7 @@ namespace HE
 		ms_Instance = this;
 
 		// Initialize serialization system
-		InitializeSerialization();
+		HE::Serialization::InitializeSerialization();
 
 		m_Window = std::unique_ptr<Window>(Window::Create());
 		m_Window->SetEventCallback(BIND_EVENT_FUNC(Application::OnEvent));

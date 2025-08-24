@@ -7,7 +7,7 @@
 #include <map>
 #include <memory>
 
-namespace HE {
+namespace HE::Serialization {
 
     // Simple JSON value type
     using JsonValue = std::variant<
@@ -111,4 +111,4 @@ namespace HE {
         std::string UnescapeString(const std::string& str) const;
     };
 
-}
+} // namespace HE::Serialization

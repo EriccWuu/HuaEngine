@@ -76,6 +76,11 @@ namespace HE {
 	using MeshData = Rendering::MeshData;
 	using MeshManager = Rendering::MeshManager;
 	
+	// 序列化系统
+	using SerializationFormat = Serialization::SerializationFormat;
+	using SerializationBackend = Serialization::SerializationBackend;
+	using SerializationManager = Serialization::SerializationManager;
+	
 	// 渲染组件别名
 	using CameraComponent = Rendering::CameraComponent;
 	using MaterialComponent = Rendering::MaterialComponent;

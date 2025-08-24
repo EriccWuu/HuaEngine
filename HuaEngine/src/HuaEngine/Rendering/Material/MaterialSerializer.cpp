@@ -4,7 +4,7 @@
 
 namespace HE::Rendering {
 
-    void MaterialParameterSerializer::Serialize(SerializationBackend& backend, const std::string& name, const MaterialParameterValue& value) {
+    void MaterialParameterSerializer::Serialize(HE::Serialization::SerializationBackend& backend, const std::string& name, const MaterialParameterValue& value) {
         std::visit([&](auto&& val) {
             using T = std::decay_t<decltype(val)>;
             if constexpr (std::is_same_v<T, Ref<Texture2D>>) {
@@ -12,12 +12,12 @@ namespace HE::Rendering {
                 backend.Serialize(name, texturePath);
             }
             else {
-                SerializeValue(backend, name, val);
+                HE::Serialization::SerializeValue(backend, name, val);
             }
         }, value);
     }
 
-    bool MaterialParameterSerializer::Deserialize(SerializationBackend& backend, const std::string& name, MaterialParameterValue& value, MaterialParameterType type) {
+    bool MaterialParameterSerializer::Deserialize(HE::Serialization::SerializationBackend& backend, const std::string& name, MaterialParameterValue& value, MaterialParameterType type) {
         if (!backend.HasField(name)) {
             return false;
         }
@@ -44,35 +44,35 @@ namespace HE::Rendering {
                 
                 case MaterialParameterType::Vec2: {
                     glm::vec2 vec2Value;
-                    Serializer<glm::vec2>::Deserialize(backend, name, vec2Value);
+                    HE::Serialization::Serializer<glm::vec2>::Deserialize(backend, name, vec2Value);
                     value = vec2Value;
                     return true;
                 }
                 
                 case MaterialParameterType::Vec3: {
                     glm::vec3 vec3Value;
-                    Serializer<glm::vec3>::Deserialize(backend, name, vec3Value);
+                    HE::Serialization::Serializer<glm::vec3>::Deserialize(backend, name, vec3Value);
                     value = vec3Value;
                     return true;
                 }
                 
                 case MaterialParameterType::Vec4: {
                     glm::vec4 vec4Value;
-                    Serializer<glm::vec4>::Deserialize(backend, name, vec4Value);
+                    HE::Serialization::Serializer<glm::vec4>::Deserialize(backend, name, vec4Value);
                     value = vec4Value;
                     return true;
                 }
                 
                 case MaterialParameterType::Mat3: {
                     glm::mat3 mat3Value;
-                    Serializer<glm::mat3>::Deserialize(backend, name, mat3Value);
+                    HE::Serialization::Serializer<glm::mat3>::Deserialize(backend, name, mat3Value);
                     value = mat3Value;
                     return true;
                 }
                 
                 case MaterialParameterType::Mat4: {
                     glm::mat4 mat4Value;
-                    Serializer<glm::mat4>::Deserialize(backend, name, mat4Value);
+                    HE::Serialization::Serializer<glm::mat4>::Deserialize(backend, name, mat4Value);
                     value = mat4Value;
                     return true;
                 }

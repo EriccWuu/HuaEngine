@@ -6,7 +6,7 @@
 #include <algorithm>
 #include <cctype>
 
-namespace HE {
+namespace HE::Serialization {
 
     JsonSerializationBackend::JsonSerializationBackend() {
         Reset();
@@ -771,4 +771,4 @@ namespace HE {
         throw std::runtime_error("Invalid JSON value");
     }
 
-}
+} // namespace HE::Serialization

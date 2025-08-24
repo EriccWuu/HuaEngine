@@ -8,8 +8,8 @@ namespace HE::Rendering {
     // 材质参数值序列化
     class MaterialParameterSerializer {
     public:
-        static void Serialize(SerializationBackend& backend, const std::string& name, const MaterialParameterValue& value);
-        static bool Deserialize(SerializationBackend& backend, const std::string& name, MaterialParameterValue& value, MaterialParameterType type);
+        static void Serialize(HE::Serialization::SerializationBackend& backend, const std::string& name, const MaterialParameterValue& value);
+        static bool Deserialize(HE::Serialization::SerializationBackend& backend, const std::string& name, MaterialParameterValue& value, MaterialParameterType type);
         
         // 辅助函数：从类型名称获取类型枚举
         static MaterialParameterType StringToParameterType(const std::string& typeStr);
@@ -33,17 +33,17 @@ namespace HE::Rendering {
         return MaterialType::Custom; // 默认为自定义
     }
 
-    inline bool SaveMaterial(Material* material, const std::string& filename, SerializationFormat format = SerializationFormat::JSON) {
+    inline bool SaveMaterial(Material* material, const std::string& filename, HE::Serialization::SerializationFormat format = HE::Serialization::SerializationFormat::JSON) {
         return SERIALIZE_TO_FILE(*material, filename, format);
     }
 
-    inline bool LoadMaterial(const std::string& filename, Material* material, SerializationFormat format = SerializationFormat::JSON) {
+    inline bool LoadMaterial(const std::string& filename, Material* material, HE::Serialization::SerializationFormat format = HE::Serialization::SerializationFormat::JSON) {
         return DESERIALIZE_FROM_FILE(filename, *material, format);
     }
 
 } // namespace HE::Rendering
 
-namespace HE {
+namespace HE::Serialization {
 
     // 材质参数序列化
     template<>
@@ -112,7 +112,7 @@ namespace HE {
             size_t index = 0;
             for (const auto& [paramName, param] : parameters) {
                 backend.BeginArrayElement(index++);
-                SerializeValue(backend, "", param);
+                HE::Serialization::SerializeValue(backend, "", param);
                 backend.EndArrayElement();
             }
             backend.EndArray();
@@ -162,7 +162,7 @@ namespace HE {
             for (size_t i = 0; i < paramCount; ++i) {
                 backend.BeginArrayElement(i);
                 Rendering::MaterialParameter param;
-                DeserializeValue(backend, "", param);
+                HE::Serialization::DeserializeValue(backend, "", param);
                 material.AddParameter(param);
                 backend.EndArrayElement();
             }
@@ -255,4 +255,4 @@ namespace HE {
         }
     };
 
-} // namespace HE
+} // namespace HE::Serialization

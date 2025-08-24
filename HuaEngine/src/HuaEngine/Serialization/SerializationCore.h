@@ -9,7 +9,7 @@
 #include "HuaEngine/Core/Core.h"
 #include "HuaEngine/Reflection/Reflection.h"
 
-namespace HE {
+namespace HE::Serialization {
 
     // Forward declarations
     class SerializationBackend;
@@ -363,4 +363,5 @@ namespace HE {
     bool DeserializeValue(SerializationBackend& backend, const std::string& name, Ref<T>& value) {
         return Serializer<Ref<T>>::Deserialize(backend, name, value);
     }
-}
+
+} // namespace HE::Serialization

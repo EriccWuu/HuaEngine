@@ -1,7 +1,7 @@
 #include "enginepch.h"
 #include "SerializationManager.h"
 
-namespace HE {
+namespace HE::Serialization {
 
     void SerializationManager::RegisterBackend(SerializationFormat format, 
                                              std::function<std::unique_ptr<SerializationBackend>()> factory) {
@@ -16,4 +16,4 @@ namespace HE {
         return nullptr;
     }
 
-}
+} // namespace HE::Serialization

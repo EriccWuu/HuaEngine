@@ -141,25 +141,25 @@ namespace HE::Test {
         // Custom serializer for PlayerComponent
         template<>
         struct Serializer<PlayerComponent> {
-            static void Serialize(SerializationBackend& backend, const std::string& name, const PlayerComponent& obj) {
+            static void Serialize(Serialization::SerializationBackend& backend, const std::string& name, const PlayerComponent& obj) {
                 backend.BeginObject(name);
                 backend.Serialize("name", obj.name);
                 backend.Serialize("level", obj.level);
                 backend.Serialize("health", obj.health);
-                SerializeValue(backend, "spawnPoint", obj.spawnPoint);
-                SerializeArray(backend, "inventory", obj.inventory);
+                Serialization::SerializeValue(backend, "spawnPoint", obj.spawnPoint);
+                Serialization::SerializeArray(backend, "inventory", obj.inventory);
                 backend.EndObject();
             }
 
-            static bool Deserialize(SerializationBackend& backend, const std::string& name, PlayerComponent& obj) {
+            static bool Deserialize(Serialization::SerializationBackend& backend, const std::string& name, PlayerComponent& obj) {
                 if (!backend.HasField(name)) return false;
                 
                 backend.BeginObject(name);
                 backend.Deserialize("name", obj.name);
                 backend.Deserialize("level", obj.level);
                 backend.Deserialize("health", obj.health);
-                DeserializeValue(backend, "spawnPoint", obj.spawnPoint);
-                DeserializeArray(backend, "inventory", obj.inventory);
+                Serialization::DeserializeValue(backend, "spawnPoint", obj.spawnPoint);
+                Serialization::DeserializeArray(backend, "inventory", obj.inventory);
                 backend.EndObject();
                 return true;
             }

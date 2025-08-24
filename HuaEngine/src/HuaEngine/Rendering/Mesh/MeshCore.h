@@ -38,10 +38,10 @@ namespace HE::Rendering {
         void UnloadFromGPU();
         
         // 从文件加载网格数据
-        static Ref<Mesh> LoadFromFile(const std::string& filepath, SerializationFormat format = SerializationFormat::JSON);
+        static Ref<Mesh> LoadFromFile(const std::string& filepath, HE::Serialization::SerializationFormat format = HE::Serialization::SerializationFormat::JSON);
         
         // 保存网格数据到文件
-        static bool SaveToFile(const Mesh& mesh, const std::string& filepath, SerializationFormat format = SerializationFormat::JSON);
+        static bool SaveToFile(const Mesh& mesh, const std::string& filepath, HE::Serialization::SerializationFormat format = HE::Serialization::SerializationFormat::JSON);
         
         // 创建基本几何体
         static Ref<Mesh> CreateQuad(const std::string& name = "Quad");
@@ -59,13 +59,13 @@ namespace HE::Rendering {
 
 } // namespace HE::Rendering
 
-namespace HE {
+namespace HE::Serialization {
     template<>
     struct Serializer<Rendering::Mesh> {
         static bool Serialize(SerializationBackend& backend, const std::string& name, const Rendering::Mesh& value) {
             backend.BeginObject(name);
-            SerializeValue(backend, "mesh_name", value.GetName());
-            SerializeValue(backend, "mesh_data", value.GetMeshData());
+            HE::Serialization::SerializeValue(backend, "mesh_name", value.GetName());
+            HE::Serialization::SerializeValue(backend, "mesh_data", value.GetMeshData());
             backend.EndObject();
             return true;
         }
@@ -76,14 +76,14 @@ namespace HE {
                 return false;
 
             std::string meshName = "";
-            DeserializeValue(backend, "mesh_name", meshName);
+            HE::Serialization::DeserializeValue(backend, "mesh_name", meshName);
             value.SetName(meshName);
 
             auto meshData = Rendering::MeshData();
-            DeserializeValue(backend, "mesh_data", meshData);
+            HE::Serialization::DeserializeValue(backend, "mesh_data", meshData);
             value.SetMeshData(meshData);
             // backend.EndObject();
             return true;
         }
     };
-}
+} // namespace HE::Serialization
