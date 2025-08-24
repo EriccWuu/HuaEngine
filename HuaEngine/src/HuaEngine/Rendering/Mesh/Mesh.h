@@ -2,6 +2,7 @@
 
 #include "HuaEngine/Core/Core.h"
 #include "HuaEngine/Rendering/VertexArray.h"
+#include "HuaEngine/Serialization/SerializationManager.h"
 #include "MeshData.h"
 #include <string>
 
@@ -35,10 +36,10 @@ namespace HE {
         void UnloadFromGPU();
         
         // 从文件加载网格数据
-        static Ref<Mesh> LoadFromFile(const std::string& filepath);
+        static Ref<Mesh> LoadFromFile(const std::string& filepath, SerializationFormat format = SerializationFormat::JSON);
         
         // 保存网格数据到文件
-        bool SaveToFile(const std::string& filepath) const;
+        static bool SaveToFile(const Mesh& mesh, const std::string& filepath, SerializationFormat format = SerializationFormat::JSON);
         
         // 创建基本几何体
         static Ref<Mesh> CreateQuad(const std::string& name = "Quad");

@@ -36,7 +36,7 @@ namespace HE {
     public:
         static bool SaveMeshAsset(const std::string& filepath, Ref<Mesh> mesh) {
             if (!mesh) return false;
-            return mesh->SaveToFile(filepath);
+            return Mesh::SaveToFile(*mesh, filepath);
         }
 
         static Ref<Mesh> LoadMeshAsset(const std::string& filepath) {

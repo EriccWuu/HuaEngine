@@ -99,7 +99,7 @@ public:
         auto customMesh = CreateRef<Mesh>("CustomSquare", meshData);
         
         // 保存到文件
-        if (customMesh->SaveToFile("custom_square.mesh")) {
+        if (Mesh::SaveToFile(*customMesh, "custom_square.mesh")) {
             std::cout << "Custom square mesh saved to file successfully" << std::endl;
         }
 

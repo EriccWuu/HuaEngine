@@ -44,11 +44,11 @@ namespace HE {
         }
     }
 
-    Ref<Mesh> Mesh::LoadFromFile(const std::string& filepath) {
+    Ref<Mesh> Mesh::LoadFromFile(const std::string& filepath, SerializationFormat format) {
         MeshData meshData;
         
         // 使用 SerializationManager 来反序列化
-        if (!SerializationManager::Instance().DeserializeFromFile(filepath, meshData, SerializationFormat::JSON)) {
+        if (!SerializationManager::Instance().DeserializeFromFile(filepath, meshData, format)) {
             HE_CORE_ERROR("Failed to load mesh file: {}", filepath);
             return nullptr;
         }
@@ -58,13 +58,13 @@ namespace HE {
         return mesh;
     }
 
-    bool Mesh::SaveToFile(const std::string& filepath) const {
+    bool Mesh::SaveToFile(const Mesh& mesh, const std::string& filepath, SerializationFormat format) {
         // 使用 SerializationManager 来序列化
-        bool success = SerializationManager::Instance().SerializeToFile(m_MeshData, filepath, SerializationFormat::JSON);
+        bool success = SerializationManager::Instance().SerializeToFile(mesh.m_MeshData, filepath, format);
         if (success) {
-            HE_CORE_INFO("Saved mesh '{}' to file: {}", m_Name, filepath);
+            HE_CORE_INFO("Saved mesh '{}' to file: {}", mesh.m_Name, filepath);
         } else {
-            HE_CORE_ERROR("Failed to save mesh '{}' to file: {}", m_Name, filepath);
+            HE_CORE_ERROR("Failed to save mesh '{}' to file: {}", mesh.m_Name, filepath);
         }
         return success;
     }
