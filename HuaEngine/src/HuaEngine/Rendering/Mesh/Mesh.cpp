@@ -45,22 +45,21 @@ namespace HE {
     }
 
     Ref<Mesh> Mesh::LoadFromFile(const std::string& filepath, SerializationFormat format) {
-        MeshData meshData;
+        Mesh mesh;
         
         // 使用 SerializationManager 来反序列化
-        if (!SerializationManager::Instance().DeserializeFromFile(filepath, meshData, format)) {
+        if (!SerializationManager::Instance().DeserializeFromFile(filepath, mesh, format)) {
             HE_CORE_ERROR("Failed to load mesh file: {}", filepath);
             return nullptr;
         }
 
-        auto mesh = CreateRef<Mesh>("LoadedMesh", meshData);
         HE_CORE_INFO("Loaded mesh from file: {}", filepath);
-        return mesh;
+        return CreateRef<Mesh>(mesh);
     }
 
     bool Mesh::SaveToFile(const Mesh& mesh, const std::string& filepath, SerializationFormat format) {
         // 使用 SerializationManager 来序列化
-        bool success = SerializationManager::Instance().SerializeToFile(mesh.m_MeshData, filepath, format);
+        bool success = SerializationManager::Instance().SerializeToFile(mesh, filepath, format);
         if (success) {
             HE_CORE_INFO("Saved mesh '{}' to file: {}", mesh.m_Name, filepath);
         } else {

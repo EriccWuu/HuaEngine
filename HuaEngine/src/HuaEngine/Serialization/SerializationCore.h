@@ -239,9 +239,9 @@ namespace HE {
 
                 auto fieldInfo = Refl::reflect<T>();
                 fieldInfo.visit_fields([&](auto&& field) {
-                    const auto& fieldValue = field.GetValue(&obj);
+                    const auto& fieldValue = field.GetValue(&obj); 
                     SerializeValue(backend, std::string(field.name().data(), field.name().size()), fieldValue);
-                    });
+                });
 
                 backend.EndObject();
             }
@@ -279,10 +279,12 @@ namespace HE {
                         *fieldPtr = tempValue;
                     }
                     else {
+                        // Debug output for failed field deserialization
+                        HE_CORE_WARN("Failed to deserialize field: {}", fieldName);
                         // For optional fields, we might not want to fail completely
                         // success = false;
                     }
-                    });
+                });
 
                 backend.EndObject();
                 return success;

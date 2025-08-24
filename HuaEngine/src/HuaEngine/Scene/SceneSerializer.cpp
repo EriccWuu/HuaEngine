@@ -46,6 +46,7 @@ namespace HE {
                 instance.RegisterComponent<TransformComponent>();
                 instance.RegisterComponent<CameraComponent>();
                 instance.RegisterComponent<MaterialComponent>();
+                instance.RegisterComponent<MeshComponent>();
                 
                 initialized = true;
             }

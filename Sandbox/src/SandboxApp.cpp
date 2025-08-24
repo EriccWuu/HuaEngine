@@ -13,8 +13,9 @@
 #include "HuaEngine/ECS/ScriptableEntity.h"
 #include "HuaEngine/Serialization/Serialization.h"
 #include "HuaEngine/Rendering/Material/Material.h"
-#include "HuaEngine/Rendering/Mesh/MeshSerializer.h"
+#include "HuaEngine/Rendering/Mesh/Mesh.h"
 #include "HuaEngine/Rendering/Mesh/MeshManager.h"
+// #include "HuaEngine/Rendering/Mesh/MeshData.h"
 
 // #include "HuaEngine/Test/TestReflection.h"
 // #include "HuaEngine/Test/SerializationTest.h"
@@ -42,12 +43,12 @@ public:
         // 初始化网格资产管理器并加载默认网格
         MeshManager::Instance().LoadDefaultMeshes();
 
-        // 创建自定义网格并保存为资产
-        CreateAndSaveCustomMesh();
+        auto customMesh = Mesh::LoadFromFile("assets/CustomMesh.mesh");
+        MeshManager::Instance().RegisterMesh("CustomSquare", customMesh);
 
         // 创建材质
         m_SandboxMaterial = Material::Create("SandboxMaterial");
-        LoadMaterial("SandboxMaterial.json", std::static_pointer_cast<Material>(m_SandboxMaterial).get());
+        LoadMaterial("assets/SandboxMaterial.json", std::static_pointer_cast<Material>(m_SandboxMaterial).get());
 
         // Create material instance
         m_MaterialInstance = m_SandboxMaterial->CreateInstance();
@@ -68,43 +69,6 @@ public:
 
         // 序列化场景
         SaveSceneWithAssets();
-    }
-
-    void CreateAndSaveCustomMesh() {
-        // 创建顶点数据
-        float squareVertices[4 * 5] = {
-            -0.5f, -0.5f, -3.0f, 0.0 , 0.0,
-             0.5f, -0.5f, -3.0f, 1.0 , 0.0,
-             0.5f,  0.5f, -3.0f, 1.0 , 1.0,
-            -0.5f,  0.5f, -3.0f, 0.0 , 1.0
-        };
-
-        unsigned int squareIndices[6] = {
-            0, 1, 2 , 2, 3, 0
-        };
-
-        // 创建 MeshData
-        MeshData meshData;
-        meshData.VertexData.assign(squareVertices, squareVertices + 20);
-        meshData.IndexData.assign(squareIndices, squareIndices + 6);
-        
-        // 设置布局
-        meshData.Layout.Elements = {
-            SerializableBufferElement{static_cast<uint8_t>(ShaderDataType::Float3), "a_Position", 12, 0, false},
-            SerializableBufferElement{static_cast<uint8_t>(ShaderDataType::Float2), "a_TexCoord", 8, 12, false}
-        };
-        meshData.Layout.Stride = 20;
-
-        // 创建网格资产
-        auto customMesh = CreateRef<Mesh>("CustomSquare", meshData);
-        
-        // 保存到文件
-        if (Mesh::SaveToFile(*customMesh, "custom_square.mesh")) {
-            std::cout << "Custom square mesh saved to file successfully" << std::endl;
-        }
-
-        // 注册到管理器
-        MeshManager::Instance().RegisterMesh("CustomSquare", customMesh);
     }
 
     void CreateEntitiesWithAssets() {

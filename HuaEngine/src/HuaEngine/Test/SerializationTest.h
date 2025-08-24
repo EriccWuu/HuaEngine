@@ -1,5 +1,6 @@
 #pragma once
 
+#include "HuaEngine/Math/Math.h"
 #include "HuaEngine/Serialization/Serialization.h"
 #include "HuaEngine/Scene/SceneSerializer.h"
 #include "HuaEngine/ECS/Components.h"

@@ -263,9 +263,19 @@ namespace HE {
     bool JsonSerializationBackend::Deserialize(const std::string& name, uint8_t& value) {
         JsonValue jsonValue;
         if (!GetValue(name, jsonValue)) return false;
+        
         if (auto* uintPtr = std::get_if<uint32_t>(&jsonValue)) {
-            value = static_cast<uint8_t>(*uintPtr);
-            return true;
+            if (*uintPtr <= UINT8_MAX) {
+                value = static_cast<uint8_t>(*uintPtr);
+                return true;
+            }
+        }
+        // Try to convert from int32_t
+        if (auto* intPtr = std::get_if<int32_t>(&jsonValue)) {
+            if (*intPtr >= 0 && *intPtr <= UINT8_MAX) {
+                value = static_cast<uint8_t>(*intPtr);
+                return true;
+            }
         }
         return false;
     }
@@ -283,9 +293,17 @@ namespace HE {
     bool JsonSerializationBackend::Deserialize(const std::string& name, uint32_t& value) {
         JsonValue jsonValue;
         if (!GetValue(name, jsonValue)) return false;
+        
         if (auto* uintPtr = std::get_if<uint32_t>(&jsonValue)) {
             value = *uintPtr;
             return true;
+        }
+        // Try to convert from int32_t
+        if (auto* intPtr = std::get_if<int32_t>(&jsonValue)) {
+            if (*intPtr >= 0) {
+                value = static_cast<uint32_t>(*intPtr);
+                return true;
+            }
         }
         return false;
     }
@@ -732,7 +750,21 @@ namespace HE {
             if (isFloat) {
                 return static_cast<float>(std::stod(numStr));
             } else {
-                return std::stoi(numStr);
+                long long value = std::stoll(numStr);
+                // Check if the number fits in different integer types
+                if (value >= 0) {
+                    if (value <= UINT32_MAX) {
+                        return static_cast<uint32_t>(value);
+                    } else {
+                        return static_cast<uint64_t>(value);
+                    }
+                } else {
+                    if (value >= INT32_MIN) {
+                        return static_cast<int32_t>(value);
+                    } else {
+                        return static_cast<int64_t>(value);
+                    }
+                }
             }
         }
         
