@@ -12,12 +12,12 @@ namespace HE {
 
 	Ref<Material> Material::Create(const std::string& name, MaterialType type)
 	{
-		return std::make_shared<Material>(name, type);
+		return CreateRef<Material>(name, type);
 	}
 
 	Ref<Material> Material::CreateFromDeserialization()
 	{
-		return std::make_shared<Material>("", MaterialType::Custom);
+		return CreateRef<Material>("", MaterialType::Custom);
 	}
 
 	void Material::AddParameter(const MaterialParameter& parameter)
@@ -139,7 +139,7 @@ namespace HE {
 
 	Ref<MaterialInstance> Material::CreateInstance()
 	{
-		return std::make_shared<MaterialInstance>(shared_from_this());
+		return CreateRef<MaterialInstance>(shared_from_this());
 	}
 
 	// MaterialInstance 实现

@@ -33,6 +33,7 @@ namespace HE {
 	};
 
 	enum class MaterialType {
+		Empty,
 		Standard,   // PBR 材质
 		Unlit,      // 无光照材质
 		Custom      // 自定义材质
@@ -43,11 +44,11 @@ namespace HE {
 	class Material : public std::enable_shared_from_this<Material> {
 	public:
 		Material() = default;
-		Material(const std::string& name, MaterialType type);
+		Material(const std::string& name, MaterialType type = MaterialType::Empty);
 		virtual ~Material() = default;
 
 		// 静态创建函数，用于反序列化
-		static Ref<Material> Create(const std::string& name, MaterialType type);
+		static Ref<Material> Create(const std::string& name, MaterialType type = MaterialType::Empty);
 		static Ref<Material> CreateFromDeserialization(); // 用于反序列化时的临时创建
 
 		// 基本属性
