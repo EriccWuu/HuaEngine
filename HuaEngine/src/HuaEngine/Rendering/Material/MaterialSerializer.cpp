@@ -7,50 +7,13 @@ namespace HE {
     void MaterialParameterSerializer::Serialize(SerializationBackend& backend, const std::string& name, const MaterialParameterValue& value) {
         std::visit([&](auto&& val) {
             using T = std::decay_t<decltype(val)>;
-            
-            if constexpr (std::is_same_v<T, int>) {
-                backend.Serialize(name, val);
-            }
-            else if constexpr (std::is_same_v<T, float>) {
-                backend.Serialize(name, val);
-            }
-            else if constexpr (std::is_same_v<T, glm::vec2>) {
-                Serializer<glm::vec2>::Serialize(backend, name, val);
-            }
-            else if constexpr (std::is_same_v<T, glm::vec3>) {
-                Serializer<glm::vec3>::Serialize(backend, name, val);
-            }
-            else if constexpr (std::is_same_v<T, glm::vec4>) {
-                Serializer<glm::vec4>::Serialize(backend, name, val);
-            }
-            else if constexpr (std::is_same_v<T, glm::mat3>) {
-                Serializer<glm::mat3>::Serialize(backend, name, val);
-            }
-            else if constexpr (std::is_same_v<T, glm::mat4>) {
-                Serializer<glm::mat4>::Serialize(backend, name, val);
-            }
-            else if constexpr (std::is_same_v<T, Ref<Texture2D>>) {
+            if constexpr (std::is_same_v<T, Ref<Texture2D>>) {
                 // 对于纹理，我们只保存路径
                 std::string texturePath = val ? "texture_path_placeholder" : "";
                 backend.Serialize(name, texturePath);
             }
-            else if constexpr (std::is_same_v<T, std::vector<int>>) {
-                backend.BeginArray(name, val.size());
-                for (size_t i = 0; i < val.size(); ++i) {
-                    backend.BeginArrayElement(i);
-                    backend.Serialize("", val[i]);
-                    backend.EndArrayElement();
-                }
-                backend.EndArray();
-            }
-            else if constexpr (std::is_same_v<T, std::vector<float>>) {
-                backend.BeginArray(name, val.size());
-                for (size_t i = 0; i < val.size(); ++i) {
-                    backend.BeginArrayElement(i);
-                    backend.Serialize("", val[i]);
-                    backend.EndArrayElement();
-                }
-                backend.EndArray();
+            else {
+                SerializeValue(backend, name, val);
             }
         }, value);
     }

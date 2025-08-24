@@ -31,6 +31,9 @@ public:
 	}
 
     void OnAttach() override {
+        MaterialSerializationTest::RunTest();
+
+
         // Create vertex buffer
 		float squareVertices[4 * 5] = {
 			-0.5f, -0.5f, -3.0f, 0.0 , 0.0,

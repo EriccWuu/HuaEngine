@@ -301,4 +301,64 @@ namespace HE {
             return DeserializeArray(backend, name, vec);
         }
     };
+
+    // Specialization for Ref<T> (shared_ptr<T>)
+    template<typename T>
+    struct Serializer<Ref<T>> {
+        static void Serialize(SerializationBackend& backend, const std::string& name, const Ref<T>& ref) {
+            if (ref) {
+                // Serialize the actual object
+                SerializeValue(backend, name, *ref);
+            } else {
+                // Handle null reference - could serialize as null or skip
+                if (!name.empty()) {
+                    backend.BeginObject(name);
+                    backend.Serialize("is_null", true);
+                    backend.EndObject();
+                } else {
+                    backend.BeginObject();
+                    backend.Serialize("is_null", true);
+                    backend.EndObject();
+                }
+            }
+        }
+
+        static bool Deserialize(SerializationBackend& backend, const std::string& name, Ref<T>& ref) {
+            // Check if this is a null object
+            if (!name.empty()) {
+                if (!backend.HasField(name)) return false;
+                backend.BeginObject(name);
+            } else {
+                backend.BeginObject();
+            }
+
+            bool isNull = false;
+            if (backend.HasField("is_null") && backend.Deserialize("is_null", isNull) && isNull) {
+                ref = nullptr;
+                backend.EndObject();
+                return true;
+            }
+
+            backend.EndObject();
+
+            // Create object if it doesn't exist
+            if (!ref) {
+                ref = CreateRef<T>();
+            }
+
+            // Deserialize the actual object
+            return DeserializeValue(backend, name, *ref);
+        }
+    };
+
+    // Helper functions for Ref<T> serialization
+    template<typename T>
+    void SerializeValue(SerializationBackend& backend, const std::string& name, const Ref<T>& value) {
+        Serializer<Ref<T>>::Serialize(backend, name, value);
+    }
+
+    template<typename T>
+    bool DeserializeValue(SerializationBackend& backend, const std::string& name, Ref<T>& value) {
+        return Serializer<Ref<T>>::Deserialize(backend, name, value);
+    }
 }

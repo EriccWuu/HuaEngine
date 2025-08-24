@@ -132,12 +132,11 @@ namespace HE {
             backend.Deserialize("name", matName);
             material.SetName(matName);
 
-            // TODO: 根据 shaderPath 加载 Shader
-            // 这里需要资源管理器来加载 Shader
-            // if (!shaderPath.empty()) {
-            //     auto shader = ResourceManager::LoadShader(shaderPath);
-            //     material.SetShader(shader);
-            // }
+            // 根据 shaderPath 加载 Shader
+             if (!shaderPath.empty()) {
+                 auto shader = Shader::CreateFromFile(shaderPath);
+                 material.SetShader(shader);
+             }
 
             // 参数列表
             // 先获取数组大小，再进入数组

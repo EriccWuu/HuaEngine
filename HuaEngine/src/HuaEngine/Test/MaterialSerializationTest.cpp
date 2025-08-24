@@ -44,7 +44,7 @@ namespace HE {
 		// Save to file - convert to base Material class for serialization
 		std::string filename = "standard_material_test.json";
 		Ref<Material> materialBase = std::static_pointer_cast<Material>(standardMaterial);
-		if (SerializationManager::Instance().SerializeToFile(*materialBase, filename, SerializationFormat::JSON)) {
+		if (SerializationManager::Instance().SerializeToFile(materialBase, filename, SerializationFormat::JSON)) {
 			HE_CORE_INFO("Standard material saved to file: {0}", filename);
 			
 			// Reload material - note: need to create an object first, then deserialize into it
@@ -84,7 +84,7 @@ namespace HE {
 		// Save to file - convert to base Material class for serialization
 		std::string filename = "unlit_material_test.json";
 		Ref<Material> materialBase = std::static_pointer_cast<Material>(unlitMaterial);
-		if (SerializationManager::Instance().SerializeToFile(*materialBase, filename, SerializationFormat::JSON)) {
+		if (SerializationManager::Instance().SerializeToFile(materialBase, filename, SerializationFormat::JSON)) {
 			HE_CORE_INFO("Unlit material saved to file: {0}", filename);
 			
 			// Reload material
@@ -144,7 +144,7 @@ namespace HE {
 		// Save to file - convert to base Material class for serialization
 		std::string filename = "custom_material_test.json";
 		Ref<Material> materialBase = std::static_pointer_cast<Material>(customMaterial);
-		if (SerializationManager::Instance().SerializeToFile(*materialBase, filename, SerializationFormat::JSON)) {
+		if (SerializationManager::Instance().SerializeToFile(materialBase, filename, SerializationFormat::JSON)) {
 			HE_CORE_INFO("Custom material saved to file: {0}", filename);
 			
 			// Reload material
@@ -189,7 +189,7 @@ namespace HE {
 		
 		// Save material instance to file
 		std::string filename = "material_instance_test.json";
-		if (SerializationManager::Instance().SerializeToFile(*materialInstance, filename, SerializationFormat::JSON)) {
+		if (SerializationManager::Instance().SerializeToFile(materialInstance, filename, SerializationFormat::JSON)) {
 			HE_CORE_INFO("Material instance saved to file: {0}", filename);
 			
 			// Reload material instance (requires same base material)

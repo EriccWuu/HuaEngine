@@ -57,7 +57,6 @@ srefl_class(HE::CameraComponent,
 
 srefl_class(HE::MaterialComponent,
 	fields(
-		// MaterialInstance 是 Ref 类型，暂时不序列化
-		// 后续可以添加材质名称字符串用于序列化
+		field(MaterialInstance)
 	)
 )
