@@ -1,7 +1,7 @@
 #pragma once
 
 #include "HuaEngine/Core/Core.h"
-#include "Mesh.h"
+#include "MeshCore.h"
 #include <unordered_map>
 #include <string>
 
