@@ -33,9 +33,6 @@ namespace HE {
                 if (backend.HasField("data")) {
                     T component{};
                     if (HE::Serialization::DeserializeValue(backend, "data", component)) {
-                        if constexpr (std::is_same_v<T, TransformComponent>) {
-                            std::cout << component.Position << std::endl;
-                        }
                         registry.emplace_or_replace<T>(entity, std::move(component));
                     }
                 }
@@ -132,6 +129,7 @@ namespace HE {
             
             // Use storage to iterate over all entities
             for (auto entity : registry.storage<entt::entity>()) {
+                HE_CORE_TRACE("Serializing entity index {0}, entity ID {1}", entityIndex, static_cast<uint32_t>(entity));
                 backend->BeginArrayElement(entityIndex++);
                 SerializeEntity(*backend, entity);
                 backend->EndArrayElement();
@@ -140,7 +138,8 @@ namespace HE {
             backend->EndArray();
             backend->EndObject();
 
-            return backend->SaveToString();
+            std::string result = backend->SaveToString();
+            return result;
         } catch (const std::exception& e) {
             HE_CORE_ERROR("Failed to serialize scene to string: {0}", e.what());
             return "";
@@ -175,19 +174,20 @@ namespace HE {
 
             // Deserialize entities
             uint32_t entityCount = backend->GetArraySize("entities");
-            HE_CORE_INFO("Deserializing {0} entities from scene file", entityCount);
             std::vector<entt::entity> deserializedEntities;
             deserializedEntities.reserve(entityCount);
             
+            // 开始处理entities数组
+            backend->BeginArray("entities");
+            
             for (uint32_t i = 0; i < entityCount; ++i) {
-                HE_CORE_TRACE("Deserializing entity {0}/{1} from file", i, entityCount);
                 backend->BeginArrayElement(i);
                 entt::entity entity = DeserializeEntity(*backend);
                 deserializedEntities.push_back(entity);
                 backend->EndArrayElement();
             }
-
-            HE_CORE_INFO("Successfully deserialized scene with {0} entities", deserializedEntities.size());
+            
+            backend->EndArray(); // End entities array
 
             return true;
         } catch (const std::exception& e) {
@@ -219,24 +219,30 @@ namespace HE {
             // Read scene metadata
             std::string sceneName;
             int sceneVersion;
-            backend->Deserialize("scene_name", sceneName);
-            backend->Deserialize("scene_version", sceneVersion);
+            bool hasSceneName = backend->Deserialize("scene_name", sceneName);
+            bool hasSceneVersion = backend->Deserialize("scene_version", sceneVersion);
+
+            // Check if entities field exists
+            if (!backend->HasField("entities")) {
+                HE_CORE_ERROR("No 'entities' field found in JSON data");
+            }
 
             // Deserialize entities
             uint32_t entityCount = backend->GetArraySize("entities");
-            HE_CORE_INFO("Deserializing {0} entities from scene string", entityCount);
             std::vector<entt::entity> deserializedEntities;
             deserializedEntities.reserve(entityCount);
             
+            // 开始处理entities数组
+            backend->BeginArray("entities");
+            
             for (uint32_t i = 0; i < entityCount; ++i) {
-                HE_CORE_TRACE("Deserializing entity {0}/{1} from string", i, entityCount);
                 backend->BeginArrayElement(i);
                 entt::entity entity = DeserializeEntity(*backend);
                 deserializedEntities.push_back(entity);
                 backend->EndArrayElement();
             }
-
-            HE_CORE_INFO("Successfully deserialized scene from string with {0} entities", deserializedEntities.size());
+            
+            backend->EndArray(); // End entities array
 
             return true;
         } catch (const std::exception& e) {
@@ -254,7 +260,6 @@ namespace HE {
         // Serialize entity ID
         uint32_t entityId = static_cast<uint32_t>(entity);
         backend.Serialize("entity_id", entityId);
-        HE_CORE_TRACE("Serializing entity ID: {0}", entityId);
 
         // Serialize components using reflection system
         backend.BeginArray("components");
@@ -263,10 +268,9 @@ namespace HE {
         // Get all component types for this entity
         for (auto&& [id, storage] : registry.storage()) {
             if (storage.contains(entity)) {
-                HE_CORE_TRACE("Serializing component type ID: {0} for entity {1}", static_cast<uint32_t>(id), entityId);
                 backend.BeginArrayElement(componentIndex++);
 
-                // backend.BeginObject("");
+                backend.BeginObject("");
                 
                 // Serialize component type ID
                 backend.Serialize("component_type_id", static_cast<uint32_t>(id));
@@ -274,13 +278,12 @@ namespace HE {
                 // Serialize component data based on type
                 SerializeComponentData(backend, entity, id);
 
-                // backend.EndObject();
+                backend.EndObject();
                 
                 backend.EndArrayElement();
             }
         }
 
-        HE_CORE_TRACE("Serialized {0} components for entity {1}", componentIndex, entityId);
         backend.EndArray();
         backend.EndObject();
     }
@@ -293,41 +296,33 @@ namespace HE {
         uint32_t originalEntityId;
         if (!backend.Deserialize("entity_id", originalEntityId)) {
             HE_CORE_ERROR("Failed to deserialize entity_id");
-            originalEntityId = 0;
         }
-        
-        HE_CORE_TRACE("Deserializing entity: original ID={0}", originalEntityId);
 
         // Create new entity
         Entity entity = m_Scene->GetEntityManager().CreateEntity();
-        
-        HE_CORE_TRACE("Created new entity with handle={0}", entity.GetUid());
 
         // Deserialize components - 检查components数组是否存在
         if (!backend.HasField("components")) {
             HE_CORE_WARN("Entity {0} has no components field", originalEntityId);
-            backend.EndObject();
-            return entity;
         }
         
         uint32_t componentCount = backend.GetArraySize("components");
-        HE_CORE_TRACE("Component count for entity {0}: {1}", entity.GetUid(), componentCount);
+        
+        // 开始处理components数组
+        backend.BeginArray("components");
         
         for (uint32_t i = 0; i < componentCount; ++i) {
-            HE_CORE_TRACE("Processing component {0}/{1}", i, componentCount);
             backend.BeginArrayElement(i);
 
             backend.BeginObject("");
 
             uint32_t componentTypeId;
             if (!backend.Deserialize("component_type_id", componentTypeId)) {
-                HE_CORE_ERROR("Failed to deserialize component_type_id for component {0}", i);
+                HE_CORE_ERROR("Failed to deserialize component_type_id {0} for component {1}", componentTypeId, i);
                 backend.EndObject();
                 backend.EndArrayElement();
                 continue;
             }
-            
-            HE_CORE_TRACE("Deserializing component type ID: {0}", componentTypeId);
 
             // Deserialize component data based on type
             DeserializeComponentData(backend, entity, static_cast<entt::id_type>(componentTypeId));
@@ -335,6 +330,8 @@ namespace HE {
             backend.EndObject();
             backend.EndArrayElement();
         }
+        
+        backend.EndArray(); // End components array
 
         backend.EndObject();
         return entity;
@@ -347,7 +344,6 @@ namespace HE {
         // Try to use registered serializer first
         auto it = serializers.serializeFuncs.find(componentTypeId);
         if (it != serializers.serializeFuncs.end()) {
-            HE_CORE_TRACE("Found serializer for component type ID: {0}", static_cast<uint32_t>(componentTypeId));
             it->second(backend, registry, entity);
             return;
         } else {
@@ -363,7 +359,6 @@ namespace HE {
         // Try to use registered deserializer first
         auto it = serializers.deserializeFuncs.find(componentTypeId);
         if (it != serializers.deserializeFuncs.end()) {
-            HE_CORE_TRACE("Found deserializer for component type ID: {0}", static_cast<uint32_t>(componentTypeId));
             it->second(backend, registry, entityHandle);
             return;
         } else {

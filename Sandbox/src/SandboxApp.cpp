@@ -56,16 +56,16 @@ public:
         spec.Attachments = { FrameBufferTextureFormat::RGBA8 };
         m_FrameBuffer = FrameBuffer::Create(spec);
 
-        // LoadScene(m_Scene.get(), "SandboxScene.scene");
+        LoadScene(m_Scene.get(), "SandboxScene1.scene");
 
         // 使用资产系统创建实体
-        CreateEntitiesWithAssets();
+        // CreateEntitiesWithAssets();
 
         m_RenderSystem->SetFrameBuffer(m_FrameBuffer);
         m_Scene->AddSyetem(m_RenderSystem);
 
         // 序列化场景
-        SaveSceneWithAssets();
+        // SaveSceneWithAssets();
     }
 
     void CreateEntitiesWithAssets() {
