@@ -14,7 +14,7 @@
 
 // #include "HuaEngine/Test/TestReflection.h"
 // #include "HuaEngine/Test/SerializationTest.h"
-// #include "HuaEngine/Test/MaterialSerializationTest.h"
+#include "HuaEngine/Test/MaterialSerializationTest.h"
 // #include "HuaEngine/Test/SceneSerializationTest.h"
 
 
@@ -30,6 +30,8 @@ public:
 	}
 
     void OnAttach() override {
+
+        // MaterialSerializationTest::RunTest();
         // Initialize camera
         m_EditorCamera.reset(new Rendering::EditorCamera());
         m_Scene.reset(new Scene());
@@ -56,7 +58,18 @@ public:
         spec.Attachments = { FrameBufferTextureFormat::RGBA8 };
         m_FrameBuffer = FrameBuffer::Create(spec);
 
-        // LoadScene(m_Scene.get(), "SandboxScene1.scene");
+        //LoadScene(m_Scene.get(), "SandboxScene1.scene");
+
+        //auto& materialEntityView = m_Scene->View<MaterialComponent>();
+
+        //// 渲染新材质系统的对象
+        //for (auto entity : materialEntityView) {
+        //    auto materialComp = materialEntityView.get<Rendering::MaterialComponent>(entity);
+
+        //    if (materialComp.MaterialInstance) {
+        //        
+        //    }
+        //}
 
         // 使用资产系统创建实体
         CreateEntitiesWithAssets();
@@ -122,8 +135,8 @@ public:
 
 	void OnUpdate() override {
         m_EditorCamera->OnUpdate();
-        m_RenderSystem->RenderSingleCamera(*m_Scene, *m_EditorCamera);
-        m_Scene->Update();
+         m_RenderSystem->RenderSingleCamera(*m_Scene, *m_EditorCamera);
+         m_Scene->Update();
 	}
 
 	void OnGuiRender() override {

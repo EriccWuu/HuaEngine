@@ -2,13 +2,13 @@
   "name": "SandboxMaterial",
   "parameters": [
     {
-      "default_value": "texture_path_placeholder",
+      "value": "texture_path_placeholder",
       "is_texture": true,
       "name": "u_MainTexture",
       "type": "Texture2D"
     },
     {
-      "default_value": {
+      "value": {
         "w": 1.000000,
         "x": 1.000000,
         "y": 1.000000,
@@ -19,7 +19,7 @@
       "type": "Vec4"
     },
     {
-      "default_value": {
+      "value": {
         "x": 1.000000,
         "y": 1.000000
       },

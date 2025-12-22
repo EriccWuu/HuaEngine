@@ -77,6 +77,7 @@ namespace HE::Rendering {
 			return;
 		}
 
+		m_Parameters[name].Value = value;
 		ApplyParameter(name, value);
 	}
 
@@ -157,7 +158,8 @@ namespace HE::Rendering {
 			return;
 		}
 
-		m_ParameterOverrides[name] = value;
+		m_ParameterOverrides[name] = *(m_BaseMaterial->GetParameter(name));
+		m_ParameterOverrides[name].Value = value;
 	}
 
 	bool MaterialInstance::HasParameterOverride(const std::string& name) const
@@ -165,7 +167,7 @@ namespace HE::Rendering {
 		return m_ParameterOverrides.find(name) != m_ParameterOverrides.end();
 	}
 
-	const MaterialParameterValue* MaterialInstance::GetParameterOverride(const std::string& name) const
+	const MaterialParameter* MaterialInstance::GetParameterOverride(const std::string& name) const
 	{
 		auto it = m_ParameterOverrides.find(name);
 		return (it != m_ParameterOverrides.end()) ? &it->second : nullptr;
@@ -190,14 +192,14 @@ namespace HE::Rendering {
 			// 如果实例没有覆盖这个参数，使用默认值
 			if (!HasParameterOverride(name))
 			{
-				m_BaseMaterial->ApplyParameter(name, param.DefaultValue);
+				m_BaseMaterial->ApplyParameter(name, param.Value);
 			}
 		}
 
 		// 然后应用实例的参数覆盖
 		for (const auto& [name, value] : m_ParameterOverrides)
 		{
-			m_BaseMaterial->ApplyParameter(name, value);
+			m_BaseMaterial->ApplyParameter(name, value.Value);
 		}
 	}
 

@@ -24,12 +24,12 @@ namespace HE::Rendering {
 	struct MaterialParameter {
 		std::string Name;
 		MaterialParameterType Type;
-		MaterialParameterValue DefaultValue;
+		MaterialParameterValue Value;
 		bool IsTexture;
 
 		MaterialParameter() = default;
 		MaterialParameter(const std::string& name, MaterialParameterType type, const MaterialParameterValue& defaultValue, bool isTexture = false)
-			: Name(name), Type(type), DefaultValue(defaultValue), IsTexture(isTexture) {}
+			: Name(name), Type(type), Value(defaultValue), IsTexture(isTexture) {}
 	};
 
 	enum class MaterialType {
@@ -117,12 +117,12 @@ namespace HE::Rendering {
 		// 参数覆盖
 		void SetParameter(const std::string& name, const MaterialParameterValue& value);
 		bool HasParameterOverride(const std::string& name) const;
-		const MaterialParameterValue* GetParameterOverride(const std::string& name) const;
-		const std::unordered_map<std::string, MaterialParameterValue>& GetParameterOverrides() const { return m_ParameterOverrides; }
+		const MaterialParameter* GetParameterOverride(const std::string& name) const;
+		const std::unordered_map<std::string, MaterialParameter>& GetParameterOverrides() const { return m_ParameterOverrides; }
 		
 		// 反序列化用的接口
 		void ClearParameterOverrides() { m_ParameterOverrides.clear(); }
-		void SetParameterOverrides(const std::unordered_map<std::string, MaterialParameterValue>& overrides) { m_ParameterOverrides = overrides; }
+		void SetParameterOverrides(const std::unordered_map<std::string, MaterialParameter>& overrides) { m_ParameterOverrides = overrides; }
 
 		// 材质操作
 		void Bind();
@@ -131,7 +131,7 @@ namespace HE::Rendering {
 
 	private:
 		Ref<Material> m_BaseMaterial;
-		std::unordered_map<std::string, MaterialParameterValue> m_ParameterOverrides;
+		std::unordered_map<std::string, MaterialParameter> m_ParameterOverrides;
 	};
 
 }

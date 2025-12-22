@@ -55,7 +55,7 @@ namespace HE::Serialization {
             backend.Serialize("is_texture", param.IsTexture);
             
             // 序列化默认值
-            Rendering::MaterialParameterSerializer::Serialize(backend, "default_value", param.DefaultValue);
+            Rendering::MaterialParameterSerializer::Serialize(backend, "value", param.Value);
             
             backend.EndObject();
         }
@@ -67,7 +67,7 @@ namespace HE::Serialization {
             if (!(backend.HasField("name") &&
                 backend.HasField("type") &&
                 backend.HasField("is_texture") &&
-                backend.HasField("default_value"))) {
+                backend.HasField("value"))) {
                 backend.EndObject();
                 return false;
             }
@@ -81,7 +81,7 @@ namespace HE::Serialization {
             backend.Deserialize("is_texture", param.IsTexture);
                 
             // 反序列化默认值
-            Rendering::MaterialParameterSerializer::Deserialize(backend, "default_value", param.DefaultValue, param.Type);
+            Rendering::MaterialParameterSerializer::Deserialize(backend, "value", param.Value, param.Type);
                 
             backend.EndObject();
             return true;
@@ -92,6 +92,9 @@ namespace HE::Serialization {
     template<>
     struct Serializer<Rendering::Material> {
         static void Serialize(SerializationBackend& backend, const std::string& name, const Rendering::Material& material) {
+            if (!name.empty())
+                backend.BeginObject(name);
+            
             // 基本属性
             backend.Serialize("name", material.GetName());
             backend.Serialize("type", Rendering::MaterialTypeToString(material.GetType()));
@@ -126,9 +129,15 @@ namespace HE::Serialization {
                 }
                 backend.EndObject();
             }
+
+            if (!name.empty())
+                backend.EndObject();
         }
 
         static bool Deserialize(SerializationBackend& backend, const std::string& name, Rendering::Material& material) {    
+            if (!name.empty())
+                backend.BeginObject(name);
+            
             // 检查必要字段
             if (!(backend.HasField("type") &&
                 backend.HasField("name") &&
@@ -177,6 +186,9 @@ namespace HE::Serialization {
                 backend.EndObject();
             }
 
+            if (!name.empty())
+                backend.EndObject();
+
             return true;
         }
     };
@@ -185,7 +197,8 @@ namespace HE::Serialization {
     template<>
     struct Serializer<Rendering::MaterialInstance> {
         static void Serialize(SerializationBackend& backend, const std::string& name, const Rendering::MaterialInstance& instance) {
-            backend.BeginObject(name);
+            if (!name.empty())
+                backend.BeginObject(name);
             
             // 基础材质名称
             backend.Serialize("base_material_name", instance.GetBaseMaterial()->GetName());
@@ -197,17 +210,19 @@ namespace HE::Serialization {
             size_t index = 0;
             for (const auto& [paramName, param] : overrideParams) {
                 backend.BeginArrayElement(index++);
-                backend.BeginObject();
-                Rendering::MaterialParameterSerializer::Serialize(backend, paramName, param);
-                backend.EndObject();
+                HE::Serialization::SerializeValue(backend, "", param);
                 backend.EndArrayElement();
             }
             backend.EndArray();
             
-            backend.EndObject();
+            if (!name.empty())
+                backend.EndObject();
         }
 
         static bool Deserialize(SerializationBackend& backend, const std::string& name, Rendering::MaterialInstance& instance) {
+            if (!name.empty())
+                backend.BeginObject(name);
+            
             if (!(backend.HasField("base_material_name") &&
                 backend.HasField("parameter_overrides")))
                 return false;
@@ -250,6 +265,9 @@ namespace HE::Serialization {
                 backend.EndArrayElement();
             }
             backend.EndArray();
+
+            if (!name.empty())
+                backend.EndObject();
                 
             return true;
         }
