@@ -304,14 +304,14 @@ namespace HE {
         // Create new entity
         Entity entity = m_Scene->GetEntityManager().CreateEntity();
 
-        // Deserialize components - 检查components数组是否存在
+        // Deserialize components - check if components array exists
         if (!backend.HasField("components")) {
             HE_CORE_WARN("Entity {0} has no components field", originalEntityId);
         }
         
         uint32_t componentCount = backend.GetArraySize("components");
         
-        // 开始处理components数组
+        // Begin processing components array
         backend.BeginArray("components");
         
         for (uint32_t i = 0; i < componentCount; ++i) {

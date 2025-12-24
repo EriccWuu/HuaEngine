@@ -3,21 +3,21 @@
 
 namespace HE::Rendering {
     Ref<Mesh> MeshManager::LoadMesh(const std::string& name, const std::string& filepath) {
-        // 检查是否已经加载
+        // Check if already loaded
         auto it = m_LoadedMeshes.find(name);
         if (it != m_LoadedMeshes.end()) {
             HE_CORE_INFO("Mesh '{}' already loaded, returning existing instance", name);
             return it->second;
         }
 
-        // 从文件加载
+        // Load from file
         auto mesh = Mesh::LoadFromFile(filepath);
         if (!mesh) {
             HE_CORE_ERROR("Failed to load mesh '{}' from file: {}", name, filepath);
             return nullptr;
         }
 
-        // 注册到管理器
+        // Register to manager
         m_LoadedMeshes[name] = mesh;
         m_MeshPaths[name] = filepath;
         
@@ -48,7 +48,7 @@ namespace HE::Rendering {
     void MeshManager::UnloadMesh(const std::string& name) {
         auto it = m_LoadedMeshes.find(name);
         if (it != m_LoadedMeshes.end()) {
-            // 释放 GPU 资源
+            // Release GPU resources
             it->second->UnloadFromGPU();
             m_LoadedMeshes.erase(it);
             m_MeshPaths.erase(name);
@@ -84,8 +84,8 @@ namespace HE::Rendering {
 
     void MeshManager::LoadDefaultMeshes() {
         HE_CORE_INFO("Loading default meshes...");
-        
-        // 创建并注册默认几何体
+
+        // Create and register default geometries
         RegisterMesh("Quad", Mesh::CreateQuad("Quad"));
         RegisterMesh("Cube", Mesh::CreateCube("Cube"));
         RegisterMesh("Sphere", Mesh::CreateSphere("Sphere", 32));
@@ -96,7 +96,7 @@ namespace HE::Rendering {
     void MeshManager::ReleaseUnusedGPUResources() {
         int releasedCount = 0;
         for (auto& [name, mesh] : m_LoadedMeshes) {
-            // 如果网格只被管理器引用（引用计数为1），则释放GPU资源
+            // If mesh is only referenced by manager (use_count == 1), release GPU resources
             if (mesh.use_count() == 1 && mesh->IsLoadedToGPU()) {
                 mesh->UnloadFromGPU();
                 releasedCount++;

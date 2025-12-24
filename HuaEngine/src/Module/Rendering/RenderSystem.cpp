@@ -14,22 +14,22 @@ namespace HE {
 	}
 
 	void RenderSystem::RenderSingleCamera(Scene& scene, Rendering::Camera& camera) {
-		// 渲染使用新材质系统的对象
+		// Render objects using new material system
 		auto& materialEntityView = scene.View<TransformComponent, Rendering::MeshComponent, Rendering::MaterialComponent>();
-		
+
 		m_Framebuffer->Bind();
 		Rendering::RenderCommand::SetClearColor({ 0.1f, 0.1f, 0.1f, 1.0f });
 		Rendering::RenderCommand::Clear();
-		
+
 		Rendering::Renderer::Begin(std::make_shared<Rendering::Camera>(camera));
 
-		// 渲染新材质系统的对象
+		// Render objects with new material system
 		for (auto entity : materialEntityView) {
 			auto [transform, mesh, materialComp] = materialEntityView.get<TransformComponent, Rendering::MeshComponent, Rendering::MaterialComponent>(entity);
 
-			auto vertexArray = mesh.GetVertexArray();  // 使用延迟加载
+			auto vertexArray = mesh.GetVertexArray();  // Uses lazy loading
 			if (materialComp.MaterialInstance && vertexArray) {
-				// 使用新的材质渲染方法
+				// Use new material rendering method
 				Rendering::Renderer::Submit(materialComp.MaterialInstance, vertexArray, transform.GetTransformMat());
 			}
 		}

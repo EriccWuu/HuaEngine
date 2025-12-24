@@ -6,7 +6,7 @@
 #include <string>
 
 namespace HE::Rendering {
-    // Mesh 资产管理器 (单例模式)
+    // Mesh asset manager (singleton)
     class MeshManager {
     public:
         static MeshManager& Instance() {
@@ -14,35 +14,35 @@ namespace HE::Rendering {
             return instance;
         }
 
-        // 禁用拷贝构造和赋值
+        // Disable copy constructor and assignment
         MeshManager(const MeshManager&) = delete;
         MeshManager& operator=(const MeshManager&) = delete;
 
-        // 从文件加载网格资产
+        // Load mesh asset from file
         Ref<Mesh> LoadMesh(const std::string& name, const std::string& filepath);
-        
-        // 获取已加载的网格资产
+
+        // Get loaded mesh asset
         Ref<Mesh> GetMesh(const std::string& name);
-        
-        // 注册网格资产（用于运行时创建的网格）
+
+        // Register mesh asset (for runtime created meshes)
         void RegisterMesh(const std::string& name, Ref<Mesh> mesh);
-        
-        // 卸载网格资产
+
+        // Unload mesh asset
         void UnloadMesh(const std::string& name);
-        
-        // 卸载所有网格资产
+
+        // Unload all mesh assets
         void UnloadAllMeshes();
-        
-        // 获取已加载的网格列表
+
+        // Get list of loaded mesh names
         std::vector<std::string> GetLoadedMeshNames() const;
-        
-        // 检查网格是否已加载
+
+        // Check if mesh is loaded
         bool IsMeshLoaded(const std::string& name) const;
-        
-        // 预加载默认网格
+
+        // Preload default meshes
         void LoadDefaultMeshes();
-        
-        // 释放未使用的 GPU 资源
+
+        // Release unused GPU resources
         void ReleaseUnusedGPUResources();
 
     private:
@@ -50,10 +50,10 @@ namespace HE::Rendering {
         ~MeshManager() = default;
 
         std::unordered_map<std::string, Ref<Mesh>> m_LoadedMeshes;
-        std::unordered_map<std::string, std::string> m_MeshPaths;  // 网格名称 -> 文件路径映射
+        std::unordered_map<std::string, std::string> m_MeshPaths;  // Mesh name -> file path mapping
     };
 
-    // 便捷的全局函数
+    // Convenience global functions
     inline Ref<Mesh> GetMesh(const std::string& name) {
         return MeshManager::Instance().GetMesh(name);
     }

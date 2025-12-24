@@ -12,35 +12,35 @@ namespace HE::Rendering {
         }
 
         MeshData meshData;
-        
-        // 获取顶点缓冲区数据
+
+        // Get vertex buffer data
         const auto& vertexBuffers = vertexArray->GetVertexBuffers();
         if (vertexBuffers.empty()) {
             HE_CORE_WARN("MeshData::FromVertexArray - No vertex buffers found");
             return {};
         }
 
-        // 目前只支持单个顶点缓冲区
+        // Currently only supports single vertex buffer
         const auto& vertexBuffer = vertexBuffers[0];
         if (!vertexBuffer) {
             HE_CORE_WARN("MeshData::FromVertexArray - First vertex buffer is null");
             return {};
         }
 
-        // 保存布局信息
+        // Save layout information
         meshData.Layout = SerializableBufferLayout(vertexBuffer->GetLayout());
 
-        // 从 OpenGL 缓冲区读取顶点数据
+        // Read vertex data from OpenGL buffer
         auto openglBuffer = std::dynamic_pointer_cast<OpenGLVertexBuffer>(vertexBuffer);
         if (!openglBuffer) {
             HE_CORE_WARN("MeshData::FromVertexArray - Failed to cast to OpenGLVertexBuffer");
             return {};
         }
 
-        // 绑定并读取顶点数据
+        // Bind and read vertex data
         openglBuffer->Bind();
-        
-        // 获取缓冲区大小
+
+        // Get buffer size
         GLint bufferSize;
         glGetBufferParameteriv(GL_ARRAY_BUFFER, GL_BUFFER_SIZE, &bufferSize);
         
@@ -49,7 +49,7 @@ namespace HE::Rendering {
             return {};
         }
 
-        // 分配内存并读取数据
+        // Allocate memory and read data
         meshData.VertexData.resize(bufferSize / sizeof(float));
         void* bufferData = glMapBuffer(GL_ARRAY_BUFFER, GL_READ_ONLY);
         if (bufferData) {
@@ -60,7 +60,7 @@ namespace HE::Rendering {
             return {};
         }
 
-        // 获取索引缓冲区数据
+        // Get index buffer data
         const auto& indexBuffer = vertexArray->GetIndexBuffer();
         if (!indexBuffer) {
             HE_CORE_WARN("MeshData::FromVertexArray - No index buffer found");
@@ -73,7 +73,7 @@ namespace HE::Rendering {
             return {};
         }
 
-        // 绑定并读取索引数据
+        // Bind and read index data
         openglIndexBuffer->Bind();
         
         GLint indexBufferSize;
@@ -106,21 +106,21 @@ namespace HE::Rendering {
             return nullptr;
         }
 
-        // 创建顶点数组
+        // Create vertex array
         auto vertexArray = VertexArray::Create();
 
-        // 创建顶点缓冲区
+        // Create vertex buffer
         auto vertexBuffer = VertexBuffer::Create(
             const_cast<float*>(VertexData.data()), 
             static_cast<uint32_t>(VertexData.size() * sizeof(float))
         );
 
-        // 设置布局
+        // Set layout
         auto bufferLayout = Layout.ToBufferLayout();
         vertexBuffer->SetLayout(bufferLayout);
         vertexArray->AddVertexBuffer(vertexBuffer);
 
-        // 创建索引缓冲区
+        // Create index buffer
         auto indexBuffer = IndexBuffer::Create(
             const_cast<uint32_t*>(IndexData.data()), 
             static_cast<uint32_t>(IndexData.size())
@@ -138,18 +138,15 @@ namespace HE::Rendering {
             return BufferLayout{};
         }
 
-        // 创建 BufferElement 向量
+        // Create BufferElement vector
         std::vector<BufferElement> bufferElements;
         bufferElements.reserve(Elements.size());
         for (const auto& element : Elements) {
             bufferElements.push_back(element.ToBufferElement());
         }
 
-        // 使用反射访问 BufferLayout 的私有成员来构造
-        BufferLayout layout;
-        
-        // 我们需要通过友元函数或其他方法来设置内部数据
-        // 暂时使用初始化列表，支持最常见的情况
+        // Construct BufferLayout
+        // Use initializer list for most common cases
         switch (bufferElements.size()) {
             case 0: return BufferLayout{};
             case 1: return BufferLayout{bufferElements[0]};

@@ -4,7 +4,7 @@
 
 namespace HE::Rendering {
 
-	// Material 实现
+	// Material implementation
 	Material::Material(const std::string& name, MaterialType type)
 		: m_Name(name), m_Type(type), m_NextTextureSlot(0)
 	{
@@ -23,8 +23,8 @@ namespace HE::Rendering {
 	void Material::AddParameter(const MaterialParameter& parameter)
 	{
 		m_Parameters[parameter.Name] = parameter;
-		
-		// 如果是纹理参数，自动分配纹理槽
+
+		// If texture parameter, auto-assign texture slot
 		if (parameter.Type == MaterialParameterType::Texture2D)
 		{
 			SetTextureSlot(parameter.Name, m_NextTextureSlot++);
@@ -132,7 +132,7 @@ namespace HE::Rendering {
 			}
 			else if constexpr (std::is_same_v<T, std::vector<float>>)
 			{
-				// 注意：Shader 类需要添加 SetFloatArray 方法
+				// Note: Shader class needs SetFloatArray method
 				HE_CORE_WARN("Float array parameters not yet supported");
 			}
 		}, value);
@@ -143,7 +143,7 @@ namespace HE::Rendering {
 		return CreateRef<MaterialInstance>(shared_from_this());
 	}
 
-	// MaterialInstance 实现
+	// MaterialInstance implementation
 	MaterialInstance::MaterialInstance(Ref<Material> baseMaterial)
 		: m_BaseMaterial(baseMaterial)
 	{
@@ -186,17 +186,17 @@ namespace HE::Rendering {
 
 	void MaterialInstance::ApplyParameters()
 	{
-		// 首先应用基础材质的默认参数
+		// First apply base material's default parameters
 		for (const auto& [name, param] : m_BaseMaterial->GetParameters())
 		{
-			// 如果实例没有覆盖这个参数，使用默认值
+			// If instance hasn't overridden this parameter, use default value
 			if (!HasParameterOverride(name))
 			{
 				m_BaseMaterial->ApplyParameter(name, param.Value);
 			}
 		}
 
-		// 然后应用实例的参数覆盖
+		// Then apply instance's parameter overrides
 		for (const auto& [name, value] : m_ParameterOverrides)
 		{
 			m_BaseMaterial->ApplyParameter(name, value.Value);

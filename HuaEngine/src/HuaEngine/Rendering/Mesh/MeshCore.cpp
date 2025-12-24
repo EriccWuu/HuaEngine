@@ -17,7 +17,7 @@ namespace HE::Rendering {
 
     void Mesh::SetMeshData(const MeshData& meshData) {
         m_MeshData = meshData;
-        // 清除现有的 GPU 资源，下次访问时重新加载
+        // Clear existing GPU resource, reload on next access
         m_VertexArray = nullptr;
     }
 
@@ -27,7 +27,7 @@ namespace HE::Rendering {
     }
 
     void Mesh::UnloadFromGPU() {
-        m_VertexArray = nullptr;  // 智能指针会自动释放资源
+        m_VertexArray = nullptr;  // Smart pointer auto-releases resources
     }
 
     void Mesh::LoadToGPU() {
@@ -46,8 +46,8 @@ namespace HE::Rendering {
 
     Ref<Mesh> Mesh::LoadFromFile(const std::string& filepath, HE::Serialization::SerializationFormat format) {
         Mesh mesh;
-        
-        // 使用 SerializationManager 来反序列化
+
+        // Use SerializationManager to deserialize
         if (!HE::Serialization::SerializationManager::Instance().DeserializeFromFile(filepath, mesh, format)) {
             HE_CORE_ERROR("Failed to load mesh file: {}", filepath);
             return nullptr;
@@ -58,7 +58,7 @@ namespace HE::Rendering {
     }
 
     bool Mesh::SaveToFile(const Mesh& mesh, const std::string& filepath, HE::Serialization::SerializationFormat format) {
-        // 使用 SerializationManager 来序列化
+        // Use SerializationManager to serialize
         bool success = HE::Serialization::SerializationManager::Instance().SerializeToFile(mesh, filepath, format);
         if (success) {
             HE_CORE_INFO("Saved mesh '{}' to file: {}", mesh.m_Name, filepath);
@@ -69,20 +69,20 @@ namespace HE::Rendering {
     }
 
     Ref<Mesh> Mesh::CreateQuad(const std::string& name) {
-        // 创建四边形顶点数据
+        // Create quad vertex data
         std::vector<float> vertices = {
-            -0.5f, -0.5f, 0.0f, 0.0f, 0.0f,  // 左下
-             0.5f, -0.5f, 0.0f, 1.0f, 0.0f,  // 右下
-             0.5f,  0.5f, 0.0f, 1.0f, 1.0f,  // 右上
-            -0.5f,  0.5f, 0.0f, 0.0f, 1.0f   // 左上
-        };
-        
-        std::vector<uint32_t> indices = {
-            0, 1, 2,  // 第一个三角形
-            2, 3, 0   // 第二个三角形
+            -0.5f, -0.5f, 0.0f, 0.0f, 0.0f,  // Bottom-left
+             0.5f, -0.5f, 0.0f, 1.0f, 0.0f,  // Bottom-right
+             0.5f,  0.5f, 0.0f, 1.0f, 1.0f,  // Top-right
+            -0.5f,  0.5f, 0.0f, 0.0f, 1.0f   // Top-left
         };
 
-        // 创建布局
+        std::vector<uint32_t> indices = {
+            0, 1, 2,  // First triangle
+            2, 3, 0   // Second triangle
+        };
+
+        // Create layout
         SerializableBufferLayout layout;
         layout.Elements = {
             SerializableBufferElement{static_cast<uint8_t>(ShaderDataType::Float3), "a_Position", 12, 0, false},
@@ -99,33 +99,33 @@ namespace HE::Rendering {
     }
 
     Ref<Mesh> Mesh::CreateCube(const std::string& name) {
-        // 创建立方体顶点数据 (简化版本，只包含位置和纹理坐标)
+        // Create cube vertex data (simplified version, position and texcoord only)
         std::vector<float> vertices = {
-            // 前面
+            // Front face
             -0.5f, -0.5f,  0.5f, 0.0f, 0.0f,
              0.5f, -0.5f,  0.5f, 1.0f, 0.0f,
              0.5f,  0.5f,  0.5f, 1.0f, 1.0f,
             -0.5f,  0.5f,  0.5f, 0.0f, 1.0f,
-            
-            // 后面
+
+            // Back face
             -0.5f, -0.5f, -0.5f, 1.0f, 0.0f,
              0.5f, -0.5f, -0.5f, 0.0f, 0.0f,
              0.5f,  0.5f, -0.5f, 0.0f, 1.0f,
             -0.5f,  0.5f, -0.5f, 1.0f, 1.0f
         };
-        
+
         std::vector<uint32_t> indices = {
-            // 前面
+            // Front face
             0, 1, 2, 2, 3, 0,
-            // 后面
+            // Back face
             4, 5, 6, 6, 7, 4,
-            // 左面
+            // Left face
             7, 3, 0, 0, 4, 7,
-            // 右面
+            // Right face
             1, 5, 6, 6, 2, 1,
-            // 上面
+            // Top face
             3, 2, 6, 6, 7, 3,
-            // 下面
+            // Bottom face
             0, 1, 5, 5, 4, 0
         };
 
@@ -145,14 +145,14 @@ namespace HE::Rendering {
     }
 
     Ref<Mesh> Mesh::CreateSphere(const std::string& name, int segments) {
-        // 创建球体顶点数据的简化实现
-        // 这里只是一个示例，实际实现会更复杂
+        // Simplified sphere vertex data implementation
+        // This is just an example, actual implementation would be more complex
         std::vector<float> vertices;
         std::vector<uint32_t> indices;
-        
+
         const float PI = 3.14159265359f;
-        
-        // 生成球体顶点
+
+        // Generate sphere vertices
         for (int lat = 0; lat <= segments; ++lat) {
             float theta = lat * PI / segments;
             float sinTheta = sin(theta);
@@ -172,8 +172,8 @@ namespace HE::Rendering {
                 vertices.insert(vertices.end(), {x * 0.5f, y * 0.5f, z * 0.5f, u, v});
             }
         }
-        
-        // 生成球体索引
+
+        // Generate sphere indices
         for (int lat = 0; lat < segments; ++lat) {
             for (int lon = 0; lon < segments; ++lon) {
                 int first = (lat * (segments + 1)) + lon;

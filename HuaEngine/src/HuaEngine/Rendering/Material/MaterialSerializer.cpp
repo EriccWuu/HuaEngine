@@ -151,7 +151,7 @@ namespace HE::Rendering {
         if (typeStr == "FloatArray") return MaterialParameterType::FloatArray;
         
         HE_CORE_WARN("Unknown material parameter type string: {0}", typeStr);
-        return MaterialParameterType::Float; // 默认类型
+        return MaterialParameterType::Float; // Default type
     }
 
     std::string MaterialParameterSerializer::ParameterTypeToString(MaterialParameterType type) {

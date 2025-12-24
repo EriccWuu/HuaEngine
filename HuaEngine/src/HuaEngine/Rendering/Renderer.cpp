@@ -32,12 +32,12 @@ namespace HE::Rendering {
 		}
 
 		auto shader = materialInstance->GetShader();
-		
-		// 设置标准矩阵 uniforms
+
+		// Set standard matrix uniforms
 		shader->SetMat4("u_ViewProjection", m_Camera->GetViewProjection());
 		shader->SetMat4("u_Transform", transform);
 
-		// 绑定材质并应用参数
+		// Bind material and apply parameters
 		materialInstance->Bind();
 
 		vertexArray->Bind();

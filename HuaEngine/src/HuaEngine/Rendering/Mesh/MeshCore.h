@@ -7,43 +7,43 @@
 #include <string>
 
 namespace HE::Rendering {
-    // Mesh 资产类
+    // Mesh asset class
     class Mesh {
     public:
         Mesh() = default;
         Mesh(const std::string& name, const MeshData& meshData);
         ~Mesh() = default;
 
-        // 获取网格名称
+        // Get mesh name
         const std::string& GetName() const { return m_Name; }
 
         void SetName(const std::string& name) { m_Name = name; }
-        
-        // 获取 VertexArray (延迟加载)
+
+        // Get VertexArray (lazy loading)
         Ref<VertexArray> GetVertexArray();
-        
-        // 获取原始网格数据
+
+        // Get raw mesh data
         const MeshData& GetMeshData() const { return m_MeshData; }
-        
-        // 设置网格数据
+
+        // Set mesh data
         void SetMeshData(const MeshData& meshData);
-        
-        // 检查是否已加载到 GPU
+
+        // Check if loaded to GPU
         bool IsLoadedToGPU() const { return m_VertexArray != nullptr; }
-        
-        // 强制重新加载到 GPU
+
+        // Force reload to GPU
         void ReloadToGPU();
-        
-        // 释放 GPU 资源
+
+        // Release GPU resources
         void UnloadFromGPU();
-        
-        // 从文件加载网格数据
+
+        // Load mesh data from file
         static Ref<Mesh> LoadFromFile(const std::string& filepath, HE::Serialization::SerializationFormat format = HE::Serialization::SerializationFormat::JSON);
-        
-        // 保存网格数据到文件
+
+        // Save mesh data to file
         static bool SaveToFile(const Mesh& mesh, const std::string& filepath, HE::Serialization::SerializationFormat format = HE::Serialization::SerializationFormat::JSON);
-        
-        // 创建基本几何体
+
+        // Create basic geometries
         static Ref<Mesh> CreateQuad(const std::string& name = "Quad");
         static Ref<Mesh> CreateCube(const std::string& name = "Cube");
         static Ref<Mesh> CreateSphere(const std::string& name = "Sphere", int segments = 32);
@@ -51,9 +51,9 @@ namespace HE::Rendering {
     private:
         std::string m_Name;
         MeshData m_MeshData;
-        Ref<VertexArray> m_VertexArray;  // 延迟加载的 GPU 资源
-        
-        // 从 MeshData 创建 VertexArray
+        Ref<VertexArray> m_VertexArray;  // Lazy loaded GPU resource
+
+        // Create VertexArray from MeshData
         void LoadToGPU();
     };
 

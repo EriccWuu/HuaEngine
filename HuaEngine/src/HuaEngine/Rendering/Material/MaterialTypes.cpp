@@ -4,7 +4,7 @@
 
 namespace HE::Rendering {
 
-	// StandardMaterial 实现
+	// StandardMaterial implementation
 	StandardMaterial::StandardMaterial(const std::string& name)
 		: Material(name, MaterialType::Standard)
 	{
@@ -13,15 +13,15 @@ namespace HE::Rendering {
 
 	void StandardMaterial::InitializeParameters()
 	{
-		// 基础颜色参数
+		// Base color parameter
 		AddParameter(MaterialParameter("u_BaseColor", MaterialParameterType::Vec4, glm::vec4(1.0f, 1.0f, 1.0f, 1.0f)));
-		
-		// PBR 参数
+
+		// PBR parameters
 		AddParameter(MaterialParameter("u_Metallic", MaterialParameterType::Float, 0.0f));
 		AddParameter(MaterialParameter("u_Roughness", MaterialParameterType::Float, 0.5f));
 		AddParameter(MaterialParameter("u_AO", MaterialParameterType::Float, 1.0f));
 
-		// 纹理参数
+		// Texture parameters
 		AddParameter(MaterialParameter("u_DiffuseTexture", MaterialParameterType::Texture2D, Ref<Texture2D>()));
 		AddParameter(MaterialParameter("u_NormalTexture", MaterialParameterType::Texture2D, Ref<Texture2D>()));
 		AddParameter(MaterialParameter("u_MetallicRoughnessTexture", MaterialParameterType::Texture2D, Ref<Texture2D>()));
@@ -73,7 +73,7 @@ namespace HE::Rendering {
 		return std::make_shared<StandardMaterial>(name);
 	}
 
-	// UnlitMaterial 实现
+	// UnlitMaterial implementation
 	UnlitMaterial::UnlitMaterial(const std::string& name)
 		: Material(name, MaterialType::Unlit)
 	{
@@ -82,10 +82,10 @@ namespace HE::Rendering {
 
 	void UnlitMaterial::InitializeParameters()
 	{
-		// 基础颜色参数
+		// Base color parameter
 		AddParameter(MaterialParameter("u_Color", MaterialParameterType::Vec4, glm::vec4(1.0f, 1.0f, 1.0f, 1.0f)));
-		
-		// 纹理参数
+
+		// Texture parameter
 		AddParameter(MaterialParameter("u_Texture", MaterialParameterType::Texture2D, Ref<Texture2D>()));
 	}
 
@@ -104,7 +104,7 @@ namespace HE::Rendering {
 		return std::make_shared<UnlitMaterial>(name);
 	}
 
-	// CustomMaterial 实现
+	// CustomMaterial implementation
 	CustomMaterial::CustomMaterial(const std::string& name, Ref<Shader> shader)
 		: Material(name, MaterialType::Custom)
 	{

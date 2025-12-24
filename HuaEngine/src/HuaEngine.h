@@ -41,47 +41,47 @@
 // Math
 #include "HuaEngine/Math/Math.h"
 
-// 渲染类型别名，便于外部代码使用
+// Rendering type aliases for external code convenience
 namespace HE {
-	// 渲染核心类型别名
+	// Core rendering type aliases
 	using Camera = Rendering::Camera;
 	using Renderer = Rendering::Renderer;
 	using RenderCommand = Rendering::RenderCommand;
 	using RendererAPI = Rendering::RendererAPI;
-	
-	// 缓冲区相关
+
+	// Buffer related
 	using Buffer = Rendering::Buffer;
 	using VertexBuffer = Rendering::VertexBuffer;
 	using IndexBuffer = Rendering::IndexBuffer;
 	using VertexArray = Rendering::VertexArray;
 	using BufferLayout = Rendering::BufferLayout;
 	using ShaderDataType = Rendering::ShaderDataType;
-	
-	// 着色器和纹理
+
+	// Shader and texture
 	using Shader = Rendering::Shader;
 	using Texture = Rendering::Texture;
 	using Texture2D = Rendering::Texture2D;
-	
-	// 帧缓冲
+
+	// Framebuffer
 	using FrameBuffer = Rendering::FrameBuffer;
 	using FrameBufferSpecification = Rendering::FrameBufferSpecification;
 	using FrameBufferTextureFormat = Rendering::FrameBufferTextureFormat;
-	
-	// 材质系统
+
+	// Material system
 	using Material = Rendering::Material;
 	using MaterialInstance = Rendering::MaterialInstance;
-	
-	// 网格系统
+
+	// Mesh system
 	using Mesh = Rendering::Mesh;
 	using MeshData = Rendering::MeshData;
 	using MeshManager = Rendering::MeshManager;
-	
-	// 序列化系统
+
+	// Serialization system
 	using SerializationFormat = Serialization::SerializationFormat;
 	using SerializationBackend = Serialization::SerializationBackend;
 	using SerializationManager = Serialization::SerializationManager;
-	
-	// 渲染组件别名
+
+	// Rendering component aliases
 	using CameraComponent = Rendering::CameraComponent;
 	using MaterialComponent = Rendering::MaterialComponent;
 	using MeshComponent = Rendering::MeshComponent;

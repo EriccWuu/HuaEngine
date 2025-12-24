@@ -33,9 +33,8 @@
           "data": {
             "MaterialInstance": {
               "base_material_name": "SandboxMaterial",
-              "parameter_overrides": [
-                {
-                  "name": "u_Color",
+              "parameter_overrides": {
+                "u_Color": {
                   "type": "Vec4",
                   "value": {
                     "w": 1.000000,
@@ -44,7 +43,7 @@
                     "z": 0.900000
                   }
                 }
-              ]
+              }
             }
           }
         }
@@ -84,9 +83,8 @@
           "data": {
             "MaterialInstance": {
               "base_material_name": "SandboxMaterial",
-              "parameter_overrides": [
-                {
-                  "name": "u_Color",
+              "parameter_overrides": {
+                "u_Color": {
                   "type": "Vec4",
                   "value": {
                     "w": 1.000000,
@@ -95,7 +93,7 @@
                     "z": 0.900000
                   }
                 }
-              ]
+              }
             }
           }
         }
@@ -135,9 +133,8 @@
           "data": {
             "MaterialInstance": {
               "base_material_name": "SandboxMaterial",
-              "parameter_overrides": [
-                {
-                  "name": "u_Color",
+              "parameter_overrides": {
+                "u_Color": {
                   "type": "Vec4",
                   "value": {
                     "w": 1.000000,
@@ -146,15 +143,14 @@
                     "z": 0.900000
                   }
                 },
-                {
-                  "name": "u_TextureScale",
+                "u_TextureScale": {
                   "type": "Vec2",
                   "value": {
                     "x": 2.000000,
                     "y": 2.000000
                   }
                 }
-              ]
+              }
             }
           }
         }
@@ -194,9 +190,8 @@
           "data": {
             "MaterialInstance": {
               "base_material_name": "SandboxMaterial",
-              "parameter_overrides": [
-                {
-                  "name": "u_Color",
+              "parameter_overrides": {
+                "u_Color": {
                   "type": "Vec4",
                   "value": {
                     "w": 1.000000,
@@ -205,7 +200,7 @@
                     "z": 0.800000
                   }
                 }
-              ]
+              }
             }
           }
         }

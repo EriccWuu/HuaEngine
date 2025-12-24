@@ -15,7 +15,7 @@ namespace HE::Rendering {
 		Texture2D, TextureCube, IntArray, FloatArray
 	};
 
-	// 材质参数的变体类型
+	// Material parameter variant type
 	using MaterialParameterValue = std::variant<
 		int, float, glm::vec2, glm::vec3, glm::vec4, glm::mat3, glm::mat4,
 		Ref<Texture2D>, std::vector<int>, std::vector<float>
@@ -33,12 +33,12 @@ namespace HE::Rendering {
 
 	enum class MaterialType {
 		Empty,
-		Standard,   // PBR 材质
-		Unlit,      // 无光照材质
-		Custom      // 自定义材质
+		Standard,   // PBR material
+		Unlit,      // Unlit material
+		Custom      // Custom material
 	};
 
-	class MaterialInstance; // 前向声明
+	class MaterialInstance; // Forward declaration
 
 	class Material : public std::enable_shared_from_this<Material> {
 	public:
@@ -46,52 +46,52 @@ namespace HE::Rendering {
 		Material(const std::string& name, MaterialType type = MaterialType::Empty);
 		virtual ~Material() = default;
 
-		// 静态创建函数，用于反序列化
+		// Static creation function for deserialization
 		static Ref<Material> Create(const std::string& name, MaterialType type = MaterialType::Empty);
-		static Ref<Material> CreateFromDeserialization(); // 用于反序列化时的临时创建
+		static Ref<Material> CreateFromDeserialization(); // For temporary creation during deserialization
 
-		// 基本属性
+		// Basic properties
 		const std::string& GetName() const { return m_Name; }
 		MaterialType GetType() const { return m_Type; }
 		Ref<Shader> GetShader() const { return m_Shader; }
 		void SetShader(Ref<Shader> shader) { m_Shader = shader; }
-		
-		// 反序列化用的 set 接口
+
+		// Setter interface for deserialization
 		void SetName(const std::string& name) { m_Name = name; }
 		void SetType(MaterialType type) { m_Type = type; }
 
-		// 参数管理
+		// Parameter management
 		void AddParameter(const MaterialParameter& parameter);
 		bool HasParameter(const std::string& name) const;
 		const MaterialParameter* GetParameter(const std::string& name) const;
 		const std::unordered_map<std::string, MaterialParameter>& GetParameters() const { return m_Parameters; }
-		
-		// 反序列化用的参数管理接口
+
+		// Parameter management interface for deserialization
 		void SetParameters(const std::unordered_map<std::string, MaterialParameter>& parameters) { m_Parameters = parameters; }
 		void ClearParameters() { m_Parameters.clear(); }
 
-		// 纹理槽管理
+		// Texture slot management
 		void SetTextureSlot(const std::string& name, uint32_t slot);
 		uint32_t GetTextureSlot(const std::string& name) const;
 		const std::unordered_map<std::string, uint32_t>& GetTextureSlots() const { return m_TextureSlots; }
-		
-		// 反序列化用的纹理槽接口
+
+		// Texture slot interface for deserialization
 		void SetTextureSlots(const std::unordered_map<std::string, uint32_t>& slots) { m_TextureSlots = slots; }
 		void ClearTextureSlots() { m_TextureSlots.clear(); m_NextTextureSlot = 0; }
 
-		// 材质操作
+		// Material operations
 		virtual void Bind();
 		virtual void Unbind();
 		virtual void SetParameter(const std::string& name, const MaterialParameterValue& value);
 
-		// 材质实例创建
+		// Create material instance
 		virtual Ref<MaterialInstance> CreateInstance();
 
-		// 序列化支持（后续实现）
+		// Serialization support (to be implemented)
 		virtual void Serialize() {}
 		virtual void Deserialize() {}
 
-		// 应用参数到 Shader (MaterialInstance 需要访问)
+		// Apply parameter to shader (MaterialInstance needs access)
 		void ApplyParameter(const std::string& name, const MaterialParameterValue& value);
 
 	protected:
@@ -109,21 +109,21 @@ namespace HE::Rendering {
 		MaterialInstance(Ref<Material> baseMaterial);
 		~MaterialInstance() = default;
 
-		// 基本属性
+		// Basic properties
 		Ref<Material> GetBaseMaterial() const { return m_BaseMaterial; }
 		Ref<Shader> GetShader() const { return m_BaseMaterial->GetShader(); }
 
-		// 参数覆盖
+		// Parameter overrides
 		void SetParameter(const std::string& name, const MaterialParameterValue& value);
 		bool HasParameterOverride(const std::string& name) const;
 		const MaterialParameter* GetParameterOverride(const std::string& name) const;
 		const std::unordered_map<std::string, MaterialParameter>& GetParameterOverrides() const { return m_ParameterOverrides; }
-		
-		// 反序列化用的接口
+
+		// Interface for deserialization
 		void ClearParameterOverrides() { m_ParameterOverrides.clear(); }
 		void SetParameterOverrides(const std::unordered_map<std::string, MaterialParameter>& overrides) { m_ParameterOverrides = overrides; }
 
-		// 材质操作
+		// Material operations
 		void Bind();
 		void Unbind();
 		void ApplyParameters();

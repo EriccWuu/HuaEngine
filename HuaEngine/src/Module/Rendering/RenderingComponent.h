@@ -21,7 +21,7 @@ namespace HE::Rendering {
 		bool FixedAspectRatio = false;
 	};
 
-	// 新的材质组件
+	// Material component
 	struct MaterialComponent : Component {
 		MaterialComponent() = default;
 		MaterialComponent(const Ref<HE::Rendering::MaterialInstance>& materialInstance)
@@ -30,7 +30,7 @@ namespace HE::Rendering {
 		Ref<HE::Rendering::MaterialInstance> MaterialInstance;
 	};
 
-	// 保留 RendererComponent 用于向后兼容（标记为已弃用）
+	// Legacy RendererComponent for backward compatibility (deprecated)
 	struct RendererComponent : Component {
 		RendererComponent() = default;
 		RendererComponent(const Ref<HE::Rendering::Shader>& shader, const Ref<HE::Rendering::Texture>& texture)
@@ -47,10 +47,10 @@ namespace HE::Rendering {
 		MeshComponent(const Ref<VertexArray>& vertexArray)
 			: m_CachedVertexArray(vertexArray) {}
 
-		std::string MeshAssetName;     // 网格资产名称（用于序列化）
-		Ref<VertexArray> m_CachedVertexArray;  // 运行时缓存的 VertexArray（不序列化）
+		std::string MeshAssetName;             // Mesh asset name (for serialization)
+		Ref<VertexArray> m_CachedVertexArray;  // Runtime cached VertexArray (not serialized)
 
-		// 获取网格资产
+		// Get mesh asset
 		Ref<HE::Rendering::Mesh> GetMesh() const {
 			if (!MeshAssetName.empty()) {
 				return HE::Rendering::MeshManager::Instance().GetMesh(MeshAssetName);
@@ -58,14 +58,14 @@ namespace HE::Rendering {
 			return nullptr;
 		}
 
-		// 获取 VertexArray（延迟加载）
+		// Get VertexArray (lazy loading)
 		Ref<HE::Rendering::VertexArray> GetVertexArray() {
-			// 如果已经有缓存的 VertexArray，直接返回
+			// Return cached VertexArray if available
 			if (m_CachedVertexArray) {
 				return m_CachedVertexArray;
 			}
 
-			// 尝试从资产管理器获取
+			// Try to get from asset manager
 			auto mesh = GetMesh();
 			if (mesh) {
 				m_CachedVertexArray = mesh->GetVertexArray();
@@ -75,13 +75,13 @@ namespace HE::Rendering {
 			return nullptr;
 		}
 
-		// 设置网格资产
+		// Set mesh asset by name
 		void SetMesh(const std::string& meshName) {
 			MeshAssetName = meshName;
-			m_CachedVertexArray = nullptr;  // 清除缓存，下次访问时重新加载
+			m_CachedVertexArray = nullptr;  // Clear cache, reload on next access
 		}
 
-		// 设置网格资产（直接使用 Mesh 对象）
+		// Set mesh asset (using Mesh object directly)
 		void SetMesh(Ref<Mesh> mesh) {
 			if (mesh) {
 				MeshAssetName = mesh->GetName();
@@ -89,7 +89,7 @@ namespace HE::Rendering {
 			}
 		}
 
-		// 检查是否有有效的网格
+		// Check if mesh is valid
 		bool HasValidMesh() const {
 			return !MeshAssetName.empty() && GetMesh() != nullptr;
 		}

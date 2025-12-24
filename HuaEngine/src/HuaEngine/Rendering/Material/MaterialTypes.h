@@ -4,19 +4,19 @@
 
 namespace HE::Rendering {
 
-	// 标准 PBR 材质
+	// Standard PBR material
 	class StandardMaterial : public Material {
 	public:
 		StandardMaterial(const std::string& name = "StandardMaterial");
 		virtual ~StandardMaterial() = default;
 
-		// 预定义的 PBR 参数设置方法
+		// Predefined PBR parameter setters
 		void SetBaseColor(const glm::vec4& color);
 		void SetMetallic(float metallic);
 		void SetRoughness(float roughness);
 		void SetAO(float ao);
 
-		// 预定义的纹理设置方法
+		// Predefined texture setters
 		void SetDiffuseTexture(Ref<Texture2D> texture);
 		void SetNormalTexture(Ref<Texture2D> texture);
 		void SetMetallicRoughnessTexture(Ref<Texture2D> texture);
@@ -28,13 +28,13 @@ namespace HE::Rendering {
 		void InitializeParameters();
 	};
 
-	// 无光照材质
+	// Unlit material
 	class UnlitMaterial : public Material {
 	public:
 		UnlitMaterial(const std::string& name = "UnlitMaterial");
 		virtual ~UnlitMaterial() = default;
 
-		// 预定义的参数设置方法
+		// Predefined parameter setters
 		void SetColor(const glm::vec4& color);
 		void SetDiffuseTexture(Ref<Texture2D> texture);
 
@@ -44,7 +44,7 @@ namespace HE::Rendering {
 		void InitializeParameters();
 	};
 
-	// 自定义材质
+	// Custom material
 	class CustomMaterial : public Material {
 	public:
 		CustomMaterial(const std::string& name, Ref<Shader> shader);

@@ -96,7 +96,7 @@ namespace HE::Rendering {
 
 	Ref<Material> MaterialLibrary::LoadMaterial(const std::string& path)
 	{
-		// TODO: 实现从文件加载材质
+		// TODO: Implement material loading from file
 		HE_CORE_WARN("Material loading from file not yet implemented: {0}", path);
 		return m_DefaultMaterial;
 	}
@@ -124,14 +124,14 @@ namespace HE::Rendering {
 
 	void MaterialLibrary::CreateDefaultMaterials()
 	{
-		// 创建默认的 Unlit 材质
+		// Create default Unlit material
 		m_DefaultMaterial = CreateUnlitMaterial("DefaultMaterial");
-		
-		// 设置默认参数
+
+		// Set default parameters
 		auto defaultUnlit = std::dynamic_pointer_cast<UnlitMaterial>(m_DefaultMaterial);
 		if (defaultUnlit)
 		{
-			defaultUnlit->SetColor(glm::vec4(1.0f, 0.0f, 1.0f, 1.0f)); // 洋红色，表示缺失纹理
+			defaultUnlit->SetColor(glm::vec4(1.0f, 0.0f, 1.0f, 1.0f)); // Magenta to indicate missing texture
 		}
 
 		HE_CORE_INFO("Created default materials");
