@@ -5,18 +5,18 @@
 
 namespace HE::Rendering {
 
-    // 材质参数值序列化
+    // Material parameter value serialization
     class MaterialParameterSerializer {
     public:
         static void Serialize(HE::Serialization::SerializationBackend& backend, const std::string& name, const MaterialParameterValue& value);
         static bool Deserialize(HE::Serialization::SerializationBackend& backend, const std::string& name, MaterialParameterValue& value, MaterialParameterType type);
-        
-        // 辅助函数：从类型名称获取类型枚举
+
+        // Helper: convert between type string and enum
         static MaterialParameterType StringToParameterType(const std::string& typeStr);
         static std::string ParameterTypeToString(MaterialParameterType type);
     };
 
-    // 材质类型序列化
+    // Material type serialization
     inline std::string MaterialTypeToString(MaterialType type) {
         switch (type) {
             case MaterialType::Standard: return "Standard";
@@ -30,7 +30,7 @@ namespace HE::Rendering {
         if (typeStr == "Standard") return MaterialType::Standard;
         if (typeStr == "Unlit") return MaterialType::Unlit;
         if (typeStr == "Custom") return MaterialType::Custom;
-        return MaterialType::Custom; // 默认为自定义
+        return MaterialType::Custom; // Default to custom
     }
 
     inline bool SaveMaterial(Material* material, const std::string& filename, HE::Serialization::SerializationFormat format = HE::Serialization::SerializationFormat::JSON) {
@@ -45,20 +45,19 @@ namespace HE::Rendering {
 
 namespace HE::Serialization {
 
-    // 材质参数序列化 (使用参数名作为对象键)
-    // 序列化格式: "paramName": { "type": "Float", "value": 0.5 }
+    // Material parameter serialization (uses parameter name as object key)
+    // Format: "paramName": { "type": "Float", "value": 0.5 }
     template<>
     struct Serializer<Rendering::MaterialParameter> {
-        // 序列化单个参数 (参数名作为对象键)
+        // Serialize single parameter (parameter name as object key)
         static void Serialize(SerializationBackend& backend, const std::string& name, const Rendering::MaterialParameter& param) {
-            // name 参数就是参数名，用作对象键
             backend.BeginObject(name);
             backend.Serialize("type", Rendering::MaterialParameterSerializer::ParameterTypeToString(param.Type));
             Rendering::MaterialParameterSerializer::Serialize(backend, "value", param.Value);
             backend.EndObject();
         }
 
-        // 反序列化单个参数 (需要外部提供参数名)
+        // Deserialize single parameter (parameter name provided externally)
         static bool Deserialize(SerializationBackend& backend, const std::string& name, Rendering::MaterialParameter& param) {
             backend.BeginObject(name);
 
@@ -67,7 +66,6 @@ namespace HE::Serialization {
                 return false;
             }
 
-            // 参数名由外部传入
             param.Name = name;
 
             std::string typeStr;
@@ -81,25 +79,25 @@ namespace HE::Serialization {
         }
     };
 
-    // 材质基类序列化
+    // Material serialization
     template<>
     struct Serializer<Rendering::Material> {
         static void Serialize(SerializationBackend& backend, const std::string& name, const Rendering::Material& material) {
             if (!name.empty())
                 backend.BeginObject(name);
 
-            // 基本属性
+            // Basic properties
             backend.Serialize("name", material.GetName());
             backend.Serialize("type", Rendering::MaterialTypeToString(material.GetType()));
 
-            // Shader 路径
+            // Shader path
             std::string shaderPath = "";
             if (material.GetShader()) {
                 shaderPath = material.GetShader()->GetPath();
             }
             backend.Serialize("shader_path", shaderPath);
 
-            // 参数列表 (对象格式: "paramName": { "type": "...", "value": ... })
+            // Parameters (object format: "paramName": { "type": "...", "value": ... })
             const auto& parameters = material.GetParameters();
             backend.BeginObject("parameters");
             for (const auto& [paramName, param] : parameters) {
@@ -107,7 +105,7 @@ namespace HE::Serialization {
             }
             backend.EndObject();
 
-            // 纹理槽信息
+            // Texture slots
             const auto& textureSlots = material.GetTextureSlots();
             if (!textureSlots.empty()) {
                 backend.BeginObject("texture_slots");
@@ -125,7 +123,7 @@ namespace HE::Serialization {
             if (!name.empty())
                 backend.BeginObject(name);
 
-            // 检查必要字段
+            // Check required fields
             if (!(backend.HasField("type") &&
                 backend.HasField("name") &&
                 backend.HasField("parameters"))) {
@@ -145,17 +143,17 @@ namespace HE::Serialization {
             backend.Deserialize("name", matName);
             material.SetName(matName);
 
-            // 根据 shaderPath 加载 Shader
+            // Load shader from path
             if (!shaderPath.empty()) {
                 auto shader = Rendering::Shader::CreateFromFile(shaderPath);
                 material.SetShader(shader);
             }
 
-            // 参数列表 (对象格式，使用 ForEachField 遍历)
+            // Parameters (object format, iterate using ForEachField)
             backend.BeginObject("parameters");
             backend.ForEachField([&](const std::string& paramName) {
                 Rendering::MaterialParameter param;
-                // ForEachField 已将上下文切换到 paramName 对应的值节点
+                // ForEachField has switched context to the value node for paramName
                 if (backend.HasField("type") && backend.HasField("value")) {
                     param.Name = paramName;
 
@@ -170,7 +168,7 @@ namespace HE::Serialization {
             });
             backend.EndObject();
 
-            // 纹理槽信息 (使用 ForEachField 遍历)
+            // Texture slots (iterate using ForEachField)
             if (backend.HasField("texture_slots")) {
                 backend.BeginObject("texture_slots");
                 backend.ForEachField([&](const std::string& slotName) {
@@ -188,17 +186,17 @@ namespace HE::Serialization {
         }
     };
 
-    // 材质实例序列化
+    // Material instance serialization
     template<>
     struct Serializer<Rendering::MaterialInstance> {
         static void Serialize(SerializationBackend& backend, const std::string& name, const Rendering::MaterialInstance& instance) {
             if (!name.empty())
                 backend.BeginObject(name);
 
-            // 基础材质名称
+            // Base material name
             backend.Serialize("base_material_name", instance.GetBaseMaterial()->GetName());
 
-            // 参数覆盖 (对象格式: "paramName": { "type": "...", "value": ... })
+            // Parameter overrides (object format: "paramName": { "type": "...", "value": ... })
             const auto& overrideParams = instance.GetParameterOverrides();
             backend.BeginObject("parameter_overrides");
             for (const auto& [paramName, param] : overrideParams) {
@@ -221,13 +219,13 @@ namespace HE::Serialization {
             std::string baseMaterialName;
             backend.Deserialize("base_material_name", baseMaterialName);
 
-            // 清除现有的参数覆盖
+            // Clear existing parameter overrides
             instance.ClearParameterOverrides();
 
-            // 参数覆盖 (对象格式，使用 ForEachField 遍历)
+            // Parameter overrides (object format, iterate using ForEachField)
             backend.BeginObject("parameter_overrides");
             backend.ForEachField([&](const std::string& paramName) {
-                // ForEachField 已将上下文切换到 paramName 对应的值节点
+                // ForEachField has switched context to the value node for paramName
                 if (backend.HasField("type") && backend.HasField("value")) {
                     std::string typeStr;
                     backend.Deserialize("type", typeStr);
