@@ -52,7 +52,6 @@ namespace HE::Serialization {
             backend.BeginObject(name);
             backend.Serialize("name", param.Name);
             backend.Serialize("type", Rendering::MaterialParameterSerializer::ParameterTypeToString(param.Type));
-            backend.Serialize("is_texture", param.IsTexture);
             
             // 序列化默认值
             Rendering::MaterialParameterSerializer::Serialize(backend, "value", param.Value);
@@ -66,7 +65,6 @@ namespace HE::Serialization {
             // 在对象内部检查字段
             if (!(backend.HasField("name") &&
                 backend.HasField("type") &&
-                backend.HasField("is_texture") &&
                 backend.HasField("value"))) {
                 backend.EndObject();
                 return false;
@@ -77,8 +75,6 @@ namespace HE::Serialization {
             std::string typeStr;
             backend.Deserialize("type", typeStr);
             param.Type = Rendering::MaterialParameterSerializer::StringToParameterType(typeStr);
-                
-            backend.Deserialize("is_texture", param.IsTexture);
                 
             // 反序列化默认值
             Rendering::MaterialParameterSerializer::Deserialize(backend, "value", param.Value, param.Type);

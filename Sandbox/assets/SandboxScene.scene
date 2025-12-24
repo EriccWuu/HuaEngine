@@ -35,14 +35,13 @@
               "base_material_name": "SandboxMaterial",
               "parameter_overrides": [
                 {
-                  "is_texture": false,
                   "name": "u_Color",
                   "type": "Vec4",
                   "value": {
                     "w": 1.000000,
                     "x": 0.800000,
                     "y": 0.000000,
-                    "z": 0.000000
+                    "z": 0.900000
                   }
                 }
               ]
@@ -87,14 +86,13 @@
               "base_material_name": "SandboxMaterial",
               "parameter_overrides": [
                 {
-                  "is_texture": false,
                   "name": "u_Color",
                   "type": "Vec4",
                   "value": {
                     "w": 1.000000,
                     "x": 0.800000,
                     "y": 0.000000,
-                    "z": 0.000000
+                    "z": 0.900000
                   }
                 }
               ]
@@ -139,7 +137,6 @@
               "base_material_name": "SandboxMaterial",
               "parameter_overrides": [
                 {
-                  "is_texture": false,
                   "name": "u_Color",
                   "type": "Vec4",
                   "value": {
@@ -150,7 +147,6 @@
                   }
                 },
                 {
-                  "is_texture": false,
                   "name": "u_TextureScale",
                   "type": "Vec2",
                   "value": {
@@ -200,14 +196,13 @@
               "base_material_name": "SandboxMaterial",
               "parameter_overrides": [
                 {
-                  "is_texture": false,
                   "name": "u_Color",
                   "type": "Vec4",
                   "value": {
                     "w": 1.000000,
                     "x": 1.000000,
                     "y": 1.000000,
-                    "z": 0.000000
+                    "z": 0.800000
                   }
                 }
               ]

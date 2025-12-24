@@ -22,10 +22,10 @@ namespace HE::Rendering {
 		AddParameter(MaterialParameter("u_AO", MaterialParameterType::Float, 1.0f));
 
 		// 纹理参数
-		AddParameter(MaterialParameter("u_DiffuseTexture", MaterialParameterType::Texture2D, Ref<Texture2D>(), true));
-		AddParameter(MaterialParameter("u_NormalTexture", MaterialParameterType::Texture2D, Ref<Texture2D>(), true));
-		AddParameter(MaterialParameter("u_MetallicRoughnessTexture", MaterialParameterType::Texture2D, Ref<Texture2D>(), true));
-		AddParameter(MaterialParameter("u_AOTexture", MaterialParameterType::Texture2D, Ref<Texture2D>(), true));
+		AddParameter(MaterialParameter("u_DiffuseTexture", MaterialParameterType::Texture2D, Ref<Texture2D>()));
+		AddParameter(MaterialParameter("u_NormalTexture", MaterialParameterType::Texture2D, Ref<Texture2D>()));
+		AddParameter(MaterialParameter("u_MetallicRoughnessTexture", MaterialParameterType::Texture2D, Ref<Texture2D>()));
+		AddParameter(MaterialParameter("u_AOTexture", MaterialParameterType::Texture2D, Ref<Texture2D>()));
 	}
 
 	void StandardMaterial::SetBaseColor(const glm::vec4& color)
@@ -86,7 +86,7 @@ namespace HE::Rendering {
 		AddParameter(MaterialParameter("u_Color", MaterialParameterType::Vec4, glm::vec4(1.0f, 1.0f, 1.0f, 1.0f)));
 		
 		// 纹理参数
-		AddParameter(MaterialParameter("u_Texture", MaterialParameterType::Texture2D, Ref<Texture2D>(), true));
+		AddParameter(MaterialParameter("u_Texture", MaterialParameterType::Texture2D, Ref<Texture2D>()));
 	}
 
 	void UnlitMaterial::SetColor(const glm::vec4& color)

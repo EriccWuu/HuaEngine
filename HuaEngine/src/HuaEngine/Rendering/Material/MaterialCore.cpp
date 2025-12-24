@@ -25,7 +25,7 @@ namespace HE::Rendering {
 		m_Parameters[parameter.Name] = parameter;
 		
 		// 如果是纹理参数，自动分配纹理槽
-		if (parameter.IsTexture)
+		if (parameter.Type == MaterialParameterType::Texture2D)
 		{
 			SetTextureSlot(parameter.Name, m_NextTextureSlot++);
 		}

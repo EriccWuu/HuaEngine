@@ -25,11 +25,10 @@ namespace HE::Rendering {
 		std::string Name;
 		MaterialParameterType Type;
 		MaterialParameterValue Value;
-		bool IsTexture;
 
 		MaterialParameter() = default;
-		MaterialParameter(const std::string& name, MaterialParameterType type, const MaterialParameterValue& defaultValue, bool isTexture = false)
-			: Name(name), Type(type), Value(defaultValue), IsTexture(isTexture) {}
+		MaterialParameter(const std::string& name, MaterialParameterType type, const MaterialParameterValue& defaultValue)
+			: Name(name), Type(type), Value(defaultValue) {}
 	};
 
 	enum class MaterialType {

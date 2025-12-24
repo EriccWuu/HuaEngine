@@ -31,7 +31,8 @@ public:
 
     void OnAttach() override {
 
-        // MaterialSerializationTest::RunTest();
+        MaterialSerializationTest::RunTest();
+
         // Initialize camera
         m_EditorCamera.reset(new Rendering::EditorCamera());
         m_Scene.reset(new Scene());

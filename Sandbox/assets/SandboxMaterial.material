@@ -3,7 +3,6 @@
   "parameters": [
     {
       "value": "texture_path_placeholder",
-      "is_texture": true,
       "name": "u_MainTexture",
       "type": "Texture2D"
     },
@@ -14,7 +13,6 @@
         "y": 1.000000,
         "z": 1.000000
       },
-      "is_texture": false,
       "name": "u_Color",
       "type": "Vec4"
     },
@@ -23,7 +21,6 @@
         "x": 1.000000,
         "y": 1.000000
       },
-      "is_texture": false,
       "name": "u_TextureScale",
       "type": "Vec2"
     }
