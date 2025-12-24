@@ -76,6 +76,12 @@ namespace HE::Serialization {
         virtual size_t GetArraySize(const std::string& name) const = 0;
         virtual SerializationType GetFieldType(const std::string& name) const = 0;
 
+        // Object key iteration
+        virtual std::vector<std::string> GetObjectKeys() const = 0;
+
+        // Iterate over object key-value pairs (callback receives key and enters the value context)
+        virtual void ForEachField(const std::function<void(const std::string& key)>& callback) = 0;
+
         // IO operations
         virtual void LoadFromString(const std::string& data) = 0;
         virtual void LoadFromFile(const std::string& filename) = 0;

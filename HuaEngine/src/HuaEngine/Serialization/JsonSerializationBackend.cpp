@@ -391,7 +391,7 @@ namespace HE::Serialization {
     SerializationType JsonSerializationBackend::GetFieldType(const std::string& name) const {
         auto current = m_NodeStack.empty() ? nullptr : m_NodeStack.top();
         if (!current || current->type != JsonNode::Object) return SerializationType::Object;
-        
+
         auto it = current->objectData.find(name);
         if (it != current->objectData.end()) {
             auto& node = it->second;
@@ -408,6 +408,34 @@ namespace HE::Serialization {
             }
         }
         return SerializationType::Object;
+    }
+
+    std::vector<std::string> JsonSerializationBackend::GetObjectKeys() const {
+        std::vector<std::string> keys;
+        auto current = m_NodeStack.empty() ? nullptr : m_NodeStack.top();
+
+        if (current && current->type == JsonNode::Object) {
+            for (const auto& [key, value] : current->objectData) {
+                keys.push_back(key);
+            }
+        }
+
+        return keys;
+    }
+
+    void JsonSerializationBackend::ForEachField(const std::function<void(const std::string& key)>& callback) {
+        auto current = m_NodeStack.empty() ? nullptr : m_NodeStack.top();
+
+        if (!current || current->type != JsonNode::Object) {
+            return;
+        }
+
+        for (const auto& [key, valueNode] : current->objectData) {
+            // Push the value node onto the stack so the callback can access it
+            m_NodeStack.push(valueNode);
+            callback(key);
+            m_NodeStack.pop();
+        }
     }
 
     // String helpers
