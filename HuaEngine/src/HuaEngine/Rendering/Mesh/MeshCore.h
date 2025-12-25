@@ -62,28 +62,47 @@ namespace HE::Rendering {
 namespace HE::Serialization {
     template<>
     struct Serializer<Rendering::Mesh> {
-        static bool Serialize(SerializationBackend& backend, const std::string& name, const Rendering::Mesh& value) {
-            backend.BeginObject(name);
-            HE::Serialization::SerializeValue(backend, "mesh_name", value.GetName());
-            HE::Serialization::SerializeValue(backend, "mesh_data", value.GetMeshData());
-            backend.EndObject();
-            return true;
+        static void Serialize(SerializationBackend& backend, const std::string& name, const Rendering::Mesh& mesh) {
+            if (!name.empty())
+                backend.BeginObject(name);
+
+            SerializeValue(backend, "mesh_name", mesh.GetName());
+            SerializeValue(backend, "mesh_data", mesh.GetMeshData());
+
+            if (!name.empty())
+                backend.EndObject();
         }
 
-        static bool Deserialize(SerializationBackend& backend, const std::string& name, Rendering::Mesh& value) {
-            // backend.BeginObject(name);
-            if (!(backend.HasField("mesh_name") && backend.HasField("mesh_data")))
+        static bool Deserialize(SerializationBackend& backend, const std::string& name, Rendering::Mesh& mesh) {
+            if (!name.empty())
+                backend.BeginObject(name);
+
+            if (!(backend.HasField("mesh_name") && backend.HasField("mesh_data"))) {
+                if (!name.empty())
+                    backend.EndObject();
                 return false;
+            }
 
-            std::string meshName = "";
-            HE::Serialization::DeserializeValue(backend, "mesh_name", meshName);
-            value.SetName(meshName);
+            std::string meshName;
+            DeserializeValue(backend, "mesh_name", meshName);
+            mesh.SetName(meshName);
 
-            auto meshData = Rendering::MeshData();
-            HE::Serialization::DeserializeValue(backend, "mesh_data", meshData);
-            value.SetMeshData(meshData);
-            // backend.EndObject();
+            Rendering::MeshData meshData;
+            DeserializeValue(backend, "mesh_data", meshData);
+            mesh.SetMeshData(meshData);
+
+            if (!name.empty())
+                backend.EndObject();
             return true;
         }
     };
+
+    // Convenience functions for Mesh serialization
+    inline bool SaveMesh(const Rendering::Mesh& mesh, const std::string& filename, SerializationFormat format = SerializationFormat::JSON) {
+        return SERIALIZE_TO_FILE(mesh, filename, format);
+    }
+
+    inline bool LoadMesh(const std::string& filename, Rendering::Mesh& mesh, SerializationFormat format = SerializationFormat::JSON) {
+        return DESERIALIZE_FROM_FILE(filename, mesh, format);
+    }
 } // namespace HE::Serialization

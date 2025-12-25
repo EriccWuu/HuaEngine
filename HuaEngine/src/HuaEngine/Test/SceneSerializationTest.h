@@ -40,17 +40,16 @@ namespace HE {
             registry.emplace<TransformComponent>(entity3, transform3);
 
             HE_CORE_INFO("Created scene with 3 entities:");
-            HE_CORE_INFO("- Entity 1: Position({}, {}, {}), Rotation({}, {}, {}), Scale({}, {}, {})", 
+            HE_CORE_INFO("- Entity 1: Position({}, {}, {}), Rotation({}, {}, {}), Scale({}, {}, {})",
                 transform1.Position.x, transform1.Position.y, transform1.Position.z,
                 transform1.Rotation.x, transform1.Rotation.y, transform1.Rotation.z,
                 transform1.Scale.x, transform1.Scale.y, transform1.Scale.z);
 
-            // Serialize scene
-            SceneSerializer serializer(&scene);
+            // Serialize scene using new API
             std::string filename = "test_scene.json";
-            
+
             HE_CORE_INFO("Serializing scene to '{}'...", filename);
-            if (serializer.SerializeScene(filename, SerializationFormat::JSON)) {
+            if (Serialization::SaveScene(scene, filename)) {
                 HE_CORE_INFO("✅ Scene serialization successful!");
             } else {
                 HE_CORE_ERROR("❌ Scene serialization failed!");
@@ -59,30 +58,29 @@ namespace HE {
 
             // Create new scene and deserialize
             Scene loadedScene;
-            SceneSerializer deserializer(&loadedScene);
-            
+
             HE_CORE_INFO("Deserializing scene from '{}'...", filename);
-            if (deserializer.DeserializeScene(filename, SerializationFormat::JSON)) {
+            if (Serialization::LoadScene(filename, loadedScene)) {
                 HE_CORE_INFO("✅ Scene deserialization successful!");
-                
+
                 // Verify loaded data
                 auto& loadedRegistry = loadedScene.GetEntityManager().GetRegistry();
                 uint32_t entityCount = 0;
                 uint32_t transformCount = 0;
-                
+
                 for (auto entity : loadedRegistry.storage<entt::entity>()) {
                     entityCount++;
                     if (loadedRegistry.all_of<TransformComponent>(entity)) {
                         transformCount++;
                         auto& transform = loadedRegistry.get<TransformComponent>(entity);
-                        HE_CORE_INFO("- Loaded Entity: Position({}, {}, {}), Rotation({}, {}, {}), Scale({}, {}, {})", 
+                        HE_CORE_INFO("- Loaded Entity: Position({}, {}, {}), Rotation({}, {}, {}), Scale({}, {}, {})",
                             transform.Position.x, transform.Position.y, transform.Position.z,
                             transform.Rotation.x, transform.Rotation.y, transform.Rotation.z,
                             transform.Scale.x, transform.Scale.y, transform.Scale.z);
                     }
                 }
-                
-                HE_CORE_INFO("Loaded scene contains {} entities with {} transform components", 
+
+                HE_CORE_INFO("Loaded scene contains {} entities with {} transform components",
                     entityCount, transformCount);
             } else {
                 HE_CORE_ERROR("❌ Scene deserialization failed!");
@@ -103,39 +101,39 @@ namespace HE {
             originalTransform.Scale = {2.0f, 3.0f, 1.5f};
 
             HE_CORE_INFO("Original Transform:");
-            HE_CORE_INFO("- Position: ({}, {}, {})", 
+            HE_CORE_INFO("- Position: ({}, {}, {})",
                 originalTransform.Position.x, originalTransform.Position.y, originalTransform.Position.z);
-            HE_CORE_INFO("- Rotation: ({}, {}, {})", 
+            HE_CORE_INFO("- Rotation: ({}, {}, {})",
                 originalTransform.Rotation.x, originalTransform.Rotation.y, originalTransform.Rotation.z);
-            HE_CORE_INFO("- Scale: ({}, {}, {})", 
+            HE_CORE_INFO("- Scale: ({}, {}, {})",
                 originalTransform.Scale.x, originalTransform.Scale.y, originalTransform.Scale.z);
 
             // Serialize to JSON string
-            auto backend = SerializationManager::Instance().CreateBackend(SerializationFormat::JSON);
+            auto backend = Serialization::SerializationManager::Instance().CreateBackend(Serialization::SerializationFormat::JSON);
             backend->Reset();
             backend->BeginObject();
-            
-            Serializer<TransformComponent>::Serialize(*backend, "transform", originalTransform);
-            
+
+            Serialization::Serializer<TransformComponent>::Serialize(*backend, "transform", originalTransform);
+
             backend->EndObject();
-            std::string jsonString = backend->ToString();
-            
+            std::string jsonString = backend->SaveToString();
+
             HE_CORE_INFO("Serialized JSON:");
             HE_CORE_INFO("{}", jsonString);
 
             // Deserialize
-            auto loadBackend = SerializationManager::Instance().CreateBackend(SerializationFormat::JSON);
-            loadBackend->FromString(jsonString);
-            
+            auto loadBackend = Serialization::SerializationManager::Instance().CreateBackend(Serialization::SerializationFormat::JSON);
+            loadBackend->LoadFromString(jsonString);
+
             TransformComponent loadedTransform;
-            if (Serializer<TransformComponent>::Deserialize(*loadBackend, "transform", loadedTransform)) {
+            if (Serialization::Serializer<TransformComponent>::Deserialize(*loadBackend, "transform", loadedTransform)) {
                 HE_CORE_INFO("✅ Component deserialization successful!");
                 HE_CORE_INFO("Loaded Transform:");
-                HE_CORE_INFO("- Position: ({}, {}, {})", 
+                HE_CORE_INFO("- Position: ({}, {}, {})",
                     loadedTransform.Position.x, loadedTransform.Position.y, loadedTransform.Position.z);
-                HE_CORE_INFO("- Rotation: ({}, {}, {})", 
+                HE_CORE_INFO("- Rotation: ({}, {}, {})",
                     loadedTransform.Rotation.x, loadedTransform.Rotation.y, loadedTransform.Rotation.z);
-                HE_CORE_INFO("- Scale: ({}, {}, {})", 
+                HE_CORE_INFO("- Scale: ({}, {}, {})",
                     loadedTransform.Scale.x, loadedTransform.Scale.y, loadedTransform.Scale.z);
             } else {
                 HE_CORE_ERROR("❌ Component deserialization failed!");

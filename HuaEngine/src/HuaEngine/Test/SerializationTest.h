@@ -106,22 +106,22 @@ namespace HE::Test {
             // Create some entities with components
             for (int i = 0; i < 3; ++i) {
                 auto entity = registry.create();
-                
+
                 TransformComponent transform;
                 transform.Position = {static_cast<float>(i), 0.0f, 0.0f};
                 registry.emplace<TransformComponent>(entity, transform);
             }
 
             // Save the scene
-            if (SaveScene(&scene, "test_scene.json")) {
+            if (Serialization::SaveScene(scene, "test_scene.json")) {
                 std::cout << "Scene saved successfully!" << std::endl;
             }
 
             // Load the scene
             Scene loadedScene;
-            if (LoadScene(&loadedScene, "test_scene.json")) {
+            if (Serialization::LoadScene("test_scene.json", loadedScene)) {
                 std::cout << "Scene loaded successfully!" << std::endl;
-                
+
                 // Count entities in loaded scene
                 auto& loadedRegistry = loadedScene.GetEntityManager().GetRegistry();
                 size_t entityCount = 0;

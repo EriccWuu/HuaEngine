@@ -1,6 +1,7 @@
 #include "enginepch.h"
 #include "MaterialSerializationTest.h"
 #include "HuaEngine/Serialization/Serialization.h"
+#include "HuaEngine/Rendering/Material/MaterialSerializer.h"
 #include "Platform/OpenGL/OpenGLShader.h"
 #include <iostream>
 
@@ -41,20 +42,18 @@ namespace HE {
 		
 		PrintMaterialInfo(standardMaterial, "Original Standard Material");
 		
-		// Save to file - convert to base Material class for serialization
+		// Save to file using new API
 		std::string filename = "standard_material_test.json";
-		Ref<Rendering::Material> materialBase = std::static_pointer_cast<Rendering::Material>(standardMaterial);
-		if (HE::Serialization::SerializationManager::Instance().SerializeToFile(materialBase, filename, HE::Serialization::SerializationFormat::JSON)) {
+		if (Serialization::SaveMaterial(*standardMaterial, filename)) {
 			HE_CORE_INFO("Standard material saved to file: {0}", filename);
-			
+
 			// Reload material - note: need to create an object first, then deserialize into it
 			auto loadedMaterial = Rendering::MaterialLibrary::Instance().CreateStandardMaterial("LoadedStandardMaterial");
 			loadedMaterial->ClearParameters();
-			Ref<Rendering::Material> loadedMaterialBase = std::static_pointer_cast<Rendering::Material>(loadedMaterial);
-			if (HE::Serialization::SerializationManager::Instance().DeserializeFromFile(filename, *loadedMaterialBase, HE::Serialization::SerializationFormat::JSON)) {
+			if (Serialization::LoadMaterial(filename, *loadedMaterial)) {
 				HE_CORE_INFO("Standard material loaded from file: {0}", filename);
 				PrintMaterialInfo(loadedMaterial, "Loaded Standard Material");
-				
+
 				// Verify materials are the same
 				if (VerifyMaterialsEqual(standardMaterial, loadedMaterial)) {
 					HE_CORE_INFO("✓ Standard Material Serialization Verification Successful");
@@ -81,20 +80,18 @@ namespace HE {
 		
 		PrintMaterialInfo(unlitMaterial, "Original Unlit Material");
 		
-		// Save to file - convert to base Material class for serialization
+		// Save to file using new API
 		std::string filename = "unlit_material_test.json";
-		Ref<Rendering::Material> materialBase = std::static_pointer_cast<Rendering::Material>(unlitMaterial);
-		if (HE::Serialization::SerializationManager::Instance().SerializeToFile(materialBase, filename, HE::Serialization::SerializationFormat::JSON)) {
+		if (Serialization::SaveMaterial(*unlitMaterial, filename)) {
 			HE_CORE_INFO("Unlit material saved to file: {0}", filename);
-			
+
 			// Reload material
 			auto loadedMaterial = Rendering::MaterialLibrary::Instance().CreateUnlitMaterial("LoadedUnlitMaterial");
 			loadedMaterial->ClearParameters();
-			Ref<Rendering::Material> loadedMaterialBase = std::static_pointer_cast<Rendering::Material>(loadedMaterial);
-			if (HE::Serialization::SerializationManager::Instance().DeserializeFromFile(filename, *loadedMaterialBase, HE::Serialization::SerializationFormat::JSON)) {
+			if (Serialization::LoadMaterial(filename, *loadedMaterial)) {
 				HE_CORE_INFO("Unlit material loaded from file: {0}", filename);
 				PrintMaterialInfo(loadedMaterial, "Loaded Unlit Material");
-				
+
 				// Verify materials are the same
 				if (VerifyMaterialsEqual(unlitMaterial, loadedMaterial)) {
 					HE_CORE_INFO("✓ Unlit Material Serialization Verification Successful");
@@ -141,20 +138,18 @@ namespace HE {
 		
 		PrintMaterialInfo(customMaterial, "Original Custom Material");
 		
-		// Save to file - convert to base Material class for serialization
+		// Save to file using new API
 		std::string filename = "custom_material_test.json";
-		Ref<Rendering::Material> materialBase = std::static_pointer_cast<Rendering::Material>(customMaterial);
-		if (HE::Serialization::SerializationManager::Instance().SerializeToFile(materialBase, filename, HE::Serialization::SerializationFormat::JSON)) {
+		if (Serialization::SaveMaterial(*customMaterial, filename)) {
 			HE_CORE_INFO("Custom material saved to file: {0}", filename);
-			
+
 			// Reload material
 			auto loadedMaterial = Rendering::MaterialLibrary::Instance().CreateCustomMaterial("LoadedCustomMaterial", customShader);
 			loadedMaterial->ClearParameters();
-			Ref<Rendering::Material> loadedMaterialBase = std::static_pointer_cast<Rendering::Material>(loadedMaterial);
-			if (HE::Serialization::SerializationManager::Instance().DeserializeFromFile(filename, *loadedMaterialBase, HE::Serialization::SerializationFormat::JSON)) {
+			if (Serialization::LoadMaterial(filename, *loadedMaterial)) {
 				HE_CORE_INFO("Custom material loaded from file: {0}", filename);
 				PrintMaterialInfo(loadedMaterial, "Loaded Custom Material");
-				
+
 				// Verify materials are the same
 				if (VerifyMaterialsEqual(customMaterial, loadedMaterial)) {
 					HE_CORE_INFO("✓ Custom Material Serialization Verification Successful");
@@ -186,15 +181,15 @@ namespace HE {
 		materialInstance->SetParameter("u_Metallic", 1.0f); // Override to metallic material
 		
 		HE_CORE_INFO("Original material instance creation complete");
-		
-		// Save material instance to file
+
+		// Save material instance to file using new API
 		std::string filename = "material_instance_test.json";
-		if (HE::Serialization::SerializationManager::Instance().SerializeToFile(materialInstance, filename, HE::Serialization::SerializationFormat::JSON)) {
+		if (Serialization::SaveMaterialInstance(*materialInstance, filename)) {
 			HE_CORE_INFO("Material instance saved to file: {0}", filename);
-			
+
 			// Reload material instance (requires same base material)
 			auto loadedInstance = CreateRef<Rendering::MaterialInstance>(baseMaterial);
-			if (HE::Serialization::SerializationManager::Instance().DeserializeFromFile(filename, *loadedInstance, HE::Serialization::SerializationFormat::JSON)) {
+			if (Serialization::LoadMaterialInstance(filename, *loadedInstance)) {
 				HE_CORE_INFO("Material instance loaded from file: {0}", filename);
 				HE_CORE_INFO("✓ Material Instance Serialization Verification Successful");
 				const auto& overrides = loadedInstance->GetParameterOverrides();

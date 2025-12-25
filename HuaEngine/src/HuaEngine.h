@@ -32,11 +32,18 @@
 #include "Module/Rendering/RenderSystem.h"
 #include "Module/Rendering/RenderingComponent.h"
 
+// Scene
+#include "HuaEngine/Scene/Scene.h"
+
 // Reflection
 #include "HuaEngine/Reflection/Reflection.h"
 
 // Serialization
 #include "HuaEngine/Serialization/SerializationCore.h"
+#include "HuaEngine/Serialization/SerializationManager.h"
+#include "HuaEngine/Scene/SceneSerializer.h"
+#include "HuaEngine/Rendering/Mesh/MeshCore.h"
+#include "HuaEngine/Rendering/Material/MaterialSerializer.h"
 
 // Math
 #include "HuaEngine/Math/Math.h"

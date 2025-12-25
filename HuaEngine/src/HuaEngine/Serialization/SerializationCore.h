@@ -236,9 +236,10 @@ namespace HE::Serialization {
                 SerializeValue(backend, name, obj);
             }
             else {
-                if (!name.empty()) {
-                    backend.BeginObject(name);
-                }
+                // Always create object wrapper for complex types
+                // For named fields: "name": { ... }
+                // For array elements (empty name): { ... }
+                backend.BeginObject(name);
 
                 auto fieldInfo = Refl::reflect<T>();
                 fieldInfo.visit_fields([&](auto&& field) {
@@ -248,9 +249,7 @@ namespace HE::Serialization {
                     SerializeValue(backend, fieldName, fieldValue);
                 });
 
-                if (!name.empty()) {
-                    backend.EndObject();
-                }
+                backend.EndObject();
             }
         }
 
@@ -259,10 +258,11 @@ namespace HE::Serialization {
                 return DeserializeValue(backend, name, obj);
             }
             else {
-                if (!name.empty()) {
-                    if (!backend.HasField(name)) return false;
-                    backend.BeginObject(name);
+                // Always enter object wrapper for complex types
+                if (!name.empty() && !backend.HasField(name)) {
+                    return false;
                 }
+                backend.BeginObject(name);
 
                 bool success = true;
                 auto fieldInfo = Refl::reflect<T>();
@@ -286,9 +286,7 @@ namespace HE::Serialization {
                     }
                 });
 
-                if (!name.empty()) {
-                    backend.EndObject();
-                }
+                backend.EndObject();
                 return success;
             }
         }

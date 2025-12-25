@@ -33,14 +33,6 @@ namespace HE::Rendering {
         return MaterialType::Custom; // Default to custom
     }
 
-    inline bool SaveMaterial(Material* material, const std::string& filename, HE::Serialization::SerializationFormat format = HE::Serialization::SerializationFormat::JSON) {
-        return SERIALIZE_TO_FILE(*material, filename, format);
-    }
-
-    inline bool LoadMaterial(const std::string& filename, Material* material, HE::Serialization::SerializationFormat format = HE::Serialization::SerializationFormat::JSON) {
-        return DESERIALIZE_FROM_FILE(filename, *material, format);
-    }
-
 } // namespace HE::Rendering
 
 namespace HE::Serialization {
@@ -245,5 +237,23 @@ namespace HE::Serialization {
             return true;
         }
     };
+
+    // Convenience functions for Material serialization
+    inline bool SaveMaterial(const Rendering::Material& material, const std::string& filename, SerializationFormat format = SerializationFormat::JSON) {
+        return SERIALIZE_TO_FILE(material, filename, format);
+    }
+
+    inline bool LoadMaterial(const std::string& filename, Rendering::Material& material, SerializationFormat format = SerializationFormat::JSON) {
+        return DESERIALIZE_FROM_FILE(filename, material, format);
+    }
+
+    // Convenience functions for MaterialInstance serialization
+    inline bool SaveMaterialInstance(const Rendering::MaterialInstance& instance, const std::string& filename, SerializationFormat format = SerializationFormat::JSON) {
+        return SERIALIZE_TO_FILE(instance, filename, format);
+    }
+
+    inline bool LoadMaterialInstance(const std::string& filename, Rendering::MaterialInstance& instance, SerializationFormat format = SerializationFormat::JSON) {
+        return DESERIALIZE_FROM_FILE(filename, instance, format);
+    }
 
 } // namespace HE::Serialization

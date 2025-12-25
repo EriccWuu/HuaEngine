@@ -47,8 +47,7 @@ namespace HE::Rendering {
     Ref<Mesh> Mesh::LoadFromFile(const std::string& filepath, HE::Serialization::SerializationFormat format) {
         Mesh mesh;
 
-        // Use SerializationManager to deserialize
-        if (!HE::Serialization::SerializationManager::Instance().DeserializeFromFile(filepath, mesh, format)) {
+        if (!HE::Serialization::LoadMesh(filepath, mesh, format)) {
             HE_CORE_ERROR("Failed to load mesh file: {}", filepath);
             return nullptr;
         }
@@ -58,8 +57,7 @@ namespace HE::Rendering {
     }
 
     bool Mesh::SaveToFile(const Mesh& mesh, const std::string& filepath, HE::Serialization::SerializationFormat format) {
-        // Use SerializationManager to serialize
-        bool success = HE::Serialization::SerializationManager::Instance().SerializeToFile(mesh, filepath, format);
+        bool success = HE::Serialization::SaveMesh(mesh, filepath, format);
         if (success) {
             HE_CORE_INFO("Saved mesh '{}' to file: {}", mesh.m_Name, filepath);
         } else {

@@ -41,12 +41,12 @@ public:
         // 初始化网格资产管理器并加载默认网格
         MeshManager::Instance().LoadDefaultMeshes();
 
-        //auto customMesh = Mesh::LoadFromFile("assets/CustomMesh.mesh");
-        //MeshManager::Instance().RegisterMesh("CustomSquare", customMesh);
+        auto customMesh = Mesh::LoadFromFile("assets/CustomMesh.mesh");
+        MeshManager::Instance().RegisterMesh("CustomSquare", customMesh);
 
         // 创建材质
         m_SandboxMaterial = Material::Create("SandboxMaterial");
-        LoadMaterial("assets/SandboxMaterial.material", std::static_pointer_cast<Material>(m_SandboxMaterial).get());
+        Serialization::LoadMaterial("assets/SandboxMaterial.material", *m_SandboxMaterial);
 
         // Create material instance
         m_MaterialInstance = m_SandboxMaterial->CreateInstance();
@@ -59,7 +59,7 @@ public:
         spec.Attachments = { FrameBufferTextureFormat::RGBA8 };
         m_FrameBuffer = FrameBuffer::Create(spec);
 
-        //LoadScene(m_Scene.get(), "SandboxScene1.scene");
+        //Serialization::LoadScene("SandboxScene1.scene", *m_Scene);
 
         //auto& materialEntityView = m_Scene->View<MaterialComponent>();
 
@@ -96,11 +96,11 @@ public:
         secondMaterialInstance->SetParameter("u_Color", glm::vec4(0.8f, 0.4f, 0.9f, 1.0f));
         secondMaterialInstance->SetParameter("u_TextureScale", glm::vec2(2.0f, 2.0f));
 
-        //auto square = std::make_shared<Entity>(m_Scene->GetEntityManager().CreateEntity());
-        //square->AddComponent<MeshComponent>("CustomSquare");  // 使用自定义网格资产
-        //square->AddComponent<MaterialComponent>(secondMaterialInstance);
-        //auto& trans = square->GetComponent<TransformComponent>();
-        //trans.Position -= glm::vec3{0.5, 0.5, 0.0};
+        auto square = std::make_shared<Entity>(m_Scene->GetEntityManager().CreateEntity());
+        square->AddComponent<MeshComponent>("CustomSquare");  // 使用自定义网格资产
+        square->AddComponent<MaterialComponent>(secondMaterialInstance);
+        auto& trans = square->GetComponent<TransformComponent>();
+        trans.Position -= glm::vec3{0.5, 0.5, 0.0};
 
         auto thirdMaterialInstance = m_SandboxMaterial->CreateInstance();
         thirdMaterialInstance->SetParameter("u_Color", glm::vec4(0.8f, 0.0f, 0.9f, 1.0f));
@@ -127,13 +127,13 @@ public:
     void SaveSceneWithAssets() {
         // Serialize the created scene to assets folder
         std::string assetPath = "SandboxScene.scene";
-        if (SaveScene(m_Scene.get(), assetPath)) {
+        if (Serialization::SaveScene(*m_Scene, assetPath)) {
             std::cout << "Sandbox scene saved successfully to: " << assetPath << std::endl;
         } else {
             std::cout << "Failed to save sandbox scene to: " << assetPath << std::endl;
         }
 
-        Mesh::SaveToFile(*MeshManager::Instance().GetMesh("Quad"), "Quad.mesh");
+        Serialization::SaveMesh(*MeshManager::Instance().GetMesh("Quad"), "Quad.mesh");
     }
 
 	void OnUpdate() override {
