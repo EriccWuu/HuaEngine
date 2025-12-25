@@ -8,9 +8,9 @@
 #include <cstdint>
 #include "HuaEngine/Core/Core.h"
 #include "HuaEngine/Reflection/Reflection.h"
+#include "glm/glm.hpp"
 
 namespace HE::Serialization {
-
     // Forward declarations
     class SerializationBackend;
     class SerializationManager;
@@ -226,46 +226,42 @@ namespace HE::Serialization {
         return true;
     }
 
-    // Default serializer using reflection
+    // Plain serializer using reflection - WITHOUT type info wrapper
+    // Serializes fields directly: "fieldName": value
+    // Relies on compile-time type info from reflection for deserialization
     template<typename T>
     struct Serializer {
         static void Serialize(SerializationBackend& backend, const std::string& name, const T& obj) {
             if constexpr (std::is_arithmetic_v<T> || std::is_same_v<T, std::string>) {
-                // For basic types, use direct serialization
                 SerializeValue(backend, name, obj);
             }
             else {
-                // For complex types, use reflection
                 if (!name.empty()) {
                     backend.BeginObject(name);
-                }
-                else {
-                    backend.BeginObject();
                 }
 
                 auto fieldInfo = Refl::reflect<T>();
                 fieldInfo.visit_fields([&](auto&& field) {
-                    const auto& fieldValue = field.GetValue(&obj); 
-                    SerializeValue(backend, std::string(field.name().data(), field.name().size()), fieldValue);
+                    const auto& fieldValue = field.GetValue(&obj);
+                    std::string fieldName(field.name().data(), field.name().size());
+                    // Direct serialization without type wrapper
+                    SerializeValue(backend, fieldName, fieldValue);
                 });
 
-                backend.EndObject();
+                if (!name.empty()) {
+                    backend.EndObject();
+                }
             }
         }
 
         static bool Deserialize(SerializationBackend& backend, const std::string& name, T& obj) {
             if constexpr (std::is_arithmetic_v<T> || std::is_same_v<T, std::string>) {
-                // For basic types, use direct deserialization
                 return DeserializeValue(backend, name, obj);
             }
             else {
-                // For complex types, use reflection
                 if (!name.empty()) {
                     if (!backend.HasField(name)) return false;
                     backend.BeginObject(name);
-                }
-                else {
-                    backend.BeginObject();
                 }
 
                 bool success = true;
@@ -273,26 +269,26 @@ namespace HE::Serialization {
                 fieldInfo.visit_fields([&](auto&& field) {
                     std::string fieldName(field.name().data(), field.name().size());
 
-                    // Create a temporary variable to hold the deserialized value
+                    // Type is known at compile time through reflection
                     using FieldType = std::remove_cv_t<std::remove_reference_t<
                         decltype(field.GetValue(&obj))>>;
                     FieldType tempValue{};
 
+                    // Direct deserialization - type comes from reflection, not file
                     if (DeserializeValue(backend, fieldName, tempValue)) {
-                        // Use direct assignment through offset rather than SetValue
                         auto* fieldPtr = reinterpret_cast<FieldType*>(
                             reinterpret_cast<char*>(&obj) + field.offset());
                         *fieldPtr = tempValue;
                     }
                     else {
-                        // Debug output for failed field deserialization
                         HE_CORE_WARN("Failed to deserialize field: {}", fieldName);
-                        // For optional fields, we might not want to fail completely
                         success = false;
                     }
                 });
 
-                backend.EndObject();
+                if (!name.empty()) {
+                    backend.EndObject();
+                }
                 return success;
             }
         }
