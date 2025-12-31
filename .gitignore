@@ -109,3 +109,5 @@ Dependencies/imgui/examples/**/*.vcxproj*
 Dependencies/imgui/examples/**/*.sln
 Dependencies/imgui/examples/**/build/
 Dependencies/imgui/examples/**/bin/
+
+CLAUDE.md
