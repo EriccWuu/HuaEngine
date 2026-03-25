@@ -1,0 +1,4 @@
+﻿interface:
+  display_name: "HuaEngine Serialization Reflection"
+  short_description: "Navigate HuaEngine's reflection macros, serializers, and JSON backend."
+  default_prompt: "Use $huaengine-serialization-reflection to inspect HuaEngine reflection, serialization, and JSON backend behavior."

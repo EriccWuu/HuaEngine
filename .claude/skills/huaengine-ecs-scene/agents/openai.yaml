@@ -1,0 +1,4 @@
+﻿interface:
+  display_name: "HuaEngine ECS Scene"
+  short_description: "Navigate HuaEngine's ECS, scene container, and scene serialization flow."
+  default_prompt: "Use $huaengine-ecs-scene to inspect HuaEngine entity, component, scene, and scene serialization behavior."
