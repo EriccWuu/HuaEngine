@@ -92,7 +92,7 @@ using list_element_t = typename Detail::list_element<List, N>::type;
 * @tparam List
 */
 template<typename List>
-constexpr size_t list_size_v = typename Detail::list_size<List>::size;
+inline constexpr size_t list_size_v = Detail::list_size<List>::size;
 
 /**
 * @brief check if the element list is empty (from type_list or std::tuple or others)
@@ -256,7 +256,7 @@ struct filter<ListType<T, Ts...>, F> {
 * @tparam F  receive a type and give a constexpr static bool value;
 */
 template<typename List, template <typename> typename F>
-using disjunction_v = typename Detail::disjunction<List, F>::value;
+inline constexpr bool disjunction_v = Detail::disjunction<List, F>::value;
 
 /**
 * @brief work as std::conjunction: use function struct F to check all of
@@ -266,7 +266,7 @@ using disjunction_v = typename Detail::disjunction<List, F>::value;
 * @tparam F  receive a type and give a constexpr static bool value;
 */
 template<typename List, template <typename> typename F>
-using conjunction_v = typename Detail::conjunction<List, F>::value;
+inline constexpr bool conjunction_v = Detail::conjunction<List, F>::value;
 
 /**
 * @brief concat two type list

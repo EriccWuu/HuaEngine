@@ -4,7 +4,7 @@ cmake_minimum_required(VERSION 3.16)
 project(Editor LANGUAGES CXX)
 
 # Set C++ standard
-set(CMAKE_CXX_STANDARD 17)
+set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
 # Collect all source files
@@ -68,6 +68,14 @@ if(EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/assets")
     add_custom_command(TARGET Editor POST_BUILD
         COMMAND ${CMAKE_COMMAND} -E copy_directory
         "${CMAKE_CURRENT_SOURCE_DIR}/assets"
+        "$<TARGET_FILE_DIR:Editor>/assets"
+    )
+endif()
+
+if(EXISTS "${CMAKE_SOURCE_DIR}/Sandbox/assets")
+    add_custom_command(TARGET Editor POST_BUILD
+        COMMAND ${CMAKE_COMMAND} -E copy_directory
+        "${CMAKE_SOURCE_DIR}/Sandbox/assets"
         "$<TARGET_FILE_DIR:Editor>/assets"
     )
 endif()

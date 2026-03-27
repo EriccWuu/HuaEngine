@@ -66,7 +66,7 @@ namespace HE::Serialization {
             if (!name.empty())
                 backend.BeginObject(name);
 
-            SerializeValue(backend, "mesh_name", mesh.GetName());
+            SerializeValue(backend, "name", mesh.GetName());
             SerializeValue(backend, "mesh_data", mesh.GetMeshData());
 
             if (!name.empty())
@@ -77,14 +77,14 @@ namespace HE::Serialization {
             if (!name.empty())
                 backend.BeginObject(name);
 
-            if (!(backend.HasField("mesh_name") && backend.HasField("mesh_data"))) {
+            if (!backend.HasField("name") || !backend.HasField("mesh_data")) {
                 if (!name.empty())
                     backend.EndObject();
                 return false;
             }
 
             std::string meshName;
-            DeserializeValue(backend, "mesh_name", meshName);
+            DeserializeValue(backend, "name", meshName);
             mesh.SetName(meshName);
 
             Rendering::MeshData meshData;

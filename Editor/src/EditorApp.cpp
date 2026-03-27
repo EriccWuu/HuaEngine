@@ -7,8 +7,14 @@
 namespace HE {
 	class EditorApp : public Application {
 	public:
-		EditorApp() {
-			PushLayer(new EditorLayer());
+		EditorApp()
+			: Application(ApplicationSpecification{
+				.Name = "HuaEditor",
+				.EnableGuiLayer = true
+			}) {
+			EditorLayerSpecification layerSpecification;
+			layerSpecification.BootstrapDemoScene = true;
+			PushLayer(new EditorLayer(layerSpecification));
 		}
 
 		~EditorApp() {

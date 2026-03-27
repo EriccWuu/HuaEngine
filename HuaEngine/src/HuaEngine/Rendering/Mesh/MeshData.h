@@ -98,3 +98,88 @@ srefl_class(HE::Rendering::MeshData,
         field(Layout)
     )
 )
+
+namespace HE::Serialization {
+    template<>
+    struct Serializer<HE::Rendering::SerializableBufferElement> {
+        static void Serialize(SerializationBackend& backend, const std::string& name, const HE::Rendering::SerializableBufferElement& element) {
+            backend.BeginObject(name);
+            backend.Serialize("shader_data_type", element.Type);
+            backend.Serialize("attribute_name", element.Name);
+            backend.Serialize("size", element.Size);
+            backend.Serialize("offset", element.Offset);
+            backend.Serialize("normalized", element.Normalized);
+            backend.EndObject();
+        }
+
+        static bool Deserialize(SerializationBackend& backend, const std::string& name, HE::Rendering::SerializableBufferElement& element) {
+            if (!name.empty() && !backend.HasField(name)) {
+                return false;
+            }
+
+            backend.BeginObject(name);
+
+            bool success = true;
+            success &= DeserializeValue(backend, "shader_data_type", element.Type);
+            success &= DeserializeValue(backend, "attribute_name", element.Name);
+            success &= DeserializeValue(backend, "size", element.Size);
+            success &= DeserializeValue(backend, "offset", element.Offset);
+            success &= DeserializeValue(backend, "normalized", element.Normalized);
+
+            backend.EndObject();
+            return success;
+        }
+    };
+
+    template<>
+    struct Serializer<HE::Rendering::SerializableBufferLayout> {
+        static void Serialize(SerializationBackend& backend, const std::string& name, const HE::Rendering::SerializableBufferLayout& layout) {
+            backend.BeginObject(name);
+            SerializeValue(backend, "elements", layout.Elements);
+            backend.Serialize("stride", layout.Stride);
+            backend.EndObject();
+        }
+
+        static bool Deserialize(SerializationBackend& backend, const std::string& name, HE::Rendering::SerializableBufferLayout& layout) {
+            if (!name.empty() && !backend.HasField(name)) {
+                return false;
+            }
+
+            backend.BeginObject(name);
+
+            bool success = true;
+            success &= DeserializeValue(backend, "elements", layout.Elements);
+            success &= DeserializeValue(backend, "stride", layout.Stride);
+
+            backend.EndObject();
+            return success;
+        }
+    };
+
+    template<>
+    struct Serializer<HE::Rendering::MeshData> {
+        static void Serialize(SerializationBackend& backend, const std::string& name, const HE::Rendering::MeshData& meshData) {
+            backend.BeginObject(name);
+            SerializeValue(backend, "vertex_data", meshData.VertexData);
+            SerializeValue(backend, "index_data", meshData.IndexData);
+            SerializeValue(backend, "layout", meshData.Layout);
+            backend.EndObject();
+        }
+
+        static bool Deserialize(SerializationBackend& backend, const std::string& name, HE::Rendering::MeshData& meshData) {
+            if (!name.empty() && !backend.HasField(name)) {
+                return false;
+            }
+
+            backend.BeginObject(name);
+
+            bool success = true;
+            success &= DeserializeValue(backend, "vertex_data", meshData.VertexData);
+            success &= DeserializeValue(backend, "index_data", meshData.IndexData);
+            success &= DeserializeValue(backend, "layout", meshData.Layout);
+
+            backend.EndObject();
+            return success;
+        }
+    };
+}

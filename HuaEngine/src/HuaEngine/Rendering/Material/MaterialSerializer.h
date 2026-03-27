@@ -1,6 +1,7 @@
 #pragma once
 
 #include "MaterialCore.h"
+#include "MaterialLibrary.h"
 #include "HuaEngine/Serialization/Serialization.h"
 
 namespace HE::Rendering {
@@ -38,13 +39,13 @@ namespace HE::Rendering {
 namespace HE::Serialization {
 
     // Material parameter serialization (uses parameter name as object key)
-    // Format: "paramName": { "type": "Float", "value": 0.5 }
+    // Format: "paramName": { "value_type": "Float", "value": 0.5 }
     template<>
     struct Serializer<Rendering::MaterialParameter> {
         // Serialize single parameter (parameter name as object key)
         static void Serialize(SerializationBackend& backend, const std::string& name, const Rendering::MaterialParameter& param) {
             backend.BeginObject(name);
-            backend.Serialize("type", Rendering::MaterialParameterSerializer::ParameterTypeToString(param.Type));
+            backend.Serialize("value_type", Rendering::MaterialParameterSerializer::ParameterTypeToString(param.Type));
             Rendering::MaterialParameterSerializer::Serialize(backend, "value", param.Value);
             backend.EndObject();
         }
@@ -53,7 +54,7 @@ namespace HE::Serialization {
         static bool Deserialize(SerializationBackend& backend, const std::string& name, Rendering::MaterialParameter& param) {
             backend.BeginObject(name);
 
-            if (!(backend.HasField("type") && backend.HasField("value"))) {
+            if (!backend.HasField("value") || !backend.HasField("value_type")) {
                 backend.EndObject();
                 return false;
             }
@@ -61,7 +62,7 @@ namespace HE::Serialization {
             param.Name = name;
 
             std::string typeStr;
-            backend.Deserialize("type", typeStr);
+            backend.Deserialize("value_type", typeStr);
             param.Type = Rendering::MaterialParameterSerializer::StringToParameterType(typeStr);
 
             Rendering::MaterialParameterSerializer::Deserialize(backend, "value", param.Value, param.Type);
@@ -80,7 +81,7 @@ namespace HE::Serialization {
 
             // Basic properties
             backend.Serialize("name", material.GetName());
-            backend.Serialize("type", Rendering::MaterialTypeToString(material.GetType()));
+            backend.Serialize("material_type", Rendering::MaterialTypeToString(material.GetType()));
 
             // Shader path
             std::string shaderPath = "";
@@ -89,7 +90,7 @@ namespace HE::Serialization {
             }
             backend.Serialize("shader_path", shaderPath);
 
-            // Parameters (object format: "paramName": { "type": "...", "value": ... })
+            // Parameters (object format: "paramName": { "value_type": "...", "value": ... })
             const auto& parameters = material.GetParameters();
             backend.BeginObject("parameters");
             for (const auto& [paramName, param] : parameters) {
@@ -116,9 +117,11 @@ namespace HE::Serialization {
                 backend.BeginObject(name);
 
             // Check required fields
-            if (!(backend.HasField("type") &&
+            if (!(backend.HasField("material_type") &&
                 backend.HasField("name") &&
                 backend.HasField("parameters"))) {
+                if (!name.empty())
+                    backend.EndObject();
                 return false;
             }
 
@@ -128,7 +131,7 @@ namespace HE::Serialization {
             }
 
             std::string typeStr;
-            backend.Deserialize("type", typeStr);
+            backend.Deserialize("material_type", typeStr);
             material.SetType(Rendering::StringToMaterialType(typeStr));
 
             std::string matName;
@@ -146,11 +149,11 @@ namespace HE::Serialization {
             backend.ForEachField([&](const std::string& paramName) {
                 Rendering::MaterialParameter param;
                 // ForEachField has switched context to the value node for paramName
-                if (backend.HasField("type") && backend.HasField("value")) {
+                if (backend.HasField("value") && backend.HasField("value_type")) {
                     param.Name = paramName;
 
                     std::string typeStr;
-                    backend.Deserialize("type", typeStr);
+                    backend.Deserialize("value_type", typeStr);
                     param.Type = Rendering::MaterialParameterSerializer::StringToParameterType(typeStr);
 
                     Rendering::MaterialParameterSerializer::Deserialize(backend, "value", param.Value, param.Type);
@@ -186,9 +189,10 @@ namespace HE::Serialization {
                 backend.BeginObject(name);
 
             // Base material name
-            backend.Serialize("base_material_name", instance.GetBaseMaterial()->GetName());
+            const auto baseMaterial = instance.GetBaseMaterial();
+            backend.Serialize("base_material_name", baseMaterial ? baseMaterial->GetName() : "");
 
-            // Parameter overrides (object format: "paramName": { "type": "...", "value": ... })
+            // Parameter overrides keep value_type because they are dynamic variant payloads.
             const auto& overrideParams = instance.GetParameterOverrides();
             backend.BeginObject("parameter_overrides");
             for (const auto& [paramName, param] : overrideParams) {
@@ -210,6 +214,11 @@ namespace HE::Serialization {
 
             std::string baseMaterialName;
             backend.Deserialize("base_material_name", baseMaterialName);
+            if (!baseMaterialName.empty() && Rendering::MaterialLibrary::Instance().HasMaterial(baseMaterialName)) {
+                instance.SetBaseMaterial(Rendering::MaterialLibrary::Instance().GetMaterial(baseMaterialName));
+            } else if (!baseMaterialName.empty() && !instance.GetBaseMaterial()) {
+                instance.SetBaseMaterial(Rendering::Material::Create(baseMaterialName, Rendering::MaterialType::Custom));
+            }
 
             // Clear existing parameter overrides
             instance.ClearParameterOverrides();
@@ -218,15 +227,20 @@ namespace HE::Serialization {
             backend.BeginObject("parameter_overrides");
             backend.ForEachField([&](const std::string& paramName) {
                 // ForEachField has switched context to the value node for paramName
-                if (backend.HasField("type") && backend.HasField("value")) {
+                if (backend.HasField("value") && backend.HasField("value_type")) {
                     std::string typeStr;
-                    backend.Deserialize("type", typeStr);
+                    backend.Deserialize("value_type", typeStr);
                     auto type = Rendering::MaterialParameterSerializer::StringToParameterType(typeStr);
 
                     Rendering::MaterialParameterValue value;
                     Rendering::MaterialParameterSerializer::Deserialize(backend, "value", value, type);
 
-                    instance.SetParameter(paramName, value);
+                    if (instance.GetBaseMaterial() && instance.GetBaseMaterial()->HasParameter(paramName)) {
+                        instance.SetParameter(paramName, value);
+                    } else if (instance.GetBaseMaterial()) {
+                        instance.GetBaseMaterial()->AddParameter({ paramName, type, value });
+                        instance.SetParameter(paramName, value);
+                    }
                 }
             });
             backend.EndObject();

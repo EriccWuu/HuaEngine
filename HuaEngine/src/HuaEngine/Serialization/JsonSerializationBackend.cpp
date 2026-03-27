@@ -96,6 +96,8 @@ namespace HE::Serialization {
                 if (it != current->objectData.end()) {
                     objNode = it->second;
                 }
+            } else if (name.empty() && current == m_Root) {
+                objNode = current;
             } else if (current->type == JsonNode::Array && !m_ArrayIndices.empty()) {
                 size_t index = m_ArrayIndices.top();
                 if (index < current->arrayData.size()) {

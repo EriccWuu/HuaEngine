@@ -1,0 +1,77 @@
+#include <filesystem>
+#include <iostream>
+#include <string>
+#include <vector>
+
+#include "HeadlessApplication.h"
+#include "HeadlessCommandRunner.h"
+#include "HeadlessJsonWriter.h"
+#include "HuaEngine/Core/Log.h"
+
+namespace {
+	void Expect(bool condition, const std::string& message) {
+		if (!condition) {
+			std::cerr << message << std::endl;
+			std::exit(1);
+		}
+	}
+}
+
+int main() {
+	HE::Log::Init({ .EnableConsoleOutput = false });
+
+	const auto tempRoot = std::filesystem::temp_directory_path() / "huaengine_headless_host_smoke";
+	std::error_code errorCode;
+	std::filesystem::remove_all(tempRoot, errorCode);
+	std::filesystem::create_directories(tempRoot, errorCode);
+	Expect(!errorCode, "Failed to create temporary smoke directory");
+
+	HE::Headless::HeadlessApplication application;
+	application.Start();
+
+	HE::Headless::CommandRunner runner(application.GetOperations());
+
+	auto opsResponse = runner.Run({ "ops", "list" }, tempRoot);
+	Expect(opsResponse.Result.Succeeded(), "ops list should succeed");
+	Expect(!opsResponse.Operations.empty(), "ops list should expose the operation registry");
+
+	auto projectResponse = runner.Run({ "project", "init", "--root", tempRoot.string(), "--name", "HeadlessSmoke" }, tempRoot);
+	Expect(projectResponse.Result.Succeeded(), "project init should succeed");
+
+	auto sceneResponse = runner.Run({ "scene", "create", "--project", tempRoot.string(), "--name", "SmokeScene" }, tempRoot);
+	Expect(sceneResponse.Result.Succeeded(), "scene create should succeed");
+	Expect(std::filesystem::exists(tempRoot / "Scenes" / "smokescene.scene"), "scene create should persist the scene file");
+
+	auto assetResponse = runner.Run({
+		"asset", "register-default-mesh",
+		"--project", tempRoot.string(),
+		"--asset-id", "primitives/quad.mesh",
+		"--primitive", "quad"
+	}, tempRoot);
+	Expect(assetResponse.Result.Succeeded(), "asset register-default-mesh should succeed");
+	Expect(std::filesystem::exists(tempRoot / "Assets" / "primitives" / "quad.mesh"), "default mesh registration should persist the mesh asset");
+
+	auto scriptResponse = runner.Run({
+		"script", "status",
+		"--project", tempRoot.string(),
+		"--scene", "smokescene.scene"
+	}, tempRoot);
+	Expect(scriptResponse.Result.Succeeded(), "script status should succeed for a scene without bindings");
+
+	auto validationResponse = runner.Run({
+		"validation", "run",
+		"--path", tempRoot.string(),
+		"--scene", "smokescene.scene",
+		"--include-assets",
+		"--include-scripts"
+	}, tempRoot);
+	Expect(validationResponse.Result.Succeeded(), "validation run should succeed for the smoke workflow");
+
+	const auto renderedJson = HE::Headless::RenderJson(validationResponse);
+	Expect(renderedJson.find("\"host\":\"huaengine-headless\"") != std::string::npos, "Rendered JSON should identify the headless host");
+	Expect(renderedJson.find("\"operation\":\"validation.validate\"") != std::string::npos, "Rendered JSON should preserve the formal operation id");
+
+	std::filesystem::remove_all(tempRoot, errorCode);
+	std::cout << "HeadlessHostSmoke passed" << std::endl;
+	return 0;
+}

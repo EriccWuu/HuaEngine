@@ -1,9 +1,15 @@
 #pragma once
 
 #include "HuaEngine/Application.h"
+#include "HuaEngine/Application/ApplicationOperations.h"
+#include "HuaEngine/Application/OperationRegistry.h"
+#include "HuaEngine/Automation/AgentHostAdapter.h"
 #include "HuaEngine/Core/Log.h"
+#include "HuaEngine/Core/ResultEnvelope.h"
 #include "HuaEngine/Core/Layer.h"
 #include "HuaEngine/Core/Input.h"
+#include "HuaEngine/Asset/AssetRegistry.h"
+#include "HuaEngine/Project/ProjectContext.h"
 
 // UI
 #include "HuaEngine/GUI/ImguiLayer.h"
@@ -29,7 +35,6 @@
 #include "HuaEngine/ECS/EntityManager.h"
 #include "HuaEngine/ECS/Components.h"
 #include "HuaEngine/ECS/ScriptableEntity.h"
-#include "Module/Rendering/RenderSystem.h"
 #include "Module/Rendering/RenderingComponent.h"
 
 // Scene
@@ -77,6 +82,7 @@ namespace HE {
 	// Material system
 	using Material = Rendering::Material;
 	using MaterialInstance = Rendering::MaterialInstance;
+	using MaterialType = Rendering::MaterialType;
 
 	// Mesh system
 	using Mesh = Rendering::Mesh;
@@ -94,5 +100,3 @@ namespace HE {
 	using MeshComponent = Rendering::MeshComponent;
 	using RendererComponent = Rendering::RendererComponent;
 }
-
-

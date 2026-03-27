@@ -2,6 +2,11 @@
 #include "MeshManager.h"
 
 namespace HE::Rendering {
+    MeshManager& MeshManager::Instance() {
+        static MeshManager instance;
+        return instance;
+    }
+
     Ref<Mesh> MeshManager::LoadMesh(const std::string& name, const std::string& filepath) {
         // Check if already loaded
         auto it = m_LoadedMeshes.find(name);

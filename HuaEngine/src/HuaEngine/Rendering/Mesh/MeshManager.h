@@ -9,10 +9,7 @@ namespace HE::Rendering {
     // Mesh asset manager (singleton)
     class MeshManager {
     public:
-        static MeshManager& Instance() {
-            static MeshManager instance;
-            return instance;
-        }
+        static MeshManager& Instance();
 
         // Disable copy constructor and assignment
         MeshManager(const MeshManager&) = delete;

@@ -1,0 +1,12 @@
+﻿feature: engine-headless-ai-friendly
+mode: standard
+status: approved
+review_method: agent
+current_phase: completed
+input_source: ai-friendly-headless-blueprint
+analysis_review_status: pass
+research_topics:
+  - host-topology
+  - result-model
+  - domain-exposure-path
+last_updated: 2026-03-25

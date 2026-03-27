@@ -1,93 +1,126 @@
 # Core Flow
 
-## 1. 启动与初始化
+## 1. 运行时初始化入口
 
-序列化系统的运行时接入点很简单：
+序列化系统当前通过：
 
-- `Application` 构造时调用 `HE::Serialization::InitializeSerialization()`
-- `InitializeSerialization()` 当前只向 `SerializationManager` 注册 `SerializationFormat::JSON`
+- `HuaEngine/src/HuaEngine/Serialization/Serialization.cpp`
+
+里的 `InitializeSerialization()` 接入运行时。
+
+当前事实很明确：
+
+- 只注册 `SerializationFormat::JSON`
 - backend 工厂返回 `JsonSerializationBackend`
+- YAML 和 Binary 仍只是规划占位
 
-这意味着：
+如果你绕开 `Application::Start()` 单独写工具或测试，通常也要自己先调用初始化路径。
 
-- 大多数运行时序列化功能默认都假设 JSON backend 已经完成初始化
-- 单元测试或独立工具代码如果绕开 `Application`，要自己先调 `InitializeSerialization()`
+## 2. 反射层到底提供了什么
 
-## 2. Reflection 提供了什么
+关键入口：
 
-关键入口是 `Reflection.h`：
+- `srefl_class(type, ...)`
+- `fields(...)`
+- `field(name)`
+- `reflect<T>()`
 
-- `srefl_class(type, ...)` 为类型生成 `type_info<T>` 特化
-- `fields(...)` 收集字段描述
-- `field(name)` 记录字段指针、名字和偏移
-- `reflect<T>()` 返回 `reflect_info<T>`
+这层提供的是：
 
-`reflect_info<T>` 的核心能力：
+- 字段名
+- 字段偏移
+- 访问器
+- 访问遍历能力
+
+最常用的是：
 
 - `visit_fields(...)`
-- `visit_member_variables(...)`
-- `visit_member_functions(...)`
-- `name()`
-- `has_fields()/has_bases()/has_ctors()`
 
-当前序列化最常用的是 `visit_fields(...)` 和字段偏移读写。
+默认序列化模板就是靠它遍历字段。
 
-## 3. 默认 Serializer<T> 如何工作
+## 3. 默认 Serializer<T> 的真实工作方式
 
-`SerializationCore.h` 里的泛型 `Serializer<T>` 逻辑分两类：
+关键文件：
 
-### 基础类型
+- `HuaEngine/src/HuaEngine/Serialization/SerializationCore.h`
 
-- 直接走 backend 的标量 `Serialize/Deserialize`
+默认模板分两类：
 
-### 复杂对象
-
-- `Serialize(...)` 时先 `BeginObject(name)`
-- 通过 `Refl::reflect<T>().visit_fields(...)` 遍历字段
-- 用字段名直接调用 `SerializeValue(...)`
-- `Deserialize(...)` 时按相同字段名读取，并通过字段偏移直接写回对象
+- 标量和字符串
+  - 直接调用 backend 的基础读写
+- 复杂对象
+  - `BeginObject(name)`
+  - `visit_fields(...)`
+  - 逐字段 `SerializeValue(...)`
+  - 反序列化时按字段名读回
 
 重要事实：
 
-- 默认对象序列化不写类型标签
-- 字段类型来自编译期反射，不来自文件里的运行时类型描述
-- 缺字段会触发 warning，并把 `success` 置为 false
+- 默认模板不会自动写类型标签
+- 反序列化的类型来自编译期反射，不来自文件里的运行时类型描述
+- 缺字段时会记 warning，并让整体 `success = false`
 
 ## 4. SerializationBackend 抽象层
 
 `SerializationBackend` 统一暴露：
 
-- `BeginObject/EndObject`
-- `BeginArray/EndArray`
-- 标量 `Serialize/Deserialize`
-- `HasField/GetArraySize/GetFieldType`
-- `GetObjectKeys/ForEachField`
-- `LoadFromString/LoadFromFile/SaveToString/SaveToFile`
+- `BeginObject / EndObject`
+- `BeginArray / EndArray`
+- 标量 `Serialize / Deserialize`
+- `HasField / GetArraySize / GetFieldType`
+- `GetObjectKeys / ForEachField`
+- `LoadFromString / LoadFromFile / SaveToString / SaveToFile`
 
-上层模板和专门序列化器都依赖这套接口，所以扩新 backend 时的首要工作不是改业务代码，而是先完整实现这套协议。
+扩 backend 时，先保证这套契约完整，再谈上层对象是否兼容。
 
-## 5. JsonSerializationBackend 的真实模型
+## 5. JsonSerializationBackend 的模型
 
-当前 JSON backend 不是 DOM 第三方库，而是自定义：
+当前 JSON backend 是自研树结构：
 
-- `JsonNode` 用 `Object / Array / Value` 三类节点表示树结构
-- `JsonValue` 用 `std::variant` 表示标量值
-- `m_NodeStack` 维护当前对象/数组上下文
-- `m_ArrayIndices` 维护当前数组元素索引
+- `JsonNode`
+  - `Object`
+  - `Array`
+  - `Value`
+- `JsonValue`
+  - `std::variant`
+- `m_NodeStack`
+  - 维护当前对象/数组上下文
+- `m_ArrayIndices`
+  - 维护当前数组索引
 
-读写要点：
+这解释了为什么上层对象可以在复杂对象、数组元素和字段遍历之间切换上下文。
 
-- 写模式下，`BeginObject/BeginArray` 会创建新节点并挂到当前节点下
-- 读模式下，`BeginObject/BeginArray` 会导航到已有节点
-- `ForEachField(...)` 会临时把 value node 压栈，再调用回调
+## 6. 当前已经非常关键的两个现实边界
 
-这也是 Scene/Material 这类手工序列化能在对象字段间遍历切换的基础。
+### 6.1 根对象空名路径是正式能力的一部分
 
-## 6. 常见特化层
+当前 backend 在 `BeginObject("")` 时会正确处理 root object 场景。
+
+这已经不是小细节，因为：
+
+- `ProjectDescriptor` 这类根对象 JSON 读写依赖它
+- 根对象空名路径出错，会直接影响 `project.json` 反序列化
+
+### 6.2 JSON 是权威作者格式
+
+在当前代码和规划里：
+
+- JSON 是正式工作格式
+- 不是“临时 demo 格式”
+
+所以改 backend 或改通用模板时，要优先考虑：
+
+- 项目元数据
+- 场景
+- 材质/mesh 资源
+
+这些正式持久化链路是否会被影响。
+
+## 7. 常见特化
 
 ### GLM
 
-`GLMSerializer.h` 为以下类型补了专门特化：
+`GLMSerializer.h` 已为这些类型补了特化：
 
 - `glm::vec2`
 - `glm::vec3`
@@ -95,38 +128,30 @@
 - `glm::mat3`
 - `glm::mat4`
 
-向量走对象 `{x,y,z,w}` 形式，矩阵走数组形式。
-
 ### std::vector<T>
 
-通用数组序列化走 `SerializeArray/DeserializeArray`。
+走统一的数组序列化辅助：
+
+- `SerializeArray(...)`
+- `DeserializeArray(...)`
 
 ### Ref<T>
 
-`Serializer<Ref<T>>` 会：
+`Serializer<Ref<T>>` 的语义是：
 
 - 空指针时写一个带 `is_null` 的对象
-- 非空时转而序列化其内部对象
-- 反序列化时可能先 `CreateRef<T>()` 再填充内容
+- 非空时转而读写其内部对象
+- 反序列化时需要时会先 `CreateRef<T>()`
 
-这意味着 `T` 本身必须仍然能被正常反序列化。
+这意味着：
 
-## 7. 测试和验证入口
-
-当前仓库里最直接的验证入口：
-
-- `HuaEngine/src/HuaEngine/Test/SerializationTest.h`
-- `HuaEngine/src/HuaEngine/Test/SceneSerializationTest.h`
-- `HuaEngine/src/HuaEngine/Test/TestReflection.cpp`
-
-这些文件分别覆盖：
-
-- `ToJson/FromJson`
-- 场景保存/加载
-- 基于 `reflect<T>()` 的字段遍历与字段写回
+- `T` 本身依然必须可被正常序列化
 
 ## Related Skills
 
-- Scene 如何在上层登记组件并写入实体数组：转到 `huaengine-ecs-scene/references/serialization-and-integration.md`
-- 材质和 mesh 为什么要叠加手工序列化，而不是只靠默认反射：转到 `huaengine-rendering/references/assets-and-materials.md`
-- backend 在引擎启动链路中的位置：转到 `huaengine-architecture/references/architecture.md`
+- 场景如何把组件真正登记进场景文件：
+  - 看 `huaengine-ecs-scene/references/serialization-and-integration.md`
+- 材质和 mesh 为什么不能只靠默认反射模板：
+  - 看 `huaengine-rendering/references/assets-and-materials.md`
+- backend 是在哪条宿主启动链上被注册：
+  - 看 `huaengine-architecture/references/architecture.md`

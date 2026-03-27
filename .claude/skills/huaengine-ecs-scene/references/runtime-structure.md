@@ -1,6 +1,27 @@
 # Runtime Structure
 
-## 1. EntityManager 与 Entity 包装
+## 1. 原始 ECS 层和正式操作层是两回事
+
+当前代码里有两层语义：
+
+- 原始层
+  - `EntityManager`
+  - `Entity`
+  - `Scene`
+  - `System`
+- 正式操作层
+  - `SceneService`
+  - `ScriptService`
+  - `ApplicationOperations`
+
+定位问题时先分清：
+
+- 你是在修 `registry` 层事实
+- 还是在修宿主可消费的正式操作面
+
+如果是 CLI、Editor、Agent 会用到的能力，默认优先沿 `ApplicationOperations` 往下找，而不是直接从宿主触碰 `Scene` 内部。
+
+## 2. EntityManager 和 Entity 仍然是薄包装
 
 关键文件：
 
@@ -8,123 +29,122 @@
 - `HuaEngine/src/HuaEngine/ECS/EntityManager.cpp`
 - `HuaEngine/src/HuaEngine/ECS/Entity.h`
 
-当前设计是薄包装：
+当前设计仍然很薄：
 
-- `EntityManager` 持有唯一的 `entt::registry`
-- `CreateEntity()` 调用 `registry.create()` 后，立即返回 `Entity` 包装对象
-- 新实体默认会 `AddComponent<TransformComponent>()`
-- `DestroyEntity()` 直接 `registry.destroy(entity)`
+- `EntityManager` 持有唯一 `entt::registry`
+- `CreateEntity()` 调 `registry.create()`
+- 创建后默认 `AddComponent<TransformComponent>()`
+- `DestroyEntity()` 直接销毁实体
 
-`Entity` 自身只保存：
-
-- `entt::entity m_EntityHandle`
-- `EntityManager* m_EntityManager`
-- 一个当前并未被创建流程正确维护的 `m_Name`
-
-`Entity` 上的模板操作本质都是直接转发到 `m_EntityManager->m_Registry`：
+`Entity` 本身主要只是语法糖：
 
 - `AddComponent<T>()`
 - `GetComponent<T>()`
 - `HasComponent<T>()`
 - `RemoveComponent<T>()`
 
-这意味着：
+这些调用本质都直接下钻到 `m_EntityManager->m_Registry`。
 
-- 如果 `Entity` 的 manager 指针失效，包装对象本身没有额外保护层
-- 这个模块更偏“便于调用的语法糖”，不是强约束的领域模型
+## 3. 实体命名当前仍不可靠
 
-## 2. 默认组件与实体可见性
-
-当前仓库里，`TransformComponent` 有两个特殊地位：
-
-- `CreateEntity()` 会自动添加它
-- `SceneHierarchyPanel` 使用 `reg.view<TransformComponent>()` 枚举实体
+`EntityManager::CreateEntity(const std::string& name)` 目前仍然忽略传入的 `name`。
 
 结果是：
 
-- 没有 Transform 的实体不会被编辑器层级树显示
-- 很多场景逻辑默认把“有 Transform”当作实体存在的基本前提
+- `Entity::m_Name` 仍然保持默认值 `"Entity"`
+- Editor 面板里看到的名字不是正式持久化名称体系
+- 如果你想做真正的实体命名功能，不能把当前实现误判为“已有但有小 bug”
 
-## 3. Scene 与 System 更新链路
+## 4. Scene 更新只做系统遍历
 
 关键文件：
 
 - `HuaEngine/src/HuaEngine/Scene/Scene.h`
 - `HuaEngine/src/HuaEngine/Scene/Scene.cpp`
-- `HuaEngine/src/HuaEngine/ECS/Syetem.h`
 
-当前 Scene 很轻：
+`Scene` 当前很轻：
 
-- 持有 `m_Name`
-- 持有一个 `EntityManager`
-- 持有一个 `std::vector<Ref<System>> m_Systems`
+- 一个名字
+- 一个 `EntityManager`
+- 一个 `std::vector<Ref<System>> m_Systems`
 
-`Scene::Update()` 的逻辑只有一件事：
+`Scene::Update()` 的核心行为就是：
 
 - 遍历 `m_Systems`
-- 调用每个 system 的 `Update()`
+- 逐个调 `Update()`
 
 这意味着：
 
-- Scene 本身没有生命周期调度器、脚本调度器、固定更新、分阶段系统排序
+- 没有注册的系统不会自动执行
 - 系统执行顺序就是注册顺序
-- 新系统必须显式 `AddSyetem(...)`，否则不会自动运行
+- 固定更新、多阶段调度、复杂生命周期都不在这一层
 
-## 4. View/Get 如何使用 EnTT
+## 5. 脚本运行时已经不是纯占位接口
 
-`Scene` 提供了两个核心模板入口：
+原始组件层仍然在：
 
-- `View<Type, Other...>()`
-- `Get<Type...>()`
+- `NativeScriptComponent`
+- `ScriptableEntity`
 
-它们直接转发到 `EntityManager.GetRegistry()`：
+但正式运行时闭环已经落到了：
 
-- `View(...)` 返回 `registry.view<...>()`
-- `Get(...)` 返回 `registry.get<...>()`
+- `HuaEngine/src/HuaEngine/Script/ScriptService.h`
+- `HuaEngine/src/HuaEngine/Script/ScriptService.cpp`
 
-所以：
+当前应该这样理解：
 
-- 性能和语义基本就是 EnTT 原生行为
-- 调试复杂查询时可以直接回到 registry 视角理解，而不必寻找更高层 DSL
+- 脚本组件定义仍在 ECS 层
+- 脚本生命周期推进已经转到 `ScriptService`
+- Headless `script status/initialize/update/shutdown` 和上层宿主都应该走正式服务
 
-## 5. 脚本接口当前状态
+不要再把脚本系统当成“完全没接线的预留接口”。
 
-`Components.h` 与 `ScriptableEntity.h` 中可以看到：
+## 6. Editor 如何消费 Scene 事实
 
-- `NativeScriptComponent` 持有 `Instance`、`InstanceFunc`、`DestoryFunc`
-- `ScriptableEntity` 暴露 `OnCreate()`、`OnUpdate()`、`OnDestory()` 等钩子
-
-但当前仓库事实是：
-
-- 我没有找到真正驱动这些脚本实例的 Scene 更新逻辑
-- 也没有看到脚本组件在运行时系统中被统一遍历与触发
-
-因此处理脚本相关任务时，应先判断你是在“补全未完成能力”，还是“修已有链路中的 bug”。当前更像前者。
-
-## 6. 编辑器消费路径
-
-最直接的编辑器入口：
+最直接的消费入口：
 
 - `Editor/src/Panels/SceneHierarchyPanel.cpp`
 - `Editor/src/Panels/InspectorPanel.cpp`
 
-`SceneHierarchyPanel`：
+当前特点：
 
-- 从 `Scene` 拿 `EntityManager`
-- 用 `view<TransformComponent>()` 遍历实体
-- 为每个实体构造临时 `Entity(entity, &entityManager)` 包装对象
-- 用 `entity.GetUid()` 和 `entity.GetName()` 画树节点
+- `SceneHierarchyPanel` 仍通过 `view<TransformComponent>()` 枚举实体
+- `InspectorPanel` 仍会直接使用底层 registry 事实
+- Editor 上层状态和提示语义已经转移到 `EditorWorkbenchState`
 
-`InspectorPanel`：
+所以排查 GUI 异常时，经常要同时检查：
 
-- 从全局选择里拿 `Entity`
-- 直接访问 `selection.m_EntityManager->GetRegistry()` 与 `selection.m_EntityHandle`
-- 通过 `ComponentEditorRegistry` 渲染组件编辑 UI
+- Scene / Entity 事实
+- Inspector 的绘制注册
+- Workbench 最近一次 ResultEnvelope 或 ValidationReport
 
-这说明当前编辑器面板对 `Entity` 的封装边界并不强，仍会直接下钻 registry。
+## 7. Headless 如何消费 Scene 能力
+
+当前 headless 入口：
+
+- `scene create`
+- `scene validate`
+- `script status`
+- `script initialize`
+- `script update`
+- `script shutdown`
+
+它们都不是直接碰 `Scene` 的内部 helper，而是沿：
+
+- `HeadlessCommandRunner`
+- `ApplicationOperations`
+- `SceneService` / `ScriptService`
+
+这层关系决定了：
+
+- CLI 能力边界优先服从正式服务
+- 如果你在 Scene 内加了一个 helper，但没通过正式操作层暴露，CLI 不会自动得到它
 
 ## Related Skills
 
-- 如果系统注册后的主要消费方是渲染路径：转到 `huaengine-rendering/references/runtime-flow.md`
-- 如果组件字段、反射声明或 JSON 读写本身出了问题：转到 `huaengine-serialization-reflection/references/extension-and-integration.md`
-- 如果需要先回到仓库级入口分层：转到 `huaengine-architecture/references/architecture.md`
+- 场景里的组件最终如何进入渲染：
+  - 看 `huaengine-rendering/references/runtime-flow.md`
+- 组件字段和 JSON 读写本身出了问题：
+  - 看 `huaengine-serialization-reflection/references/extension-and-integration.md`
+- 宿主和服务层的正式边界：
+  - 看 `huaengine-architecture/references/architecture.md`

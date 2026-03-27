@@ -14,24 +14,24 @@ namespace HE {
 
 		template<typename T, typename... Args>
 		T& AddComponent(Args&&... args) {
-			T& component = m_EntityManager->m_Registry.emplace<T>(m_EntityHandle, std::forward<Args>(args)...);
+			T& component = m_EntityManager->m_Registry.template emplace<T>(m_EntityHandle, std::forward<Args>(args)...);
 			return component;
 		}
 
 		template<typename T>
 		T& GetComponent() {
-			T& component = m_EntityManager->m_Registry.get<T>(m_EntityHandle);
+			T& component = m_EntityManager->m_Registry.template get<T>(m_EntityHandle);
 			return component;
 		}
 
 		template<typename T>
 		bool HasComponent() {
-			return m_EntityManager->m_Registry.has<T>(m_EntityHandle);
+			return m_EntityManager->m_Registry.template all_of<T>(m_EntityHandle);
 		}
 
 		template<typename T>
 		void RemoveComponent() {
-			m_EntityManager->m_Registry.remove<T>(m_EntityHandle);
+			m_EntityManager->m_Registry.template remove<T>(m_EntityHandle);
 		}
 
 		std::string GetName() {

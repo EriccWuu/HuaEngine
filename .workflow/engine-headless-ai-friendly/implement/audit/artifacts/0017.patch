@@ -1,0 +1,6 @@
+diff --git a/HuaEngine/src/HuaEngine/Asset/AssetService.cpp b/HuaEngine/src/HuaEngine/Asset/AssetService.cpp
+@@
++ metadata-only texture registration now requires a regular file
+diff --git a/Tests/AssetServiceSmoke.cpp b/Tests/AssetServiceSmoke.cpp
+@@
++ repeated registration of the same asset id preserves the original handle

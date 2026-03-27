@@ -6,18 +6,23 @@ namespace HE {
 	Ref<spdlog::logger> Log::ms_ClientLogger;
 	Ref<LogSink> Log::ms_LogSink;
 
-	void Log::Init() {
+	void Log::Init(const LogSpecification& specification) {
 		ms_LogSink = std::make_shared<LogSink>();
-		auto coreConsoleSink = std::make_shared<spdlog::sinks::stdout_color_sink_mt>();
-		coreConsoleSink->set_pattern("%^[%T] %n: %v%$");
-
-		std::vector<spdlog::sink_ptr> coreSinks = { ms_LogSink, coreConsoleSink };
+		std::vector<spdlog::sink_ptr> coreSinks = { ms_LogSink };
+		if (specification.EnableConsoleOutput) {
+			auto coreConsoleSink = std::make_shared<spdlog::sinks::stdout_color_sink_mt>();
+			coreConsoleSink->set_pattern("%^[%T] %n: %v%$");
+			coreSinks.emplace_back(coreConsoleSink);
+		}
 		ms_CoreLogger = std::make_shared<spdlog::logger>("HUA_ENGINE", coreSinks.begin(), coreSinks.end());
 		ms_CoreLogger->set_level(spdlog::level::trace);
 
-		auto clientConsoleSink = std::make_shared<spdlog::sinks::stdout_color_sink_mt>();
-		clientConsoleSink->set_pattern("%^[%T] %n: %v%$");
-		std::vector<spdlog::sink_ptr> clientSinks = { ms_LogSink, clientConsoleSink };
+		std::vector<spdlog::sink_ptr> clientSinks = { ms_LogSink };
+		if (specification.EnableConsoleOutput) {
+			auto clientConsoleSink = std::make_shared<spdlog::sinks::stdout_color_sink_mt>();
+			clientConsoleSink->set_pattern("%^[%T] %n: %v%$");
+			clientSinks.emplace_back(clientConsoleSink);
+		}
 		ms_ClientLogger = std::make_shared<spdlog::logger>("APP", clientSinks.begin(), clientSinks.end());
 		ms_ClientLogger->set_level(spdlog::level::trace);
 	}

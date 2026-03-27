@@ -16,11 +16,29 @@ namespace HE {
 	}
 
 	void SceneHierarchyPanel::OnGuiRender() {
+		if (!m_Context) {
+			return;
+		}
+
 		auto& entityManager = m_Context->GetEntityManager();
 		auto& reg = entityManager.GetRegistry();
 		auto view = reg.view<TransformComponent>();
 		
 		ImGui::Begin("Scene Hierarchy");
+		if (m_WorkbenchState) {
+			if (const auto* result = m_WorkbenchState->GetLastResult()) {
+				ImGui::Text("Last Op: %s", result->Operation.c_str());
+				ImGui::SameLine();
+				ImGui::TextDisabled("[%s]", ToString(result->Status).data());
+			}
+
+			if (const auto* report = m_WorkbenchState->GetLastValidationReport()) {
+				ImGui::Text("Validation Domains: %u", report->DomainCount);
+				ImGui::SameLine();
+				ImGui::Text("Warnings: %u Errors: %u", report->WarningCount, report->ErrorCount);
+			}
+			ImGui::Separator();
+		}
 		ImGui::SetNextItemWidth(-FLT_MIN);
 		ImGui::SetNextItemShortcut(ImGuiMod_Ctrl | ImGuiKey_F, ImGuiInputFlags_Tooltip);
 		ImGui::PushItemFlag(ImGuiItemFlags_NoNavDefaultFocus, true);

@@ -1,21 +1,43 @@
 #pragma once
+
+#include <memory>
+#include <string>
+
 #include "HuaEngine/Core/Core.h"
 #include "HuaEngine/Core/Window.h"
 #include "HuaEngine/Core/LayerStack.h"
+#include "HuaEngine/Events/Event.h"
 #include "HuaEngine/GUI/ImguiLayer.h"
 
 namespace HE
 {
+	class ApplicationServices;
+	class ApplicationOperations;
+
+	struct ApplicationSpecification {
+		std::string Name = "HuaEngine";
+		bool EnableWindow = true;
+		bool EnableGuiLayer = true;
+	};
+
 	class ENGINE_API Application
 	{
 	public :
-		Application();
+		explicit Application(ApplicationSpecification specification = {});
 
-		~Application();
+		virtual ~Application();
 
 		static Application& GetInstance() { return *ms_Instance; }
-		Window& GetWindow() { return *m_Window; }
+		Window& GetWindow() {
+			HE_CORE_ASSERT(m_Window, "Application window is not available for this host");
+			return *m_Window;
+		}
+		const ApplicationSpecification& GetSpecification() const { return m_Specification; }
+		bool IsRuntimeInitialized() const { return m_RuntimeInitialized; }
+		ApplicationOperations& GetOperations();
+		const ApplicationOperations& GetOperations() const;
 
+		void Start();
 		void OnEvent(Event& e);
 
 		void Run();
@@ -24,14 +46,26 @@ namespace HE
 		void PushLayer(Layer* layer);
 		void PushOverlay(Layer* layer);
 
+	protected:
+		ApplicationServices& GetServices();
+		const ApplicationServices& GetServices() const;
+
+		virtual void RegisterRuntimeServices(ApplicationServices& services) { (void)services; }
+		virtual void OnRuntimeInitialized(ApplicationOperations& operations) { (void)operations; }
+
 	private:
+		void AttachDeferredLayers();
+
+		ApplicationSpecification m_Specification;
 		std::unique_ptr<Window> m_Window;
-		ImguiLayer* m_GuiLayer;
+		ImguiLayer* m_GuiLayer = nullptr;
 		bool m_Running = true;
+		bool m_RuntimeInitialized = false;
+		Scope<ApplicationServices> m_Services;
+		Scope<ApplicationOperations> m_Operations;
 		LayerStack m_LayerStack;
 		static Application* ms_Instance;
 	};
 
 	Application* CreateApplication();
 }
-

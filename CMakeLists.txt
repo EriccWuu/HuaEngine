@@ -10,7 +10,7 @@ include(${CMAKE_SOURCE_DIR}/cmake/Config.cmake)
 project(HuaEngine VERSION 1.0.0 LANGUAGES C CXX)
 
 # Set C++ standard
-set(CMAKE_CXX_STANDARD 17)
+set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
 # Architecture check
@@ -82,6 +82,295 @@ add_subdirectory(Dependencies/imgui)
 add_subdirectory(HuaEngine)
 add_subdirectory(Sandbox)
 add_subdirectory(Editor)
+add_subdirectory(Headless)
+
+set(SMOKE_RUNTIME_OUTPUT_DIRECTORY
+    "${CMAKE_BINARY_DIR}/bin/$<CONFIG>-${CMAKE_SYSTEM_NAME}-${ARCHITECTURE}/smoke")
+
+function(configure_smoke_target target_name)
+    set_target_properties(${target_name} PROPERTIES
+        RUNTIME_OUTPUT_DIRECTORY "${SMOKE_RUNTIME_OUTPUT_DIRECTORY}"
+        VS_DEBUGGER_WORKING_DIRECTORY "$<TARGET_FILE_DIR:${target_name}>"
+    )
+
+    foreach(config ${CMAKE_CONFIGURATION_TYPES})
+        string(TOUPPER ${config} config_upper)
+        set_target_properties(${target_name} PROPERTIES
+            RUNTIME_OUTPUT_DIRECTORY_${config_upper}
+                "${CMAKE_BINARY_DIR}/bin/${config}-${CMAKE_SYSTEM_NAME}-${ARCHITECTURE}/smoke"
+        )
+
+        if(MSVC)
+            set_target_properties(${target_name} PROPERTIES
+                PDB_OUTPUT_DIRECTORY_${config_upper}
+                    "${CMAKE_BINARY_DIR}/bin/${config}-${CMAKE_SYSTEM_NAME}-${ARCHITECTURE}/smoke"
+            )
+        endif()
+    endforeach()
+
+    if(MSVC)
+        set_target_properties(${target_name} PROPERTIES
+            PDB_OUTPUT_DIRECTORY "${SMOKE_RUNTIME_OUTPUT_DIRECTORY}"
+        )
+    endif()
+endfunction()
+
+function(copy_headless_host_to_smoke target_name)
+    add_custom_command(TARGET ${target_name} POST_BUILD
+        COMMAND ${CMAKE_COMMAND} -E copy_if_different
+            "$<TARGET_FILE:HuaEngineHeadless>"
+            "$<TARGET_FILE_DIR:${target_name}>/$<TARGET_FILE_NAME:HuaEngineHeadless>"
+        VERBATIM
+    )
+endfunction()
+
+add_executable(ProjectServiceSmoke Tests/ProjectServiceSmoke.cpp)
+target_include_directories(ProjectServiceSmoke PRIVATE
+    ${CMAKE_SOURCE_DIR}/HuaEngine/src
+    ${SPDLOG_INCLUDE_DIR}
+    ${GLM_INCLUDE_DIR}
+    ${IMGUI_INCLUDE_DIR}
+    ${STB_IMAGE_INCLUDE_DIR}
+    ${ENTT_INCLUDE_DIR}
+)
+target_link_libraries(ProjectServiceSmoke PRIVATE HuaEngine)
+if(WIN32)
+    target_compile_definitions(ProjectServiceSmoke PRIVATE GLFW_INCLUDE_NONE)
+    if(MSVC)
+        set_target_properties(ProjectServiceSmoke PROPERTIES
+            MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>"
+        )
+        target_compile_options(ProjectServiceSmoke PRIVATE /utf-8)
+    endif()
+endif()
+configure_smoke_target(ProjectServiceSmoke)
+
+add_executable(SceneServiceSmoke Tests/SceneServiceSmoke.cpp)
+target_include_directories(SceneServiceSmoke PRIVATE
+    ${CMAKE_SOURCE_DIR}/HuaEngine/src
+    ${SPDLOG_INCLUDE_DIR}
+    ${GLM_INCLUDE_DIR}
+    ${IMGUI_INCLUDE_DIR}
+    ${STB_IMAGE_INCLUDE_DIR}
+    ${ENTT_INCLUDE_DIR}
+)
+target_link_libraries(SceneServiceSmoke PRIVATE HuaEngine)
+if(WIN32)
+    target_compile_definitions(SceneServiceSmoke PRIVATE GLFW_INCLUDE_NONE)
+    if(MSVC)
+        set_target_properties(SceneServiceSmoke PROPERTIES
+            MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>"
+        )
+        target_compile_options(SceneServiceSmoke PRIVATE /utf-8)
+    endif()
+endif()
+configure_smoke_target(SceneServiceSmoke)
+
+add_executable(AssetServiceSmoke Tests/AssetServiceSmoke.cpp)
+target_include_directories(AssetServiceSmoke PRIVATE
+    ${CMAKE_SOURCE_DIR}/HuaEngine/src
+    ${SPDLOG_INCLUDE_DIR}
+    ${GLM_INCLUDE_DIR}
+    ${IMGUI_INCLUDE_DIR}
+    ${STB_IMAGE_INCLUDE_DIR}
+    ${ENTT_INCLUDE_DIR}
+)
+target_link_libraries(AssetServiceSmoke PRIVATE HuaEngine)
+if(WIN32)
+    target_compile_definitions(AssetServiceSmoke PRIVATE GLFW_INCLUDE_NONE)
+    if(MSVC)
+        set_target_properties(AssetServiceSmoke PROPERTIES
+            MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>"
+        )
+        target_compile_options(AssetServiceSmoke PRIVATE /utf-8)
+    endif()
+endif()
+configure_smoke_target(AssetServiceSmoke)
+
+add_executable(ScriptServiceSmoke Tests/ScriptServiceSmoke.cpp)
+target_include_directories(ScriptServiceSmoke PRIVATE
+    ${CMAKE_SOURCE_DIR}/HuaEngine/src
+    ${SPDLOG_INCLUDE_DIR}
+    ${GLM_INCLUDE_DIR}
+    ${IMGUI_INCLUDE_DIR}
+    ${STB_IMAGE_INCLUDE_DIR}
+    ${ENTT_INCLUDE_DIR}
+)
+target_link_libraries(ScriptServiceSmoke PRIVATE HuaEngine)
+if(WIN32)
+    target_compile_definitions(ScriptServiceSmoke PRIVATE GLFW_INCLUDE_NONE)
+    if(MSVC)
+        set_target_properties(ScriptServiceSmoke PROPERTIES
+            MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>"
+        )
+        target_compile_options(ScriptServiceSmoke PRIVATE /utf-8)
+    endif()
+endif()
+configure_smoke_target(ScriptServiceSmoke)
+
+add_executable(ValidationServiceSmoke Tests/ValidationServiceSmoke.cpp)
+target_include_directories(ValidationServiceSmoke PRIVATE
+    ${CMAKE_SOURCE_DIR}/HuaEngine/src
+    ${SPDLOG_INCLUDE_DIR}
+    ${GLM_INCLUDE_DIR}
+    ${IMGUI_INCLUDE_DIR}
+    ${STB_IMAGE_INCLUDE_DIR}
+    ${ENTT_INCLUDE_DIR}
+)
+target_link_libraries(ValidationServiceSmoke PRIVATE HuaEngine)
+if(WIN32)
+    target_compile_definitions(ValidationServiceSmoke PRIVATE GLFW_INCLUDE_NONE)
+    if(MSVC)
+        set_target_properties(ValidationServiceSmoke PROPERTIES
+            MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>"
+        )
+        target_compile_options(ValidationServiceSmoke PRIVATE /utf-8)
+    endif()
+endif()
+configure_smoke_target(ValidationServiceSmoke)
+
+add_executable(ApplicationServicesSmoke Tests/ApplicationServicesSmoke.cpp)
+target_include_directories(ApplicationServicesSmoke PRIVATE
+    ${CMAKE_SOURCE_DIR}/HuaEngine/src
+    ${SPDLOG_INCLUDE_DIR}
+    ${GLM_INCLUDE_DIR}
+    ${IMGUI_INCLUDE_DIR}
+    ${STB_IMAGE_INCLUDE_DIR}
+    ${ENTT_INCLUDE_DIR}
+)
+target_link_libraries(ApplicationServicesSmoke PRIVATE HuaEngine)
+if(WIN32)
+    target_compile_definitions(ApplicationServicesSmoke PRIVATE GLFW_INCLUDE_NONE)
+    if(MSVC)
+        set_target_properties(ApplicationServicesSmoke PROPERTIES
+            MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>"
+        )
+        target_compile_options(ApplicationServicesSmoke PRIVATE /utf-8)
+    endif()
+endif()
+configure_smoke_target(ApplicationServicesSmoke)
+
+add_executable(ApplicationOperationsSmoke Tests/ApplicationOperationsSmoke.cpp)
+target_include_directories(ApplicationOperationsSmoke PRIVATE
+    ${CMAKE_SOURCE_DIR}/HuaEngine/src
+    ${SPDLOG_INCLUDE_DIR}
+    ${GLM_INCLUDE_DIR}
+    ${IMGUI_INCLUDE_DIR}
+    ${STB_IMAGE_INCLUDE_DIR}
+    ${ENTT_INCLUDE_DIR}
+)
+target_link_libraries(ApplicationOperationsSmoke PRIVATE HuaEngine)
+if(WIN32)
+    target_compile_definitions(ApplicationOperationsSmoke PRIVATE GLFW_INCLUDE_NONE)
+    if(MSVC)
+        set_target_properties(ApplicationOperationsSmoke PROPERTIES
+            MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>"
+        )
+        target_compile_options(ApplicationOperationsSmoke PRIVATE /utf-8)
+    endif()
+endif()
+configure_smoke_target(ApplicationOperationsSmoke)
+
+add_executable(AgentHostAdapterSmoke Tests/AgentHostAdapterSmoke.cpp)
+target_include_directories(AgentHostAdapterSmoke PRIVATE
+    ${CMAKE_SOURCE_DIR}/HuaEngine/src
+    ${SPDLOG_INCLUDE_DIR}
+    ${GLM_INCLUDE_DIR}
+    ${IMGUI_INCLUDE_DIR}
+    ${STB_IMAGE_INCLUDE_DIR}
+    ${ENTT_INCLUDE_DIR}
+)
+target_link_libraries(AgentHostAdapterSmoke PRIVATE HuaEngine)
+if(WIN32)
+    target_compile_definitions(AgentHostAdapterSmoke PRIVATE GLFW_INCLUDE_NONE)
+    if(MSVC)
+        set_target_properties(AgentHostAdapterSmoke PROPERTIES
+            MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>"
+        )
+        target_compile_options(AgentHostAdapterSmoke PRIVATE /utf-8)
+    endif()
+endif()
+configure_smoke_target(AgentHostAdapterSmoke)
+
+add_executable(HeadlessHostSmoke Tests/HeadlessHostSmoke.cpp)
+target_include_directories(HeadlessHostSmoke PRIVATE
+    ${CMAKE_SOURCE_DIR}/Headless/src
+    ${CMAKE_SOURCE_DIR}/HuaEngine/src
+    ${SPDLOG_INCLUDE_DIR}
+    ${GLM_INCLUDE_DIR}
+    ${IMGUI_INCLUDE_DIR}
+    ${STB_IMAGE_INCLUDE_DIR}
+    ${ENTT_INCLUDE_DIR}
+)
+target_link_libraries(HeadlessHostSmoke PRIVATE HuaEngineHeadlessCore)
+if(WIN32)
+    target_compile_definitions(HeadlessHostSmoke PRIVATE GLFW_INCLUDE_NONE)
+    if(MSVC)
+        set_target_properties(HeadlessHostSmoke PROPERTIES
+            MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>"
+        )
+        target_compile_options(HeadlessHostSmoke PRIVATE /utf-8)
+    endif()
+endif()
+configure_smoke_target(HeadlessHostSmoke)
+
+add_executable(HeadlessWorkflowSmoke Tests/HeadlessWorkflowSmoke.cpp)
+add_dependencies(HeadlessWorkflowSmoke HuaEngineHeadless)
+if(WIN32)
+    if(MSVC)
+        set_target_properties(HeadlessWorkflowSmoke PROPERTIES
+            MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>"
+        )
+        target_compile_options(HeadlessWorkflowSmoke PRIVATE /utf-8)
+    endif()
+endif()
+configure_smoke_target(HeadlessWorkflowSmoke)
+copy_headless_host_to_smoke(HeadlessWorkflowSmoke)
+
+add_executable(RenderingOperationsSmoke Tests/RenderingOperationsSmoke.cpp)
+target_include_directories(RenderingOperationsSmoke PRIVATE
+    ${CMAKE_SOURCE_DIR}/HuaEngine/src
+    ${SPDLOG_INCLUDE_DIR}
+    ${GLM_INCLUDE_DIR}
+    ${IMGUI_INCLUDE_DIR}
+    ${STB_IMAGE_INCLUDE_DIR}
+    ${ENTT_INCLUDE_DIR}
+)
+target_link_libraries(RenderingOperationsSmoke PRIVATE HuaEngine)
+if(WIN32)
+    target_compile_definitions(RenderingOperationsSmoke PRIVATE GLFW_INCLUDE_NONE)
+    if(MSVC)
+        set_target_properties(RenderingOperationsSmoke PROPERTIES
+            MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>"
+        )
+        target_compile_options(RenderingOperationsSmoke PRIVATE /utf-8)
+    endif()
+endif()
+configure_smoke_target(RenderingOperationsSmoke)
+
+add_executable(HostConsistencySmoke Tests/HostConsistencySmoke.cpp)
+add_dependencies(HostConsistencySmoke HuaEngineHeadless)
+target_include_directories(HostConsistencySmoke PRIVATE
+    ${CMAKE_SOURCE_DIR}/Editor/src
+    ${CMAKE_SOURCE_DIR}/HuaEngine/src
+    ${SPDLOG_INCLUDE_DIR}
+    ${GLM_INCLUDE_DIR}
+    ${IMGUI_INCLUDE_DIR}
+    ${STB_IMAGE_INCLUDE_DIR}
+    ${ENTT_INCLUDE_DIR}
+)
+target_link_libraries(HostConsistencySmoke PRIVATE HuaEngine)
+if(WIN32)
+    target_compile_definitions(HostConsistencySmoke PRIVATE GLFW_INCLUDE_NONE)
+    if(MSVC)
+        set_target_properties(HostConsistencySmoke PROPERTIES
+            MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>"
+        )
+        target_compile_options(HostConsistencySmoke PRIVATE /utf-8)
+    endif()
+endif()
+configure_smoke_target(HostConsistencySmoke)
+copy_headless_host_to_smoke(HostConsistencySmoke)
 
 # Set Editor as the startup project for Visual Studio
 set_property(DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR} PROPERTY VS_STARTUP_PROJECT Editor)
@@ -90,3 +379,17 @@ set_property(DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR} PROPERTY VS_STARTUP_PROJECT E
 set_property(TARGET glfw PROPERTY FOLDER "Dependencies")
 set_property(TARGET GLAD PROPERTY FOLDER "Dependencies")
 set_property(TARGET ImGui PROPERTY FOLDER "Dependencies")
+set_property(TARGET HuaEngineHeadlessCore PROPERTY FOLDER "Hosts")
+set_property(TARGET HuaEngineHeadless PROPERTY FOLDER "Hosts")
+set_property(TARGET ProjectServiceSmoke PROPERTY FOLDER "Tests")
+set_property(TARGET SceneServiceSmoke PROPERTY FOLDER "Tests")
+set_property(TARGET AssetServiceSmoke PROPERTY FOLDER "Tests")
+set_property(TARGET ScriptServiceSmoke PROPERTY FOLDER "Tests")
+set_property(TARGET ValidationServiceSmoke PROPERTY FOLDER "Tests")
+set_property(TARGET ApplicationServicesSmoke PROPERTY FOLDER "Tests")
+set_property(TARGET ApplicationOperationsSmoke PROPERTY FOLDER "Tests")
+set_property(TARGET AgentHostAdapterSmoke PROPERTY FOLDER "Tests")
+set_property(TARGET HeadlessHostSmoke PROPERTY FOLDER "Tests")
+set_property(TARGET HeadlessWorkflowSmoke PROPERTY FOLDER "Tests")
+set_property(TARGET RenderingOperationsSmoke PROPERTY FOLDER "Tests")
+set_property(TARGET HostConsistencySmoke PROPERTY FOLDER "Tests")

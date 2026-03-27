@@ -152,6 +152,12 @@ namespace HE::Rendering {
 
 	void MaterialInstance::SetParameter(const std::string& name, const MaterialParameterValue& value)
 	{
+		if (!m_BaseMaterial)
+		{
+			HE_CORE_WARN("Cannot set material instance parameter '{0}' without a base material", name);
+			return;
+		}
+
 		if (!m_BaseMaterial->HasParameter(name))
 		{
 			HE_CORE_WARN("Parameter '{0}' not found in base material", name);
@@ -175,17 +181,34 @@ namespace HE::Rendering {
 
 	void MaterialInstance::Bind()
 	{
+		if (!m_BaseMaterial)
+		{
+			HE_CORE_WARN("Cannot bind material instance without a base material");
+			return;
+		}
+
 		m_BaseMaterial->Bind();
 		ApplyParameters();
 	}
 
 	void MaterialInstance::Unbind()
 	{
+		if (!m_BaseMaterial)
+		{
+			return;
+		}
+
 		m_BaseMaterial->Unbind();
 	}
 
 	void MaterialInstance::ApplyParameters()
 	{
+		if (!m_BaseMaterial)
+		{
+			HE_CORE_WARN("Cannot apply material instance parameters without a base material");
+			return;
+		}
+
 		// First apply base material's default parameters
 		for (const auto& [name, param] : m_BaseMaterial->GetParameters())
 		{

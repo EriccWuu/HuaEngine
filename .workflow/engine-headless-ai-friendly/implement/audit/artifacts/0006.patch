@@ -1,0 +1,206 @@
+diff --git a/CMakeLists.txt b/CMakeLists.txt
+index 5f51c62..7deefde 100644
+--- a/CMakeLists.txt
++++ b/CMakeLists.txt
+@@ -10,7 +10,7 @@ include(${CMAKE_SOURCE_DIR}/cmake/Config.cmake)
+ project(HuaEngine VERSION 1.0.0 LANGUAGES C CXX)
+ 
+ # Set C++ standard
+-set(CMAKE_CXX_STANDARD 17)
++set(CMAKE_CXX_STANDARD 20)
+ set(CMAKE_CXX_STANDARD_REQUIRED ON)
+ 
+ # Architecture check
+diff --git a/Editor/CMakeLists.txt b/Editor/CMakeLists.txt
+index d6ecb2a..bf9e967 100644
+--- a/Editor/CMakeLists.txt
++++ b/Editor/CMakeLists.txt
+@@ -4,7 +4,7 @@ cmake_minimum_required(VERSION 3.16)
+ project(Editor LANGUAGES CXX)
+ 
+ # Set C++ standard
+-set(CMAKE_CXX_STANDARD 17)
++set(CMAKE_CXX_STANDARD 20)
+ set(CMAKE_CXX_STANDARD_REQUIRED ON)
+ 
+ # Collect all source files
+diff --git a/HuaEngine/CMakeLists.txt b/HuaEngine/CMakeLists.txt
+index 3466b41..37ebdee 100644
+--- a/HuaEngine/CMakeLists.txt
++++ b/HuaEngine/CMakeLists.txt
+@@ -4,7 +4,7 @@ cmake_minimum_required(VERSION 3.16)
+ project(HuaEngine LANGUAGES CXX)
+ 
+ # Set C++ standard
+-set(CMAKE_CXX_STANDARD 17)
++set(CMAKE_CXX_STANDARD 20)
+ set(CMAKE_CXX_STANDARD_REQUIRED ON)
+ 
+ # Collect all source files
+diff --git a/HuaEngine/src/HuaEngine/ECS/Components.h b/HuaEngine/src/HuaEngine/ECS/Components.h
+index 7ab2374..4d0b390 100644
+--- a/HuaEngine/src/HuaEngine/ECS/Components.h
++++ b/HuaEngine/src/HuaEngine/ECS/Components.h
+@@ -38,7 +38,7 @@ namespace HE {
+ 		template<typename T>
+ 		void Bind() {
+ 			InstanceFunc = []() { return static_cast<T*>(new T());  };
+-			DestoryFunc = [](NativeScriptComponent* ncs) { delete ncs->Instance; ncs->Instance = nullptr; }
++			DestoryFunc = [](NativeScriptComponent* ncs) { delete ncs->Instance; ncs->Instance = nullptr; };
+ 		}
+ 	};
+ }
+diff --git a/HuaEngine/src/HuaEngine/ECS/Entity.h b/HuaEngine/src/HuaEngine/ECS/Entity.h
+index 0b9fb8b..2b869ef 100644
+--- a/HuaEngine/src/HuaEngine/ECS/Entity.h
++++ b/HuaEngine/src/HuaEngine/ECS/Entity.h
+@@ -14,24 +14,24 @@ namespace HE {
+ 
+ 		template<typename T, typename... Args>
+ 		T& AddComponent(Args&&... args) {
+-			T& component = m_EntityManager->m_Registry.emplace<T>(m_EntityHandle, std::forward<Args>(args)...);
++			T& component = m_EntityManager->m_Registry.template emplace<T>(m_EntityHandle, std::forward<Args>(args)...);
+ 			return component;
+ 		}
+ 
+ 		template<typename T>
+ 		T& GetComponent() {
+-			T& component = m_EntityManager->m_Registry.get<T>(m_EntityHandle);
++			T& component = m_EntityManager->m_Registry.template get<T>(m_EntityHandle);
+ 			return component;
+ 		}
+ 
+ 		template<typename T>
+ 		bool HasComponent() {
+-			return m_EntityManager->m_Registry.has<T>(m_EntityHandle);
++			return m_EntityManager->m_Registry.template all_of<T>(m_EntityHandle);
+ 		}
+ 
+ 		template<typename T>
+ 		void RemoveComponent() {
+-			m_EntityManager->m_Registry.remove<T>(m_EntityHandle);
++			m_EntityManager->m_Registry.template remove<T>(m_EntityHandle);
+ 		}
+ 
+ 		std::string GetName() {
+diff --git a/HuaEngine/src/HuaEngine/ECS/ScriptableEntity.h b/HuaEngine/src/HuaEngine/ECS/ScriptableEntity.h
+index 3bde65d..b8e99d7 100644
+--- a/HuaEngine/src/HuaEngine/ECS/ScriptableEntity.h
++++ b/HuaEngine/src/HuaEngine/ECS/ScriptableEntity.h
+@@ -1,6 +1,7 @@
+ #pragma once
+ 
+ #include "Entity.h"
++#include "HuaEngine/Core/Assert.h"
+ 
+ namespace HE {
+ 	class ScriptableEntity {
+@@ -9,24 +10,26 @@ namespace HE {
+ 
+ 		template<typename T, typename... Args>
+ 		T& AddComponent(Args&&... args) {
+-			T& component = m_Entity.AddComponent<T>(std::forward<Args>(args)...);
+-			return component;
++			HE_CORE_ASSERT(m_Entity, "ScriptableEntity is not bound to an entity");
++			return m_Entity->AddComponent<T>(std::forward<Args>(args)...);
+ 		}
+ 
+ 		template<typename T>
+ 		T& GetComponent() {
+-			T& component = m_Entity.GetComponent<T>(m_EntityHandle);
+-			return component;
++			HE_CORE_ASSERT(m_Entity, "ScriptableEntity is not bound to an entity");
++			return m_Entity->GetComponent<T>();
+ 		}
+ 
+ 		template<typename T>
+ 		bool HasComponent() {
+-			return m_Entity.HasComponent<T>(m_EntityHandle);
++			HE_CORE_ASSERT(m_Entity, "ScriptableEntity is not bound to an entity");
++			return m_Entity->HasComponent<T>();
+ 		}
+ 
+ 		template<typename T>
+ 		void RemoveComponent() {
+-			m_Entity.RemoveComponent<T>();
++			HE_CORE_ASSERT(m_Entity, "ScriptableEntity is not bound to an entity");
++			m_Entity->RemoveComponent<T>();
+ 		}
+ 
+ 	protected:
+@@ -35,6 +38,6 @@ namespace HE {
+ 		virtual void OnDestory() {}
+ 
+ 	private:
+-		Entity* m_Entity;
++		Entity* m_Entity = nullptr;
+ 	};
+-}
+\ No newline at end of file
++}
+diff --git a/HuaEngine/src/HuaEngine/Reflection/TypeList.h b/HuaEngine/src/HuaEngine/Reflection/TypeList.h
+index 5adba1c..a90c5b5 100644
+--- a/HuaEngine/src/HuaEngine/Reflection/TypeList.h
++++ b/HuaEngine/src/HuaEngine/Reflection/TypeList.h
+@@ -92,7 +92,7 @@ using list_element_t = typename Detail::list_element<List, N>::type;
+ * @tparam List
+ */
+ template<typename List>
+-constexpr size_t list_size_v = typename Detail::list_size<List>::size;
++inline constexpr size_t list_size_v = Detail::list_size<List>::size;
+ 
+ /**
+ * @brief check if the element list is empty (from type_list or std::tuple or others)
+@@ -256,7 +256,7 @@ struct filter<ListType<T, Ts...>, F> {
+ * @tparam F  receive a type and give a constexpr static bool value;
+ */
+ template<typename List, template <typename> typename F>
+-using disjunction_v = typename Detail::disjunction<List, F>::value;
++inline constexpr bool disjunction_v = Detail::disjunction<List, F>::value;
+ 
+ /**
+ * @brief work as std::conjunction: use function struct F to check all of
+@@ -266,7 +266,7 @@ using disjunction_v = typename Detail::disjunction<List, F>::value;
+ * @tparam F  receive a type and give a constexpr static bool value;
+ */
+ template<typename List, template <typename> typename F>
+-using conjunction_v = typename Detail::conjunction<List, F>::value;
++inline constexpr bool conjunction_v = Detail::conjunction<List, F>::value;
+ 
+ /**
+ * @brief concat two type list
+diff --git a/HuaEngine/src/Module/Rendering/RenderSystem.cpp b/HuaEngine/src/Module/Rendering/RenderSystem.cpp
+index fe8bab3..43f1c42 100644
+--- a/HuaEngine/src/Module/Rendering/RenderSystem.cpp
++++ b/HuaEngine/src/Module/Rendering/RenderSystem.cpp
+@@ -6,7 +6,7 @@
+ 
+ namespace HE {
+ 	void RenderSystem::Update() {
+-		auto& cameraView = m_Scene->View<Rendering::CameraComponent>();
++		auto cameraView = m_Scene->View<Rendering::CameraComponent>();
+ 		for (auto cameraEntity : cameraView) {
+ 			auto& camera = m_Scene->Get<Rendering::CameraComponent>(cameraEntity);
+ 			RenderSingleCamera(*m_Scene, *camera.Camera);
+@@ -15,7 +15,7 @@ namespace HE {
+ 
+ 	void RenderSystem::RenderSingleCamera(Scene& scene, Rendering::Camera& camera) {
+ 		// Render objects using new material system
+-		auto& materialEntityView = scene.View<TransformComponent, Rendering::MeshComponent, Rendering::MaterialComponent>();
++		auto materialEntityView = scene.View<TransformComponent, Rendering::MeshComponent, Rendering::MaterialComponent>();
+ 
+ 		m_Framebuffer->Bind();
+ 		Rendering::RenderCommand::SetClearColor({ 0.1f, 0.1f, 0.1f, 1.0f });
+diff --git a/Sandbox/CMakeLists.txt b/Sandbox/CMakeLists.txt
+index 521b47f..8a7d7e1 100644
+--- a/Sandbox/CMakeLists.txt
++++ b/Sandbox/CMakeLists.txt
+@@ -4,7 +4,7 @@ cmake_minimum_required(VERSION 3.16)
+ project(Sandbox LANGUAGES CXX)
+ 
+ # Set C++ standard
+-set(CMAKE_CXX_STANDARD 17)
++set(CMAKE_CXX_STANDARD 20)
+ set(CMAKE_CXX_STANDARD_REQUIRED ON)
+ 
+ # Collect all source files

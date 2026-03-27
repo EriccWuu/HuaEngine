@@ -1,0 +1,37 @@
+适用于 .NET Framework MSBuild 版本 17.14.18+a338add32
+
+  GLAD.vcxproj -> D:\Workspace\VS Workspace\HuaEngine\build\bin\Debug-Windows-x64\GLAD.lib
+  ImGui.vcxproj -> D:\Workspace\VS Workspace\HuaEngine\build\bin\Debug-Windows-x64\ImGui.lib
+  glfw.vcxproj -> D:\Workspace\VS Workspace\HuaEngine\build\bin\Debug-Windows-x64\glfw3.lib
+  HuaEngine.vcxproj -> D:\Workspace\VS Workspace\HuaEngine\build\bin\Debug-Windows-x64\HuaEngine.lib
+  Editor.vcxproj -> D:\Workspace\VS Workspace\HuaEngine\build\bin\Debug-Windows-x64\Editor.exe
+适用于 .NET Framework MSBuild 版本 17.14.18+a338add32
+
+  GLAD.vcxproj -> D:\Workspace\VS Workspace\HuaEngine\build\bin\Debug-Windows-x64\GLAD.lib
+  ImGui.vcxproj -> D:\Workspace\VS Workspace\HuaEngine\build\bin\Debug-Windows-x64\ImGui.lib
+  glfw.vcxproj -> D:\Workspace\VS Workspace\HuaEngine\build\bin\Debug-Windows-x64\glfw3.lib
+  HuaEngine.vcxproj -> D:\Workspace\VS Workspace\HuaEngine\build\bin\Debug-Windows-x64\HuaEngine.lib
+适用于 .NET Framework MSBuild 版本 17.14.18+a338add32
+
+  GLAD.vcxproj -> D:\Workspace\VS Workspace\HuaEngine\build\bin\Debug-Windows-x64\GLAD.lib
+  ImGui.vcxproj -> D:\Workspace\VS Workspace\HuaEngine\build\bin\Debug-Windows-x64\ImGui.lib
+  glfw.vcxproj -> D:\Workspace\VS Workspace\HuaEngine\build\bin\Debug-Windows-x64\glfw3.lib
+  HuaEngine.vcxproj -> D:\Workspace\VS Workspace\HuaEngine\build\bin\Debug-Windows-x64\HuaEngine.lib
+  Sandbox.vcxproj -> D:\Workspace\VS Workspace\HuaEngine\build\bin\Debug-Windows-x64\Sandbox.exe
+适用于 .NET Framework MSBuild 版本 17.14.18+a338add32
+
+  GLAD.vcxproj -> D:\Workspace\VS Workspace\HuaEngine\build\bin\Debug-Windows-x64\GLAD.lib
+  ImGui.vcxproj -> D:\Workspace\VS Workspace\HuaEngine\build\bin\Debug-Windows-x64\ImGui.lib
+  glfw.vcxproj -> D:\Workspace\VS Workspace\HuaEngine\build\bin\Debug-Windows-x64\glfw3.lib
+  HuaEngine.vcxproj -> D:\Workspace\VS Workspace\HuaEngine\build\bin\Debug-Windows-x64\HuaEngine.lib
+  HuaEngineHeadlessCore.vcxproj -> D:\Workspace\VS Workspace\HuaEngine\build\bin\Debug-Windows-x64\HuaEngineHeadlessCore.lib
+  HuaEngineHeadless.vcxproj -> D:\Workspace\VS Workspace\HuaEngine\build\bin\Debug-Windows-x64\HuaEngineHeadless.exe
+适用于 .NET Framework MSBuild 版本 17.14.18+a338add32
+
+  GLAD.vcxproj -> D:\Workspace\VS Workspace\HuaEngine\build\bin\Debug-Windows-x64\GLAD.lib
+  ImGui.vcxproj -> D:\Workspace\VS Workspace\HuaEngine\build\bin\Debug-Windows-x64\ImGui.lib
+  glfw.vcxproj -> D:\Workspace\VS Workspace\HuaEngine\build\bin\Debug-Windows-x64\glfw3.lib
+  HuaEngine.vcxproj -> D:\Workspace\VS Workspace\HuaEngine\build\bin\Debug-Windows-x64\HuaEngine.lib
+  HuaEngineHeadlessCore.vcxproj -> D:\Workspace\VS Workspace\HuaEngine\build\bin\Debug-Windows-x64\HuaEngineHeadlessCore.lib
+  HuaEngineHeadless.vcxproj -> D:\Workspace\VS Workspace\HuaEngine\build\bin\Debug-Windows-x64\HuaEngineHeadless.exe
+  HeadlessWorkflowSmoke.vcxproj -> D:\Workspace\VS Workspace\HuaEngine\build\bin\Debug-Windows-x64\HeadlessWorkflowSmoke.exe

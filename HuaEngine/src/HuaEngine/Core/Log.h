@@ -24,9 +24,13 @@ namespace HE {
 		std::vector<LogLine> buffer;
 	};
 
+	struct LogSpecification {
+		bool EnableConsoleOutput = true;
+	};
+
 	class ENGINE_API Log {
 	public:
-		static void Init();
+		static void Init(const LogSpecification& specification = {});
 		inline static Ref<spdlog::logger>& GetCoreLogger() { return ms_CoreLogger; }
 		inline static Ref<spdlog::logger>& GetClientLogger() { return ms_ClientLogger; }
 		inline static Ref<LogSink>& GetLogSink() { return ms_LogSink; }

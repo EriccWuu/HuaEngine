@@ -111,6 +111,7 @@ namespace HE::Rendering {
 
 		// Basic properties
 		Ref<Material> GetBaseMaterial() const { return m_BaseMaterial; }
+		void SetBaseMaterial(Ref<Material> baseMaterial) { m_BaseMaterial = std::move(baseMaterial); }
 		Ref<Shader> GetShader() const { return m_BaseMaterial->GetShader(); }
 
 		// Parameter overrides

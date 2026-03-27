@@ -2,6 +2,7 @@
 
 #include "HuaEngine/Core/Core.h"
 #include "HuaEngine/Scene/Scene.h"
+#include "Workbench/EditorWorkbenchState.h"
 #include "imgui.h"
 #include "glm/glm.hpp"
 
@@ -31,12 +32,14 @@ namespace HE {
 		void OnGuiRender();
 
 		void SetContext(const Ref<Scene>& scene);
+		void SetWorkbenchState(const EditorWorkbenchState* state) { m_WorkbenchState = state; }
 
 	private:
 		void DrawEntityNode(Entity& eneity);
 
 	private:
 		Ref<Scene> m_Context;
+        const EditorWorkbenchState* m_WorkbenchState = nullptr;
 
 		ImGuiTextFilter m_Filter;
 		TreeNode* m_RootNode = NULL;

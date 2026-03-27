@@ -32,6 +32,18 @@ namespace HE {
 			return m_EntityManager.GetRegistry().get<Type...>(args...);
 		}
 
+		template<typename T>
+		[[nodiscard]] Ref<T> FindSystem() const {
+			for (const auto& system : m_Systems) {
+				auto typedSystem = std::dynamic_pointer_cast<T>(system);
+				if (typedSystem) {
+					return typedSystem;
+				}
+			}
+
+			return nullptr;
+		}
+
 	private:
 		std::string m_Name;
 		EntityManager m_EntityManager;

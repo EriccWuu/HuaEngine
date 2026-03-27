@@ -1,213 +1,177 @@
 {
-  "entities": [
-    {
-      "components": [
-        {
-          "component_type_id": 3977186500,
-          "data": {
-            "Position": {
-              "x": 1.500000,
-              "y": 0.000000,
-              "z": -3.000000
-            },
-            "Rotation": {
-              "x": 0.000000,
-              "y": 0.000000,
-              "z": 0.000000
-            },
-            "Scale": {
-              "x": 0.500000,
-              "y": 0.500000,
-              "z": 0.500000
-            }
-          }
-        },
-        {
-          "component_type_id": 3450231507,
-          "data": {
-            "MeshAssetName": "Sphere"
-          }
-        },
-        {
-          "component_type_id": 1376734679,
-          "data": {
-            "MaterialInstance": {
-              "base_material_name": "SandboxMaterial",
-              "parameter_overrides": {
-                "u_Color": {
-                  "type": "Vec4",
-                  "value": {
-                    "w": 1.000000,
-                    "x": 0.800000,
-                    "y": 0.000000,
-                    "z": 0.900000
-                  }
-                }
-              }
-            }
-          }
-        }
-      ],
-      "entity_id": 3
-    },
-    {
-      "components": [
-        {
-          "component_type_id": 3977186500,
-          "data": {
-            "Position": {
-              "x": -1.500000,
-              "y": 0.000000,
-              "z": -3.000000
-            },
-            "Rotation": {
-              "x": 0.000000,
-              "y": 0.000000,
-              "z": 0.000000
-            },
-            "Scale": {
-              "x": 0.500000,
-              "y": 0.500000,
-              "z": 0.500000
-            }
-          }
-        },
-        {
-          "component_type_id": 3450231507,
-          "data": {
-            "MeshAssetName": "Cube"
-          }
-        },
-        {
-          "component_type_id": 1376734679,
-          "data": {
-            "MaterialInstance": {
-              "base_material_name": "SandboxMaterial",
-              "parameter_overrides": {
-                "u_Color": {
-                  "type": "Vec4",
-                  "value": {
-                    "w": 1.000000,
-                    "x": 0.800000,
-                    "y": 0.000000,
-                    "z": 0.900000
-                  }
-                }
-              }
-            }
-          }
-        }
-      ],
-      "entity_id": 2
-    },
-    {
-      "components": [
-        {
-          "component_type_id": 3977186500,
-          "data": {
-            "Position": {
-              "x": -0.500000,
-              "y": -0.500000,
-              "z": 0.000000
-            },
-            "Rotation": {
-              "x": 0.000000,
-              "y": 0.000000,
-              "z": 0.000000
-            },
-            "Scale": {
-              "x": 1.000000,
-              "y": 1.000000,
-              "z": 1.000000
-            }
-          }
-        },
-        {
-          "component_type_id": 3450231507,
-          "data": {
-            "MeshAssetName": "CustomSquare"
-          }
-        },
-        {
-          "component_type_id": 1376734679,
-          "data": {
-            "MaterialInstance": {
-              "base_material_name": "SandboxMaterial",
-              "parameter_overrides": {
-                "u_Color": {
-                  "type": "Vec4",
-                  "value": {
-                    "w": 1.000000,
-                    "x": 0.800000,
-                    "y": 0.400000,
-                    "z": 0.900000
-                  }
-                },
-                "u_TextureScale": {
-                  "type": "Vec2",
-                  "value": {
-                    "x": 2.000000,
-                    "y": 2.000000
-                  }
-                }
-              }
-            }
-          }
-        }
-      ],
-      "entity_id": 1
-    },
-    {
-      "components": [
-        {
-          "component_type_id": 3977186500,
-          "data": {
-            "Position": {
-              "x": 0.500000,
-              "y": 0.500000,
-              "z": -3.000000
-            },
-            "Rotation": {
-              "x": 0.000000,
-              "y": 0.000000,
-              "z": 0.000000
-            },
-            "Scale": {
-              "x": 1.000000,
-              "y": 1.000000,
-              "z": 1.000000
-            }
-          }
-        },
-        {
-          "component_type_id": 3450231507,
-          "data": {
-            "MeshAssetName": "Quad"
-          }
-        },
-        {
-          "component_type_id": 1376734679,
-          "data": {
-            "MaterialInstance": {
-              "base_material_name": "SandboxMaterial",
-              "parameter_overrides": {
-                "u_Color": {
-                  "type": "Vec4",
-                  "value": {
-                    "w": 1.000000,
-                    "x": 1.000000,
-                    "y": 1.000000,
-                    "z": 0.800000
-                  }
-                }
-              }
-            }
-          }
-        }
-      ],
-      "entity_id": 0
-    }
-  ],
-  "scene_name": "Untitled Scene",
-  "scene_version": 1
+    "name":  "Untitled Scene",
+    "version":  1,
+    "entities":  [
+                     {
+                         "id":  3,
+                         "components":  {
+                                            "TransformComponent":  {
+                                                                       "position":  {
+                                                                                        "x":  1.500000,
+                                                                                        "y":  0.000000,
+                                                                                        "z":  -3.000000
+                                                                                    },
+                                                                       "rotation":  {
+                                                                                        "x":  0.000000,
+                                                                                        "y":  0.000000,
+                                                                                        "z":  0.000000
+                                                                                    },
+                                                                       "scale":  {
+                                                                                     "x":  0.500000,
+                                                                                     "y":  0.500000,
+                                                                                     "z":  0.500000
+                                                                                 }
+                                                                   },
+                                            "MeshComponent":  {
+                                                                  "mesh_asset":  "Sphere"
+                                                              },
+                                            "MaterialComponent":  {
+                                                                      "material_instance":  {
+                                                                                                "base_material_name":  "SandboxMaterial",
+                                                                                                "parameter_overrides":  {
+                                                                                                                            "u_Color":  {
+                                                                                                                                            "value_type":  "Vec4",
+                                                                                                                                            "value":  {
+                                                                                                                                                          "w":  1.000000,
+                                                                                                                                                          "x":  0.800000,
+                                                                                                                                                          "y":  0.000000,
+                                                                                                                                                          "z":  0.900000
+                                                                                                                                                      }
+                                                                                                                                        }
+                                                                                                                        }
+                                                                                            }
+                                                                  }
+                                        }
+                     },
+                     {
+                         "id":  2,
+                         "components":  {
+                                            "TransformComponent":  {
+                                                                       "position":  {
+                                                                                        "x":  -1.500000,
+                                                                                        "y":  0.000000,
+                                                                                        "z":  -3.000000
+                                                                                    },
+                                                                       "rotation":  {
+                                                                                        "x":  0.000000,
+                                                                                        "y":  0.000000,
+                                                                                        "z":  0.000000
+                                                                                    },
+                                                                       "scale":  {
+                                                                                     "x":  0.500000,
+                                                                                     "y":  0.500000,
+                                                                                     "z":  0.500000
+                                                                                 }
+                                                                   },
+                                            "MeshComponent":  {
+                                                                  "mesh_asset":  "Cube"
+                                                              },
+                                            "MaterialComponent":  {
+                                                                      "material_instance":  {
+                                                                                                "base_material_name":  "SandboxMaterial",
+                                                                                                "parameter_overrides":  {
+                                                                                                                            "u_Color":  {
+                                                                                                                                            "value_type":  "Vec4",
+                                                                                                                                            "value":  {
+                                                                                                                                                          "w":  1.000000,
+                                                                                                                                                          "x":  0.800000,
+                                                                                                                                                          "y":  0.000000,
+                                                                                                                                                          "z":  0.900000
+                                                                                                                                                      }
+                                                                                                                                        }
+                                                                                                                        }
+                                                                                            }
+                                                                  }
+                                        }
+                     },
+                     {
+                         "id":  1,
+                         "components":  {
+                                            "TransformComponent":  {
+                                                                       "position":  {
+                                                                                        "x":  -0.500000,
+                                                                                        "y":  -0.500000,
+                                                                                        "z":  0.000000
+                                                                                    },
+                                                                       "rotation":  {
+                                                                                        "x":  0.000000,
+                                                                                        "y":  0.000000,
+                                                                                        "z":  0.000000
+                                                                                    },
+                                                                       "scale":  {
+                                                                                     "x":  1.000000,
+                                                                                     "y":  1.000000,
+                                                                                     "z":  1.000000
+                                                                                 }
+                                                                   },
+                                            "MeshComponent":  {
+                                                                  "mesh_asset":  "CustomSquare"
+                                                              },
+                                            "MaterialComponent":  {
+                                                                      "material_instance":  {
+                                                                                                "base_material_name":  "SandboxMaterial",
+                                                                                                "parameter_overrides":  {
+                                                                                                                            "u_Color":  {
+                                                                                                                                            "value_type":  "Vec4",
+                                                                                                                                            "value":  {
+                                                                                                                                                          "w":  1.000000,
+                                                                                                                                                          "x":  0.800000,
+                                                                                                                                                          "y":  0.400000,
+                                                                                                                                                          "z":  0.900000
+                                                                                                                                                      }
+                                                                                                                                        },
+                                                                                                                            "u_TextureScale":  {
+                                                                                                                                                   "value_type":  "Vec2",
+                                                                                                                                                   "value":  {
+                                                                                                                                                                 "x":  2.000000,
+                                                                                                                                                                 "y":  2.000000
+                                                                                                                                                             }
+                                                                                                                                               }
+                                                                                                                        }
+                                                                                            }
+                                                                  }
+                                        }
+                     },
+                     {
+                         "id":  0,
+                         "components":  {
+                                            "TransformComponent":  {
+                                                                       "position":  {
+                                                                                        "x":  0.500000,
+                                                                                        "y":  0.500000,
+                                                                                        "z":  -3.000000
+                                                                                    },
+                                                                       "rotation":  {
+                                                                                        "x":  0.000000,
+                                                                                        "y":  0.000000,
+                                                                                        "z":  0.000000
+                                                                                    },
+                                                                       "scale":  {
+                                                                                     "x":  1.000000,
+                                                                                     "y":  1.000000,
+                                                                                     "z":  1.000000
+                                                                                 }
+                                                                   },
+                                            "MeshComponent":  {
+                                                                  "mesh_asset":  "Quad"
+                                                              },
+                                            "MaterialComponent":  {
+                                                                      "material_instance":  {
+                                                                                                "base_material_name":  "SandboxMaterial",
+                                                                                                "parameter_overrides":  {
+                                                                                                                            "u_Color":  {
+                                                                                                                                            "value_type":  "Vec4",
+                                                                                                                                            "value":  {
+                                                                                                                                                          "w":  1.000000,
+                                                                                                                                                          "x":  1.000000,
+                                                                                                                                                          "y":  1.000000,
+                                                                                                                                                          "z":  0.800000
+                                                                                                                                                      }
+                                                                                                                                        }
+                                                                                                                        }
+                                                                                            }
+                                                                  }
+                                        }
+                     }
+                 ]
 }

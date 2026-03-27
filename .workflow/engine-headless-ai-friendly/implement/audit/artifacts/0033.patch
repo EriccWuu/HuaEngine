@@ -1,0 +1,1568 @@
+diff --git a/CMakeLists.txt b/CMakeLists.txt
+index 5f51c62..60a8c9a 100644
+--- a/CMakeLists.txt
++++ b/CMakeLists.txt
+@@ -10,7 +10,7 @@ include(${CMAKE_SOURCE_DIR}/cmake/Config.cmake)
+ project(HuaEngine VERSION 1.0.0 LANGUAGES C CXX)
+ 
+ # Set C++ standard
+-set(CMAKE_CXX_STANDARD 17)
++set(CMAKE_CXX_STANDARD 20)
+ set(CMAKE_CXX_STANDARD_REQUIRED ON)
+ 
+ # Architecture check
+@@ -82,6 +82,215 @@ add_subdirectory(Dependencies/imgui)
+ add_subdirectory(HuaEngine)
+ add_subdirectory(Sandbox)
+ add_subdirectory(Editor)
++add_subdirectory(Headless)
++
++add_executable(ProjectServiceSmoke Tests/ProjectServiceSmoke.cpp)
++target_include_directories(ProjectServiceSmoke PRIVATE
++    ${CMAKE_SOURCE_DIR}/HuaEngine/src
++    ${SPDLOG_INCLUDE_DIR}
++    ${GLM_INCLUDE_DIR}
++    ${IMGUI_INCLUDE_DIR}
++    ${STB_IMAGE_INCLUDE_DIR}
++    ${ENTT_INCLUDE_DIR}
++)
++target_link_libraries(ProjectServiceSmoke PRIVATE HuaEngine)
++if(WIN32)
++    target_compile_definitions(ProjectServiceSmoke PRIVATE GLFW_INCLUDE_NONE)
++    if(MSVC)
++        set_target_properties(ProjectServiceSmoke PROPERTIES
++            MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>"
++        )
++        target_compile_options(ProjectServiceSmoke PRIVATE /utf-8)
++    endif()
++endif()
++set_target_properties(ProjectServiceSmoke PROPERTIES
++    RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/bin/$<CONFIG>-${CMAKE_SYSTEM_NAME}-${ARCHITECTURE}"
++    VS_DEBUGGER_WORKING_DIRECTORY "${CMAKE_BINARY_DIR}/bin/$<CONFIG>-${CMAKE_SYSTEM_NAME}-${ARCHITECTURE}"
++)
++
++add_executable(SceneServiceSmoke Tests/SceneServiceSmoke.cpp)
++target_include_directories(SceneServiceSmoke PRIVATE
++    ${CMAKE_SOURCE_DIR}/HuaEngine/src
++    ${SPDLOG_INCLUDE_DIR}
++    ${GLM_INCLUDE_DIR}
++    ${IMGUI_INCLUDE_DIR}
++    ${STB_IMAGE_INCLUDE_DIR}
++    ${ENTT_INCLUDE_DIR}
++)
++target_link_libraries(SceneServiceSmoke PRIVATE HuaEngine)
++if(WIN32)
++    target_compile_definitions(SceneServiceSmoke PRIVATE GLFW_INCLUDE_NONE)
++    if(MSVC)
++        set_target_properties(SceneServiceSmoke PROPERTIES
++            MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>"
++        )
++        target_compile_options(SceneServiceSmoke PRIVATE /utf-8)
++    endif()
++endif()
++set_target_properties(SceneServiceSmoke PROPERTIES
++    RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/bin/$<CONFIG>-${CMAKE_SYSTEM_NAME}-${ARCHITECTURE}"
++    VS_DEBUGGER_WORKING_DIRECTORY "${CMAKE_BINARY_DIR}/bin/$<CONFIG>-${CMAKE_SYSTEM_NAME}-${ARCHITECTURE}"
++)
++
++add_executable(AssetServiceSmoke Tests/AssetServiceSmoke.cpp)
++target_include_directories(AssetServiceSmoke PRIVATE
++    ${CMAKE_SOURCE_DIR}/HuaEngine/src
++    ${SPDLOG_INCLUDE_DIR}
++    ${GLM_INCLUDE_DIR}
++    ${IMGUI_INCLUDE_DIR}
++    ${STB_IMAGE_INCLUDE_DIR}
++    ${ENTT_INCLUDE_DIR}
++)
++target_link_libraries(AssetServiceSmoke PRIVATE HuaEngine)
++if(WIN32)
++    target_compile_definitions(AssetServiceSmoke PRIVATE GLFW_INCLUDE_NONE)
++    if(MSVC)
++        set_target_properties(AssetServiceSmoke PROPERTIES
++            MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>"
++        )
++        target_compile_options(AssetServiceSmoke PRIVATE /utf-8)
++    endif()
++endif()
++set_target_properties(AssetServiceSmoke PROPERTIES
++    RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/bin/$<CONFIG>-${CMAKE_SYSTEM_NAME}-${ARCHITECTURE}"
++    VS_DEBUGGER_WORKING_DIRECTORY "${CMAKE_BINARY_DIR}/bin/$<CONFIG>-${CMAKE_SYSTEM_NAME}-${ARCHITECTURE}"
++)
++
++add_executable(ScriptServiceSmoke Tests/ScriptServiceSmoke.cpp)
++target_include_directories(ScriptServiceSmoke PRIVATE
++    ${CMAKE_SOURCE_DIR}/HuaEngine/src
++    ${SPDLOG_INCLUDE_DIR}
++    ${GLM_INCLUDE_DIR}
++    ${IMGUI_INCLUDE_DIR}
++    ${STB_IMAGE_INCLUDE_DIR}
++    ${ENTT_INCLUDE_DIR}
++)
++target_link_libraries(ScriptServiceSmoke PRIVATE HuaEngine)
++if(WIN32)
++    target_compile_definitions(ScriptServiceSmoke PRIVATE GLFW_INCLUDE_NONE)
++    if(MSVC)
++        set_target_properties(ScriptServiceSmoke PROPERTIES
++            MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>"
++        )
++        target_compile_options(ScriptServiceSmoke PRIVATE /utf-8)
++    endif()
++endif()
++set_target_properties(ScriptServiceSmoke PROPERTIES
++    RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/bin/$<CONFIG>-${CMAKE_SYSTEM_NAME}-${ARCHITECTURE}"
++    VS_DEBUGGER_WORKING_DIRECTORY "${CMAKE_BINARY_DIR}/bin/$<CONFIG>-${CMAKE_SYSTEM_NAME}-${ARCHITECTURE}"
++)
++
++add_executable(ValidationServiceSmoke Tests/ValidationServiceSmoke.cpp)
++target_include_directories(ValidationServiceSmoke PRIVATE
++    ${CMAKE_SOURCE_DIR}/HuaEngine/src
++    ${SPDLOG_INCLUDE_DIR}
++    ${GLM_INCLUDE_DIR}
++    ${IMGUI_INCLUDE_DIR}
++    ${STB_IMAGE_INCLUDE_DIR}
++    ${ENTT_INCLUDE_DIR}
++)
++target_link_libraries(ValidationServiceSmoke PRIVATE HuaEngine)
++if(WIN32)
++    target_compile_definitions(ValidationServiceSmoke PRIVATE GLFW_INCLUDE_NONE)
++    if(MSVC)
++        set_target_properties(ValidationServiceSmoke PROPERTIES
++            MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>"
++        )
++        target_compile_options(ValidationServiceSmoke PRIVATE /utf-8)
++    endif()
++endif()
++set_target_properties(ValidationServiceSmoke PROPERTIES
++    RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/bin/$<CONFIG>-${CMAKE_SYSTEM_NAME}-${ARCHITECTURE}"
++    VS_DEBUGGER_WORKING_DIRECTORY "${CMAKE_BINARY_DIR}/bin/$<CONFIG>-${CMAKE_SYSTEM_NAME}-${ARCHITECTURE}"
++)
++
++add_executable(ApplicationServicesSmoke Tests/ApplicationServicesSmoke.cpp)
++target_include_directories(ApplicationServicesSmoke PRIVATE
++    ${CMAKE_SOURCE_DIR}/HuaEngine/src
++    ${SPDLOG_INCLUDE_DIR}
++    ${GLM_INCLUDE_DIR}
++    ${IMGUI_INCLUDE_DIR}
++    ${STB_IMAGE_INCLUDE_DIR}
++    ${ENTT_INCLUDE_DIR}
++)
++target_link_libraries(ApplicationServicesSmoke PRIVATE HuaEngine)
++if(WIN32)
++    target_compile_definitions(ApplicationServicesSmoke PRIVATE GLFW_INCLUDE_NONE)
++    if(MSVC)
++        set_target_properties(ApplicationServicesSmoke PROPERTIES
++            MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>"
++        )
++        target_compile_options(ApplicationServicesSmoke PRIVATE /utf-8)
++    endif()
++endif()
++set_target_properties(ApplicationServicesSmoke PROPERTIES
++    RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/bin/$<CONFIG>-${CMAKE_SYSTEM_NAME}-${ARCHITECTURE}"
++    VS_DEBUGGER_WORKING_DIRECTORY "${CMAKE_BINARY_DIR}/bin/$<CONFIG>-${CMAKE_SYSTEM_NAME}-${ARCHITECTURE}"
++)
++
++add_executable(ApplicationOperationsSmoke Tests/ApplicationOperationsSmoke.cpp)
++target_include_directories(ApplicationOperationsSmoke PRIVATE
++    ${CMAKE_SOURCE_DIR}/HuaEngine/src
++    ${SPDLOG_INCLUDE_DIR}
++    ${GLM_INCLUDE_DIR}
++    ${IMGUI_INCLUDE_DIR}
++    ${STB_IMAGE_INCLUDE_DIR}
++    ${ENTT_INCLUDE_DIR}
++)
++target_link_libraries(ApplicationOperationsSmoke PRIVATE HuaEngine)
++if(WIN32)
++    target_compile_definitions(ApplicationOperationsSmoke PRIVATE GLFW_INCLUDE_NONE)
++    if(MSVC)
++        set_target_properties(ApplicationOperationsSmoke PROPERTIES
++            MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>"
++        )
++        target_compile_options(ApplicationOperationsSmoke PRIVATE /utf-8)
++    endif()
++endif()
++set_target_properties(ApplicationOperationsSmoke PROPERTIES
++    RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/bin/$<CONFIG>-${CMAKE_SYSTEM_NAME}-${ARCHITECTURE}"
++    VS_DEBUGGER_WORKING_DIRECTORY "${CMAKE_BINARY_DIR}/bin/$<CONFIG>-${CMAKE_SYSTEM_NAME}-${ARCHITECTURE}"
++)
++
++add_executable(HeadlessHostSmoke Tests/HeadlessHostSmoke.cpp)
++target_include_directories(HeadlessHostSmoke PRIVATE
++    ${CMAKE_SOURCE_DIR}/Headless/src
++    ${CMAKE_SOURCE_DIR}/HuaEngine/src
++    ${SPDLOG_INCLUDE_DIR}
++    ${GLM_INCLUDE_DIR}
++    ${IMGUI_INCLUDE_DIR}
++    ${STB_IMAGE_INCLUDE_DIR}
++    ${ENTT_INCLUDE_DIR}
++)
++target_link_libraries(HeadlessHostSmoke PRIVATE HuaEngineHeadlessCore)
++if(WIN32)
++    target_compile_definitions(HeadlessHostSmoke PRIVATE GLFW_INCLUDE_NONE)
++    if(MSVC)
++        set_target_properties(HeadlessHostSmoke PROPERTIES
++            MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>"
++        )
++        target_compile_options(HeadlessHostSmoke PRIVATE /utf-8)
++    endif()
++endif()
++set_target_properties(HeadlessHostSmoke PROPERTIES
++    RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/bin/$<CONFIG>-${CMAKE_SYSTEM_NAME}-${ARCHITECTURE}"
++    VS_DEBUGGER_WORKING_DIRECTORY "${CMAKE_BINARY_DIR}/bin/$<CONFIG>-${CMAKE_SYSTEM_NAME}-${ARCHITECTURE}"
++)
++
++add_executable(HeadlessWorkflowSmoke Tests/HeadlessWorkflowSmoke.cpp)
++add_dependencies(HeadlessWorkflowSmoke HuaEngineHeadless)
++if(WIN32)
++    if(MSVC)
++        set_target_properties(HeadlessWorkflowSmoke PROPERTIES
++            MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>"
++        )
++        target_compile_options(HeadlessWorkflowSmoke PRIVATE /utf-8)
++    endif()
++endif()
++set_target_properties(HeadlessWorkflowSmoke PROPERTIES
++    RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/bin/$<CONFIG>-${CMAKE_SYSTEM_NAME}-${ARCHITECTURE}"
++    VS_DEBUGGER_WORKING_DIRECTORY "${CMAKE_BINARY_DIR}/bin/$<CONFIG>-${CMAKE_SYSTEM_NAME}-${ARCHITECTURE}"
++)
+ 
+ # Set Editor as the startup project for Visual Studio
+ set_property(DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR} PROPERTY VS_STARTUP_PROJECT Editor)
+@@ -90,3 +299,14 @@ set_property(DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR} PROPERTY VS_STARTUP_PROJECT E
+ set_property(TARGET glfw PROPERTY FOLDER "Dependencies")
+ set_property(TARGET GLAD PROPERTY FOLDER "Dependencies")
+ set_property(TARGET ImGui PROPERTY FOLDER "Dependencies")
++set_property(TARGET HuaEngineHeadlessCore PROPERTY FOLDER "Hosts")
++set_property(TARGET HuaEngineHeadless PROPERTY FOLDER "Hosts")
++set_property(TARGET ProjectServiceSmoke PROPERTY FOLDER "Tests")
++set_property(TARGET SceneServiceSmoke PROPERTY FOLDER "Tests")
++set_property(TARGET AssetServiceSmoke PROPERTY FOLDER "Tests")
++set_property(TARGET ScriptServiceSmoke PROPERTY FOLDER "Tests")
++set_property(TARGET ValidationServiceSmoke PROPERTY FOLDER "Tests")
++set_property(TARGET ApplicationServicesSmoke PROPERTY FOLDER "Tests")
++set_property(TARGET ApplicationOperationsSmoke PROPERTY FOLDER "Tests")
++set_property(TARGET HeadlessHostSmoke PROPERTY FOLDER "Tests")
++set_property(TARGET HeadlessWorkflowSmoke PROPERTY FOLDER "Tests")
+diff --git a/Editor/CMakeLists.txt b/Editor/CMakeLists.txt
+index d6ecb2a..bf9e967 100644
+--- a/Editor/CMakeLists.txt
++++ b/Editor/CMakeLists.txt
+@@ -4,7 +4,7 @@ cmake_minimum_required(VERSION 3.16)
+ project(Editor LANGUAGES CXX)
+ 
+ # Set C++ standard
+-set(CMAKE_CXX_STANDARD 17)
++set(CMAKE_CXX_STANDARD 20)
+ set(CMAKE_CXX_STANDARD_REQUIRED ON)
+ 
+ # Collect all source files
+diff --git a/Editor/src/EditorApp.cpp b/Editor/src/EditorApp.cpp
+index ee3d4e5..d0221ac 100644
+--- a/Editor/src/EditorApp.cpp
++++ b/Editor/src/EditorApp.cpp
+@@ -7,8 +7,14 @@
+ namespace HE {
+ 	class EditorApp : public Application {
+ 	public:
+-		EditorApp() {
+-			PushLayer(new EditorLayer());
++		EditorApp()
++			: Application(ApplicationSpecification{
++				.Name = "HuaEditor",
++				.EnableGuiLayer = true
++			}) {
++			EditorLayerSpecification layerSpecification;
++			layerSpecification.BootstrapDemoScene = true;
++			PushLayer(new EditorLayer(layerSpecification));
+ 		}
+ 
+ 		~EditorApp() {
+@@ -19,4 +25,4 @@ namespace HE {
+ 	HE::Application* HE::CreateApplication() {
+ 		return new EditorApp();
+ 	}
+-}
+\ No newline at end of file
++}
+diff --git a/Editor/src/EditorLayer.cpp b/Editor/src/EditorLayer.cpp
+index ac66e0f..762bf86 100644
+--- a/Editor/src/EditorLayer.cpp
++++ b/Editor/src/EditorLayer.cpp
+@@ -1,20 +1,84 @@
+ #include "enginepch.h"
+ #include "EditorLayer.h"
+ 
++#include <filesystem>
++
++#include "HuaEngine/Application/ApplicationOperations.h"
+ #include "imgui.h"
+ 
+ namespace HE {
+-    EditorLayer::EditorLayer() : Layer("EditorLayer") {
++    EditorLayer::EditorLayer(EditorLayerSpecification specification)
++        : Layer("EditorLayer"), m_Specification(std::move(specification)) {
+         // Initialize camera
+         m_EditorCamera.reset(new Rendering::EditorCamera());
+-        m_Scene.reset(new Scene());
+-        m_RenderSystem.reset(new RenderSystem(m_Scene));
+-        m_SceneHierarchy.reset(new SceneHierarchyPanel(m_Scene));
+         m_Inspector.reset(new InspectorPanel);
+         m_Concole.reset(new ConcolePanel);
+     }
+ 
+     void EditorLayer::OnAttach() {
++        if (!InitializeWorkbenchContext()) {
++            return;
++        }
++
++        if (!InitializeWorkbenchShell()) {
++            return;
++        }
++
++        m_WorkbenchReady = true;
++
++        if (m_Specification.BootstrapDemoScene) {
++            BootstrapDemoScene();
++        }
++    }
++
++    bool EditorLayer::InitializeWorkbenchContext() {
++        auto& operations = Application::GetInstance().GetOperations();
++        m_WorkbenchRootPath = std::filesystem::temp_directory_path() / "huaengine_editor_workbench";
++
++        CaptureOperationResult(operations.InitializeProject(
++            m_WorkbenchRootPath,
++            &m_ProjectContext,
++            m_Specification.WorkbenchProjectName));
++        if (!m_LastOperationResult.Succeeded()) {
++            return false;
++        }
++
++        CaptureOperationResult(operations.CheckProjectStatus(m_ProjectContext));
++        if (!m_LastOperationResult.Succeeded()) {
++            return false;
++        }
++
++        CaptureOperationResult(operations.CreateScene(m_Specification.InitialSceneName, m_Scene));
++        if (!m_LastOperationResult.Succeeded() || !m_Scene) {
++            return false;
++        }
++
++        m_RenderSystem.reset(new RenderSystem(m_Scene));
++        m_SceneHierarchy.reset(new SceneHierarchyPanel(m_Scene));
++        return true;
++    }
++
++    bool EditorLayer::InitializeWorkbenchShell() {
++        if (!m_Scene || !m_RenderSystem) {
++            auto result = ResultEnvelope::Failure("editor.workbench.initialize_shell", "editor.workbench", "Workbench scene context is incomplete");
++            result.AddDetail({ DiagnosticSeverity::Error, "editor.workbench.missing_context", "Scene or render system is not ready", {} });
++            CaptureOperationResult(result);
++            return false;
++        }
++
++        // The workbench shell owns the scene viewport and panel wiring even without demo content.
++        FrameBufferSpecification spec;
++        spec.Width = 1280;
++        spec.Height = 720;
++        spec.Attachments = { FrameBufferTextureFormat::RGBA8 };
++        m_FrameBuffer = FrameBuffer::Create(spec);
++
++        m_RenderSystem->SetFrameBuffer(m_FrameBuffer);
++        m_Scene->AddSyetem(m_RenderSystem);
++        return true;
++    }
++
++    void EditorLayer::BootstrapDemoScene() {
+         // Create vertex buffer
+         float squareVertices[4 * 5] = {
+             -0.5f, -0.5f, -3.0f, 0.0 , 0.0,
+@@ -42,9 +106,9 @@ namespace HE {
+ 
+         squareVertexBuffer->SetLayout(squareLayout);
+ 
+-        m_SquareVA = VertexArray::Create();
+-        m_SquareVA->AddVertexBuffer(squareVertexBuffer);
+-        m_SquareVA->SetIndexBuffer(squareIndexBuffer);
++        m_DemoSquareVA = VertexArray::Create();
++        m_DemoSquareVA->AddVertexBuffer(squareVertexBuffer);
++        m_DemoSquareVA->SetIndexBuffer(squareIndexBuffer);
+ 
+         // Create shaders
+         std::string squareVS = R"(
+@@ -79,47 +143,78 @@ namespace HE {
+ 			}
+ 		)";
+ 
+-        m_SquareShader = Shader::Create(squareVS, squareFS);
++        m_DemoSquareShader = Shader::Create(squareVS, squareFS);
+ 
+-        m_Texture = Texture2D::Create("assets/textures/hutao.png");
++        m_DemoTexture = Texture2D::Create("assets/textures/hutao.png");
+ 
+-        // Create framebuffer
+-        FrameBufferSpecification spec;
+-        spec.Width = 1280;
+-        spec.Height = 720;
+-        spec.Attachments = { FrameBufferTextureFormat::RGBA8 };
+-        m_FrameBuffer = FrameBuffer::Create(spec);
+-
+-        m_Square = std::make_shared<Entity>(m_Scene->GetEntityManager().CreateEntity());
+-        m_Square->AddComponent<MeshComponent>(m_SquareVA);
+-        m_Square->AddComponent<RendererComponent>(m_SquareShader, m_Texture);
++        auto square0 = std::make_shared<Entity>(m_Scene->GetEntityManager().CreateEntity());
++        square0->AddComponent<MeshComponent>(m_DemoSquareVA);
++        square0->AddComponent<RendererComponent>(m_DemoSquareShader, m_DemoTexture);
+ 
+         auto square = std::make_shared<Entity>(m_Scene->GetEntityManager().CreateEntity());
+-        square->AddComponent<MeshComponent>(m_SquareVA);
+-        square->AddComponent<RendererComponent>(m_SquareShader, m_Texture);
++        square->AddComponent<MeshComponent>(m_DemoSquareVA);
++        square->AddComponent<RendererComponent>(m_DemoSquareShader, m_DemoTexture);
+         auto& trans = square->GetComponent<TransformComponent>();
+         trans.Position += glm::vec3{ 0.5, 0.5, 0.0 };
+ 
+         auto square1 = std::make_shared<Entity>(m_Scene->GetEntityManager().CreateEntity());
+-        square1->AddComponent<MeshComponent>(m_SquareVA);
+-        square1->AddComponent<RendererComponent>(m_SquareShader, m_Texture);
++        square1->AddComponent<MeshComponent>(m_DemoSquareVA);
++        square1->AddComponent<RendererComponent>(m_DemoSquareShader, m_DemoTexture);
+         square1->GetComponent<TransformComponent>().Position -= glm::vec3{ 0.5, 0.5, 0.0 };
+ 
+-        m_RenderSystem->SetFrameBuffer(m_FrameBuffer);
++        auto& operations = Application::GetInstance().GetOperations();
++        const auto scenePath = m_ProjectContext.GetSceneRootPath() / "editor_workbench.scene";
+ 
+-        m_Scene->AddSyetem(m_RenderSystem);
++        CaptureOperationResult(operations.SaveScene(*m_Scene, scenePath));
++        if (!m_LastOperationResult.Succeeded()) {
++            m_WorkbenchReady = false;
++            return;
++        }
++
++        CaptureOperationResult(operations.ValidateScene(*m_Scene));
++        m_WorkbenchReady = m_LastOperationResult.Succeeded();
+     }
+ 
+     void EditorLayer::OnUpdate() {
++        if (!m_WorkbenchReady || !m_Scene || !m_RenderSystem) {
++            return;
++        }
++
+         m_EditorCamera->OnUpdate();
+         m_RenderSystem->RenderSingleCamera(*m_Scene, *m_EditorCamera);
+         m_Scene->Update();
+     }
+ 
++    void EditorLayer::CaptureOperationResult(const ResultEnvelope& result) {
++        m_LastOperationResult = result;
++
++        if (result.Succeeded()) {
++            HE_CORE_INFO("[EditorWorkbench] {}", result.Summary);
++            return;
++        }
++
++        HE_CORE_ERROR("[EditorWorkbench] {} ({})", result.Summary, result.Operation);
++        for (const auto& detail : result.Details) {
++            HE_CORE_ERROR("[EditorWorkbench] {} :: {}", detail.Code, detail.Message);
++        }
++    }
++
+     void EditorLayer::OnGuiRender() {
+         OnDockingPanel();
++
++        if (!m_WorkbenchReady) {
++            ImGui::Begin("Workbench Status");
++            ImGui::TextWrapped("%s", m_LastOperationResult.Summary.empty() ? "Editor workbench is not ready." : m_LastOperationResult.Summary.c_str());
++            ImGui::Text("Operation: %s", m_LastOperationResult.Operation.c_str());
++            ImGui::End();
++            m_Concole->OnGuiRender();
++            return;
++        }
++
+         OnScenePanel();
+-        m_SceneHierarchy->OnGuiRender();
++        if (m_SceneHierarchy) {
++            m_SceneHierarchy->OnGuiRender();
++        }
+         m_Inspector->OnGuiRender();
+         m_Concole->OnGuiRender();
+         // ImGui::ShowDemoWindow();
+@@ -227,6 +322,10 @@ namespace HE {
+     }
+ 
+     void EditorLayer::OnScenePanel() {
++        if (!m_FrameBuffer) {
++            return;
++        }
++
+         ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2{ 0, 0 });
+         ImGui::Begin("Scene");
+         ImVec2 scenePanelSize = ImGui::GetContentRegionAvail();
+@@ -240,4 +339,4 @@ namespace HE {
+         ImGui::End();
+         ImGui::PopStyleVar();
+     }
+-}
+\ No newline at end of file
++}
+diff --git a/Editor/src/EditorLayer.h b/Editor/src/EditorLayer.h
+index 457fdc1..ac8a980 100644
+--- a/Editor/src/EditorLayer.h
++++ b/Editor/src/EditorLayer.h
+@@ -1,30 +1,48 @@
+ #pragma once
+ 
++#include <filesystem>
++
+ #include "HuaEngine.h"
++#include "HuaEngine/Core/ResultEnvelope.h"
++#include "HuaEngine/Project/ProjectContext.h"
+ #include "Panels/SceneHierarchyPanel.h"
+ #include "Panels/InspectorPanel.h"
+ #include "Panels/ConsolePanel.h"
+ 
+ namespace HE {
++    struct EditorLayerSpecification {
++        bool BootstrapDemoScene = false;
++        std::string WorkbenchProjectName = "EditorWorkbench";
++        std::string InitialSceneName = "EditorWorkbench";
++    };
++
+     class EditorLayer : public HE::Layer {
+     public:
+-        EditorLayer();
++        explicit EditorLayer(EditorLayerSpecification specification = {});
+ 
+         void OnAttach() override;
+         void OnUpdate() override;
+         void OnGuiRender() override;
+ 
+     private:
++        bool InitializeWorkbenchContext();
++        bool InitializeWorkbenchShell();
++        void BootstrapDemoScene();
++        void CaptureOperationResult(const ResultEnvelope& result);
+         void OnDockingPanel();
+         void OnScenePanel();
+ 
+     private:
+-        Ref<Shader> m_SquareShader;
+-        Ref<VertexArray> m_SquareVA;
+-        Ref<Texture2D> m_Texture;
++        EditorLayerSpecification m_Specification;
++        ResultEnvelope m_LastOperationResult;
++        ProjectContext m_ProjectContext;
++        std::filesystem::path m_WorkbenchRootPath;
++        bool m_WorkbenchReady = false;
++        Ref<Shader> m_DemoSquareShader;
++        Ref<VertexArray> m_DemoSquareVA;
++        Ref<Texture2D> m_DemoTexture;
+         Ref<FrameBuffer> m_FrameBuffer;
+         Ref<Rendering::EditorCamera> m_EditorCamera;
+-        Ref<Entity> m_Square, m_SceneCamera;
+         Ref<Scene> m_Scene;
+         Ref<RenderSystem> m_RenderSystem;
+         Ref<SceneHierarchyPanel> m_SceneHierarchy;
+@@ -32,7 +50,5 @@ namespace HE {
+         Ref<ConcolePanel> m_Concole;
+ 
+         glm::vec2 m_SceneViewportSize = { 0, 0 };
+-
+-        TransformComponent trans;
+     };
+-}
+\ No newline at end of file
++}
+diff --git a/HuaEngine/CMakeLists.txt b/HuaEngine/CMakeLists.txt
+index 3466b41..37ebdee 100644
+--- a/HuaEngine/CMakeLists.txt
++++ b/HuaEngine/CMakeLists.txt
+@@ -4,7 +4,7 @@ cmake_minimum_required(VERSION 3.16)
+ project(HuaEngine LANGUAGES CXX)
+ 
+ # Set C++ standard
+-set(CMAKE_CXX_STANDARD 17)
++set(CMAKE_CXX_STANDARD 20)
+ set(CMAKE_CXX_STANDARD_REQUIRED ON)
+ 
+ # Collect all source files
+diff --git a/HuaEngine/src/HuaEngine.h b/HuaEngine/src/HuaEngine.h
+index aa89222..49fa3ed 100644
+--- a/HuaEngine/src/HuaEngine.h
++++ b/HuaEngine/src/HuaEngine.h
+@@ -1,9 +1,14 @@
+ #pragma once
+ 
+ #include "HuaEngine/Application.h"
++#include "HuaEngine/Application/ApplicationOperations.h"
++#include "HuaEngine/Application/OperationRegistry.h"
+ #include "HuaEngine/Core/Log.h"
++#include "HuaEngine/Core/ResultEnvelope.h"
+ #include "HuaEngine/Core/Layer.h"
+ #include "HuaEngine/Core/Input.h"
++#include "HuaEngine/Asset/AssetRegistry.h"
++#include "HuaEngine/Project/ProjectContext.h"
+ 
+ // UI
+ #include "HuaEngine/GUI/ImguiLayer.h"
+@@ -77,6 +82,7 @@ namespace HE {
+ 	// Material system
+ 	using Material = Rendering::Material;
+ 	using MaterialInstance = Rendering::MaterialInstance;
++	using MaterialType = Rendering::MaterialType;
+ 
+ 	// Mesh system
+ 	using Mesh = Rendering::Mesh;
+@@ -94,5 +100,3 @@ namespace HE {
+ 	using MeshComponent = Rendering::MeshComponent;
+ 	using RendererComponent = Rendering::RendererComponent;
+ }
+-
+-
+diff --git a/HuaEngine/src/HuaEngine/Application.cpp b/HuaEngine/src/HuaEngine/Application.cpp
+index 92ab28b..6695bcc 100644
+--- a/HuaEngine/src/HuaEngine/Application.cpp
++++ b/HuaEngine/src/HuaEngine/Application.cpp
+@@ -1,30 +1,94 @@
+ #include "enginepch.h"
+ #include "Application.h"
++
++#include <utility>
++
+ #include "Events/KeyEvent.h"
+ #include "Events/ApplicationEvent.h"
++#include "HuaEngine/Application/ApplicationOperations.h"
++#include "HuaEngine/Application/ApplicationServices.h"
+ #include "Serialization/Serialization.h"
+ 
+ namespace HE
+ {
+ 	Application* Application::ms_Instance = nullptr;
+ 
+-	Application::Application() 
++	Application::Application(ApplicationSpecification specification)
++		: m_Specification(std::move(specification))
+ 	{
+ 		HE_CORE_ASSERT(!ms_Instance, "There is already an exesisting Application instance!");
+ 		ms_Instance = this;
++	}
++
++	Application::~Application()
++	{
++	}
++
++	ApplicationOperations& Application::GetOperations()
++	{
++		HE_CORE_ASSERT(m_Operations, "Application operations are not registered yet");
++		return *m_Operations;
++	}
++
++	const ApplicationOperations& Application::GetOperations() const
++	{
++		HE_CORE_ASSERT(m_Operations, "Application operations are not registered yet");
++		return *m_Operations;
++	}
++
++	ApplicationServices& Application::GetServices()
++	{
++		HE_CORE_ASSERT(m_Services, "Runtime services are not registered yet");
++		return *m_Services;
++	}
++
++	const ApplicationServices& Application::GetServices() const
++	{
++		HE_CORE_ASSERT(m_Services, "Runtime services are not registered yet");
++		return *m_Services;
++	}
++
++	void Application::Start()
++	{
++		if (m_RuntimeInitialized) {
++			return;
++		}
+ 
+-		// Initialize serialization system
+ 		HE::Serialization::InitializeSerialization();
+ 
+-		m_Window = std::unique_ptr<Window>(Window::Create());
+-		m_Window->SetEventCallback(BIND_EVENT_FUNC(Application::OnEvent));
++		if (m_Specification.EnableGuiLayer) {
++			HE_CORE_ASSERT(m_Specification.EnableWindow, "GUI hosts must enable a runtime window");
++		}
++
++		if (m_Specification.EnableWindow) {
++			m_Window = std::unique_ptr<Window>(Window::Create());
++			m_Window->SetEventCallback(BIND_EVENT_FUNC(Application::OnEvent));
++		}
++
++		m_Services = CreateScope<ApplicationServices>();
++		RegisterRuntimeServices(*m_Services);
++		m_Operations.reset(new ApplicationOperations(*m_Services));
++
++		if (m_Specification.EnableGuiLayer) {
++			m_GuiLayer = new ImguiLayer();
++			m_LayerStack.PushOverlay(m_GuiLayer);
++			m_GuiLayer->OnAttach();
++		}
+ 
+-		m_GuiLayer = new ImguiLayer();
+-		PushOverlay(m_GuiLayer);
++		m_RuntimeInitialized = true;
++		AttachDeferredLayers();
++		OnRuntimeInitialized(*m_Operations);
+ 	}
+ 
+-	Application::~Application()
++	void Application::AttachDeferredLayers()
+ 	{
++		for (Layer* layer : m_LayerStack) {
++			if (layer == m_GuiLayer) {
++				continue;
++			}
++
++			layer->OnAttach();
++		}
+ 	}
+ 
+ 	void Application::OnEvent(Event& e) {
+@@ -40,17 +104,22 @@ namespace HE
+ 
+ 	void Application::Run()
+ 	{
++		Start();
++		HE_CORE_ASSERT(m_Window, "Application::Run requires a window-enabled host");
++
+ 		while (m_Running)
+ 		{
+ 			for (auto layer : m_LayerStack) {
+ 				layer->OnUpdate();
+ 			}
+ 
+-			m_GuiLayer->Begin();
+-			for (auto layer : m_LayerStack) {
+-				layer->OnGuiRender();
++			if (m_GuiLayer) {
++				m_GuiLayer->Begin();
++				for (auto layer : m_LayerStack) {
++					layer->OnGuiRender();
++				}
++				m_GuiLayer->End();
+ 			}
+-			m_GuiLayer->End();
+ 
+ 			m_Window->OnUpdate();
+ 		}
+@@ -63,11 +132,15 @@ namespace HE
+ 
+ 	void Application::PushLayer(Layer* layer) {
+ 		m_LayerStack.PushLayer(layer);
+-		layer->OnAttach();
++		if (m_RuntimeInitialized) {
++			layer->OnAttach();
++		}
+ 	}
+ 
+ 	void Application::PushOverlay(Layer* layer) {
+ 		m_LayerStack.PushOverlay(layer);
+-		layer->OnAttach();
++		if (m_RuntimeInitialized) {
++			layer->OnAttach();
++		}
+ 	}
+-}
+\ No newline at end of file
++}
+diff --git a/HuaEngine/src/HuaEngine/Application.h b/HuaEngine/src/HuaEngine/Application.h
+index b2aac14..8dc1188 100644
+--- a/HuaEngine/src/HuaEngine/Application.h
++++ b/HuaEngine/src/HuaEngine/Application.h
+@@ -1,21 +1,43 @@
+ #pragma once
++
++#include <memory>
++#include <string>
++
+ #include "HuaEngine/Core/Core.h"
+ #include "HuaEngine/Core/Window.h"
+ #include "HuaEngine/Core/LayerStack.h"
++#include "HuaEngine/Events/Event.h"
+ #include "HuaEngine/GUI/ImguiLayer.h"
+ 
+ namespace HE
+ {
++	class ApplicationServices;
++	class ApplicationOperations;
++
++	struct ApplicationSpecification {
++		std::string Name = "HuaEngine";
++		bool EnableWindow = true;
++		bool EnableGuiLayer = true;
++	};
++
+ 	class ENGINE_API Application
+ 	{
+ 	public :
+-		Application();
++		explicit Application(ApplicationSpecification specification = {});
+ 
+-		~Application();
++		virtual ~Application();
+ 
+ 		static Application& GetInstance() { return *ms_Instance; }
+-		Window& GetWindow() { return *m_Window; }
++		Window& GetWindow() {
++			HE_CORE_ASSERT(m_Window, "Application window is not available for this host");
++			return *m_Window;
++		}
++		const ApplicationSpecification& GetSpecification() const { return m_Specification; }
++		bool IsRuntimeInitialized() const { return m_RuntimeInitialized; }
++		ApplicationOperations& GetOperations();
++		const ApplicationOperations& GetOperations() const;
+ 
++		void Start();
+ 		void OnEvent(Event& e);
+ 
+ 		void Run();
+@@ -24,14 +46,26 @@ namespace HE
+ 		void PushLayer(Layer* layer);
+ 		void PushOverlay(Layer* layer);
+ 
++	protected:
++		ApplicationServices& GetServices();
++		const ApplicationServices& GetServices() const;
++
++		virtual void RegisterRuntimeServices(ApplicationServices& services) { (void)services; }
++		virtual void OnRuntimeInitialized(ApplicationOperations& operations) { (void)operations; }
++
+ 	private:
++		void AttachDeferredLayers();
++
++		ApplicationSpecification m_Specification;
+ 		std::unique_ptr<Window> m_Window;
+-		ImguiLayer* m_GuiLayer;
++		ImguiLayer* m_GuiLayer = nullptr;
+ 		bool m_Running = true;
++		bool m_RuntimeInitialized = false;
++		Scope<ApplicationServices> m_Services;
++		Scope<ApplicationOperations> m_Operations;
+ 		LayerStack m_LayerStack;
+ 		static Application* ms_Instance;
+ 	};
+ 
+ 	Application* CreateApplication();
+ }
+-
+diff --git a/HuaEngine/src/HuaEngine/Core/Log.cpp b/HuaEngine/src/HuaEngine/Core/Log.cpp
+index 7d5a8e4..f7f3d1d 100644
+--- a/HuaEngine/src/HuaEngine/Core/Log.cpp
++++ b/HuaEngine/src/HuaEngine/Core/Log.cpp
+@@ -6,18 +6,23 @@ namespace HE {
+ 	Ref<spdlog::logger> Log::ms_ClientLogger;
+ 	Ref<LogSink> Log::ms_LogSink;
+ 
+-	void Log::Init() {
++	void Log::Init(const LogSpecification& specification) {
+ 		ms_LogSink = std::make_shared<LogSink>();
+-		auto coreConsoleSink = std::make_shared<spdlog::sinks::stdout_color_sink_mt>();
+-		coreConsoleSink->set_pattern("%^[%T] %n: %v%$");
+-
+-		std::vector<spdlog::sink_ptr> coreSinks = { ms_LogSink, coreConsoleSink };
++		std::vector<spdlog::sink_ptr> coreSinks = { ms_LogSink };
++		if (specification.EnableConsoleOutput) {
++			auto coreConsoleSink = std::make_shared<spdlog::sinks::stdout_color_sink_mt>();
++			coreConsoleSink->set_pattern("%^[%T] %n: %v%$");
++			coreSinks.emplace_back(coreConsoleSink);
++		}
+ 		ms_CoreLogger = std::make_shared<spdlog::logger>("HUA_ENGINE", coreSinks.begin(), coreSinks.end());
+ 		ms_CoreLogger->set_level(spdlog::level::trace);
+ 
+-		auto clientConsoleSink = std::make_shared<spdlog::sinks::stdout_color_sink_mt>();
+-		clientConsoleSink->set_pattern("%^[%T] %n: %v%$");
+-		std::vector<spdlog::sink_ptr> clientSinks = { ms_LogSink, clientConsoleSink };
++		std::vector<spdlog::sink_ptr> clientSinks = { ms_LogSink };
++		if (specification.EnableConsoleOutput) {
++			auto clientConsoleSink = std::make_shared<spdlog::sinks::stdout_color_sink_mt>();
++			clientConsoleSink->set_pattern("%^[%T] %n: %v%$");
++			clientSinks.emplace_back(clientConsoleSink);
++		}
+ 		ms_ClientLogger = std::make_shared<spdlog::logger>("APP", clientSinks.begin(), clientSinks.end());
+ 		ms_ClientLogger->set_level(spdlog::level::trace);
+ 	}
+@@ -31,4 +36,4 @@ namespace HE {
+ 			fmt::to_string(formatted)
+ 		});
+ 	}
+-}
+\ No newline at end of file
++}
+diff --git a/HuaEngine/src/HuaEngine/Core/Log.h b/HuaEngine/src/HuaEngine/Core/Log.h
+index 26f5891..43c8203 100644
+--- a/HuaEngine/src/HuaEngine/Core/Log.h
++++ b/HuaEngine/src/HuaEngine/Core/Log.h
+@@ -24,9 +24,13 @@ namespace HE {
+ 		std::vector<LogLine> buffer;
+ 	};
+ 
++	struct LogSpecification {
++		bool EnableConsoleOutput = true;
++	};
++
+ 	class ENGINE_API Log {
+ 	public:
+-		static void Init();
++		static void Init(const LogSpecification& specification = {});
+ 		inline static Ref<spdlog::logger>& GetCoreLogger() { return ms_CoreLogger; }
+ 		inline static Ref<spdlog::logger>& GetClientLogger() { return ms_ClientLogger; }
+ 		inline static Ref<LogSink>& GetLogSink() { return ms_LogSink; }
+diff --git a/HuaEngine/src/HuaEngine/ECS/Components.h b/HuaEngine/src/HuaEngine/ECS/Components.h
+index 7ab2374..742b191 100644
+--- a/HuaEngine/src/HuaEngine/ECS/Components.h
++++ b/HuaEngine/src/HuaEngine/ECS/Components.h
+@@ -1,5 +1,10 @@
+ #pragma once
+ 
++#include <string>
++#include <string_view>
++#include <type_traits>
++#include <typeinfo>
++
+ #include "glm/glm.hpp"
+ 
+ #define GLM_ENABLE_EXPERIMENTAL
+@@ -31,14 +36,44 @@ namespace HE {
+ 	class ScriptableEntity;
+ 
+ 	struct NativeScriptComponent : Component {
++		using InstantiateFunc = ScriptableEntity* (*)();
++		using DestroyFunc = void (*)(NativeScriptComponent*);
++
+ 		ScriptableEntity* Instance = nullptr;
+-		ScriptableEntity* (*InstanceFunc)();
+-		void (*DestoryFunc)(NativeScriptComponent*);
++		InstantiateFunc InstanceFunc = nullptr;
++		DestroyFunc DestoryFunc = nullptr;
++		std::string ScriptName;
++		bool Enabled = true;
++		bool HasCreated = false;
+ 
+ 		template<typename T>
+-		void Bind() {
+-			InstanceFunc = []() { return static_cast<T*>(new T());  };
+-			DestoryFunc = [](NativeScriptComponent* ncs) { delete ncs->Instance; ncs->Instance = nullptr; }
++		void Bind(std::string_view scriptName = {}) {
++			static_assert(std::is_base_of_v<ScriptableEntity, T>, "Native scripts must derive from ScriptableEntity");
++			ReleaseInstance();
++			InstanceFunc = []() -> ScriptableEntity* { return static_cast<T*>(new T()); };
++			DestoryFunc = [](NativeScriptComponent* ncs) { delete ncs->Instance; ncs->Instance = nullptr; };
++			ScriptName = scriptName.empty() ? typeid(T).name() : std::string(scriptName);
++			Enabled = true;
++			HasCreated = false;
++		}
++
++		[[nodiscard]] bool IsBound() const {
++			return InstanceFunc != nullptr && DestoryFunc != nullptr;
++		}
++
++		void ReleaseInstance() {
++			if (Instance && DestoryFunc) {
++				DestoryFunc(this);
++			}
++			else {
++				Instance = nullptr;
++			}
++
++			HasCreated = false;
++		}
++
++		void DestroyInstance() {
++			ReleaseInstance();
+ 		}
+ 	};
+ }
+@@ -49,4 +84,4 @@ srefl_class(TransformComponent,
+ 		field(Rotation),
+ 		field(Scale)
+ 	)
+-)
+\ No newline at end of file
++)
+diff --git a/HuaEngine/src/HuaEngine/ECS/Entity.h b/HuaEngine/src/HuaEngine/ECS/Entity.h
+index 0b9fb8b..2b869ef 100644
+--- a/HuaEngine/src/HuaEngine/ECS/Entity.h
++++ b/HuaEngine/src/HuaEngine/ECS/Entity.h
+@@ -14,24 +14,24 @@ namespace HE {
+ 
+ 		template<typename T, typename... Args>
+ 		T& AddComponent(Args&&... args) {
+-			T& component = m_EntityManager->m_Registry.emplace<T>(m_EntityHandle, std::forward<Args>(args)...);
++			T& component = m_EntityManager->m_Registry.template emplace<T>(m_EntityHandle, std::forward<Args>(args)...);
+ 			return component;
+ 		}
+ 
+ 		template<typename T>
+ 		T& GetComponent() {
+-			T& component = m_EntityManager->m_Registry.get<T>(m_EntityHandle);
++			T& component = m_EntityManager->m_Registry.template get<T>(m_EntityHandle);
+ 			return component;
+ 		}
+ 
+ 		template<typename T>
+ 		bool HasComponent() {
+-			return m_EntityManager->m_Registry.has<T>(m_EntityHandle);
++			return m_EntityManager->m_Registry.template all_of<T>(m_EntityHandle);
+ 		}
+ 
+ 		template<typename T>
+ 		void RemoveComponent() {
+-			m_EntityManager->m_Registry.remove<T>(m_EntityHandle);
++			m_EntityManager->m_Registry.template remove<T>(m_EntityHandle);
+ 		}
+ 
+ 		std::string GetName() {
+diff --git a/HuaEngine/src/HuaEngine/ECS/ScriptableEntity.h b/HuaEngine/src/HuaEngine/ECS/ScriptableEntity.h
+index 3bde65d..4b4a997 100644
+--- a/HuaEngine/src/HuaEngine/ECS/ScriptableEntity.h
++++ b/HuaEngine/src/HuaEngine/ECS/ScriptableEntity.h
+@@ -1,40 +1,67 @@
+ #pragma once
+ 
+ #include "Entity.h"
++#include "HuaEngine/Core/Assert.h"
+ 
+ namespace HE {
++	class ScriptService;
++	class ScriptRuntimeSystem;
++
+ 	class ScriptableEntity {
+ 	public:
+ 		virtual ~ScriptableEntity() {}
+ 
+ 		template<typename T, typename... Args>
+ 		T& AddComponent(Args&&... args) {
+-			T& component = m_Entity.AddComponent<T>(std::forward<Args>(args)...);
+-			return component;
++			HE_CORE_ASSERT(m_Entity.IsValid(), "ScriptableEntity is not bound to an entity");
++			return m_Entity.AddComponent<T>(std::forward<Args>(args)...);
+ 		}
+ 
+ 		template<typename T>
+ 		T& GetComponent() {
+-			T& component = m_Entity.GetComponent<T>(m_EntityHandle);
+-			return component;
++			HE_CORE_ASSERT(m_Entity.IsValid(), "ScriptableEntity is not bound to an entity");
++			return m_Entity.GetComponent<T>();
+ 		}
+ 
+ 		template<typename T>
+ 		bool HasComponent() {
+-			return m_Entity.HasComponent<T>(m_EntityHandle);
++			HE_CORE_ASSERT(m_Entity.IsValid(), "ScriptableEntity is not bound to an entity");
++			return m_Entity.HasComponent<T>();
+ 		}
+ 
+ 		template<typename T>
+ 		void RemoveComponent() {
++			HE_CORE_ASSERT(m_Entity.IsValid(), "ScriptableEntity is not bound to an entity");
+ 			m_Entity.RemoveComponent<T>();
+ 		}
+ 
+ 	protected:
+ 		virtual void OnUpdate() {}
+ 		virtual void OnCreate() {}
++		virtual void OnDestroy() { OnDestory(); }
+ 		virtual void OnDestory() {}
+ 
+ 	private:
+-		Entity* m_Entity;
++		void __BindEntity(Entity entity) {
++			m_Entity = entity;
++		}
++
++		void __OnCreate() {
++			OnCreate();
++		}
++
++		void __OnUpdate() {
++			OnUpdate();
++		}
++
++		void __OnDestroy() {
++			OnDestroy();
++			m_Entity = {};
++		}
++
++		Entity m_Entity;
++
++		friend class ScriptService;
++		friend class ScriptRuntimeSystem;
+ 	};
+-}
+\ No newline at end of file
++}
+diff --git a/HuaEngine/src/HuaEngine/EntryPoint.h b/HuaEngine/src/HuaEngine/EntryPoint.h
+index 4c6c5b0..6a9f4dc 100644
+--- a/HuaEngine/src/HuaEngine/EntryPoint.h
++++ b/HuaEngine/src/HuaEngine/EntryPoint.h
+@@ -1,5 +1,6 @@
+ #pragma once
+ #include "HuaEngine/Core/Core.h"
++#include "HuaEngine/Core/Log.h"
+ #include "Application.h"
+ 
+ #ifdef HE_PLATFORM_WINDOWS
+@@ -8,7 +9,8 @@ extern HE::Application* HE::CreateApplication();
+ int main(int argn, char** args) {
+ 	HE::Log::Init();
+ 	auto app = HE::CreateApplication();
++	app->Start();
+ 	app->Run();
+ 	delete app;
+ }
+-#endif
+\ No newline at end of file
++#endif
+diff --git a/HuaEngine/src/HuaEngine/Reflection/TypeList.h b/HuaEngine/src/HuaEngine/Reflection/TypeList.h
+index 5adba1c..a90c5b5 100644
+--- a/HuaEngine/src/HuaEngine/Reflection/TypeList.h
++++ b/HuaEngine/src/HuaEngine/Reflection/TypeList.h
+@@ -92,7 +92,7 @@ using list_element_t = typename Detail::list_element<List, N>::type;
+ * @tparam List
+ */
+ template<typename List>
+-constexpr size_t list_size_v = typename Detail::list_size<List>::size;
++inline constexpr size_t list_size_v = Detail::list_size<List>::size;
+ 
+ /**
+ * @brief check if the element list is empty (from type_list or std::tuple or others)
+@@ -256,7 +256,7 @@ struct filter<ListType<T, Ts...>, F> {
+ * @tparam F  receive a type and give a constexpr static bool value;
+ */
+ template<typename List, template <typename> typename F>
+-using disjunction_v = typename Detail::disjunction<List, F>::value;
++inline constexpr bool disjunction_v = Detail::disjunction<List, F>::value;
+ 
+ /**
+ * @brief work as std::conjunction: use function struct F to check all of
+@@ -266,7 +266,7 @@ using disjunction_v = typename Detail::disjunction<List, F>::value;
+ * @tparam F  receive a type and give a constexpr static bool value;
+ */
+ template<typename List, template <typename> typename F>
+-using conjunction_v = typename Detail::conjunction<List, F>::value;
++inline constexpr bool conjunction_v = Detail::conjunction<List, F>::value;
+ 
+ /**
+ * @brief concat two type list
+diff --git a/HuaEngine/src/HuaEngine/Serialization/JsonSerializationBackend.cpp b/HuaEngine/src/HuaEngine/Serialization/JsonSerializationBackend.cpp
+index 630c2d3..d2fb06d 100644
+--- a/HuaEngine/src/HuaEngine/Serialization/JsonSerializationBackend.cpp
++++ b/HuaEngine/src/HuaEngine/Serialization/JsonSerializationBackend.cpp
+@@ -96,6 +96,8 @@ namespace HE::Serialization {
+                 if (it != current->objectData.end()) {
+                     objNode = it->second;
+                 }
++            } else if (name.empty() && current == m_Root) {
++                objNode = current;
+             } else if (current->type == JsonNode::Array && !m_ArrayIndices.empty()) {
+                 size_t index = m_ArrayIndices.top();
+                 if (index < current->arrayData.size()) {
+diff --git a/HuaEngine/src/Module/Rendering/RenderSystem.cpp b/HuaEngine/src/Module/Rendering/RenderSystem.cpp
+index fe8bab3..43f1c42 100644
+--- a/HuaEngine/src/Module/Rendering/RenderSystem.cpp
++++ b/HuaEngine/src/Module/Rendering/RenderSystem.cpp
+@@ -6,7 +6,7 @@
+ 
+ namespace HE {
+ 	void RenderSystem::Update() {
+-		auto& cameraView = m_Scene->View<Rendering::CameraComponent>();
++		auto cameraView = m_Scene->View<Rendering::CameraComponent>();
+ 		for (auto cameraEntity : cameraView) {
+ 			auto& camera = m_Scene->Get<Rendering::CameraComponent>(cameraEntity);
+ 			RenderSingleCamera(*m_Scene, *camera.Camera);
+@@ -15,7 +15,7 @@ namespace HE {
+ 
+ 	void RenderSystem::RenderSingleCamera(Scene& scene, Rendering::Camera& camera) {
+ 		// Render objects using new material system
+-		auto& materialEntityView = scene.View<TransformComponent, Rendering::MeshComponent, Rendering::MaterialComponent>();
++		auto materialEntityView = scene.View<TransformComponent, Rendering::MeshComponent, Rendering::MaterialComponent>();
+ 
+ 		m_Framebuffer->Bind();
+ 		Rendering::RenderCommand::SetClearColor({ 0.1f, 0.1f, 0.1f, 1.0f });
+diff --git a/Sandbox/CMakeLists.txt b/Sandbox/CMakeLists.txt
+index 521b47f..8a7d7e1 100644
+--- a/Sandbox/CMakeLists.txt
++++ b/Sandbox/CMakeLists.txt
+@@ -4,7 +4,7 @@ cmake_minimum_required(VERSION 3.16)
+ project(Sandbox LANGUAGES CXX)
+ 
+ # Set C++ standard
+-set(CMAKE_CXX_STANDARD 17)
++set(CMAKE_CXX_STANDARD 20)
+ set(CMAKE_CXX_STANDARD_REQUIRED ON)
+ 
+ # Collect all source files
+diff --git a/HuaEngine/src/HuaEngine/Core/ResultEnvelope.h b/HuaEngine/src/HuaEngine/Core/ResultEnvelope.h
+new file mode 100644
+index 0000000..81c447e
+--- /dev/null
++++ b/HuaEngine/src/HuaEngine/Core/ResultEnvelope.h
+@@ -0,0 +1,123 @@
++#pragma once
++
++#include <string>
++#include <string_view>
++#include <unordered_map>
++#include <utility>
++#include <vector>
++
++#include "HuaEngine/Core/Core.h"
++
++namespace HE {
++	enum class OperationStatus {
++		// Operation completed and the caller can continue automatically.
++		Success,
++		// Operation failed and the caller should treat the result as a blocking non-success.
++		Failure,
++		// Operation reached a terminal state that requires explicit human decision before continuing.
++		ManualInterventionRequired
++	};
++
++	enum class DiagnosticSeverity {
++		Info,
++		Warning,
++		Error
++	};
++
++	using ResultPayload = std::unordered_map<std::string, std::string>;
++
++	struct DiagnosticEntry {
++		DiagnosticSeverity Severity = DiagnosticSeverity::Info;
++		std::string Code;
++		std::string Message;
++		std::string Context;
++	};
++
++	struct ResultEnvelope {
++		// Use stable, dot-separated identifiers such as "scene.save" or "asset.validate".
++		std::string Operation;
++		// Use stable resource-like identifiers such as a scene path, asset handle, or project id.
++		std::string Target;
++		OperationStatus Status = OperationStatus::Success;
++		std::string Summary;
++		ResultPayload Payload;
++		std::vector<DiagnosticEntry> Details;
++
++		[[nodiscard]] bool Succeeded() const {
++			return Status == OperationStatus::Success;
++		}
++
++		[[nodiscard]] bool Failed() const {
++			return Status != OperationStatus::Success;
++		}
++
++		[[nodiscard]] bool RequiresManualIntervention() const {
++			return Status == OperationStatus::ManualInterventionRequired;
++		}
++
++		[[nodiscard]] bool CanContinueAutomatically() const {
++			return Status == OperationStatus::Success;
++		}
++
++		void AddDetail(DiagnosticEntry detail) {
++			Details.emplace_back(std::move(detail));
++		}
++
++		void SetPayloadValue(std::string key, std::string value) {
++			Payload[std::move(key)] = std::move(value);
++		}
++
++		static ResultEnvelope Success(std::string operation, std::string target, std::string summary = {}) {
++			return {
++				.Operation = std::move(operation),
++				.Target = std::move(target),
++				.Status = OperationStatus::Success,
++				.Summary = std::move(summary)
++			};
++		}
++
++		static ResultEnvelope Failure(std::string operation, std::string target, std::string summary = {}) {
++			return {
++				.Operation = std::move(operation),
++				.Target = std::move(target),
++				.Status = OperationStatus::Failure,
++				.Summary = std::move(summary)
++			};
++		}
++
++		static ResultEnvelope ManualIntervention(std::string operation, std::string target, std::string summary = {}) {
++			return {
++				.Operation = std::move(operation),
++				.Target = std::move(target),
++				.Status = OperationStatus::ManualInterventionRequired,
++				.Summary = std::move(summary)
++			};
++		}
++	};
++
++	inline constexpr std::string_view ToString(OperationStatus status) {
++		switch (status) {
++		case OperationStatus::Success:
++			return "success";
++		case OperationStatus::Failure:
++			return "failure";
++		case OperationStatus::ManualInterventionRequired:
++			return "manual_intervention_required";
++		}
++
++		return "unknown";
++	}
++
++	inline constexpr std::string_view ToString(DiagnosticSeverity severity) {
++		switch (severity) {
++		case DiagnosticSeverity::Info:
++			return "info";
++		case DiagnosticSeverity::Warning:
++			return "warning";
++		case DiagnosticSeverity::Error:
++			return "error";
++		}
++
++		return "unknown";
++	}
++}
+diff --git a/HuaEngine/src/HuaEngine/Scene/SceneService.cpp b/HuaEngine/src/HuaEngine/Scene/SceneService.cpp
+new file mode 100644
+index 0000000..97023fe
+--- /dev/null
++++ b/HuaEngine/src/HuaEngine/Scene/SceneService.cpp
+@@ -0,0 +1,194 @@
++#include "enginepch.h"
++#include "SceneService.h"
++
++#include <system_error>
++
++#include "HuaEngine/Serialization/Serialization.h"
++#include "Module/Rendering/RenderingComponent.h"
++
++namespace {
++	std::filesystem::path NormalizePath(const std::filesystem::path& path) {
++		if (path.empty()) {
++			return {};
++		}
++
++		std::error_code errorCode;
++		auto absolutePath = std::filesystem::absolute(path, errorCode);
++		if (errorCode) {
++			return path.lexically_normal();
++		}
++
++		if (std::filesystem::exists(absolutePath, errorCode)) {
++			auto canonicalPath = std::filesystem::weakly_canonical(absolutePath, errorCode);
++			if (!errorCode) {
++				return canonicalPath;
++			}
++		}
++
++		return absolutePath.lexically_normal();
++	}
++
++	std::string CountToString(uint32_t value) {
++		return std::to_string(value);
++	}
++}
++
++namespace HE {
++	bool SceneValidationReport::IsOperational() const {
++		return HasName &&
++			EntitiesMissingTransform == 0 &&
++			RenderEntitiesMissingMaterial == 0 &&
++			RenderEntitiesMissingMesh == 0 &&
++			EntitiesUsingLegacyRenderer == 0;
++	}
++
++	bool SceneValidationReport::HasIssues() const {
++		return !IsOperational();
++	}
++
++	ResultEnvelope SceneService::CreateScene(std::string_view sceneName, Ref<Scene>& outScene) const {
++		auto resolvedName = sceneName.empty() ? std::string("Untitled Scene") : std::string(sceneName);
++		outScene = CreateRef<Scene>(resolvedName);
++
++		auto result = ResultEnvelope::Success("scene.create", resolvedName, "Scene created");
++		result.SetPayloadValue("scene_name", resolvedName);
++		result.SetPayloadValue("entity_count", "0");
++		return result;
++	}
++
++	ResultEnvelope SceneService::LoadScene(const std::filesystem::path& scenePath, Ref<Scene>& outScene) const {
++		auto normalizedPath = NormalizePath(scenePath);
++		auto targetId = normalizedPath.generic_string();
++		std::error_code errorCode;
++
++		if (normalizedPath.empty()) {
++			auto result = ResultEnvelope::Failure("scene.load", targetId, "Scene path is empty");
++			result.AddDetail({ DiagnosticSeverity::Error, "scene.path.empty", "Cannot load a scene from an empty path", {} });
++			return result;
++		}
++
++		if (!std::filesystem::exists(normalizedPath, errorCode)) {
++			auto result = ResultEnvelope::Failure("scene.load", targetId, "Scene file does not exist");
++			result.AddDetail({ DiagnosticSeverity::Error, "scene.file.missing", "Scene file was not found", normalizedPath.generic_string() });
++			return result;
++		}
++
++		if (!std::filesystem::is_regular_file(normalizedPath, errorCode)) {
++			auto result = ResultEnvelope::Failure("scene.load", targetId, "Scene path is not a regular file");
++			result.AddDetail({ DiagnosticSeverity::Error, "scene.file.invalid_type", "Scene path must point to a regular file", normalizedPath.generic_string() });
++			return result;
++		}
++
++		auto loadedScene = CreateRef<Scene>();
++		if (!Serialization::LoadScene(normalizedPath.string(), *loadedScene)) {
++			auto result = ResultEnvelope::ManualIntervention("scene.load", targetId, "Scene file exists but could not be deserialized");
++			result.AddDetail({ DiagnosticSeverity::Error, "scene.deserialize.failed", "Scene deserialization returned false", normalizedPath.generic_string() });
++			return result;
++		}
++
++		outScene = loadedScene;
++
++		auto result = ResultEnvelope::Success("scene.load", targetId, "Scene loaded");
++		result.SetPayloadValue("scene_name", loadedScene->GetName());
++		result.SetPayloadValue("scene_path", normalizedPath.generic_string());
++		return result;
++	}
++
++	ResultEnvelope SceneService::SaveScene(const Scene& scene, const std::filesystem::path& scenePath) const {
++		auto normalizedPath = NormalizePath(scenePath);
++		auto targetId = normalizedPath.generic_string();
++
++		if (normalizedPath.empty()) {
++			auto result = ResultEnvelope::Failure("scene.save", targetId, "Scene path is empty");
++			result.AddDetail({ DiagnosticSeverity::Error, "scene.path.empty", "Cannot save a scene to an empty path", {} });
++			return result;
++		}
++
++		auto parentPath = normalizedPath.parent_path();
++		if (!parentPath.empty()) {
++			std::error_code errorCode;
++			std::filesystem::create_directories(parentPath, errorCode);
++			if (errorCode) {
++				auto result = ResultEnvelope::Failure("scene.save", targetId, "Failed to create scene directory");
++				result.AddDetail({ DiagnosticSeverity::Error, "scene.directory.create_failed", errorCode.message(), parentPath.generic_string() });
++				return result;
++			}
++		}
++
++		if (!Serialization::SaveScene(const_cast<Scene&>(scene), normalizedPath.string())) {
++			auto result = ResultEnvelope::Failure("scene.save", targetId, "Scene serialization failed");
++			result.AddDetail({ DiagnosticSeverity::Error, "scene.serialize.failed", "Scene serializer returned false", normalizedPath.generic_string() });
++			return result;
++		}
++
++		auto result = ResultEnvelope::Success("scene.save", targetId, "Scene saved");
++		result.SetPayloadValue("scene_name", scene.GetName());
++		result.SetPayloadValue("scene_path", normalizedPath.generic_string());
++		return result;
++	}
++
++	ResultEnvelope SceneService::ValidateScene(const Scene& scene, SceneValidationReport* outReport) const {
++		SceneValidationReport report;
++		report.HasName = !scene.GetName().empty();
++
++		auto& registry = const_cast<Scene&>(scene).GetEntityManager().GetRegistry();
++		for (auto entity : registry.storage<entt::entity>()) {
++			++report.EntityCount;
++
++			const bool hasTransform = registry.all_of<TransformComponent>(entity);
++			const bool hasMesh = registry.all_of<Rendering::MeshComponent>(entity);
++			const bool hasMaterial = registry.all_of<Rendering::MaterialComponent>(entity);
++			const bool hasLegacyRenderer = registry.all_of<Rendering::RendererComponent>(entity);
++
++			if (!hasTransform) {
++				++report.EntitiesMissingTransform;
++			}
++
++			if (hasMesh && !hasMaterial) {
++				++report.RenderEntitiesMissingMaterial;
++			}
++
++			if (!hasMesh && hasMaterial) {
++				++report.RenderEntitiesMissingMesh;
++			}
++
++			if (hasLegacyRenderer) {
++				++report.EntitiesUsingLegacyRenderer;
++			}
++		}
++
++		if (outReport) {
++			*outReport = report;
++		}
++
++		auto targetId = scene.GetName().empty() ? std::string("<unnamed-scene>") : scene.GetName();
++		auto result = report.IsOperational()
++			? ResultEnvelope::Success("scene.validate", targetId, "Scene is structurally valid")
++			: ResultEnvelope::ManualIntervention("scene.validate", targetId, "Scene requires structural fixes");
++
++		result.SetPayloadValue("scene_name", scene.GetName());
++		result.SetPayloadValue("entity_count", CountToString(report.EntityCount));
++		result.SetPayloadValue("missing_transform_count", CountToString(report.EntitiesMissingTransform));
++		result.SetPayloadValue("render_entities_missing_material", CountToString(report.RenderEntitiesMissingMaterial));
++		result.SetPayloadValue("render_entities_missing_mesh", CountToString(report.RenderEntitiesMissingMesh));
++		result.SetPayloadValue("legacy_renderer_entity_count", CountToString(report.EntitiesUsingLegacyRenderer));
++
++		if (!report.HasName) {
++			result.AddDetail({ DiagnosticSeverity::Error, "scene.name.empty", "Scene name is empty", {} });
++		}
++		if (report.EntitiesMissingTransform > 0) {
++			result.AddDetail({ DiagnosticSeverity::Error, "scene.entities.missing_transform", "One or more entities are missing TransformComponent", CountToString(report.EntitiesMissingTransform) });
++		}
++		if (report.RenderEntitiesMissingMaterial > 0) {
++			result.AddDetail({ DiagnosticSeverity::Warning, "scene.render_entities.missing_material", "One or more mesh entities are missing MaterialComponent", CountToString(report.RenderEntitiesMissingMaterial) });
++		}
++		if (report.RenderEntitiesMissingMesh > 0) {
++			result.AddDetail({ DiagnosticSeverity::Warning, "scene.render_entities.missing_mesh", "One or more render entities are missing MeshComponent", CountToString(report.RenderEntitiesMissingMesh) });
++		}
++		if (report.EntitiesUsingLegacyRenderer > 0) {
++			result.AddDetail({ DiagnosticSeverity::Error, "scene.render_entities.legacy_renderer", "Legacy RendererComponent is not part of the formal SceneService/SceneSerializer scene contract", CountToString(report.EntitiesUsingLegacyRenderer) });
++		}
++
++		return result;
++	}
++}
+diff --git a/HuaEngine/src/HuaEngine/Scene/SceneService.h b/HuaEngine/src/HuaEngine/Scene/SceneService.h
+new file mode 100644
+index 0000000..596eb7c
+--- /dev/null
++++ b/HuaEngine/src/HuaEngine/Scene/SceneService.h
+@@ -0,0 +1,31 @@
++#pragma once
++
++#include <cstdint>
++#include <filesystem>
++#include <string_view>
++
++#include "HuaEngine/Core/Core.h"
++#include "HuaEngine/Core/ResultEnvelope.h"
++#include "HuaEngine/Scene/Scene.h"
++
++namespace HE {
++	struct SceneValidationReport {
++		bool HasName = true;
++		uint32_t EntityCount = 0;
++		uint32_t EntitiesMissingTransform = 0;
++		uint32_t RenderEntitiesMissingMaterial = 0;
++		uint32_t RenderEntitiesMissingMesh = 0;
++		uint32_t EntitiesUsingLegacyRenderer = 0;
++
++		[[nodiscard]] bool IsOperational() const;
++		[[nodiscard]] bool HasIssues() const;
++	};
++
++	class ENGINE_API SceneService {
++	public:
++		[[nodiscard]] ResultEnvelope CreateScene(std::string_view sceneName, Ref<Scene>& outScene) const;
++		[[nodiscard]] ResultEnvelope LoadScene(const std::filesystem::path& scenePath, Ref<Scene>& outScene) const;
++		[[nodiscard]] ResultEnvelope SaveScene(const Scene& scene, const std::filesystem::path& scenePath) const;
++		[[nodiscard]] ResultEnvelope ValidateScene(const Scene& scene, SceneValidationReport* outReport = nullptr) const;
++	};
++}

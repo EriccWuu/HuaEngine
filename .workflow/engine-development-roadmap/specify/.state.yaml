@@ -1,0 +1,11 @@
+﻿feature: engine-development-roadmap
+mode: standard
+status: approved
+review_method: agent
+review_method_options:
+  - codex
+  - agent
+current_phase: completed
+ambiguity_score: 0
+open_questions_count: 0
+last_updated: 2026-03-25

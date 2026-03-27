@@ -2,7 +2,7 @@
 
 ## 1. Selection 模型
 
-`Selection` 当前实现非常直接：
+`Selection` 当前实现仍然非常直接：
 
 - 一个静态 `Entity m_Selection`
 - `SetSelection(...)`
@@ -21,13 +21,14 @@
 
 - 从 `Scene` 拿 `EntityManager`
 - 用 `registry.view<TransformComponent>()` 枚举实体
-- 为每个实体构造临时 `Entity(entity, &entityManager)`
+- 为每一个实体构造临时 `Entity(entity, &entityManager)`
 - 点选时调用 `Selection::SetSelection(entity)`
 
 影响：
 
 - 实体是否出现在层级树，取决于它是否有 `TransformComponent`
-- 显示名目前来自 `Entity::GetName()`，而它当前默认多半还是 `"Entity"`
+- 显示名来自 `Entity::GetName()`
+- 面板顶部还会显示最近一次正式操作和最近一次 validation 汇总，数据来自 `EditorWorkbenchState`
 
 ## 3. InspectorPanel
 
@@ -35,15 +36,16 @@
 
 - 检查 `Selection::HasSelection()`
 - 取当前选择实体
+- 显示最近一次 validation 状态与摘要
 - 显示实体名
 - 调 `ComponentEditorRegistry::Instance().DrawComponents(...)`
 
-它直接访问：
+它仍然会直接访问：
 
 - `selection.m_EntityManager->GetRegistry()`
 - `selection.m_EntityHandle`
 
-所以改 Entity 封装时，要留意 editor 侧还存在这类 friend 级访问。
+所以改 `Entity` 封装时，要留意 editor 侧还存在这类 friend 级访问。
 
 ## 4. ComponentEditorRegistry 与反射编辑器
 
@@ -61,18 +63,22 @@
 
 当前现状：
 
-- 默认只内建注册了 `TransformComponent`、`CameraComponent`、`RendererComponent`、`MeshComponent`
-- 字段编辑器现在主要对 `glm::vec3` 有像样 UI，其他类型多半只是文本占位
+- 默认内建注册了 `TransformComponent`、`CameraComponent`、`RendererComponent`、`MeshComponent`
+- 字段编辑器现在主要对 `glm::vec3` 有像样 UI，其它类型多半仍是文本占位
 
 ## 5. ConsolePanel
 
-`ConcolePanel`：
+`ConcolePanel` 现在分两类数据源：
 
-- 读取 `Log::GetLogSink()->GetBuffer()`
-- 根据 spdlog level 映射颜色
-- 支持 Clear 和 AutoScroll
+- `Diagnostics` tab 读取 `EditorWorkbenchState::GetEventHistory()`
+- `Logs` tab 继续读取 `Log::GetLogSink()->GetBuffer()`
 
-这说明 editor console 只是 runtime log 的一个消费视图。
+它还会：
+
+- 根据 `DiagnosticSeverity` 或 spdlog level 做颜色映射
+- 支持 `Clear Logs` 与 `AutoScroll`
+
+这说明 editor console 不再只是 runtime log 的消费者视图，也承担正式结果/诊断语义的可视化出口。
 
 ## Related Skills
 

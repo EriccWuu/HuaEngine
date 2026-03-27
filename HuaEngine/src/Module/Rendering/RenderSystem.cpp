@@ -6,7 +6,7 @@
 
 namespace HE {
 	void RenderSystem::Update() {
-		auto& cameraView = m_Scene->View<Rendering::CameraComponent>();
+		auto cameraView = m_Scene->View<Rendering::CameraComponent>();
 		for (auto cameraEntity : cameraView) {
 			auto& camera = m_Scene->Get<Rendering::CameraComponent>(cameraEntity);
 			RenderSingleCamera(*m_Scene, *camera.Camera);
@@ -15,7 +15,7 @@ namespace HE {
 
 	void RenderSystem::RenderSingleCamera(Scene& scene, Rendering::Camera& camera) {
 		// Render objects using new material system
-		auto& materialEntityView = scene.View<TransformComponent, Rendering::MeshComponent, Rendering::MaterialComponent>();
+		auto materialEntityView = scene.View<TransformComponent, Rendering::MeshComponent, Rendering::MaterialComponent>();
 
 		m_Framebuffer->Bind();
 		Rendering::RenderCommand::SetClearColor({ 0.1f, 0.1f, 0.1f, 1.0f });

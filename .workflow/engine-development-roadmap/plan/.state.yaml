@@ -1,0 +1,15 @@
+﻿feature: engine-development-roadmap
+mode: standard
+status: approved
+review_method: agent
+review_method_options:
+  - codex
+  - agent
+current_phase: completed
+analysis_review_status: pass
+research_topics:
+  - foundation-capability-sequencing
+  - script-runtime-integration
+  - rendering-evolution-path
+  - lightweight-tooling-boundary
+last_updated: 2026-03-25

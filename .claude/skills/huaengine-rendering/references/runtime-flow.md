@@ -4,14 +4,15 @@
 
 仓库当前一帧渲染的实际主路径是：
 
-1. 应用层或 Layer 创建 `Scene`、`RenderSystem`、`Camera`、`FrameBuffer`
-2. `RenderSystem` 通过 `Scene::View<...>()` 找到带渲染组件的实体
-3. `RenderSystem::RenderSingleCamera()` 绑定 FrameBuffer、清屏并调用 `Renderer::Begin(...)`
-4. `Renderer::Submit(...)` 为 shader 写入 `u_ViewProjection`、`u_Transform`
-5. `MaterialInstance::Bind()` 或 VertexArray 绑定完成后，`RenderCommand::DrawIndexed(...)` 下发绘制
-6. `RenderCommand` 委托 `RendererAPI`
-7. `RendererAPI::Create()` 当前固定返回 `OpenGLRendererAPI`
-8. 最终由 `Platform/OpenGL/*` 调用 OpenGL API
+1. 宿主通过 `rendering.attach_scene_viewport` 绑定 `Scene`、`RenderSystem`、`Camera`、`FrameBuffer`
+2. 每帧通过 `rendering.render_scene_viewport` 进入正式渲染操作
+3. `RenderSystem` 通过 `Scene::View<...>()` 找到带渲染组件的实体
+4. `RenderSystem::RenderSingleCamera()` 绑定 FrameBuffer、清屏并调用 `Renderer::Begin(...)`
+5. `Renderer::Submit(...)` 为 shader 写入 `u_ViewProjection`、`u_Transform`
+6. `MaterialInstance::Bind()` 和 VertexArray 绑定完成后，`RenderCommand::DrawIndexed(...)` 下发绘制
+7. `RenderCommand` 委托 `RendererAPI`
+8. `RendererAPI::Create()` 当前固定返回 `OpenGLRendererAPI`
+9. 最终由 `Platform/OpenGL/*` 调用 OpenGL API
 
 ## 2. RenderSystem 层
 
@@ -19,14 +20,16 @@
 
 - `HuaEngine/src/Module/Rendering/RenderSystem.cpp`
 - `HuaEngine/src/Module/Rendering/RenderingComponent.h`
+- `HuaEngine/src/HuaEngine/Application/ApplicationOperations.cpp`
 
 当前行为：
 
 - `Update()` 遍历场景里所有 `CameraComponent`
-- 对每个相机都调用 `RenderSingleCamera(...)`
+- 对每一个相机都调用 `RenderSingleCamera(...)`
 - `Primary` 标记目前没有在这里参与筛选
-- 目前主提交通道依赖 `TransformComponent + MeshComponent + MaterialComponent`
-- 旧的 `RendererComponent` 仍保留作兼容结构，但新的主路径已经偏向材质实例方案
+- 当前主提交通道依赖 `TransformComponent + MeshComponent + MaterialComponent`
+- 旧的 `RendererComponent` 仍保留作兼容结构，但新主路径已经偏向材质实例方案
+- 宿主侧不应该直接把 `RenderSystem` 当公开 domain API；正式接入点已经上移到 `ApplicationOperations`
 
 实际排查顺序：
 
@@ -83,12 +86,6 @@
 - `OpenGLTexture2D.cpp`：纹理资源创建与绑定
 - `OpenGLVertexArray.cpp` / `OpenGLVertexBuffer.cpp` / `OpenGLIndexBuffer.cpp`：几何缓冲对象
 
-Shader 使用注意点：
-
-- `Shader::CreateFromFile(shaderPath)` 支持组合 shader 文件，靠 `#type vertex` / `#type fragment` 分段
-- `OpenGLShader::Unbind()` 当前为空
-- shader 编译失败会直接打日志并触发断言
-
 ## 5. Camera 与 FrameBuffer
 
 ### Camera
@@ -97,7 +94,7 @@ Shader 使用注意点：
 - `EditorCamera` 在 `OnUpdate()` 中更新投影和视图
 - `GetViewProjection()` 使用 `Projection * View`
 
-`EditorCamera` 的关键事实：
+关键事实：
 
 - viewport 由外部 `SetViewport()` 提供
 - `UpdateProjectionMat()` 会用 `m_Viewport.x / m_Viewport.y`
@@ -111,7 +108,7 @@ Shader 使用注意点：
 
 排查 FrameBuffer 问题时优先看：
 
-1. 规格是否设置了正确的 `Width/Height/Attachments`
+1. `Width/Height/Attachments` 是否正确
 2. `Bind()` / `Resize()` 是否在正确时机调用
 3. OpenGL 附件格式分支是否真的覆盖当前需求
 4. Scene 面板或运行窗口的尺寸更新是否先于渲染调用
@@ -125,8 +122,17 @@ Shader 使用注意点：
 - 做现有 bug 定位时，不要先把问题归因到 `RenderPipeline`
 - 如果是设计扩展或未来重构，`RenderPipeline` 才更像可扩展落点
 
+## 7. Host 接入守卫
+
+当前 rendering 的宿主接入守卫有两条：
+
+- `rendering.attach_scene_viewport`：负责为 scene 创建或复用 viewport renderer，并绑定 framebuffer
+- `rendering.render_scene_viewport`：负责在每帧推进同一套正式渲染语义
+
+这两条 seam 的意义不是替换 `RenderSystem` 热路径，而是防止未来 rendering 能力扩展重新退回 GUI-first 或宿主直连模式。
+
 ## Related Skills
 
 - 如果这一帧的输入数据本身就不对，例如实体没创建、组件没挂、系统没注册：转到 `huaengine-ecs-scene/references/runtime-structure.md`
 - 如果问题和场景、材质或 mesh 的持久化有关：转到 `huaengine-serialization-reflection/references/extension-and-integration.md`
-- 如果要先确认入口来自 `Editor` 还是 `Sandbox`：转到 `huaengine-architecture/references/architecture.md`
+- 如果要先确认入口来自 `Editor`、`Sandbox` 还是 `Headless`：转到 `huaengine-architecture/references/architecture.md`

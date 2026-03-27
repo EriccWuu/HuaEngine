@@ -1,27 +1,23 @@
 # Serialization And Integration
 
-## 1. SceneSerializer 的核心结构
+## 1. SceneSerializer 仍然是手工登记表，不是全自动场景反射
 
 关键文件：
 
-- `HuaEngine/src/HuaEngine/Scene/SceneSerializer.h`
 - `HuaEngine/src/HuaEngine/Scene/SceneSerializer.cpp`
 
-当前 `SceneSerializer` 不是纯反射自动化方案，而是“两层桥接”：
+当前设计是两层桥接：
 
-1. `Serializer<T>` 负责具体组件的数据读写
-2. `ComponentSerializers` 负责场景级“这个组件要不要进场景文件”的注册表
+1. `Serializer<T>`
+   - 负责“这个组件类型怎么读写数据”
+2. `ComponentSerializers`
+   - 负责“这个组件是否进入场景文件”
 
-## 2. ComponentSerializers 注册表
+这两层缺一不可。
 
-`SceneSerializer.cpp` 内定义了一个静态注册结构 `ComponentSerializers`，它维护：
+## 2. 默认进入场景文件的组件只有四种
 
-- `serializeFuncs`
-- `deserializeFuncs`
-- `typeIdToName`
-- `nameToTypeId`
-
-当前默认注册的组件只有：
+当前默认登记表里只有：
 
 - `TransformComponent`
 - `Rendering::CameraComponent`
@@ -30,85 +26,105 @@
 
 这意味着：
 
-- 新组件即使有 `Serializer<T>`，如果没注册到这里，也不会出现在场景文件里
-- 新组件如果只在这里注册，但没有 `Serializer<T>` 或反射/序列化支持，也无法完成读写
+- 新组件即使有 `Serializer<T>`，没登记也不会进场景文件
+- `NativeScriptComponent` 当前不会随着场景保存/加载
+- 任何新的正式场景能力都要先确认是否需要进入这个登记表
 
-## 3. 场景文件的实体写法
+## 3. 场景文件结构仍是实体数组 + 组件数组
 
-序列化时每个实体会被写成一个对象，核心字段包括：
+每个实体大致写成：
 
-- `entity_id`
-- `components` 数组
+```json
+{
+  "entity_id": 1,
+  "components": [
+    {
+      "compId": 123,
+      "TransformComponent": { ... }
+    }
+  ]
+}
+```
 
-每个组件元素里至少有：
+重要事实：
 
-- `compId`
-- 以组件名命名的组件对象，例如 `TransformComponent`、`MeshComponent`
+- `compId` 只是当前登记映射的一部分
+- 组件名来自显式映射，不是自动推导
+- 这个结构是当前 SceneSerializer 的真实协议
 
-设计结果：
+## 4. 反序列化不会恢复原始实体句柄
 
-- 场景文件依赖组件名字符串和 `compId` 的共同配合
-- 组件名来自 `ComponentSerializers` 的显式映射，不是自动推导
+`DeserializeEntity(...)` 当前流程是：
 
-## 4. 反序列化行为的真实语义
+- 读取文件中的 `entity_id`
+- 调 `scene.GetEntityManager().CreateEntity()`
+- 把组件数据填进新实体
 
-`DeserializeEntity(...)` 的关键事实：
+不会做的事：
 
-- 先读取文件里的 `entity_id`
-- 但随后调用 `scene.GetEntityManager().CreateEntity()` 创建一个全新实体
-- 当前并没有把原始 `entity_id` 回填给新实体
+- 不会恢复原始 `entt::entity`
+- 不会保证跨加载的稳定实体句柄
 
 所以：
 
-- 文件里的 `entity_id` 更像记录值，而不是当前实现中的稳定恢复 ID
-- 任何依赖“跨加载保持同一个 entt 实体句柄”的逻辑都不成立
+- `entity_id` 更像记录值
+- 不能把它当成长期稳定引用主键
 
-## 5. 组件扩展时的同步点
+## 5. 正式 Scene 校验边界已经补上
 
-新增一个需要进入 Scene 的组件时，至少要同步检查：
+当前正式场景验证不只看“能不能读出来”，还看“能不能进入当前运行时约束”。
 
-1. 组件结构定义，例如 `ECS/Components.h` 或模块自己的组件头
-2. 是否有反射声明，例如 `srefl_class(...)`
-3. 是否有 `Serialization::Serializer<T>` 支持
-4. 是否注册进 `ComponentSerializers::Instance()`
-5. 编辑器侧是否需要显示或编辑它
+`SceneService::ValidateScene(...)` 重点检查：
 
-漏掉任意一步，典型后果分别是：
+- 场景是否有名字
+- 是否有实体缺失 `TransformComponent`
+- 渲染实体是否缺失 `MeshComponent`
+- 渲染实体是否缺失 `MaterialComponent`
+- 是否仍在使用 legacy `RendererComponent`
 
-- 运行时能用但不能保存
-- 能保存但不能恢复
-- 能恢复但编辑器不显示
-- 编辑器能改但读档后丢失
+这意味着：
 
-## 6. 与 Rendering 的连接点
+- SceneSerializer 的成功不等于运行时可接受
+- 现在要把“可读写”和“可运行”区分开看
 
-当前 Scene 最主要的跨模块连接点之一是渲染：
+## 6. 脚本与场景的当前集成边界
 
-- `RenderSystem` 作为 `System` 被 `Scene::AddSyetem(...)` 注册
-- 它通过 `Scene::View<TransformComponent, MeshComponent, MaterialComponent>()` 拿实体
-- `CameraComponent`、`MaterialComponent`、`MeshComponent` 也都在场景组件注册表里
+脚本生命周期现在已经有正式服务：
 
-因此：
+- `ScriptService`
+- `ApplicationOperations::AttachScriptRuntime`
+- `ApplicationOperations::InitializeSceneScripts`
+- `ApplicationOperations::UpdateSceneScripts`
+- `ApplicationOperations::ShutdownSceneScripts`
 
-- ECS/Scene 改动经常会直接影响渲染可见性
-- 组件名、序列化、默认 Transform 和系统注册，都会间接影响渲染结果
+但场景持久化边界仍是旧状态：
 
-## 7. 具体验证入口
+- `NativeScriptComponent` 默认不随 SceneSerializer 进出文件
 
-当前仓库里已有一个很直接的验证样例：
+所以当前脚本能力更准确的表述是：
 
-- `HuaEngine/src/HuaEngine/Test/SceneSerializationTest.h`
+- 运行时闭环已存在
+- 默认持久化闭环还没有并入正式场景协议
 
-这个测试展示了：
+## 7. 与渲染的真实连接点
 
-- 创建 Scene 和实体
-- 写入多个 `TransformComponent`
-- 调用 `Serialization::SaveScene(...)`
-- 再读取回新 Scene 并遍历 registry 验证结果
+Scene 到渲染的正式组合条件是：
 
-如果要验证新增组件是否进入场景存档，这个测试是最直接的起点之一。
+- `TransformComponent`
+- `Rendering::MeshComponent`
+- `Rendering::MaterialComponent`
+
+`RendererComponent` 已经不是正式链路的一部分。
+
+所以如果你在排查“为什么场景能加载但看不到东西”，优先按这个顺序查：
+
+1. Scene 文件里是否真的恢复了 `MeshComponent` 和 `MaterialComponent`
+2. `SceneService::ValidateScene(...)` 是否已报缺失组件
+3. `RenderSystem` 是否真的看到了这组三组件
 
 ## Related Skills
 
-- 如果场景文件里的组件最终影响渲染可见性、材质或 mesh：转到 `huaengine-rendering/references/assets-and-materials.md`
-- 如果你要改的是 `Serializer<T>`、反射宏、GLM 特化或 backend：转到 `huaengine-serialization-reflection/references/core-flow.md`
+- 组件字段、反射和 `Serializer<T>` 如何工作：
+  - 看 `huaengine-serialization-reflection/references/core-flow.md`
+- 渲染链如何消费场景里的 mesh/material/camera：
+  - 看 `huaengine-rendering/references/runtime-flow.md`
