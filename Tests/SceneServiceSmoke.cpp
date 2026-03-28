@@ -24,11 +24,25 @@ namespace {
 	uint32_t CountEntities(HE::Scene& scene) {
 		uint32_t entityCount = 0;
 		auto& registry = scene.GetEntityManager().GetRegistry();
-		for (auto entity : registry.storage<entt::entity>()) {
+		for (auto [entity] : registry.storage<entt::entity>().each()) {
+			if (!registry.valid(entity)) {
+				continue;
+			}
+
 			(void)entity;
 			++entityCount;
 		}
 		return entityCount;
+	}
+
+	entt::entity FindFirstLiveEntity(entt::registry& registry) {
+		for (auto [entity] : registry.storage<entt::entity>().each()) {
+			if (registry.valid(entity)) {
+				return entity;
+			}
+		}
+
+		return entt::null;
 	}
 }
 
@@ -73,12 +87,20 @@ int main() {
 	Require(sceneFileText.find("\"component_type_id\"") == std::string::npos, "Expected scene serialization to avoid legacy component_type_id fields");
 	Require(sceneFileText.find("\"compId\"") == std::string::npos, "Expected scene serialization to avoid legacy compId fields");
 
+	scene->GetEntityManager().DestroyEntity(secondEntity);
+	auto saveAfterDelete = sceneService.SaveScene(*scene, sceneFilePath);
+	Require(saveAfterDelete.Succeeded(), "Expected scene.save to succeed after deleting an entity");
+	const auto sceneFileTextAfterDelete = ReadFileText(sceneFilePath);
+	Require(sceneFileTextAfterDelete.find("\"components\": {}") == std::string::npos, "Expected deleted entities to be fully removed instead of persisting empty component shells");
+	Require(sceneFileTextAfterDelete.find("\"id\": 1048576") == std::string::npos, "Expected tombstone entity identifiers to be excluded from scene serialization");
+	Require(sceneFileTextAfterDelete.find("\"id\": 1048581") == std::string::npos, "Expected deleted entity tombstones to be excluded from scene serialization");
+
 	HE::Ref<HE::Scene> loadedScene;
 	auto loadResult = sceneService.LoadScene(sceneFilePath, loadedScene);
 	Require(loadResult.Succeeded(), "Expected scene.load to succeed");
 	Require(static_cast<bool>(loadedScene), "Expected loaded scene reference to be valid");
 	Require(loadedScene->GetName() == "SmokeScene", "Expected loaded scene name to round-trip");
-	Require(CountEntities(*loadedScene) == 3, "Expected loaded scene to contain three entities");
+	Require(CountEntities(*loadedScene) == 2, "Expected loaded scene to contain two live entities after deletion save");
 
 	HE::SceneValidationReport loadedReport;
 	auto loadedValidation = sceneService.ValidateScene(*loadedScene, &loadedReport);
@@ -87,7 +109,8 @@ int main() {
 	Require(loadedReport.EntitiesUsingLegacyRenderer == 0, "Expected loaded scene to remain free of legacy renderers");
 
 	auto& loadedRegistry = loadedScene->GetEntityManager().GetRegistry();
-	const auto firstLoadedEntity = *loadedRegistry.storage<entt::entity>().begin();
+	const auto firstLoadedEntity = FindFirstLiveEntity(loadedRegistry);
+	Require(firstLoadedEntity != entt::null, "Expected loaded scene to expose at least one live entity");
 	loadedRegistry.emplace<HE::RendererComponent>(firstLoadedEntity);
 
 	HE::SceneValidationReport legacyRendererReport;

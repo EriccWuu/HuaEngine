@@ -198,7 +198,11 @@ namespace HE::Serialization {
 
 		auto& registry = const_cast<Scene&>(scene).GetEntityManager().GetRegistry();
 		uint32_t entityIndex = 0;
-		for (auto entity : registry.storage<entt::entity>()) {
+		for (auto [entity] : registry.storage<entt::entity>().each()) {
+			if (!registry.valid(entity)) {
+				continue;
+			}
+
 			backend.BeginArrayElement(entityIndex++);
 			HE::SerializeEntity(backend, registry, entity);
 			backend.EndArrayElement();
@@ -218,7 +222,11 @@ namespace HE::Serialization {
 
 		auto& registry = scene.GetEntityManager().GetRegistry();
 		std::vector<entt::entity> entities;
-		for (auto entity : registry.storage<entt::entity>()) {
+		for (auto [entity] : registry.storage<entt::entity>().each()) {
+			if (!registry.valid(entity)) {
+				continue;
+			}
+
 			entities.push_back(entity);
 		}
 		for (auto entity : entities) {
