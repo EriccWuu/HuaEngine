@@ -8,6 +8,14 @@
 #include "Module/Rendering/RenderingComponent.h"
 
 namespace {
+	void SerializeNameComponent(HE::Serialization::SerializationBackend& backend, const HE::NameComponent& component) {
+		backend.Serialize("name", component.Name);
+	}
+
+	bool DeserializeNameComponent(HE::Serialization::SerializationBackend& backend, HE::NameComponent& component) {
+		return HE::Serialization::DeserializeValue(backend, "name", component.Name);
+	}
+
 	void SerializeTransformComponent(HE::Serialization::SerializationBackend& backend, const HE::TransformComponent& component) {
 		HE::Serialization::SerializeValue(backend, "position", component.Position);
 		HE::Serialization::SerializeValue(backend, "rotation", component.Rotation);
@@ -106,6 +114,7 @@ namespace HE {
 			static bool initialized = false;
 
 			if (!initialized) {
+				instance.RegisterComponent<NameComponent>("NameComponent", SerializeNameComponent, DeserializeNameComponent);
 				instance.RegisterComponent<TransformComponent>("TransformComponent", SerializeTransformComponent, DeserializeTransformComponent);
 				instance.RegisterComponent<Rendering::CameraComponent>("CameraComponent", SerializeCameraComponent, DeserializeCameraComponent);
 				instance.RegisterComponent<Rendering::MeshComponent>("MeshComponent", SerializeMeshComponent, DeserializeMeshComponent);

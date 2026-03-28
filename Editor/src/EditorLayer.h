@@ -6,6 +6,8 @@
 
 #include "HuaEngine.h"
 #include "HuaEngine/Core/ResultEnvelope.h"
+#include "Interaction/EditorInteractionHost.h"
+#include "Interaction/EditorSceneCommands.h"
 #include "HuaEngine/Project/ProjectContext.h"
 #include "Panels/HierarchyPanel.h"
 #include "Panels/InspectorPanel.h"
@@ -80,6 +82,7 @@ namespace HE {
         void CloseProjectSession(bool preserveResumeState, std::string_view summary);
         void SyncWorkbenchSessionState();
         void SyncSceneDocumentState();
+        void RefreshInteractionHost();
         void RefreshCommandInputs();
         std::filesystem::path ResolveScenePathInput(const std::filesystem::path& scenePath) const;
         void PersistCurrentProjectSession();
@@ -90,6 +93,15 @@ namespace HE {
         void CaptureOperationResult(const ResultEnvelope& result);
         void RecordWorkbenchInfoEvent(std::string_view operation, std::string_view target, std::string_view summary);
         void RefreshWorkbenchValidation();
+        bool ExecuteEditorCommand(EditorCommandPtr command);
+        void ExecuteUndo();
+        void ExecuteRedo();
+        void CreateEntityFromHierarchy();
+        void DeleteSelectedEntities();
+        void AddComponentToPrimarySelection(EditorInspectableComponent type);
+        void RemoveComponentFromPrimarySelection(EditorInspectableComponent type);
+        void HandleGlobalShortcuts();
+        std::string MakeDefaultEntityName() const;
         void OnUnsavedChangesPopup();
         void OnDockingPanel();
         void OnProjectHubPanel();
@@ -101,6 +113,7 @@ namespace HE {
         EditorWorkbenchMode m_Mode = EditorWorkbenchMode::ProjectHub;
         ResultEnvelope m_LastOperationResult;
         EditorWorkbenchState m_WorkbenchState;
+        EditorInteractionHost m_InteractionHost;
         std::filesystem::path m_WorkbenchRootPath;
         bool m_WorkbenchReady = false;
         bool m_DockLayoutInitialized = false;

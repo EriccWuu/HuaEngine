@@ -84,7 +84,33 @@ The document owns:
 - dirty state
 - last validation result
 
-## 7. OnGuiRender Composition
+## 7. Interaction Flow
+
+The first-batch editor interaction path is now:
+
+1. panel input or menu/shortcut trigger enters `EditorLayer`
+2. `EditorLayer` routes the action through `EditorInteractionHost`
+3. `EditorCommandStack` executes the command and updates undo/redo history
+4. `SceneDocument` dirty state is synchronized from command history
+5. `EditorWorkbenchState` and diagnostics surfaces are refreshed
+
+Concrete first-batch actions currently include:
+
+- create entity
+- delete selected entities
+- add component
+- remove component
+- undo
+- redo
+
+The current built-in shortcut surface includes:
+
+- `Ctrl+Z`
+- `Ctrl+Y`
+- `Ctrl+Shift+N`
+- `Delete`
+
+## 8. OnGuiRender Composition
 
 `OnGuiRender()` now composes:
 
@@ -96,7 +122,7 @@ The document owns:
 - Inspector
 - Console
 
-## 8. Dock Layout
+## 9. Dock Layout
 
 The default workbench layout is:
 

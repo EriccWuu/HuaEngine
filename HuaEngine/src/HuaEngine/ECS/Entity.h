@@ -1,7 +1,10 @@
 #pragma once
 
+#include <string>
+
 #include "HuaEngine/Core/Core.h"
 #include "entt.hpp"
+#include "Components.h"
 #include "EntityManager.h"
 
 namespace HE {
@@ -25,7 +28,13 @@ namespace HE {
 		}
 
 		template<typename T>
-		bool HasComponent() {
+		const T& GetComponent() const {
+			const T& component = m_EntityManager->m_Registry.template get<T>(m_EntityHandle);
+			return component;
+		}
+
+		template<typename T>
+		bool HasComponent() const {
 			return m_EntityManager->m_Registry.template all_of<T>(m_EntityHandle);
 		}
 
@@ -34,8 +43,21 @@ namespace HE {
 			m_EntityManager->m_Registry.template remove<T>(m_EntityHandle);
 		}
 
-		std::string GetName() {
-			return m_Name;
+		std::string GetName() const {
+			if (HasComponent<NameComponent>()) {
+				return m_EntityManager->m_Registry.template get<NameComponent>(m_EntityHandle).Name;
+			}
+
+			return "Entity";
+		}
+
+		void SetName(const std::string& name) {
+			if (HasComponent<NameComponent>()) {
+				m_EntityManager->m_Registry.template get<NameComponent>(m_EntityHandle).Name = name;
+				return;
+			}
+
+			m_EntityManager->m_Registry.template emplace<NameComponent>(m_EntityHandle, name);
 		}
 
 		operator entt::entity() const {
@@ -50,9 +72,9 @@ namespace HE {
 			return !(*this == other);
 		}
 
-		uint32_t GetUid() { return (uint32_t)m_EntityHandle; }
+		uint32_t GetUid() const { return (uint32_t)m_EntityHandle; }
 
-		bool IsValid() {
+		bool IsValid() const {
 			return m_EntityManager != nullptr
 				&& m_EntityHandle != entt::null
 				&& m_EntityManager->m_Registry.valid(m_EntityHandle);
@@ -61,7 +83,6 @@ namespace HE {
 	private:
 		entt::entity m_EntityHandle;
 		EntityManager* m_EntityManager;
-		std::string m_Name = "Entity";
 		static uint32_t id;
 
 		friend class EntityManager;

@@ -41,5 +41,9 @@ namespace HE {
 		void MarkDirty() {
 			Dirty = true;
 		}
+
+		void ApplyDirtyState(bool dirty) {
+			Dirty = dirty;
+		}
 	};
 }

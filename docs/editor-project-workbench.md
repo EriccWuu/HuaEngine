@@ -94,6 +94,39 @@ The workbench now supports the minimal scene-document loop:
 
 When scene state changes in Inspector-driven edits, the active `SceneDocument` is marked dirty.
 
+## Interaction Baseline
+
+The workbench now has a formal editor interaction core under `Editor/src/Interaction/`.
+
+Current baseline behaviors:
+
+- `Undo / Redo` command history with dirty-state synchronization
+- global built-in shortcuts:
+  - `Ctrl+Z`
+  - `Ctrl+Y`
+  - `Ctrl+Shift+N`
+  - `Delete`
+- registered context-menu surfaces for `Hierarchy` and `Inspector`
+- collection-based selection instead of a single global entity slot
+- basic drag/drop intent registration for hierarchy-facing interactions
+
+The first shipped object-editing actions are:
+
+- `Hierarchy`
+  - right-click blank area: create entity
+  - right-click entity: create entity / delete selected
+  - left click: single selection
+  - `Ctrl+Left Click`: multi-select toggle
+- `Inspector`
+  - right-click: add/remove supported components
+  - multi-selection: summary mode instead of detailed component editing
+
+Supported first-batch component actions:
+
+- add/remove `CameraComponent`
+- add/remove `MeshComponent`
+- add/remove `MaterialComponent`
+
 ## Panel Consumption Rules
 
 The main panels are now aligned around session/document summaries:
@@ -115,9 +148,12 @@ That means:
 
 ## Smoke Coverage
 
-The project workbench closure is covered by `ProjectWorkbenchSmoke`.
+The project workbench closure is covered by:
 
-The smoke verifies the main chain:
+- `ProjectWorkbenchSmoke`
+- `EditorInteractionSmoke`
+
+`ProjectWorkbenchSmoke` verifies the main chain:
 
 1. create project
 2. open/check project
@@ -127,6 +163,15 @@ The smoke verifies the main chain:
 6. persist editor session
 7. reopen scene
 8. verify edited content survives reload
+
+`EditorInteractionSmoke` verifies the interaction baseline:
+
+1. context-menu and drag/drop registration surfaces
+2. shortcut registration and dispatch path
+3. command-based entity creation
+4. component add/remove with undo
+5. multi-selection delete with undo restore
+6. dirty-state clearing after mark-saved
 
 ## Known Limits
 

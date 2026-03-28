@@ -16,6 +16,14 @@
 namespace HE {
 	struct Component {};
 
+	struct NameComponent : Component {
+		std::string Name = "Entity";
+
+		NameComponent() = default;
+		explicit NameComponent(std::string name)
+			: Name(std::move(name)) {}
+	};
+
 	struct TransformComponent : Component {
 		glm::vec3 Position = {0.0f, 0.0f, 0.0f};
 		glm::vec3 Rotation = {0.0f, 0.0f, 0.0f};
@@ -77,6 +85,12 @@ namespace HE {
 		}
 	};
 }
+
+srefl_class(NameComponent,
+	fields(
+		field(Name)
+	)
+)
 
 srefl_class(TransformComponent,
 	fields(

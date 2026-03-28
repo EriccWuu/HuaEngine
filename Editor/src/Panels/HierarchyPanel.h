@@ -7,6 +7,8 @@
 #include "glm/glm.hpp"
 
 namespace HE {
+    class EditorInteractionHost;
+
 	struct TreeNode
 	{
 		// Tree structure
@@ -33,13 +35,19 @@ namespace HE {
 
 		void SetContext(const Ref<Scene>& scene);
 		void SetWorkbenchState(const EditorWorkbenchState* state) { m_WorkbenchState = state; }
+        void SetInteractionHost(EditorInteractionHost* host) { m_InteractionHost = host; }
 
 	private:
 		void DrawEntityNode(Entity& eneity);
+        void DrawRegisteredContextMenu(const char* popupId, std::string_view contextId);
+        void DrawDragDropSurface(Entity& entity);
+        void HandleEntitySelection(const Entity& entity);
+        void HandleBackgroundSelectionClear();
 
 	private:
 		Ref<Scene> m_Context;
         const EditorWorkbenchState* m_WorkbenchState = nullptr;
+        EditorInteractionHost* m_InteractionHost = nullptr;
 
 		ImGuiTextFilter m_Filter;
 		TreeNode* m_RootNode = NULL;

@@ -10,7 +10,12 @@
 namespace HE {
     class ComponentEditorRegistry {
     public:
-        using DrawFunction = std::function<bool(entt::registry&, entt::entity)>;
+        struct DrawOptions {
+            std::function<void(std::type_index)> RequestRemove;
+            std::function<bool(std::type_index)> CanRemove;
+        };
+
+        using DrawFunction = std::function<bool(entt::registry&, entt::entity, const DrawOptions&)>;
 
         struct ComponentInfo {
             std::string displayName;
@@ -21,10 +26,21 @@ namespace HE {
         void Register(const std::string& displayName) {
             ComponentInfo info;
             info.displayName = displayName;
-            info.drawFunc = [displayName](entt::registry& reg, entt::entity ent) {
+            info.drawFunc = [displayName](entt::registry& reg, entt::entity ent, const DrawOptions& options) {
                 if (reg.all_of<T>(ent)) {
+                    const std::type_index componentType(typeid(T));
                     T& component = reg.get<T>(ent);
-                    if (ImGui::CollapsingHeader(displayName.c_str(), ImGuiTreeNodeFlags_DefaultOpen)) {
+                    const bool open = ImGui::CollapsingHeader(displayName.c_str(), ImGuiTreeNodeFlags_DefaultOpen);
+                    if (options.RequestRemove && ImGui::BeginPopupContextItem((displayName + "ContextMenu").c_str())) {
+                        const bool canRemove = options.CanRemove ? options.CanRemove(componentType) : false;
+                        if (ImGui::MenuItem("Remove Component", nullptr, false, canRemove)) {
+                            options.RequestRemove(componentType);
+                            ImGui::CloseCurrentPopup();
+                        }
+                        ImGui::EndPopup();
+                    }
+
+                    if (open) {
                         ImGui::Indent();
                         const bool changed = DrawComponentEditor(component);
                         ImGui::Unindent();
@@ -40,11 +56,11 @@ namespace HE {
             registeredTypes.push_back(index);
         }
 
-        bool DrawComponents(entt::registry& registry, entt::entity entity) const {
+        bool DrawComponents(entt::registry& registry, entt::entity entity, const DrawOptions& options = {}) const {
             bool changed = false;
             for (const auto& type : registeredTypes) {
                 const auto& info = components.at(type);
-                changed |= info.drawFunc(registry, entity);
+                changed |= info.drawFunc(registry, entity, options);
             }
 
             return changed;
@@ -87,6 +103,7 @@ namespace HE {
     using CameraComponent = Rendering::CameraComponent;
     using RendererComponent = Rendering::RendererComponent;
     using MeshComponent = Rendering::MeshComponent;
+    using MaterialComponent = Rendering::MaterialComponent;
 
 #define REGISTER_COMPONENT_EDITOR(Type) \
     static ComponentEditorAutoRegister<Type> s_autoRegister_##Type(#Type);
@@ -95,4 +112,5 @@ namespace HE {
     REGISTER_COMPONENT_EDITOR(CameraComponent)
     REGISTER_COMPONENT_EDITOR(RendererComponent)
     REGISTER_COMPONENT_EDITOR(MeshComponent)
+    REGISTER_COMPONENT_EDITOR(MaterialComponent)
 }

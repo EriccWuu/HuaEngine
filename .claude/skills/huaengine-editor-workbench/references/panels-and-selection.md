@@ -2,15 +2,23 @@
 
 ## 1. Selection Model
 
-`Selection` is still implemented as global static state:
+`Selection` is still implemented as global static state, but it is no longer single-entity only:
 
-- one selected `Entity`
+- a vector of selected `Entity`
 - `SetSelection(...)`
+- `SetSelections(...)`
+- `AddToSelection(...)`
+- `ToggleSelection(...)`
+- `RemoveFromSelection(...)`
 - `GetSelection()`
+- `GetPrimarySelection()`
+- `GetSelections()`
 - `HasSelection()`
+- `HasSingleSelection()`
 - `ClearSelection()`
 
-This keeps panel communication simple, but scene/project transitions must clear selection aggressively.
+Single selection is now the first-item / primary-selection case.
+This keeps panel communication simple, but scene/project transitions must still clear selection aggressively.
 
 ## 2. Project Panel
 
@@ -55,6 +63,10 @@ The hierarchy panel currently:
 - wraps each item as `Entity(entity, &entityManager)`
 - updates `Selection`
 - shows project/scene summary and last operation/validation counts from `EditorWorkbenchState`
+- exposes registered context-menu entries for `hierarchy.window` and `hierarchy.entity`
+- supports plain click single selection and `Ctrl+Click` toggle multi-selection
+- clears selection when clicking empty background
+- exposes a drag/drop intent surface for hierarchy entries
 
 The hierarchy only shows entities that carry `TransformComponent`.
 
@@ -63,9 +75,11 @@ The hierarchy only shows entities that carry `TransformComponent`.
 The inspector currently:
 
 - checks `Selection::HasSelection()`
-- reads the selected entity
+- reads the primary selected entity
 - shows project/scene summary
 - delegates component editing to `ComponentEditorRegistry`
+- exposes registered context-menu entries for `inspector.window` and `inspector.entity`
+- falls back to a summary-only mode when multiple entities are selected
 
 `InspectorPanel::OnGuiRender()` now returns whether edits actually changed component data.
 That changed flag is used by `EditorLayer` to mark the active `SceneDocument` dirty.
@@ -98,6 +112,24 @@ The main panels now consume session/document summaries consistently:
 - `HierarchyPanel`: project summary, scene summary, last op, validation counts
 - `InspectorPanel`: project summary, scene summary, selected-entity editing
 - `ConcolePanel`: diagnostics and runtime logs
+
+## 8. Interaction Core
+
+The current first-batch editor interaction model is centralized in `Editor/src/Interaction/`:
+
+- `EditorInteractionHost`: binds workbench state, project session, and scene document
+- `EditorCommandStack`: undo/redo history and dirty tracking
+- `ContextMenuRegistry`: registered context-menu entry surface
+- `ShortcutRegistry`: built-in and future custom shortcut registration surface
+- `DragDropIntentRegistry`: drag/drop intent registration surface
+- `EditorSceneCommands`: concrete first-batch entity/component commands
+
+Current built-in shortcuts:
+
+- `Ctrl+Z`
+- `Ctrl+Y`
+- `Ctrl+Shift+N`
+- `Delete`
 
 ## Related Skills
 

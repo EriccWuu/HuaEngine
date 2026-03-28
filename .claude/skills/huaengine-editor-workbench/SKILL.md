@@ -3,9 +3,10 @@ name: huaengine-editor-workbench
 description: >
   HuaEngine Editor workbench navigation. Covers EditorApp, EditorLayer, ProjectHub handoff,
   ProjectSession, SceneDocument, EditorWorkbenchState, ProjectPanel, Selection,
-  Hierarchy, Inspector, and Console. Use when the user asks about Editor startup,
-  project workbench flow, scene document lifecycle, panel behavior, or where to modify
-  HuaEngine editor behavior.
+  Hierarchy, Inspector, Console, and the Editor interaction core. Use when the user
+  asks about Editor startup, project workbench flow, scene document lifecycle, panel
+  behavior, undo/redo, shortcuts, context menus, selection, or where to modify HuaEngine
+  editor behavior.
 ---
 
 # HuaEngine Editor Workbench
@@ -21,6 +22,7 @@ control surface through `ApplicationOperations`.
 
 - `Editor/src/EditorApp.cpp`: Editor process entry and `CreateApplication()`
 - `Editor/src/EditorLayer.*`: minimal fallback entry, Workbench Shell, viewport shell, scene document flow
+- `Editor/src/Interaction/`: command stack, shortcut registry, context menu registry, drag/drop intent registry, scene command factories
 - `Editor/src/Workbench/`: `ProjectSession`, `SceneDocument`, `EditorWorkbenchState`, `EditorSessionStorage`
 - `Editor/src/Panels/`: `ProjectPanel`, `HierarchyPanel`, `InspectorPanel`, `ConcolePanel`
 - `Editor/src/Selection.*`: global selection state
@@ -38,6 +40,7 @@ control surface through `ApplicationOperations`.
 - Panel summaries are cached in `EditorWorkbenchState`
 - The last active session is persisted through `EditorSessionStorage`
 - GUI actions route through `ApplicationOperations`
+- Object-editing actions route through the Editor interaction core and command stack
 
 ## Core Rules
 
@@ -47,8 +50,9 @@ control surface through `ApplicationOperations`.
 - `ProjectSession` describes the active project and should be treated as the authoritative GUI project context
 - `SceneDocument` describes the active scene document and owns path/display/dirty/validation semantics
 - `EditorWorkbenchState` is the shared summary surface for panels, diagnostics, and last-operation visibility
-- `Selection` is still global static state and must be cleared on project or scene transitions
+- `Selection` is global static state but now stores a collection; single selection is the primary-selection special case
 - Inspector edits propagate dirty-state back into the active `SceneDocument`
+- First-batch editing actions should be expressed as editor commands so they participate in undo/redo and dirty tracking
 
 ## Key Files
 
@@ -63,6 +67,12 @@ control surface through `ApplicationOperations`.
 - `Editor/src/Workbench/EditorWorkbenchState.h`
 - `Editor/src/Workbench/EditorSessionStorage.h`
 - `Editor/src/Workbench/EditorSessionStorage.cpp`
+- `Editor/src/Interaction/EditorInteractionHost.h`
+- `Editor/src/Interaction/EditorCommandStack.h`
+- `Editor/src/Interaction/EditorSceneCommands.h`
+- `Editor/src/Interaction/ShortcutRegistry.h`
+- `Editor/src/Interaction/ContextMenuRegistry.h`
+- `Editor/src/Interaction/DragDropIntentRegistry.h`
 - `Editor/src/Panels/ProjectPanel.h`
 - `Editor/src/Panels/ProjectPanel.cpp`
 - `Editor/src/Panels/HierarchyPanel.h`
@@ -93,5 +103,7 @@ control surface through `ApplicationOperations`.
 - `ProjectPanel` is a light project-facing surface, not a full asset browser
 - `HierarchyPanel` still enumerates entities through `TransformComponent`
 - `Selection` is global static state; stale entity handles are still a real risk when transitions are mishandled
+- `Hierarchy` drag/drop is only an intent surface right now, not a real parent-child hierarchy system
+- `Inspector` multi-selection is intentionally summary-only in this stage
 - `ConcolePanel` / `Concole` spelling is still the repository reality
-- GUI summaries may be correct while underlying runtime state is wrong; verify against `ApplicationOperations` and `ProjectWorkbenchSmoke`
+- GUI summaries may be correct while underlying runtime state is wrong; verify against `ApplicationOperations`, `ProjectWorkbenchSmoke`, and `EditorInteractionSmoke`
