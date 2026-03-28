@@ -22,7 +22,7 @@ description: >
 - `HuaEngine/src/HuaEngine/Script/`
   - 脚本生命周期服务会直接消费 `Scene` 和 `NativeScriptComponent`
 - `Editor/src/Panels/`
-  - Scene Hierarchy 和 Inspector 是当前最直接的 GUI 消费方
+  - Hierarchy 和 Inspector 是当前最直接的 GUI 消费方
 - `Headless/src/HeadlessCommandRunner.cpp`
   - `scene.*` 和 `script.*` 命令是当前正式 headless 消费面
 
@@ -55,7 +55,7 @@ description: >
 - `HuaEngine/src/HuaEngine/Scene/SceneService.h`
 - `HuaEngine/src/HuaEngine/Scene/SceneService.cpp`
 - `HuaEngine/src/HuaEngine/Script/ScriptService.h`
-- `Editor/src/Panels/SceneHierarchyPanel.cpp`
+- `Editor/src/Panels/HierarchyPanel.cpp`
 - `Editor/src/Panels/InspectorPanel.cpp`
 
 ## Navigation
@@ -83,7 +83,7 @@ description: >
 ## Common Pitfalls
 
 - `Entity::GetName()` 现在不是可靠事实源，因为创建流程没有回填传入名称
-- `SceneHierarchyPanel` 仍按 `TransformComponent` 视图枚举实体，没有 Transform 的实体默认不会出现在树里
+- `HierarchyPanel` 仍按 `TransformComponent` 视图枚举实体，没有 Transform 的实体默认不会出现在树里
 - 场景能保存不代表脚本绑定也能持久化；`NativeScriptComponent` 当前没有进入默认场景组件登记表
 - `entity_id` 只是文件内记录值，不是跨加载稳定 ID
 - 新组件想进入正式场景能力，至少要同时检查：

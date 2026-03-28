@@ -14,6 +14,7 @@ namespace HE {
         if (ImGui::BeginTabBar("ConsoleTabs")) {
             if (ImGui::BeginTabItem("Diagnostics")) {
                 ImGui::BeginChild("DiagnosticsScroll", ImVec2(0, 0), false, ImGuiWindowFlags_HorizontalScrollbar);
+                const bool wasAtBottom = IsScrollNearBottom();
 
                 if (m_WorkbenchState) {
                     if (const auto* session = m_WorkbenchState->GetProjectSessionSummary()) {
@@ -53,6 +54,10 @@ namespace HE {
                     ImGui::TextUnformatted("Workbench state is not connected.");
                 }
 
+                if (m_AutoScroll && wasAtBottom) {
+                    ImGui::SetScrollHereY(1.0f);
+                }
+
                 ImGui::EndChild();
                 ImGui::EndTabItem();
             }
@@ -60,6 +65,7 @@ namespace HE {
             if (ImGui::BeginTabItem("Logs")) {
                 const auto& buffer = Log::GetLogSink()->GetBuffer();
                 ImGui::BeginChild("LogScroll", ImVec2(0, 0), false, ImGuiWindowFlags_HorizontalScrollbar);
+                const bool wasAtBottom = IsScrollNearBottom();
 
                 for (const auto& line : buffer) {
                     ImVec4 color = LevelToColor(line.level);
@@ -68,7 +74,7 @@ namespace HE {
                     ImGui::PopStyleColor();
                 }
 
-                if (m_AutoScroll && ImGui::GetScrollY() >= ImGui::GetScrollMaxY()) {
+                if (m_AutoScroll && wasAtBottom) {
                     ImGui::SetScrollHereY(1.0f);
                 }
 
@@ -100,5 +106,10 @@ namespace HE {
             case DiagnosticSeverity::Error: return { 1.0f, 0.45f, 0.45f, 1.0f };
             default: return { 1.0f, 1.0f, 1.0f, 1.0f };
         }
+    }
+
+    bool ConcolePanel::IsScrollNearBottom() const {
+        constexpr float kScrollSnapThreshold = 2.0f;
+        return ImGui::GetScrollMaxY() - ImGui::GetScrollY() <= kScrollSnapThreshold;
     }
 }

@@ -23,11 +23,11 @@ namespace HE {
 		glm::vec2 DataMyVec2 = glm::vec2(0.0f, 3.141592f);
 	};
 
-	class SceneHierarchyPanel {
+	class HierarchyPanel {
 	public:
-		SceneHierarchyPanel() = default;
-		SceneHierarchyPanel(const Ref<Scene>& scene);
-		~SceneHierarchyPanel() = default;
+		HierarchyPanel() = default;
+		HierarchyPanel(const Ref<Scene>& scene);
+		~HierarchyPanel() = default;
 
 		void OnGuiRender();
 

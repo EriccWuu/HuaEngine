@@ -7,7 +7,7 @@
 #include "HuaEngine.h"
 #include "HuaEngine/Core/ResultEnvelope.h"
 #include "HuaEngine/Project/ProjectContext.h"
-#include "Panels/SceneHierarchyPanel.h"
+#include "Panels/HierarchyPanel.h"
 #include "Panels/InspectorPanel.h"
 #include "Panels/ConsolePanel.h"
 #include "Panels/ProjectPanel.h"
@@ -108,7 +108,7 @@ namespace HE {
         Ref<Rendering::EditorCamera> m_EditorCamera;
         Ref<Material> m_SandboxMaterial;
         Ref<ProjectPanel> m_ProjectPanel;
-        Ref<SceneHierarchyPanel> m_SceneHierarchy;
+        Ref<HierarchyPanel> m_HierarchyPanel;
         Ref<InspectorPanel> m_Inspector;
         Ref<ConcolePanel> m_Concole;
         ProjectSession m_ProjectSession;
@@ -122,6 +122,11 @@ namespace HE {
         std::array<char, 128> m_NewSceneNameInput{};
         std::array<char, 512> m_SceneOpenPathInput{};
         std::array<char, 512> m_SceneSaveAsPathInput{};
+        bool m_ShowProjectPanel = true;
+        bool m_ShowHierarchyPanel = true;
+        bool m_ShowInspectorPanel = true;
+        bool m_ShowConsolePanel = true;
+        bool m_ShowScenePanel = true;
 
         glm::vec2 m_SceneViewportSize = { 0, 0 };
     };

@@ -68,7 +68,7 @@ This allows `ProjectHub.exe` to offer resume flows and allows `Editor.exe` to ke
 The default layout now appears only after a project session is active, and centers around project editing rather than demo bootstrapping:
 
 - left: `Project`
-- left-middle: `Scene Hierarchy`
+- left-middle: `Hierarchy`
 - center: `Scene`
 - right: `Inspector`
 - bottom: `Console`
@@ -98,7 +98,7 @@ When scene state changes in Inspector-driven edits, the active `SceneDocument` i
 
 The main panels are now aligned around session/document summaries:
 
-- `Scene Hierarchy` reads current project/scene summary and latest operation state from `EditorWorkbenchState`
+- `Hierarchy` reads current project/scene summary and latest operation state from `EditorWorkbenchState`
 - `Inspector` edits the selected entity and marks the scene dirty when component fields change
 - `Console` shows diagnostics from workbench state and raw runtime logs in separate tabs
 - `Project Panel` is the dedicated project/session surface and light scene navigator

@@ -103,12 +103,12 @@
 
 最直接的消费入口：
 
-- `Editor/src/Panels/SceneHierarchyPanel.cpp`
+- `Editor/src/Panels/HierarchyPanel.cpp`
 - `Editor/src/Panels/InspectorPanel.cpp`
 
 当前特点：
 
-- `SceneHierarchyPanel` 仍通过 `view<TransformComponent>()` 枚举实体
+- `HierarchyPanel` 仍通过 `view<TransformComponent>()` 枚举实体
 - `InspectorPanel` 仍会直接使用底层 registry 事实
 - Editor 上层状态和提示语义已经转移到 `EditorWorkbenchState`
 

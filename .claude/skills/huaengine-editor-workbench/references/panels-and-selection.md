@@ -32,7 +32,21 @@ Current actions:
 
 It is intentionally a summary/navigation surface, not a full content browser.
 
-## 3. SceneHierarchyPanel
+## 2.1 View Menu Visibility
+
+The main workbench menu bar now exposes a `View` menu.
+
+It controls visibility for:
+
+- `Project`
+- `Hierarchy`
+- `Inspector`
+- `Console`
+- `Scene`
+
+Panel visibility is currently owned by `EditorLayer`, not by the individual panel classes.
+
+## 3. HierarchyPanel
 
 The hierarchy panel currently:
 
@@ -81,7 +95,7 @@ This makes the console both a runtime log surface and a formal workbench feedbac
 The main panels now consume session/document summaries consistently:
 
 - `ProjectPanel`: project summary, scene summary, validation counts
-- `SceneHierarchyPanel`: project summary, scene summary, last op, validation counts
+- `HierarchyPanel`: project summary, scene summary, last op, validation counts
 - `InspectorPanel`: project summary, scene summary, selected-entity editing
 - `ConcolePanel`: diagnostics and runtime logs
 

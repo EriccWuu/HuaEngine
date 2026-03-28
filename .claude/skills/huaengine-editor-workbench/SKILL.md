@@ -3,7 +3,7 @@ name: huaengine-editor-workbench
 description: >
   HuaEngine Editor workbench navigation. Covers EditorApp, EditorLayer, ProjectHub handoff,
   ProjectSession, SceneDocument, EditorWorkbenchState, ProjectPanel, Selection,
-  Scene Hierarchy, Inspector, and Console. Use when the user asks about Editor startup,
+  Hierarchy, Inspector, and Console. Use when the user asks about Editor startup,
   project workbench flow, scene document lifecycle, panel behavior, or where to modify
   HuaEngine editor behavior.
 ---
@@ -22,7 +22,7 @@ control surface through `ApplicationOperations`.
 - `Editor/src/EditorApp.cpp`: Editor process entry and `CreateApplication()`
 - `Editor/src/EditorLayer.*`: minimal fallback entry, Workbench Shell, viewport shell, scene document flow
 - `Editor/src/Workbench/`: `ProjectSession`, `SceneDocument`, `EditorWorkbenchState`, `EditorSessionStorage`
-- `Editor/src/Panels/`: `ProjectPanel`, `SceneHierarchyPanel`, `InspectorPanel`, `ConcolePanel`
+- `Editor/src/Panels/`: `ProjectPanel`, `HierarchyPanel`, `InspectorPanel`, `ConcolePanel`
 - `Editor/src/Selection.*`: global selection state
 - `Editor/src/ComponentEditor*.h`: component editor registry and reflection-driven editing
 - `ProjectHub/src/*`: standalone launcher host and launcher UI
@@ -65,8 +65,8 @@ control surface through `ApplicationOperations`.
 - `Editor/src/Workbench/EditorSessionStorage.cpp`
 - `Editor/src/Panels/ProjectPanel.h`
 - `Editor/src/Panels/ProjectPanel.cpp`
-- `Editor/src/Panels/SceneHierarchyPanel.h`
-- `Editor/src/Panels/SceneHierarchyPanel.cpp`
+- `Editor/src/Panels/HierarchyPanel.h`
+- `Editor/src/Panels/HierarchyPanel.cpp`
 - `Editor/src/Panels/InspectorPanel.h`
 - `Editor/src/Panels/InspectorPanel.cpp`
 - `Editor/src/Panels/ConsolePanel.h`
@@ -91,7 +91,7 @@ control surface through `ApplicationOperations`.
 
 - `ProjectHub.exe` is now the preferred no-project entry; do not assume full create/open launcher UX still lives inside Editor startup
 - `ProjectPanel` is a light project-facing surface, not a full asset browser
-- `SceneHierarchyPanel` still enumerates entities through `TransformComponent`
+- `HierarchyPanel` still enumerates entities through `TransformComponent`
 - `Selection` is global static state; stale entity handles are still a real risk when transitions are mishandled
 - `ConcolePanel` / `Concole` spelling is still the repository reality
 - GUI summaries may be correct while underlying runtime state is wrong; verify against `ApplicationOperations` and `ProjectWorkbenchSmoke`

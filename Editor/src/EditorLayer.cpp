@@ -232,11 +232,11 @@ namespace HE {
 
     void EditorLayer::SetSceneContext(const Ref<Scene>& scene) {
         Selection::ClearSelection();
-        if (!m_SceneHierarchy) {
-            m_SceneHierarchy.reset(new SceneHierarchyPanel(scene));
-            m_SceneHierarchy->SetWorkbenchState(&m_WorkbenchState);
+        if (!m_HierarchyPanel) {
+            m_HierarchyPanel.reset(new HierarchyPanel(scene));
+            m_HierarchyPanel->SetWorkbenchState(&m_WorkbenchState);
         } else {
-            m_SceneHierarchy->SetContext(scene);
+            m_HierarchyPanel->SetContext(scene);
         }
     }
 
@@ -1087,12 +1087,14 @@ namespace HE {
                 m_WorkbenchReady = BindSceneDocumentToShell();
             }
             ImGui::End();
-            m_Concole->OnGuiRender();
+            if (m_ShowConsolePanel) {
+                m_Concole->OnGuiRender();
+            }
             OnUnsavedChangesPopup();
             return;
         }
 
-        if (m_ProjectPanel) {
+        if (m_ShowProjectPanel && m_ProjectPanel) {
             m_ProjectPanel->OnGuiRender();
             if (const auto action = m_ProjectPanel->ConsumePendingAction()) {
                 switch (action->Type) {
@@ -1120,17 +1122,21 @@ namespace HE {
             }
         }
 
-        OnScenePanel();
-        if (m_SceneHierarchy) {
-            m_SceneHierarchy->OnGuiRender();
+        if (m_ShowScenePanel) {
+            OnScenePanel();
         }
-        const bool inspectorChanged = m_Inspector->OnGuiRender();
+        if (m_ShowHierarchyPanel && m_HierarchyPanel) {
+            m_HierarchyPanel->OnGuiRender();
+        }
+        const bool inspectorChanged = m_ShowInspectorPanel ? m_Inspector->OnGuiRender() : false;
         if (inspectorChanged && m_SceneDocument.IsLoaded()) {
             m_SceneDocument.MarkDirty();
             SyncSceneDocumentState();
             RefreshWorkbenchValidation();
         }
-        m_Concole->OnGuiRender();
+        if (m_ShowConsolePanel) {
+            m_Concole->OnGuiRender();
+        }
         OnUnsavedChangesPopup();
     }
 
@@ -1313,6 +1319,15 @@ namespace HE {
                 ImGui::EndMenu();
             }
 
+            if (ImGui::BeginMenu("View")) {
+                ImGui::MenuItem("Project", nullptr, &m_ShowProjectPanel);
+                ImGui::MenuItem("Hierarchy", nullptr, &m_ShowHierarchyPanel);
+                ImGui::MenuItem("Inspector", nullptr, &m_ShowInspectorPanel);
+                ImGui::MenuItem("Console", nullptr, &m_ShowConsolePanel);
+                ImGui::MenuItem("Scene", nullptr, &m_ShowScenePanel);
+                ImGui::EndMenu();
+            }
+
             if (ImGui::BeginMenu("Options"))
             {
                 ImGui::MenuItem("Fullscreen", NULL, &opt_fullscreen);
@@ -1403,7 +1418,7 @@ namespace HE {
         ImGuiID hierarchyDockId = ImGui::DockBuilderSplitNode(projectDockId, ImGuiDir_Down, 0.45f, nullptr, &projectDockId);
 
         ImGui::DockBuilderDockWindow("Project", projectDockId);
-        ImGui::DockBuilderDockWindow("Scene Hierarchy", hierarchyDockId);
+        ImGui::DockBuilderDockWindow("Hierarchy", hierarchyDockId);
         ImGui::DockBuilderDockWindow("Inspector", rightDockId);
         ImGui::DockBuilderDockWindow("Console", bottomDockId);
         ImGui::DockBuilderDockWindow("Scene", centerDockId);

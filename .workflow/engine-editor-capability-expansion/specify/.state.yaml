@@ -1,0 +1,13 @@
+feature: engine-editor-capability-expansion
+mode: standard
+status: awaiting_approval
+review_method: agent
+review_method_options:
+  - codex
+  - agent
+review_round_limit: 1
+current_phase: validate
+ambiguity_score: 0
+open_questions_count: 0
+input_source: direct-user-instruction
+last_updated: 2026-03-28

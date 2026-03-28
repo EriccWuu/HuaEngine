@@ -20,5 +20,6 @@ namespace HE {
 
         ImVec4 LevelToColor(spdlog::level::level_enum level);
         ImVec4 SeverityToColor(DiagnosticSeverity severity);
+        bool IsScrollNearBottom() const;
 	};
 }

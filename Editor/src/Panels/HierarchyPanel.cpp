@@ -1,5 +1,5 @@
 #include "enginepch.h"
-#include "SceneHierarchyPanel.h"
+#include "HierarchyPanel.h"
 
 #include "entt.hpp"
 
@@ -11,12 +11,12 @@
 #include "Selection.h"
 
 namespace HE {
-	SceneHierarchyPanel::SceneHierarchyPanel(const Ref<Scene>& scene) {
+	HierarchyPanel::HierarchyPanel(const Ref<Scene>& scene) {
 		SetContext(scene);
 	}
 
-	void SceneHierarchyPanel::OnGuiRender() {
-		ImGui::Begin("Scene Hierarchy");
+	void HierarchyPanel::OnGuiRender() {
+		ImGui::Begin("Hierarchy");
 		if (m_WorkbenchState) {
 			if (const auto* session = m_WorkbenchState->GetProjectSessionSummary()) {
 				ImGui::Text("Project: %s", session->ProjectName.c_str());
@@ -67,11 +67,11 @@ namespace HE {
 		ImGui::End();
 	}
 
-	void SceneHierarchyPanel::SetContext(const Ref<Scene>& context) {
+	void HierarchyPanel::SetContext(const Ref<Scene>& context) {
 		m_Context = context;
 	}
 
-	void SceneHierarchyPanel::DrawEntityNode(Entity& entity) {
+	void HierarchyPanel::DrawEntityNode(Entity& entity) {
 		ImGui::PushID(entity.GetUid());
 		ImGuiTreeNodeFlags tree_flags = ImGuiTreeNodeFlags_None;
 		tree_flags |= ImGuiTreeNodeFlags_OpenOnArrow | ImGuiTreeNodeFlags_OpenOnDoubleClick;    // Standard opening mode as we are likely to want to add selection afterwards

@@ -101,7 +101,7 @@ The document owns:
 The default workbench layout is:
 
 - left: `Project`
-- left-middle: `Scene Hierarchy`
+- left-middle: `Hierarchy`
 - center: `Scene`
 - right: `Inspector`
 - bottom: `Console`
