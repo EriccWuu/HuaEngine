@@ -63,19 +63,12 @@ set_target_properties(Editor PROPERTIES
     VS_DEBUGGER_WORKING_DIRECTORY "${CMAKE_BINARY_DIR}/bin/$<CONFIG>-${CMAKE_SYSTEM_NAME}-${ARCHITECTURE}"
 )
 
-# Copy assets to output directory
-if(EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/assets")
+# Copy shared engine resources to output directory
+if(EXISTS "${CMAKE_SOURCE_DIR}/Resources")
     add_custom_command(TARGET Editor POST_BUILD
+        COMMAND ${CMAKE_COMMAND} -E rm -rf "$<TARGET_FILE_DIR:Editor>/assets"
         COMMAND ${CMAKE_COMMAND} -E copy_directory
-        "${CMAKE_CURRENT_SOURCE_DIR}/assets"
-        "$<TARGET_FILE_DIR:Editor>/assets"
-    )
-endif()
-
-if(EXISTS "${CMAKE_SOURCE_DIR}/Sandbox/assets")
-    add_custom_command(TARGET Editor POST_BUILD
-        COMMAND ${CMAKE_COMMAND} -E copy_directory
-        "${CMAKE_SOURCE_DIR}/Sandbox/assets"
-        "$<TARGET_FILE_DIR:Editor>/assets"
+        "${CMAKE_SOURCE_DIR}/Resources"
+        "$<TARGET_FILE_DIR:Editor>/Resources"
     )
 endif()

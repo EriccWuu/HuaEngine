@@ -1,0 +1,54 @@
+{
+    "name":  "CustomSquare",
+    "mesh_data":  {
+                      "vertex_data":  [
+                                          -0.500000,
+                                          -0.500000,
+                                          -3.000000,
+                                          0.000000,
+                                          0.000000,
+                                          0.500000,
+                                          -0.500000,
+                                          -3.000000,
+                                          1.000000,
+                                          0.000000,
+                                          0.500000,
+                                          0.500000,
+                                          -3.000000,
+                                          1.000000,
+                                          1.000000,
+                                          -0.500000,
+                                          0.500000,
+                                          -3.000000,
+                                          0.000000,
+                                          1.000000
+                                      ],
+                      "index_data":  [
+                                         0,
+                                         1,
+                                         2,
+                                         2,
+                                         3,
+                                         0
+                                     ],
+                      "layout":  {
+                                     "elements":  [
+                                                      {
+                                                          "shader_data_type":  3,
+                                                          "attribute_name":  "a_Position",
+                                                          "size":  12,
+                                                          "offset":  0,
+                                                          "normalized":  false
+                                                      },
+                                                      {
+                                                          "shader_data_type":  2,
+                                                          "attribute_name":  "a_TexCoord",
+                                                          "size":  8,
+                                                          "offset":  12,
+                                                          "normalized":  false
+                                                      }
+                                                  ],
+                                     "stride":  20
+                                 }
+                  }
+}

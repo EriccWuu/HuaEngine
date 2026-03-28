@@ -13,7 +13,7 @@ namespace HE {
 		InspectorPanel() = default;
 		~InspectorPanel() = default;
 
-		void OnGuiRender();
+		bool OnGuiRender();
 		void SetWorkbenchState(const EditorWorkbenchState* state) { m_WorkbenchState = state; }
 		void SetSelection(const Ref<Entity>& target) { m_Selection = target; }
 

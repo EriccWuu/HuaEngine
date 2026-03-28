@@ -61,7 +61,10 @@ namespace HE
 		}
 
 		if (m_Specification.EnableWindow) {
-			m_Window = std::unique_ptr<Window>(Window::Create());
+			m_Window = std::unique_ptr<Window>(Window::Create(WindowProps(
+				m_Specification.Name,
+				m_Specification.WindowWidth,
+				m_Specification.WindowHeight)));
 			m_Window->SetEventCallback(BIND_EVENT_FUNC(Application::OnEvent));
 		}
 
@@ -123,6 +126,11 @@ namespace HE
 
 			m_Window->OnUpdate();
 		}
+	}
+
+	void Application::RequestShutdown()
+	{
+		m_Running = false;
 	}
 
 	bool Application::OnWindowClose(Event& e) {

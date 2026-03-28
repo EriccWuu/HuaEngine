@@ -14,10 +14,26 @@ namespace HE
 	class ApplicationServices;
 	class ApplicationOperations;
 
+	struct CommandLineArguments {
+		int Count = 0;
+		char** Values = nullptr;
+
+		const char* operator[](int index) const {
+			if (index < 0 || index >= Count || Values == nullptr) {
+				return nullptr;
+			}
+
+			return Values[index];
+		}
+	};
+
 	struct ApplicationSpecification {
 		std::string Name = "HuaEngine";
 		bool EnableWindow = true;
 		bool EnableGuiLayer = true;
+		uint32_t WindowWidth = 1960;
+		uint32_t WindowHeight = 1080;
+		CommandLineArguments CommandLineArgs;
 	};
 
 	class ENGINE_API Application
@@ -41,6 +57,7 @@ namespace HE
 		void OnEvent(Event& e);
 
 		void Run();
+		void RequestShutdown();
 		bool OnWindowClose(Event& e);
 
 		void PushLayer(Layer* layer);
@@ -67,5 +84,5 @@ namespace HE
 		static Application* ms_Instance;
 	};
 
-	Application* CreateApplication();
+	Application* CreateApplication(CommandLineArguments args = {});
 }

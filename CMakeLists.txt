@@ -80,8 +80,8 @@ add_subdirectory(Dependencies/imgui)
 
 # Add subdirectories for main projects
 add_subdirectory(HuaEngine)
-add_subdirectory(Sandbox)
 add_subdirectory(Editor)
+add_subdirectory(ProjectHub)
 add_subdirectory(Headless)
 
 set(SMOKE_RUNTIME_OUTPUT_DIRECTORY
@@ -372,8 +372,33 @@ endif()
 configure_smoke_target(HostConsistencySmoke)
 copy_headless_host_to_smoke(HostConsistencySmoke)
 
-# Set Editor as the startup project for Visual Studio
-set_property(DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR} PROPERTY VS_STARTUP_PROJECT Editor)
+add_executable(ProjectWorkbenchSmoke
+    Tests/ProjectWorkbenchSmoke.cpp
+    Editor/src/Workbench/EditorSessionStorage.cpp
+)
+target_include_directories(ProjectWorkbenchSmoke PRIVATE
+    ${CMAKE_SOURCE_DIR}/Editor/src
+    ${CMAKE_SOURCE_DIR}/HuaEngine/src
+    ${SPDLOG_INCLUDE_DIR}
+    ${GLM_INCLUDE_DIR}
+    ${IMGUI_INCLUDE_DIR}
+    ${STB_IMAGE_INCLUDE_DIR}
+    ${ENTT_INCLUDE_DIR}
+)
+target_link_libraries(ProjectWorkbenchSmoke PRIVATE HuaEngine)
+if(WIN32)
+    target_compile_definitions(ProjectWorkbenchSmoke PRIVATE GLFW_INCLUDE_NONE)
+    if(MSVC)
+        set_target_properties(ProjectWorkbenchSmoke PROPERTIES
+            MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>"
+        )
+        target_compile_options(ProjectWorkbenchSmoke PRIVATE /utf-8)
+    endif()
+endif()
+configure_smoke_target(ProjectWorkbenchSmoke)
+
+# Set ProjectHub as the startup project for Visual Studio
+set_property(DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR} PROPERTY VS_STARTUP_PROJECT ProjectHub)
 
 # Organize projects in Visual Studio solution folders
 set_property(TARGET glfw PROPERTY FOLDER "Dependencies")
@@ -381,6 +406,7 @@ set_property(TARGET GLAD PROPERTY FOLDER "Dependencies")
 set_property(TARGET ImGui PROPERTY FOLDER "Dependencies")
 set_property(TARGET HuaEngineHeadlessCore PROPERTY FOLDER "Hosts")
 set_property(TARGET HuaEngineHeadless PROPERTY FOLDER "Hosts")
+set_property(TARGET ProjectHub PROPERTY FOLDER "Hosts")
 set_property(TARGET ProjectServiceSmoke PROPERTY FOLDER "Tests")
 set_property(TARGET SceneServiceSmoke PROPERTY FOLDER "Tests")
 set_property(TARGET AssetServiceSmoke PROPERTY FOLDER "Tests")
@@ -393,3 +419,4 @@ set_property(TARGET HeadlessHostSmoke PROPERTY FOLDER "Tests")
 set_property(TARGET HeadlessWorkflowSmoke PROPERTY FOLDER "Tests")
 set_property(TARGET RenderingOperationsSmoke PROPERTY FOLDER "Tests")
 set_property(TARGET HostConsistencySmoke PROPERTY FOLDER "Tests")
+set_property(TARGET ProjectWorkbenchSmoke PROPERTY FOLDER "Tests")

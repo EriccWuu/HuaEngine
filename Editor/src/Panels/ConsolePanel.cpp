@@ -16,6 +16,22 @@ namespace HE {
                 ImGui::BeginChild("DiagnosticsScroll", ImVec2(0, 0), false, ImGuiWindowFlags_HorizontalScrollbar);
 
                 if (m_WorkbenchState) {
+                    if (const auto* session = m_WorkbenchState->GetProjectSessionSummary()) {
+                        ImGui::Text("Project: %s", session->ProjectName.c_str());
+                        ImGui::TextWrapped("Root: %s", session->RootPath.c_str());
+                    }
+
+                    if (const auto* scene = m_WorkbenchState->GetSceneDocumentSummary()) {
+                        ImGui::Text("Scene: %s%s", scene->DisplayName.c_str(), scene->Dirty ? "*" : "");
+                        if (!scene->ScenePath.empty()) {
+                            ImGui::TextWrapped("Scene Path: %s", scene->ScenePath.c_str());
+                        }
+                    }
+
+                    if (m_WorkbenchState->GetProjectSessionSummary() || m_WorkbenchState->GetSceneDocumentSummary()) {
+                        ImGui::Separator();
+                    }
+
                     const auto& events = m_WorkbenchState->GetEventHistory();
                     if (events.empty()) {
                         ImGui::TextUnformatted("No formal workbench diagnostics captured yet.");

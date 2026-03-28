@@ -10,7 +10,7 @@
 namespace HE {
     class ComponentEditorRegistry {
     public:
-        using DrawFunction = std::function<void(entt::registry&, entt::entity)>;
+        using DrawFunction = std::function<bool(entt::registry&, entt::entity)>;
 
         struct ComponentInfo {
             std::string displayName;
@@ -26,10 +26,13 @@ namespace HE {
                     T& component = reg.get<T>(ent);
                     if (ImGui::CollapsingHeader(displayName.c_str(), ImGuiTreeNodeFlags_DefaultOpen)) {
                         ImGui::Indent();
-                        DrawComponentEditor(component);
+                        const bool changed = DrawComponentEditor(component);
                         ImGui::Unindent();
+                        return changed;
                     }
                 }
+
+                return false;
             };
 
             std::type_index index(typeid(T));
@@ -37,11 +40,14 @@ namespace HE {
             registeredTypes.push_back(index);
         }
 
-        void DrawComponents(entt::registry& registry, entt::entity entity) const {
+        bool DrawComponents(entt::registry& registry, entt::entity entity) const {
+            bool changed = false;
             for (const auto& type : registeredTypes) {
                 const auto& info = components.at(type);
-                info.drawFunc(registry, entity);
+                changed |= info.drawFunc(registry, entity);
             }
+
+            return changed;
         }
 
         const std::vector<std::type_index>& GetRegisteredTypes() const {

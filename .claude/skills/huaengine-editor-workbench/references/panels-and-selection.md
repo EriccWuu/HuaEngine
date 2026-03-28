@@ -1,88 +1,93 @@
 # Panels And Selection
 
-## 1. Selection 模型
+## 1. Selection Model
 
-`Selection` 当前实现仍然非常直接：
+`Selection` is still implemented as global static state:
 
-- 一个静态 `Entity m_Selection`
+- one selected `Entity`
 - `SetSelection(...)`
 - `GetSelection()`
 - `HasSelection()`
+- `ClearSelection()`
 
-这意味着：
+This keeps panel communication simple, but scene/project transitions must clear selection aggressively.
 
-- 面板间通信靠全局静态共享
-- 没有复杂状态树，也没有订阅机制
-- Entity 失效后的状态一致性需要调用方自己小心
+## 2. Project Panel
 
-## 2. SceneHierarchyPanel
+`ProjectPanel` is the new project-facing workbench panel.
 
-当前流程：
+It consumes `EditorWorkbenchState` summaries and shows:
 
-- 从 `Scene` 拿 `EntityManager`
-- 用 `registry.view<TransformComponent>()` 枚举实体
-- 为每一个实体构造临时 `Entity(entity, &entityManager)`
-- 点选时调用 `Selection::SetSelection(entity)`
+- current project root
+- current project name
+- current scene display name
+- dirty marker
+- latest validation warning/error counts
+- light `Assets/` and `Scenes/` discovery
 
-影响：
+Current actions:
 
-- 实体是否出现在层级树，取决于它是否有 `TransformComponent`
-- 显示名来自 `Entity::GetName()`
-- 面板顶部还会显示最近一次正式操作和最近一次 validation 汇总，数据来自 `EditorWorkbenchState`
+- `Open Scene`
+- `Refresh Project`
 
-## 3. InspectorPanel
+It is intentionally a summary/navigation surface, not a full content browser.
 
-`InspectorPanel` 当前不维护复杂上下文，而是：
+## 3. SceneHierarchyPanel
 
-- 检查 `Selection::HasSelection()`
-- 取当前选择实体
-- 显示最近一次 validation 状态与摘要
-- 显示实体名
-- 调 `ComponentEditorRegistry::Instance().DrawComponents(...)`
+The hierarchy panel currently:
 
-它仍然会直接访问：
+- reads the active `Scene`
+- enumerates entities through `registry.view<TransformComponent>()`
+- wraps each item as `Entity(entity, &entityManager)`
+- updates `Selection`
+- shows project/scene summary and last operation/validation counts from `EditorWorkbenchState`
 
-- `selection.m_EntityManager->GetRegistry()`
-- `selection.m_EntityHandle`
+The hierarchy only shows entities that carry `TransformComponent`.
 
-所以改 `Entity` 封装时，要留意 editor 侧还存在这类 friend 级访问。
+## 4. InspectorPanel
 
-## 4. ComponentEditorRegistry 与反射编辑器
+The inspector currently:
 
-`ComponentEditorRegistry`：
+- checks `Selection::HasSelection()`
+- reads the selected entity
+- shows project/scene summary
+- delegates component editing to `ComponentEditorRegistry`
 
-- 用 `std::type_index` 做组件类型索引
-- 注册 `displayName + drawFunc`
-- 按 `registeredTypes` 顺序遍历绘制
+`InspectorPanel::OnGuiRender()` now returns whether edits actually changed component data.
+That changed flag is used by `EditorLayer` to mark the active `SceneDocument` dirty.
 
-`DrawComponentEditor(...)`：
+## 5. ComponentEditorRegistry
 
-- 通过 `Refl::reflect<T>()` 遍历字段
-- 用字段偏移拿到成员地址
-- 对支持的字段类型调用 `DrawFieldEditor(...)`
+The component editor registry:
 
-当前现状：
+- registers component drawers by `std::type_index`
+- keeps a display name and draw function for each registered component type
+- walks registered component types in registration order
+- uses reflection-driven field drawing through `DrawComponentEditor(...)`
 
-- 默认内建注册了 `TransformComponent`、`CameraComponent`、`RendererComponent`、`MeshComponent`
-- 字段编辑器现在主要对 `glm::vec3` 有像样 UI，其它类型多半仍是文本占位
+The default editor surface is still intentionally small. Not every reflected type has a rich custom editor yet.
 
-## 5. ConsolePanel
+## 6. ConsolePanel
 
-`ConcolePanel` 现在分两类数据源：
+`ConcolePanel` now has two distinct surfaces:
 
-- `Diagnostics` tab 读取 `EditorWorkbenchState::GetEventHistory()`
-- `Logs` tab 继续读取 `Log::GetLogSink()->GetBuffer()`
+- `Diagnostics`: workbench diagnostics and validation-oriented event history from `EditorWorkbenchState`
+- `Logs`: raw runtime logs from the log sink
 
-它还会：
+This makes the console both a runtime log surface and a formal workbench feedback surface.
 
-- 根据 `DiagnosticSeverity` 或 spdlog level 做颜色映射
-- 支持 `Clear Logs` 与 `AutoScroll`
+## 7. Shared Summary Surface
 
-这说明 editor console 不再只是 runtime log 的消费者视图，也承担正式结果/诊断语义的可视化出口。
+The main panels now consume session/document summaries consistently:
+
+- `ProjectPanel`: project summary, scene summary, validation counts
+- `SceneHierarchyPanel`: project summary, scene summary, last op, validation counts
+- `InspectorPanel`: project summary, scene summary, selected-entity editing
+- `ConcolePanel`: diagnostics and runtime logs
 
 ## Related Skills
 
-- 如果你要补字段反射、自动组件编辑能力或 `Serializer<T>` 相关规则：转到 `huaengine-serialization-reflection/references/extension-and-integration.md`
-- 如果你要确认选择实体背后的真实 Scene/Component 结构：转到 `huaengine-ecs-scene/references/runtime-structure.md`
-- 如果 Inspector/Scene Panel 里显示出的结果和渲染不一致：转到 `huaengine-rendering/references/assets-and-materials.md`
-- 如果 Console 或输入交互问题更像 runtime glue：转到 `huaengine-core-runtime/references/window-input-and-imgui.md`
+- For reflection-driven editor or serializer rules, go to `huaengine-serialization-reflection/references/extension-and-integration.md`
+- For scene/component runtime structure, go to `huaengine-ecs-scene/references/runtime-structure.md`
+- For rendering-visible state used by inspector or scene panel, go to `huaengine-rendering/references/assets-and-materials.md`
+- For runtime glue affecting console/input behavior, go to `huaengine-core-runtime/references/window-input-and-imgui.md`

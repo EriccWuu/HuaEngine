@@ -1,37 +1,39 @@
-﻿# Build And Run
+# Build And Run
 
-## 标准入口
+## Standard Entry
 
-项目当前首选的人工/Agent 构建入口是仓库根统一主脚本：
+The preferred human/agent build entry is the repository root script:
 
 ```bash
 Build.bat --generate-project
 Build.bat --config debug
 Build.bat --config release --target editor
-Build.bat --target sandbox --launch-after-build
+Build.bat --target projecthub --launch-after-build
 ```
 
-参数语义：
+Argument rules:
 
-- `--generate-project`：生成 Visual Studio 2022 x64 工程
-- `--config debug|release`：指定构建配置，默认 `debug`
-- `--target huaengine|editor|sandbox|all`：指定构建目标，默认 `all`
-- `--launch-after-build`：构建后自动启动；当前只会真正启动 `editor` 或 `sandbox`
+- `--generate-project`: generate the Visual Studio 2022 x64 project
+- `--config debug|release`: build configuration, default `debug`
+- `--target huaengine|editor|projecthub|all`: build target, default `all`
+- `--launch-after-build`: launch the built host when applicable
 
-脚本组织：
+The script supports argument reordering as long as values still immediately follow `--config` or `--target`.
 
-- 根入口：`Build.bat`
-- 子脚本目录：`Scripts/`
-- `Scripts/BuildMain.bat`：参数解析和总调度
-- `Scripts/GenerateProject.bat`：工程生成
-- `Scripts/EnsureProject.bat`：缺失工程时自动补生成
-- `Scripts/RunBuild.bat`：统一调用 `cmake --build`
-- `Scripts/LaunchTarget.bat`：启动目标程序
-- `Scripts/FilterBuildOutput.bat`：构建日志过滤
+## Script Layout
 
-## 底层命令
+- root entry: `Build.bat`
+- child scripts: `Scripts/`
+- `Scripts/BuildMain.bat`: argument parsing and orchestration
+- `Scripts/GenerateProject.bat`: project generation
+- `Scripts/EnsureProject.bat`: lazy project generation
+- `Scripts/RunBuild.bat`: unified `cmake --build`
+- `Scripts/LaunchTarget.bat`: host launch
+- `Scripts/FilterBuildOutput.bat`: build log filtering
 
-项目约定的标准构建方式来自仓库根 `CLAUDE.md`：
+## Low-Level Commands
+
+The real underlying build commands are still:
 
 ```bash
 cmake -B build -G "Visual Studio 17 2022" -A x64
@@ -40,58 +42,66 @@ cmake --build build --config Release
 cmake --build build --config Dist
 ```
 
-构建单个目标：
+Single-target examples:
 
 ```bash
-cmake --build build --config Debug --target Editor
-cmake --build build --config Debug --target Sandbox
 cmake --build build --config Debug --target HuaEngine
+cmake --build build --config Debug --target Editor
+cmake --build build --config Debug --target ProjectHub
 cmake --build build --config Debug --target HuaEngineHeadless
 ```
 
-这些 `cmake` 命令仍然是底层真实行为；`Build.bat` 只是把它们收束成单一入口。
+## Output Layout
 
-## 输出位置
+Executables are emitted to:
 
-根 `CMakeLists.txt` 和四类子工程共同决定输出目录：
+- `build/bin/<Config>-Windows-x64/`
 
-- 可执行文件输出到 `build/bin/<Config>-Windows-x64/`
-- `HuaEngine` 静态库输出到 `build/bin/<Config>-Windows-x64/HuaEngine/`
+Smoke targets are emitted to:
 
-常见示例：
+- `build/bin/<Config>-Windows-x64/smoke/`
+
+Common examples:
 
 - `build/bin/Debug-Windows-x64/Editor.exe`
-- `build/bin/Debug-Windows-x64/Sandbox.exe`
+- `build/bin/Debug-Windows-x64/ProjectHub.exe`
 - `build/bin/Debug-Windows-x64/HuaEngineHeadless.exe`
+- `build/bin/Debug-Windows-x64/smoke/ProjectWorkbenchSmoke.exe`
 
-## 资源复制行为
+## Asset Copy Behavior
 
-- `Editor/CMakeLists.txt` 在构建后会先把 `Editor/assets/` 复制到目标目录下的 `assets/`，再把 `Sandbox/assets/` 合并复制进去，保证 Editor 默认示例场景能直接消费 sandbox 材质、mesh、shader 和纹理资源
-- `Sandbox/CMakeLists.txt` 在构建后会把 `Sandbox/assets/` 复制到目标目录下的 `assets/`
-- `Headless` 不依赖 GUI 资源复制；排查 headless 行为时优先看命令参数、工作目录和结构化 JSON 输出
+- `Editor/CMakeLists.txt` and `ProjectHub/CMakeLists.txt` copy required shared resources into runtime output directories as needed
+- Headless hosts do not depend on GUI asset-copy behavior
 
-因此运行资源相关问题时，先确认：
+When debugging runtime asset issues, verify:
 
-- 对应目标是否已重新构建
-- 目标输出目录下的 `assets/` 是否是最新内容
-- 运行工作目录是否仍指向构建输出目录
+- the host was rebuilt
+- the output `Resources/` directory is current
+- the process is running from the expected output directory
 
-## 运行入口
+## Editor Project Workbench
 
-- `Editor` 的应用入口在 `Editor/src/EditorApp.cpp`
-- `Sandbox` 的应用入口在 `Sandbox/src/SandboxApp.cpp`
-- `Headless` 的应用入口在 `Headless/src/main.cpp`
-- 三者都通过同一套 `Application` runtime 共享启动约束
+The preferred product entry is now `ProjectHub.exe`.
 
-统一脚本的启动行为：
+Current launcher/workbench flow:
 
-- `Build.bat --target editor --launch-after-build` 会启动 `Editor.exe`
-- `Build.bat --target sandbox --launch-after-build` 会启动 `Sandbox.exe`
-- `Build.bat --target huaengine --launch-after-build` 和 `--target all --launch-after-build` 会跳过启动，因为这两个目标没有单一可执行入口
+- start in `ProjectHub.exe`
+- create/open/resume a project through the launcher host
+- launch `Editor.exe --project <path> [--scene <path>]`
+- enter `Workbench Shell`
+- create/open/save/save-as scene documents through the same formal control layer
+- persist the last active session to `%LOCALAPPDATA%/HuaEngine/Editor/session.json`
 
-## Headless 与 Smoke
+Default host shell sizing currently differs by host:
 
-当前仓库已经有一组正式 smoke targets，可直接验证控制面是否回归：
+- `ProjectHub.exe`: smaller launcher-oriented default window
+- `Editor.exe`: large workbench-oriented default window
+
+The primary closure smoke for this flow is `ProjectWorkbenchSmoke`.
+
+## Smoke Targets
+
+Current formal smoke coverage includes:
 
 - `ProjectServiceSmoke`
 - `SceneServiceSmoke`
@@ -105,19 +115,11 @@ cmake --build build --config Debug --target HuaEngineHeadless
 - `HeadlessWorkflowSmoke`
 - `RenderingOperationsSmoke`
 - `HostConsistencySmoke`
+- `ProjectWorkbenchSmoke`
 
-## 构建排查顺序
+## Common Notes
 
-1. 先确认修改落在哪个目标：`HuaEngine`、`Editor`、`Sandbox` 还是 `Headless`
-2. 只改应用层时，优先单独构建对应应用目标
-3. 改动引擎头文件、渲染层、序列化层或公共 API 时，至少重新构建 `HuaEngine` 和受影响宿主/测试目标
-4. 如果是控制面或 host consistency 问题，优先补跑 `HeadlessWorkflowSmoke`、`AgentHostAdapterSmoke`、`HostConsistencySmoke`
-5. 如果是资源或运行时异常，构建后检查输出目录里的 `assets/` 是否同步
-
-## 常见注意点
-
-- 这是 Visual Studio 多配置工程，实际配置以 `--config Debug/Release/Dist` 为准，不要只依赖单配置生成器思路。
-- `Build.bat` 当前支持参数乱序，只要值仍然紧跟在 `--config` 或 `--target` 后面即可，例如 `Build.bat --target editor --config debug`。
-- 根 `CMakeLists.txt` 还设置了 `VS_STARTUP_PROJECT Editor`，所以 IDE 中默认启动项通常是 `Editor`。
-- `HuaEngine` 使用预编译头 `src/enginepch.h`；新增高频头依赖时可以检查是否需要同步到预编译头策略中。
-- `HuaEngineHeadless` 的 stdout 是正式机器可读接口；排查 CLI/AI/automation 回归时，优先看 JSON 结果而不是 console 日志。
+- This is a multi-config Visual Studio project; actual configuration comes from `--config`
+- `VS_STARTUP_PROJECT` is set to `ProjectHub`
+- `HuaEngine` uses the precompiled header `src/enginepch.h`
+- `HuaEngineHeadless` stdout is a formal machine-readable interface

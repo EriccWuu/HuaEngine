@@ -16,17 +16,19 @@ namespace HE {
 	}
 
 	void SceneHierarchyPanel::OnGuiRender() {
-		if (!m_Context) {
-			return;
-		}
-
-		auto& entityManager = m_Context->GetEntityManager();
-		auto& reg = entityManager.GetRegistry();
-		auto view = reg.view<TransformComponent>();
-		
 		ImGui::Begin("Scene Hierarchy");
 		if (m_WorkbenchState) {
+			if (const auto* session = m_WorkbenchState->GetProjectSessionSummary()) {
+				ImGui::Text("Project: %s", session->ProjectName.c_str());
+			}
+
+			if (const auto* scene = m_WorkbenchState->GetSceneDocumentSummary()) {
+				ImGui::SameLine();
+				ImGui::TextDisabled("| Scene: %s%s", scene->DisplayName.c_str(), scene->Dirty ? "*" : "");
+			}
+
 			if (const auto* result = m_WorkbenchState->GetLastResult()) {
+				ImGui::Separator();
 				ImGui::Text("Last Op: %s", result->Operation.c_str());
 				ImGui::SameLine();
 				ImGui::TextDisabled("[%s]", ToString(result->Status).data());
@@ -39,6 +41,17 @@ namespace HE {
 			}
 			ImGui::Separator();
 		}
+
+		if (!m_Context) {
+			ImGui::TextUnformatted("No scene loaded.");
+			ImGui::End();
+			return;
+		}
+
+		auto& entityManager = m_Context->GetEntityManager();
+		auto& reg = entityManager.GetRegistry();
+		auto view = reg.view<TransformComponent>();
+
 		ImGui::SetNextItemWidth(-FLT_MIN);
 		ImGui::SetNextItemShortcut(ImGuiMod_Ctrl | ImGuiKey_F, ImGuiInputFlags_Tooltip);
 		ImGui::PushItemFlag(ImGuiItemFlags_NoNavDefaultFocus, true);
@@ -68,7 +81,7 @@ namespace HE {
 			tree_flags |= ImGuiTreeNodeFlags_Selected;
 		}
 			
-		bool node_open = ImGui::TreeNodeEx(std::to_string(entity.GetUid()).c_str(), tree_flags, entity.GetName().c_str());
+		bool node_open = ImGui::TreeNodeEx(std::to_string(entity.GetUid()).c_str(), tree_flags, "%s", entity.GetName().c_str());
 
 		if (ImGui::IsItemClicked()) {
 			Selection::SetSelection(entity);

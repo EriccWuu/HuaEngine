@@ -6,9 +6,10 @@
 namespace HE {
 	class Selection {
 	public:
-		static void SetSelection(Entity& selection) { m_Selection = selection; }
+		static void SetSelection(const Entity& selection) { m_Selection = selection; }
 		static Entity& GetSelection() { return m_Selection; }
 		static bool HasSelection() { return m_Selection.IsValid(); }
+		static void ClearSelection() { m_Selection = {}; }
 	private:
 		static Entity m_Selection;
 	};

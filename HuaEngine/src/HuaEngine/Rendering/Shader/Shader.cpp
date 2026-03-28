@@ -1,6 +1,7 @@
 #include "enginepch.h"
 #include "Shader.h"
 #include "HuaEngine/Rendering/RendererAPI.h"
+#include "HuaEngine/Core/ResourcePaths.h"
 #include "Platform/OpenGL/OpenGLShader.h"
 #include <fstream>
 #include <sstream>
@@ -10,9 +11,10 @@
 namespace HE::Rendering {
 	
 	static std::string ReadFile(const std::string& filepath) {
-		std::ifstream file(filepath);
+		const auto resolvedPath = HE::ResourcePaths::ResolveRuntimePath(filepath);
+		std::ifstream file(resolvedPath);
 		if (!file.is_open()) {
-			HE_CORE_ERROR("Failed to open file: {0}", filepath);
+			HE_CORE_ERROR("Failed to open file: {0}", resolvedPath.generic_string());
 			return "";
 		}
 
@@ -74,9 +76,10 @@ namespace HE::Rendering {
 
 	Ref<Shader> Shader::CreateFromFile(const std::string& shaderPath)
 	{
-		std::string source = ReadFile(shaderPath);
+		const auto resolvedPath = ResourcePaths::ResolveRuntimePath(shaderPath);
+		std::string source = ReadFile(resolvedPath.generic_string());
 		if (source.empty()) {
-			HE_CORE_ERROR("Failed to read shader file: {0}", shaderPath);
+			HE_CORE_ERROR("Failed to read shader file: {0}", resolvedPath.generic_string());
 			return nullptr;
 		}
 
@@ -86,7 +89,7 @@ namespace HE::Rendering {
 		std::string vertexSource = shaderSources[GL_VERTEX_SHADER];
 		std::string fragmentSource = shaderSources[GL_FRAGMENT_SHADER];
 		auto shader = Create(vertexSource, fragmentSource);
-		shader->m_Path = shaderPath;
+		shader->m_Path = resolvedPath.generic_string();
 		return shader;
 	}
 }

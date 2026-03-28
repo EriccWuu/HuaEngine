@@ -1,85 +1,113 @@
 # Editor Flow
 
-## 1. Editor 启动链路
+## 1. Product Entry
 
-入口在 `Editor/src/EditorApp.cpp`：
+The product entry is now split across two GUI hosts:
 
+- `ProjectHub.exe`: authoritative no-project launcher host
+- `Editor.exe`: project-bound workbench host
+
+The Editor entry remains:
+
+- `Editor/src/EditorApp.cpp`
 - `EditorApp : Application`
-- 构造函数中 `PushLayer(new EditorLayer(spec))`
-- 共享的 `main()` 仍来自 `HuaEngine/EntryPoint.h`
+- `PushLayer(new EditorLayer(spec))`
+- shared `main()` from `HuaEngine/EntryPoint.h`
 
-这意味着 editor 启动仍完全依赖 core runtime，但 workbench 能力入口已经从 GUI 直连回收到统一操作层。
+## 2. Startup States
 
-## 2. EditorLayer 的职责
+Inside `Editor.exe`, the relevant GUI states are now:
 
-`EditorLayer` 是当前 editor 工作台的总装配点，它在构造或 `OnAttach()` 中准备：
+- minimal fallback / redirect surface when no project is active
+- `Workbench Shell` when a project is active
 
-- `EditorCamera`
-- workbench project/context
-- `Scene`
-- scene viewport `FrameBuffer`
-- `RenderSystem`
-- `SceneHierarchyPanel`
-- `InspectorPanel`
-- `ConcolePanel`
-- `EditorWorkbenchState`
-- 可选默认示例场景 bootstrap（当前使用 Sandbox 风格的 mesh/material 资源链）
+The full create/open/resume launcher UX no longer lives inside `EditorLayer`.
 
-当前事实是：它已经被拆成“编辑器工作台壳”和“可选 demo scene bootstrap”两段职责。
+## 3. ProjectHub Host Shape
 
-## 3. OnAttach / OnUpdate / OnGuiRender
+`ProjectHub.exe` is no longer just a centered card inside an oversized shell.
 
-### OnAttach
+Current launcher behavior:
 
-当前会：
+- standalone GUI host
+- smaller launcher-oriented default window size
+- full-window launcher workspace
+- two-column layout:
+  - left: resume and status
+  - right: project root, project name, create/open actions
 
-- 通过 `ApplicationOperations` 初始化 workbench project
-- 检查 project 状态并创建 workbench scene
-- 创建 viewport framebuffer
-- 通过 `rendering.attach_scene_viewport` 建立 scene viewport render seam
-- 刷新统一 validation state
-- 如果启用默认 bootstrap，会加载 `assets/SandboxMaterial.material`、默认 mesh 与 `CustomMesh.mesh`，创建可渲染示例实体并保存/校验示例 scene
+This host is meant to feel like a dedicated launcher, not like the Editor with a launcher panel embedded inside it.
 
-### OnUpdate
+## 4. Session Restore
 
-每帧做：
+`ProjectHub.exe` and `Editor.exe` both read `EditorSessionStorage`.
 
-- `m_EditorCamera->OnUpdate()`
-- `ApplicationOperations::RenderSceneViewport(...)`
-- `m_Scene->Update()`
+If startup arguments contain `--project <path>`, the Editor bypasses launcher behavior and opens the project directly.
+If `--scene <path>` is also provided, the Editor opens that scene after project activation.
 
-### OnGuiRender
+Persisted session fields:
 
-当前顺序：
+- `LastProjectRoot`
+- `LastProjectName`
+- `LastScenePath`
 
-- `OnDockingPanel()`
-- 失败时显示 `Workbench Status`
-- `OnScenePanel()`
-- `SceneHierarchyPanel::OnGuiRender()`
-- `InspectorPanel::OnGuiRender()`
-- `ConcolePanel::OnGuiRender()`
+Storage location:
 
-这说明 GUI 已经变成统一结果与统一操作面的可视化消费者，而不是事实上的 domain owner。
+- `%LOCALAPPDATA%/HuaEngine/Editor/session.json`
 
-## 4. DockSpace 与 Scene Panel
+## 5. Project Activation
 
-`OnDockingPanel()`：
+Project activation is a formal transition:
 
-- 创建全屏主窗口
-- 配置 menu bar 和 docking flags
-- 调用 `ImGui::DockSpace(...)`
-- 首次进入时通过 DockBuilder 固定默认布局：左 `Scene Hierarchy`、右 `Inspector`、下 `Console`、中 `Scene`
+1. launcher or direct command-line resolves the project target
+2. build a `ProjectSession`
+3. initialize the workbench shell
+4. restore the last scene or open the requested scene
+5. persist the active session
 
-`OnScenePanel()`：
+## 6. Scene Document Lifecycle
 
-- 把 framebuffer color attachment 画到 ImGui Image
-- 根据面板大小 resize framebuffer
-- 把 viewport 尺寸回写给 `EditorCamera`
+The Editor scene flow is centered on `SceneDocument`, not a raw `Ref<Scene>`.
 
-这说明 Scene 面板仍然是 editor 和 rendering 的主要耦合点之一，但当前耦合已经被收束到 `ApplicationOperations` 暴露的 rendering seam。
+Current document operations:
+
+- `New Scene`
+- `Open Scene`
+- `Save Scene`
+- `Save Scene As`
+- `Validate Scene`
+
+The document owns:
+
+- scene path
+- display name
+- dirty state
+- last validation result
+
+## 7. OnGuiRender Composition
+
+`OnGuiRender()` now composes:
+
+- minimal fallback / redirect surface when no project is active
+- DockSpace and Workbench Shell when a project is active
+- Project panel
+- Scene panel
+- Scene hierarchy
+- Inspector
+- Console
+
+## 8. Dock Layout
+
+The default workbench layout is:
+
+- left: `Project`
+- left-middle: `Scene Hierarchy`
+- center: `Scene`
+- right: `Inspector`
+- bottom: `Console`
 
 ## Related Skills
 
-- Scene 面板里的渲染路径：转到 `huaengine-rendering/references/runtime-flow.md`
-- Scene/Entity/Component 的底层容器：转到 `huaengine-ecs-scene/references/runtime-structure.md`
-- 主循环、ImguiLayer、Window/Input/runtime glue：转到 `huaengine-core-runtime/references/lifecycle-and-events.md`
+- For runtime startup and host shell behavior, go to `huaengine-core-runtime/references/lifecycle-and-events.md`
+- For viewport rendering flow, go to `huaengine-rendering/references/runtime-flow.md`
+- For scene/entity/component runtime facts, go to `huaengine-ecs-scene/references/runtime-structure.md`

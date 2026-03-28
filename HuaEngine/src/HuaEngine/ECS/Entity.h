@@ -52,7 +52,11 @@ namespace HE {
 
 		uint32_t GetUid() { return (uint32_t)m_EntityHandle; }
 
-		bool IsValid() { return m_EntityManager != nullptr; }
+		bool IsValid() {
+			return m_EntityManager != nullptr
+				&& m_EntityHandle != entt::null
+				&& m_EntityManager->m_Registry.valid(m_EntityHandle);
+		}
 
 	private:
 		entt::entity m_EntityHandle;

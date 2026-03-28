@@ -1,0 +1,12 @@
+feature: engine-project-launcher-separation
+mode: standard
+status: approved
+review_method: local
+current_phase: completed
+input_source: specify
+analysis_review_status: pass
+plan_review_status: pass
+research_topics:
+  - launcher-topology
+  - entry-surface-boundary
+last_updated: 2026-03-28

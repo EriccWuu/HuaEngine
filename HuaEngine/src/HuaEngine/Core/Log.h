@@ -1,4 +1,6 @@
 #pragma once
+#include <filesystem>
+
 #include "HuaEngine/Core/Core.h"
 #include "spdlog/sinks/base_sink.h"
 #include "spdlog/spdlog.h"
@@ -26,6 +28,8 @@ namespace HE {
 
 	struct LogSpecification {
 		bool EnableConsoleOutput = true;
+		bool EnableFileOutput = true;
+		std::filesystem::path LogDirectory;
 	};
 
 	class ENGINE_API Log {
@@ -34,11 +38,13 @@ namespace HE {
 		inline static Ref<spdlog::logger>& GetCoreLogger() { return ms_CoreLogger; }
 		inline static Ref<spdlog::logger>& GetClientLogger() { return ms_ClientLogger; }
 		inline static Ref<LogSink>& GetLogSink() { return ms_LogSink; }
+		[[nodiscard]] inline static const std::filesystem::path& GetLogFilePath() { return ms_LogFilePath; }
 	
 	private:
 		static Ref<spdlog::logger> ms_CoreLogger;
 		static Ref<spdlog::logger> ms_ClientLogger;
 		static Ref<LogSink> ms_LogSink;
+		static std::filesystem::path ms_LogFilePath;
 	};
 }
 

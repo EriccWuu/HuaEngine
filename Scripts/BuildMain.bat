@@ -97,12 +97,12 @@ if /I "%TARGET_ARG%"=="editor" (
     set "TARGET=Editor"
     exit /b 0
 )
-if /I "%TARGET_ARG%"=="sandbox" (
-    set "TARGET=Sandbox"
+if /I "%TARGET_ARG%"=="projecthub" (
+    set "TARGET=ProjectHub"
     exit /b 0
 )
 echo [Build] Unsupported target: %~1
-echo [Build] Allowed values: huaengine, editor, sandbox, all
+echo [Build] Allowed values: huaengine, editor, projecthub, all
 exit /b 1
 
 :missing_config
@@ -116,7 +116,7 @@ goto show_help_error
 :show_help_ok
 echo Usage:
 echo   Build --generate-project
-echo   Build [--config debug^|release] [--target huaengine^|editor^|sandbox^|all] [--launch-after-build]
+echo   Build [--config debug^|release] [--target huaengine^|editor^|projecthub^|all] [--launch-after-build]
 echo.
 echo Defaults:
 echo   --config debug
@@ -126,7 +126,7 @@ exit /b 0
 :show_help_error
 echo Usage:
 echo   Build --generate-project
-echo   Build [--config debug^|release] [--target huaengine^|editor^|sandbox^|all] [--launch-after-build]
+echo   Build [--config debug^|release] [--target huaengine^|editor^|projecthub^|all] [--launch-after-build]
 echo.
 echo Defaults:
 echo   --config debug

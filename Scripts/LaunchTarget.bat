@@ -23,8 +23,8 @@ if /I "%TARGET%"=="Editor" (
     goto launch
 )
 
-if /I "%TARGET%"=="Sandbox" (
-    set "EXE_PATH=%ROOT_DIR%\build\bin\%CONFIG%-Windows-x64\Sandbox.exe"
+if /I "%TARGET%"=="ProjectHub" (
+    set "EXE_PATH=%ROOT_DIR%\build\bin\%CONFIG%-Windows-x64\ProjectHub.exe"
     goto launch
 )
 
