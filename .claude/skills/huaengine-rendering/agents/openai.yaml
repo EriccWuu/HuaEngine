@@ -1,4 +1,4 @@
 ﻿interface:
   display_name: "HuaEngine Rendering"
-  short_description: "Navigate HuaEngine's rendering module, runtime flow, and resource bindings."
-  default_prompt: "Use $huaengine-rendering to inspect HuaEngine rendering flow, materials, meshes, framebuffers, and the OpenGL backend."
+  short_description: "导航 HuaEngine 的渲染模块、运行时帧流程与资源绑定关系。"
+  default_prompt: "使用 $huaengine-rendering 检查 HuaEngine 的渲染流程、材质、网格、FrameBuffer 与 OpenGL 后端。"

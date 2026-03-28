@@ -471,6 +471,14 @@ namespace HE {
             .IsEnabled = []() { return Selection::HasSelection(); },
             .Trigger = [this]() { DeleteSelectedEntities(); }
         });
+        m_InteractionHost.Shortcuts().Register({
+            .CommandId = "editor.scene.save",
+            .DisplayName = "Save Scene",
+            .Chord = ImGuiMod_Ctrl | ImGuiKey_S,
+            .Shortcut = "Ctrl+S",
+            .IsEnabled = [this]() { return m_SceneDocument.IsLoaded(); },
+            .Trigger = [this]() { SaveActiveSceneDocument(); }
+        });
 
         m_Inspector->SetInteractionHost(&m_InteractionHost);
         m_Inspector->SetAddComponentCallback([this](EditorInspectableComponent type) {
@@ -1531,7 +1539,7 @@ namespace HE {
                 if (ImGui::MenuItem("Open Scene...", nullptr, false, m_ProjectSession.IsLoaded())) {
                     ImGui::OpenPopup("Open Scene");
                 }
-                if (ImGui::MenuItem("Save Scene", nullptr, false, m_SceneDocument.IsLoaded())) {
+                if (ImGui::MenuItem("Save Scene", "Ctrl+S", false, m_SceneDocument.IsLoaded())) {
                     SaveActiveSceneDocument();
                 }
                 if (ImGui::MenuItem("Save Scene As...", nullptr, false, m_SceneDocument.IsLoaded())) {

@@ -2,6 +2,7 @@
 
 #include <cstdint>
 #include <filesystem>
+#include <span>
 #include <string_view>
 
 #include "OperationRegistry.h"
@@ -14,11 +15,13 @@ namespace HE {
 	class ApplicationServices;
 	class Entity;
 	class Scene;
+	struct NameComponent;
 	struct ProjectContext;
 	struct ProjectStatusReport;
 	struct SceneValidationReport;
 	struct AssetValidationReport;
 	struct ScriptStatusReport;
+	struct TransformComponent;
 	struct ValidationReport;
 
 	namespace Rendering {
@@ -27,6 +30,28 @@ namespace HE {
 		class Mesh;
 		class Material;
 		class Texture2D;
+		struct CameraComponent;
+		struct MaterialComponent;
+		struct MeshComponent;
+	}
+
+	enum class SceneComponentKind {
+		Camera,
+		Mesh,
+		Material
+	};
+
+	[[nodiscard]] constexpr std::string_view ToString(SceneComponentKind componentKind) {
+		switch (componentKind) {
+		case SceneComponentKind::Camera:
+			return "camera";
+		case SceneComponentKind::Mesh:
+			return "mesh";
+		case SceneComponentKind::Material:
+			return "material";
+		}
+
+		return "unknown";
 	}
 
 	struct ApplicationValidationRequest {
@@ -60,6 +85,42 @@ namespace HE {
 		[[nodiscard]] ResultEnvelope LoadScene(const std::filesystem::path& scenePath, Ref<Scene>& outScene) const;
 		[[nodiscard]] ResultEnvelope SaveScene(const Scene& scene, const std::filesystem::path& scenePath) const;
 		[[nodiscard]] ResultEnvelope ValidateScene(const Scene& scene, SceneValidationReport* outReport = nullptr) const;
+		[[nodiscard]] ResultEnvelope CreateSceneEntity(
+			Scene& scene,
+			std::string_view entityName,
+			uint32_t* outEntityId = nullptr) const;
+		[[nodiscard]] ResultEnvelope DeleteSceneEntities(
+			Scene& scene,
+			std::span<const uint32_t> entityIds,
+			uint32_t* outDeletedCount = nullptr) const;
+		[[nodiscard]] ResultEnvelope UpsertSceneEntityName(
+			Scene& scene,
+			uint32_t entityId,
+			const NameComponent& component) const;
+		[[nodiscard]] ResultEnvelope UpsertSceneEntityTransform(
+			Scene& scene,
+			uint32_t entityId,
+			const TransformComponent& component) const;
+		[[nodiscard]] ResultEnvelope AddSceneComponent(
+			Scene& scene,
+			uint32_t entityId,
+			SceneComponentKind componentKind) const;
+		[[nodiscard]] ResultEnvelope RemoveSceneComponent(
+			Scene& scene,
+			uint32_t entityId,
+			SceneComponentKind componentKind) const;
+		[[nodiscard]] ResultEnvelope UpsertSceneCameraComponent(
+			Scene& scene,
+			uint32_t entityId,
+			const Rendering::CameraComponent& component) const;
+		[[nodiscard]] ResultEnvelope UpsertSceneMeshComponent(
+			Scene& scene,
+			uint32_t entityId,
+			const Rendering::MeshComponent& component) const;
+		[[nodiscard]] ResultEnvelope UpsertSceneMaterialComponent(
+			Scene& scene,
+			uint32_t entityId,
+			const Rendering::MaterialComponent& component) const;
 
 		[[nodiscard]] ResultEnvelope CreateBuiltinMeshAsset(
 			const ProjectContext& context,

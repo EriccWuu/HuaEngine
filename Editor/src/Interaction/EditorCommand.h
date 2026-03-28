@@ -6,11 +6,13 @@
 #include "HuaEngine/Core/ResultEnvelope.h"
 
 namespace HE {
+    class ApplicationOperations;
     class EditorWorkbenchState;
     struct ProjectSession;
     struct SceneDocument;
 
     struct EditorCommandContext {
+        ApplicationOperations* Operations = nullptr;
         EditorWorkbenchState* WorkbenchState = nullptr;
         ProjectSession* ProjectSession = nullptr;
         SceneDocument* SceneDocument = nullptr;

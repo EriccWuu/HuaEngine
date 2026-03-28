@@ -1,4 +1,4 @@
 ﻿interface:
   display_name: "HuaEngine Architecture"
-  short_description: "Navigate HuaEngine's overall architecture, targets, and runtime flow."
-  default_prompt: "Use $huaengine-architecture to inspect HuaEngine's build graph, runtime entry points, and subsystem boundaries."
+  short_description: "导航 HuaEngine 的整体架构、构建目标与运行时主链。"
+  default_prompt: "使用 $huaengine-architecture 检查 HuaEngine 的构建图、运行时入口和子系统边界。"

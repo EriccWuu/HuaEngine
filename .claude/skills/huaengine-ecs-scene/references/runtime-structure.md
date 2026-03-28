@@ -1,27 +1,27 @@
-# Runtime Structure
+# 运行时结构
 
-## 1. 原始 ECS 层和正式操作层是两回事
+## 1. raw Scene 层与正式操作层是两层语义
 
-当前代码里有两层语义：
+当前场景行为分成两层：
 
-- 原始层
+- 原始运行时层
   - `EntityManager`
   - `Entity`
   - `Scene`
   - `System`
-- 正式操作层
+- 正式共享操作层
   - `SceneService`
   - `ScriptService`
   - `ApplicationOperations`
 
-定位问题时先分清：
+排查问题时，先判断它属于哪一层：
 
-- 你是在修 `registry` 层事实
-- 还是在修宿主可消费的正式操作面
+- 原始 registry / 运行时所有权问题
+- 正式宿主可消费的修改 / 校验问题
 
-如果是 CLI、Editor、Agent 会用到的能力，默认优先沿 `ApplicationOperations` 往下找，而不是直接从宿主触碰 `Scene` 内部。
+如果一个能力将来要被 `Editor`、`Headless` 和自动化共同消费，优先从 `ApplicationOperations` 往下找，而不是从面板代码往里追。
 
-## 2. EntityManager 和 Entity 仍然是薄包装
+## 2. EntityManager 与 Entity 仍是薄封装
 
 关键文件：
 
@@ -29,122 +29,133 @@
 - `HuaEngine/src/HuaEngine/ECS/EntityManager.cpp`
 - `HuaEngine/src/HuaEngine/ECS/Entity.h`
 
-当前设计仍然很薄：
+当前设计依然很薄：
 
-- `EntityManager` 持有唯一 `entt::registry`
-- `CreateEntity()` 调 `registry.create()`
-- 创建后默认 `AddComponent<TransformComponent>()`
-- `DestroyEntity()` 直接销毁实体
+- `EntityManager` 拥有唯一 `entt::registry`
+- `CreateEntity()` 直接调 `registry.create()`
+- 创建后默认加 `TransformComponent`
+- `DestroyEntity()` 直接销毁 raw entity handle
+- `Entity` 本质仍是对 registry 的语法糖
 
-`Entity` 本身主要只是语法糖：
+不要把这一层和正式宿主场景编辑层混为一谈。
 
-- `AddComponent<T>()`
-- `GetComponent<T>()`
-- `HasComponent<T>()`
-- `RemoveComponent<T>()`
+## 3. 共享写操作已经统一
 
-这些调用本质都直接下钻到 `m_EntityManager->m_Registry`。
+凡是会改真实项目 / 场景状态的场景修改，现在都应该被看成共享操作。
 
-## 3. 实体命名当前仍不可靠
+当前典型例子：
 
-`EntityManager::CreateEntity(const std::string& name)` 目前仍然忽略传入的 `name`。
+- 创建实体
+- 删除实体
+- 添加组件
+- 删除组件
+- 保存场景
 
-结果是：
+这里最重要的架构事实是：
 
-- `Entity::m_Name` 仍然保持默认值 `"Entity"`
-- Editor 面板里看到的名字不是正式持久化名称体系
-- 如果你想做真正的实体命名功能，不能把当前实现误判为“已有但有小 bug”
+- `Editor` 命令通过 `ApplicationOperations` 执行这些修改
+- `Headless` CLI 走的是同一套底层正式操作
 
-## 4. Scene 更新只做系统遍历
+因此这些写逻辑不应该再各自散落在：
 
-关键文件：
+- `HierarchyPanel`
+- `InspectorPanel`
+- `HeadlessCommandRunner`
 
-- `HuaEngine/src/HuaEngine/Scene/Scene.h`
-- `HuaEngine/src/HuaEngine/Scene/Scene.cpp`
+## 4. GUI 读取仍可直接读运行时状态
 
-`Scene` 当前很轻：
+当前保留的例外是：
 
-- 一个名字
-- 一个 `EntityManager`
-- 一个 `std::vector<Ref<System>> m_Systems`
+- `HierarchyPanel` 直接枚举运行时实体
+- `InspectorPanel` 直接读取运行时组件
 
-`Scene::Update()` 的核心行为就是：
+这对每帧 GUI 渲染和轻量编辑器观察是允许的。
 
-- 遍历 `m_Systems`
-- 逐个调 `Update()`
+但这不代表可复用共享查询也应该继续直接长在 panel 里。
 
-这意味着：
+判断规则：
 
-- 没有注册的系统不会自动执行
-- 系统执行顺序就是注册顺序
-- 固定更新、多阶段调度、复杂生命周期都不在这一层
+- 只服务 GUI 每帧渲染：可以直接读运行时场景
+- 要给 CLI / 自动化 / Agent 复用：后续应收敛到正式查询面
 
-## 5. 脚本运行时已经不是纯占位接口
+## 5. 脚本运行时消费
 
-原始组件层仍然在：
+脚本定义仍然放在 ECS 面向的类型里：
 
 - `NativeScriptComponent`
 - `ScriptableEntity`
 
-但正式运行时闭环已经落到了：
+但正式生命周期控制现在放在：
 
 - `HuaEngine/src/HuaEngine/Script/ScriptService.h`
 - `HuaEngine/src/HuaEngine/Script/ScriptService.cpp`
 
-当前应该这样理解：
+当前应这样理解：
 
-- 脚本组件定义仍在 ECS 层
-- 脚本生命周期推进已经转到 `ScriptService`
-- Headless `script status/initialize/update/shutdown` 和上层宿主都应该走正式服务
+- 脚本组件定义仍属于 ECS 状态
+- 脚本生命周期推进属于 `ScriptService`
+- `Headless` 的脚本命令和更上层宿主都不应绕过这个 service
 
-不要再把脚本系统当成“完全没接线的预留接口”。
+## 6. 场景序列化期望
 
-## 6. Editor 如何消费 Scene 事实
+关键文件：
 
-最直接的消费入口：
+- `HuaEngine/src/HuaEngine/Scene/SceneSerializer.cpp`
+- `HuaEngine/src/HuaEngine/Scene/SceneService.cpp`
+
+当前正式期望：
+
+- 保存结果只反映 live 场景状态
+- 删除实体后不能留下空壳
+- tombstone entity id 绝不能再写回场景文件
+- 旧场景结构已经不是正式目标
+
+如果删除后的实体仍出现在场景文件里，优先怀疑序列化枚举逻辑。
+
+## 7. 当前 GUI 消费路径
+
+最直接的 GUI 消费点：
 
 - `Editor/src/Panels/HierarchyPanel.cpp`
 - `Editor/src/Panels/InspectorPanel.cpp`
 
-当前特点：
+当前行为：
 
-- `HierarchyPanel` 仍通过 `view<TransformComponent>()` 枚举实体
-- `InspectorPanel` 仍会直接使用底层 registry 事实
-- Editor 上层状态和提示语义已经转移到 `EditorWorkbenchState`
+- `Hierarchy` 通过 `view<TransformComponent>()` 枚举实体
+- `Inspector` 直接读取主选中实体和组件事实
+- Editor 摘要和最近结果来自 `EditorWorkbenchState`
+- 真正的共享场景写操作通过交互核心和正式操作层完成
 
-所以排查 GUI 异常时，经常要同时检查：
+这套拆分是刻意的：
 
-- Scene / Entity 事实
-- Inspector 的绘制注册
-- Workbench 最近一次 ResultEnvelope 或 ValidationReport
+- 直接读取，用于面板渲染
+- 统一写入，用于修改场景状态
 
-## 7. Headless 如何消费 Scene 能力
+## 8. 当前 Headless 消费路径
 
-当前 headless 入口：
+当前 headless 场景侧命令包括：
 
 - `scene create`
 - `scene validate`
+- `scene entity create`
+- `scene entity delete`
+- `scene component add`
+- `scene component remove`
 - `script status`
 - `script initialize`
 - `script update`
 - `script shutdown`
 
-它们都不是直接碰 `Scene` 的内部 helper，而是沿：
+它们都通过：
 
 - `HeadlessCommandRunner`
 - `ApplicationOperations`
-- `SceneService` / `ScriptService`
+- `SceneService / ScriptService`
 
-这层关系决定了：
+如果一个新能力只加在 raw `Scene` helper 里，而没有暴露到正式层，headless 不会自动得到它。
 
-- CLI 能力边界优先服从正式服务
-- 如果你在 Scene 内加了一个 helper，但没通过正式操作层暴露，CLI 不会自动得到它
+## 相关 Skill
 
-## Related Skills
-
-- 场景里的组件最终如何进入渲染：
-  - 看 `huaengine-rendering/references/runtime-flow.md`
-- 组件字段和 JSON 读写本身出了问题：
-  - 看 `huaengine-serialization-reflection/references/extension-and-integration.md`
-- 宿主和服务层的正式边界：
-  - 看 `huaengine-architecture/references/architecture.md`
+- 看 render-facing 组件是怎么进入渲染消费链的：转 `huaengine-rendering/references/runtime-flow.md`
+- 看序列化和反射字段细节：转 `huaengine-serialization-reflection/references/extension-and-integration.md`
+- 看宿主 / 控制层边界：转 `huaengine-architecture/references/architecture.md`

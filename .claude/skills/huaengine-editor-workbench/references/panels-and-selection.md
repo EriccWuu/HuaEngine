@@ -1,10 +1,10 @@
-# Panels And Selection
+# 面板与选择
 
-## 1. Selection Model
+## 1. 选择模型
 
-`Selection` is still implemented as global static state, but it is no longer single-entity only:
+`Selection` 仍然是全局静态状态，但已经不再是单实体模型：
 
-- a vector of selected `Entity`
+- 内部是选中 `Entity` 的 vector
 - `SetSelection(...)`
 - `SetSelections(...)`
 - `AddToSelection(...)`
@@ -17,34 +17,31 @@
 - `HasSingleSelection()`
 - `ClearSelection()`
 
-Single selection is now the first-item / primary-selection case.
-This keeps panel communication simple, but scene/project transitions must still clear selection aggressively.
+单选现在只是“第一个元素 / 主选中”的特例。
 
-## 2. Project Panel
+## 2. ProjectPanel
 
-`ProjectPanel` is the new project-facing workbench panel.
+`ProjectPanel` 是当前工作台里的项目摘要面。
 
-It consumes `EditorWorkbenchState` summaries and shows:
+它消费 `EditorWorkbenchState`，展示：
 
-- current project root
-- current project name
-- current scene display name
-- dirty marker
-- latest validation warning/error counts
-- light `Assets/` and `Scenes/` discovery
+- 当前项目根目录
+- 当前项目名
+- 当前场景显示名
+- dirty 标记
+- 最近校验 warning / error 计数
+- 轻量 `Assets/` 与 `Scenes/` 摘要
 
-Current actions:
+当前动作：
 
 - `Open Scene`
 - `Refresh Project`
 
-It is intentionally a summary/navigation surface, not a full content browser.
+它是摘要 / 导航面，不是完整内容浏览器。
 
-## 2.1 View Menu Visibility
+## 2.1 View 菜单显隐
 
-The main workbench menu bar now exposes a `View` menu.
-
-It controls visibility for:
+当前工作台菜单栏有一个 `View` 菜单，用来控制：
 
 - `Project`
 - `Hierarchy`
@@ -52,88 +49,104 @@ It controls visibility for:
 - `Console`
 - `Scene`
 
-Panel visibility is currently owned by `EditorLayer`, not by the individual panel classes.
+面板显隐当前由 `EditorLayer` 持有，而不是各面板类自己持有。
 
 ## 3. HierarchyPanel
 
-The hierarchy panel currently:
+当前 Hierarchy：
 
-- reads the active `Scene`
-- enumerates entities through `registry.view<TransformComponent>()`
-- wraps each item as `Entity(entity, &entityManager)`
-- updates `Selection`
-- shows project/scene summary and last operation/validation counts from `EditorWorkbenchState`
-- exposes registered context-menu entries for `hierarchy.window` and `hierarchy.entity`
-- supports plain click single selection and `Ctrl+Click` toggle multi-selection
-- clears selection when clicking empty background
-- exposes a drag/drop intent surface for hierarchy entries
+- 读取活动 `Scene`
+- 通过 `registry.view<TransformComponent>()` 枚举实体
+- 把每个条目包成 `Entity(entity, &entityManager)`
+- 更新 `Selection`
+- 显示来自 `EditorWorkbenchState` 的项目 / 场景摘要、最近操作和校验计数
+- 暴露 `hierarchy.window` 和 `hierarchy.entity` 这两个上下文菜单面
+- 支持普通点击单选和 `Ctrl+Click` 多选切换
+- 点击空白背景时清空选择
+- 暴露 hierarchy 条目的拖拽意图面
+- 空白处右键：当前注册动作包含创建实体
+- 实体上右键：当前注册动作包含创建实体和删除选中
 
-The hierarchy only shows entities that carry `TransformComponent`.
+当前只有带 `TransformComponent` 的实体会出现在 Hierarchy。
 
 ## 4. InspectorPanel
 
-The inspector currently:
+当前 Inspector：
 
-- checks `Selection::HasSelection()`
-- reads the primary selected entity
-- shows project/scene summary
-- delegates component editing to `ComponentEditorRegistry`
-- exposes registered context-menu entries for `inspector.window` and `inspector.entity`
-- falls back to a summary-only mode when multiple entities are selected
+- 检查 `Selection::HasSelection()`
+- 读取主选中实体
+- 显示项目 / 场景摘要
+- 通过 `ComponentEditorRegistry` 画组件编辑面
+- 暴露 `inspector.window` 和 `inspector.entity` 上下文菜单面
+- 多选时退化成摘要模式
+- 添加组件使用独立浮动 `Add Component` 窗口，而不是内联 popup
+- 删除组件只保留在组件头部菜单里，不放在 Inspector 空白处菜单里
 
-`InspectorPanel::OnGuiRender()` now returns whether edits actually changed component data.
-That changed flag is used by `EditorLayer` to mark the active `SceneDocument` dirty.
+`InspectorPanel::OnGuiRender()` 当前会返回“这次是否真的改了组件数据”。
+`EditorLayer` 会用这个返回值给当前 `SceneDocument` 打 dirty。
 
 ## 5. ComponentEditorRegistry
 
-The component editor registry:
+组件编辑注册表当前负责：
 
-- registers component drawers by `std::type_index`
-- keeps a display name and draw function for each registered component type
-- walks registered component types in registration order
-- uses reflection-driven field drawing through `DrawComponentEditor(...)`
+- 按 `std::type_index` 注册组件绘制器
+- 为每个组件类型维护显示名和绘制函数
+- 按注册顺序遍历可编辑组件
+- 通过 `DrawComponentEditor(...)` 走反射驱动字段编辑
 
-The default editor surface is still intentionally small. Not every reflected type has a rich custom editor yet.
+当前默认编辑面仍然比较轻，不是每个反射类型都有专门的 rich editor。
 
 ## 6. ConsolePanel
 
-`ConcolePanel` now has two distinct surfaces:
+`ConsolePanel` 当前有两个面：
 
-- `Diagnostics`: workbench diagnostics and validation-oriented event history from `EditorWorkbenchState`
-- `Logs`: raw runtime logs from the log sink
+- `Diagnostics`：来自 `EditorWorkbenchState` 的工作台诊断和校验历史
+- `Logs`：来自共享日志 sink 的运行时日志
 
-This makes the console both a runtime log surface and a formal workbench feedback surface.
+因此 Console 既是运行时日志面，也是正式工作台反馈面。
 
-## 7. Shared Summary Surface
+## 7. 共享摘要面
 
-The main panels now consume session/document summaries consistently:
+当前主面板对摘要的消费是一致的：
 
-- `ProjectPanel`: project summary, scene summary, validation counts
-- `HierarchyPanel`: project summary, scene summary, last op, validation counts
-- `InspectorPanel`: project summary, scene summary, selected-entity editing
-- `ConcolePanel`: diagnostics and runtime logs
+- `ProjectPanel`：项目摘要、场景摘要、校验计数
+- `HierarchyPanel`：项目摘要、场景摘要、最近操作、校验计数
+- `InspectorPanel`：项目摘要、场景摘要、选中实体编辑
+- `ConsolePanel`：诊断与运行时日志
 
-## 8. Interaction Core
+## 8. 交互核心
 
-The current first-batch editor interaction model is centralized in `Editor/src/Interaction/`:
+当前第一批编辑器交互模型集中在 `Editor/src/Interaction/`：
 
-- `EditorInteractionHost`: binds workbench state, project session, and scene document
-- `EditorCommandStack`: undo/redo history and dirty tracking
-- `ContextMenuRegistry`: registered context-menu entry surface
-- `ShortcutRegistry`: built-in and future custom shortcut registration surface
-- `DragDropIntentRegistry`: drag/drop intent registration surface
-- `EditorSceneCommands`: concrete first-batch entity/component commands
+- `EditorInteractionHost`：绑定工作台状态、项目会话和场景文档
+- `EditorCommandStack`：undo/redo 历史和 dirty 跟踪
+- `ContextMenuRegistry`：右键菜单注册面
+- `ShortcutRegistry`：内置和未来自定义快捷键注册面
+- `DragDropIntentRegistry`：拖拽意图注册面
+- `EditorSceneCommands`：首批实体 / 组件命令实现
 
-Current built-in shortcuts:
+当前内置快捷键：
 
 - `Ctrl+Z`
 - `Ctrl+Y`
 - `Ctrl+Shift+N`
 - `Delete`
+- `Ctrl+S`
 
-## Related Skills
+## 8.1 共享写边界
 
-- For reflection-driven editor or serializer rules, go to `huaengine-serialization-reflection/references/extension-and-integration.md`
-- For scene/component runtime structure, go to `huaengine-ecs-scene/references/runtime-structure.md`
-- For rendering-visible state used by inspector or scene panel, go to `huaengine-rendering/references/assets-and-materials.md`
-- For runtime glue affecting console/input behavior, go to `huaengine-core-runtime/references/window-input-and-imgui.md`
+当前 Editor 交互的正式意图是：
+
+- 面板负责渲染和采集输入
+- 交互宿主负责路由命令
+- 命令栈负责 undo/redo 和 dirty 状态
+- 具体场景 / 实体 / 组件写操作统一走 `ApplicationOperations`
+
+不要把实体 / 组件写逻辑重新塞回 panel-local 的 registry 直接改写里。
+
+## 相关 Skill
+
+- 看反射驱动编辑和序列化规则：转 `huaengine-serialization-reflection/references/extension-and-integration.md`
+- 看场景 / 组件运行时结构：转 `huaengine-ecs-scene/references/runtime-structure.md`
+- 看 Inspector / Scene 面板会遇到的渲染资源状态：转 `huaengine-rendering/references/assets-and-materials.md`
+- 看 Console / 输入 / 窗口胶水层：转 `huaengine-core-runtime/references/window-input-and-imgui.md`

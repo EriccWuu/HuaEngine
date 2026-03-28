@@ -1,4 +1,4 @@
-# Assets And Materials
+# 资源与材质
 
 ## 1. 材质系统结构
 
@@ -119,7 +119,7 @@
 2. mesh 是否在运行时提前注册
 3. 读取后是否只恢复了名字，没恢复资源注册表
 
-## Related Skills
+## 相关 Skill
 
 - 如果资源问题实际是场景侧没有正确提供 `MeshComponent` / `MaterialComponent`：转到 `huaengine-ecs-scene/references/runtime-structure.md`
 - 如果资源读写问题涉及 `Serializer<T>`、GLM、`Ref<T>` 或 backend 行为：转到 `huaengine-serialization-reflection/references/core-flow.md`

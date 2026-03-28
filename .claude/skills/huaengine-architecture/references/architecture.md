@@ -1,59 +1,59 @@
-# Architecture Reference
+# 架构参考
 
-## 1. Build Graph
+## 1. 构建图
 
-The root `CMakeLists.txt` now registers these maintained top-level targets:
+根 `CMakeLists.txt` 当前维护的顶层目标是：
 
 - `HuaEngine`
 - `Editor`
 - `ProjectHub`
 - `HuaEngineHeadless`
-- smoke/regression targets under `Tests/`
+- `Tests/` 下的 smoke / 回归目标
 
-`Sandbox` has been removed from the active solution and is no longer part of the supported host graph.
+`Sandbox` 已经从正式宿主图中移除。
 
-## 2. Host Roles
+## 2. 宿主职责
 
 ### ProjectHub
 
-- standalone launcher host
-- preferred no-project entry
-- creates/opens/resumes projects
-- launches `Editor.exe --project [--scene]`
+- 独立启动器宿主
+- 首选无项目入口
+- 负责创建 / 打开 / 恢复项目
+- 负责拉起 `Editor.exe --project [--scene]`
 
 ### Editor
 
-- project-bound GUI workbench
-- owns scene viewport, hierarchy, inspector, console, and project panel
-- consumes engine capabilities through `ApplicationOperations`
+- 项目绑定的 GUI 工作台
+- 持有场景视口、Hierarchy、Inspector、Console、Project 面板
+- 通过 `ApplicationOperations` 消费引擎正式能力
 
 ### Headless
 
-- formal CLI/headless interface
-- consumes the same operation surface
-- emits machine-readable JSON
+- 正式 CLI / 无 GUI 入口
+- 消费和 GUI 相同的正式操作面
+- 输出机器可读 JSON
 
-## 3. Engine Core
+## 3. 引擎核心
 
-The engine library still owns:
+引擎库当前仍然负责：
 
-- `ApplicationServices` / `ApplicationOperations`
-- project, scene, asset, script, and validation services
-- ECS and scene runtime
-- rendering and OpenGL backend
-- serialization and reflection
+- `ApplicationServices / ApplicationOperations`
+- 项目、场景、资产、脚本、验证服务
+- ECS 与场景运行时
+- 渲染与 OpenGL 后端
+- 序列化与反射
 
-Hosts differ mainly in shell and presentation, not in domain capability ownership.
+不同宿主的差异主要在 shell 和呈现方式，不在领域能力所有权上。
 
-## 4. Current Reading Order
+## 4. 当前阅读顺序
 
-When navigating the repo:
+排查问题时，建议按这个顺序：
 
-1. identify the host boundary first
-2. check whether the issue belongs to the operation layer or engine internals
-3. then drill into scene/rendering/serialization specifics
+1. 先识别宿主边界
+2. 再判断问题属于正式操作层还是引擎内部实现
+3. 最后再深入场景 / 渲染 / 序列化细节
 
-## 5. Key Files
+## 5. 关键文件
 
 - `CMakeLists.txt`
 - `ProjectHub/src/ProjectHubApp.cpp`

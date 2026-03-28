@@ -1,4 +1,5 @@
 #include <cstdlib>
+#include <array>
 #include <filesystem>
 #include <iostream>
 #include <string>
@@ -36,6 +37,8 @@ int main() {
 
 	Require(operations.Supports("project.initialize"), "Expected project.initialize to be published through the operation registry");
 	Require(operations.Supports("scene.create"), "Expected scene.create to be published through the operation registry");
+	Require(operations.Supports("scene.entity.create"), "Expected scene.entity.create to be published through the operation registry");
+	Require(operations.Supports("scene.component.add"), "Expected scene.component.add to be published through the operation registry");
 	Require(operations.Supports("asset.register_mesh"), "Expected asset.register_mesh to be published through the operation registry");
 	Require(operations.Supports("script.attach_runtime"), "Expected script.attach_runtime to be published through the operation registry");
 	Require(operations.Supports("validation.validate"), "Expected validation.validate to be published through the operation registry");
@@ -62,9 +65,15 @@ int main() {
 	auto attachRuntime = operations.AttachScriptRuntime(*scene);
 	Require(attachRuntime.Succeeded(), "Expected script.attach_runtime to succeed");
 
-	auto entity = scene->GetEntityManager().CreateEntity();
-	entity.AddComponent<HE::MeshComponent>("OperationsQuad");
-	entity.AddComponent<HE::MaterialComponent>();
+	uint32_t entityId = 0;
+	auto createEntity = operations.CreateSceneEntity(*scene, "OperationsEntity", &entityId);
+	Require(createEntity.Succeeded(), "Expected scene.entity.create to succeed through ApplicationOperations");
+	Require(createEntity.Operation == "scene.entity.create", "Expected scene.entity.create result to preserve the stable operation id");
+
+	auto addMesh = operations.AddSceneComponent(*scene, entityId, HE::SceneComponentKind::Mesh);
+	Require(addMesh.Succeeded(), "Expected scene.component.add to add MeshComponent through ApplicationOperations");
+	auto addMaterial = operations.AddSceneComponent(*scene, entityId, HE::SceneComponentKind::Material);
+	Require(addMaterial.Succeeded(), "Expected scene.component.add to add MaterialComponent through ApplicationOperations");
 
 	auto checkScripts = operations.CheckSceneScripts(*scene);
 	Require(checkScripts.Succeeded(), "Expected script.status to succeed through ApplicationOperations");
@@ -87,6 +96,14 @@ int main() {
 	auto validate = operations.Validate(validationRequest);
 	Require(validate.Succeeded(), "Expected validation.validate to succeed through ApplicationOperations");
 	Require(validate.Operation == "validation.validate", "Expected validation.validate result to preserve the stable operation id");
+
+	auto removeMaterial = operations.RemoveSceneComponent(*scene, entityId, HE::SceneComponentKind::Material);
+	Require(removeMaterial.Succeeded(), "Expected scene.component.remove to succeed through ApplicationOperations");
+
+	const std::array<uint32_t, 1> deleteIds = { entityId };
+	auto deleteEntity = operations.DeleteSceneEntities(*scene, deleteIds);
+	Require(deleteEntity.Succeeded(), "Expected scene.entity.delete to succeed through ApplicationOperations");
+	Require(deleteEntity.Operation == "scene.entity.delete", "Expected scene.entity.delete result to preserve the stable operation id");
 
 	std::filesystem::remove_all(smokeRoot, errorCode);
 	Require(!errorCode, "Expected ApplicationOperations smoke temporary directory cleanup to succeed");

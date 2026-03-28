@@ -1,4 +1,4 @@
-# Window Input And ImGui
+# 窗口、输入与 ImGui
 
 ## 1. Window 抽象与 Windows 实现
 
@@ -52,7 +52,7 @@
 - 键盘和鼠标状态直接查 GLFW 当前状态
 - 鼠标坐标也是实时查询，而不是事件缓存
 
-## 4. ImguiLayer 在 runtime 中的位置
+## 4. ImguiLayer 在运行时中的位置
 
 `ImguiLayer` 当前职责：
 
@@ -63,8 +63,8 @@
 
 这说明：
 
-- ImGui 帧边界是 runtime 层能力，不是 Editor 私有能力
-- Editor 和未来其他工具程序都共享同一套 GUI runtime glue
+- ImGui 帧边界是运行时层能力，不是 Editor 私有能力
+- Editor 和未来其他工具程序都共享同一套 GUI 运行时胶水层
 
 ## 5. 当前值得注意的实现细节
 
@@ -72,7 +72,7 @@
 - `WindowsWindow` 里 `ms_GLFWWindowCount` 只在 Shutdown 减，没有在 Init 加
 - `WindowProps` 默认尺寸当前是 `1960x1080`
 
-## Related Skills
+## 相关 Skill
 
 - 如果要看这些窗口/输入能力如何被 Editor 面板消费：转到 `huaengine-editor-workbench/references/editor-flow.md`
 - 如果窗口尺寸和 FrameBuffer resize 联动导致渲染异常：转到 `huaengine-rendering/references/runtime-flow.md`

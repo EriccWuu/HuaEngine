@@ -191,7 +191,9 @@ int main() {
 				"\"operation\":\"cli.ops_list\"",
 				"\"status\":\"success\"",
 				"\"data\":{\"operations\":[",
-				"\"name\":\"asset.create_builtin_mesh\""
+				"\"name\":\"asset.create_builtin_mesh\"",
+				"\"name\":\"scene.entity.create\"",
+				"\"name\":\"scene.component.add\""
 			},
 			{}
 		},
@@ -222,6 +224,16 @@ int main() {
 				"\"operation\":\"scene.create\"",
 				"\"status\":\"success\"",
 				"\"scene_name\":\"WorkflowScene\""
+			},
+			{ scenePath }
+		},
+		{
+			"scene entity create",
+			{ "scene", "entity", "create", "--project", tempRoot.string(), "--scene", "workflowscene.scene", "--name", "CliEntity" },
+			{
+				"\"operation\":\"scene.entity.create\"",
+				"\"status\":\"success\"",
+				"\"entity_id\":\""
 			},
 			{ scenePath }
 		},

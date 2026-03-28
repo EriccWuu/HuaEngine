@@ -1,4 +1,4 @@
-# Core Flow
+# 核心流程
 
 ## 1. 运行时初始化入口
 
@@ -147,7 +147,7 @@
 
 - `T` 本身依然必须可被正常序列化
 
-## Related Skills
+## 相关 Skill
 
 - 场景如何把组件真正登记进场景文件：
   - 看 `huaengine-ecs-scene/references/serialization-and-integration.md`

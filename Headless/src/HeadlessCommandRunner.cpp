@@ -2,6 +2,7 @@
 #include "HeadlessCommandRunner.h"
 
 #include <algorithm>
+#include <array>
 #include <cctype>
 #include <filesystem>
 #include <optional>
@@ -77,7 +78,7 @@ namespace {
 	ResultEnvelope MakeUsageError(std::string_view summary, std::string_view context = {}) {
 		auto result = ResultEnvelope::Failure("cli.usage", "command_line", std::string(summary));
 		result.AddDetail({ DiagnosticSeverity::Error, "cli.usage.invalid", std::string(summary), std::string(context) });
-		result.AddDetail({ DiagnosticSeverity::Info, "cli.usage.example", "Supported commands include: ops list, project init, project status, scene create, scene validate, asset register-default-mesh, asset validate, script status, script initialize, script update, script shutdown, validation run", {} });
+		result.AddDetail({ DiagnosticSeverity::Info, "cli.usage.example", "Supported commands include: ops list, project init, project status, scene create, scene validate, scene entity create/delete, scene component add/remove, asset register-default-mesh, asset validate, script status, script initialize, script update, script shutdown, validation run", {} });
 		return result;
 	}
 
@@ -198,6 +199,34 @@ namespace {
 
 		return std::nullopt;
 	}
+
+	std::optional<uint32_t> ParseEntityId(std::string_view value) {
+		try {
+			size_t consumed = 0;
+			const auto parsed = std::stoul(std::string(value), &consumed, 10);
+			if (consumed != value.size()) {
+				return std::nullopt;
+			}
+			return static_cast<uint32_t>(parsed);
+		}
+		catch (...) {
+			return std::nullopt;
+		}
+	}
+
+	std::optional<HE::SceneComponentKind> ParseSceneComponentKind(std::string_view value) {
+		if (value == "camera") {
+			return HE::SceneComponentKind::Camera;
+		}
+		if (value == "mesh") {
+			return HE::SceneComponentKind::Mesh;
+		}
+		if (value == "material") {
+			return HE::SceneComponentKind::Material;
+		}
+
+		return std::nullopt;
+	}
 }
 
 namespace HE::Headless {
@@ -219,12 +248,17 @@ namespace HE::Headless {
 
 		const auto command = arguments[0];
 		const auto subcommand = arguments.size() > 1 ? arguments[1] : std::string();
-		const std::span<const std::string> optionTokens(arguments.data() + std::min<size_t>(2, arguments.size()), arguments.size() > 2 ? arguments.size() - 2 : 0);
+		const bool hasDetailCommand = arguments.size() > 2 && !arguments[2].starts_with("--");
+		const auto detailCommand = hasDetailCommand ? arguments[2] : std::string();
+		const size_t optionStartIndex = hasDetailCommand ? 3 : 2;
+		const std::span<const std::string> optionTokens(
+			arguments.data() + std::min(optionStartIndex, arguments.size()),
+			arguments.size() > optionStartIndex ? arguments.size() - optionStartIndex : 0);
 
 		if (command == "help") {
 			auto result = ResultEnvelope::Success("cli.help", "command_line", "Headless command help");
 			result.AddDetail({ DiagnosticSeverity::Info, "cli.help.summary", "Use 'ops list' to inspect the formal operation registry", {} });
-			result.AddDetail({ DiagnosticSeverity::Info, "cli.help.commands", "Supported commands include: project init/status, scene create/validate, asset register-default-mesh/validate, script status/initialize/update/shutdown, validation run", {} });
+			result.AddDetail({ DiagnosticSeverity::Info, "cli.help.commands", "Supported commands include: project init/status, scene create/validate, scene entity create/delete, scene component add/remove, asset register-default-mesh/validate, script status/initialize/update/shutdown, validation run", {} });
 			return { std::move(result) };
 		}
 
@@ -342,6 +376,205 @@ namespace HE::Headless {
 
 			auto result = m_Operations->ValidateScene(*scene);
 			result.SetPayloadValue("scene_path", ResolveScenePath(*sceneArgument, context, workingDirectory).generic_string());
+			return { std::move(result) };
+		}
+
+		if (command == "scene" && subcommand == "entity" && detailCommand == "create") {
+			OptionParser options;
+			ResultEnvelope optionError;
+			if (!options.Parse(optionTokens, { "--project", "--scene", "--name", "--output" }, {}, optionError)) {
+				return { std::move(optionError) };
+			}
+
+			const auto sceneArgument = options.GetValue("--scene");
+			if (!sceneArgument.has_value() || sceneArgument->empty()) {
+				return { MakeUsageError("scene entity create requires --scene") };
+			}
+
+			const auto entityName = options.GetValue("--name");
+			if (!entityName.has_value() || entityName->empty()) {
+				return { MakeUsageError("scene entity create requires --name") };
+			}
+
+			std::optional<ProjectContext> context;
+			if (options.GetValue("--project").has_value()) {
+				ProjectContext resolvedContext;
+				ResultEnvelope resolveResult;
+				if (!ResolveProjectContext(*m_Operations, options.GetValue("--project"), workingDirectory, resolvedContext, resolveResult)) {
+					return { std::move(resolveResult) };
+				}
+				context = resolvedContext;
+			}
+
+			const auto inputScenePath = ResolveScenePath(*sceneArgument, context, workingDirectory);
+			Ref<Scene> scene;
+			auto loadResult = m_Operations->LoadScene(inputScenePath, scene);
+			if (!loadResult.Succeeded()) {
+				return { std::move(loadResult) };
+			}
+
+			uint32_t entityId = 0;
+			auto createResult = m_Operations->CreateSceneEntity(*scene, *entityName, &entityId);
+			if (!createResult.Succeeded()) {
+				return { std::move(createResult) };
+			}
+
+			const auto outputScenePath = options.GetValue("--output").has_value()
+				? ResolveScenePath(*options.GetValue("--output"), context, workingDirectory)
+				: inputScenePath;
+			auto saveResult = m_Operations->SaveScene(*scene, outputScenePath);
+			if (!saveResult.Succeeded()) {
+				return { std::move(saveResult) };
+			}
+
+			auto result = ResultEnvelope::Success("scene.entity.create", outputScenePath.generic_string(), "Scene entity created and saved");
+			result.SetPayloadValue("scene_path", outputScenePath.generic_string());
+			result.SetPayloadValue("entity_id", std::to_string(entityId));
+			CopyPayloadIfMissing(result, createResult);
+			CopyPayloadIfMissing(result, saveResult);
+			MergeDetails(result, createResult);
+			MergeDetails(result, saveResult);
+			return { std::move(result) };
+		}
+
+		if (command == "scene" && subcommand == "entity" && detailCommand == "delete") {
+			OptionParser options;
+			ResultEnvelope optionError;
+			if (!options.Parse(optionTokens, { "--project", "--scene", "--entity-id", "--output" }, {}, optionError)) {
+				return { std::move(optionError) };
+			}
+
+			const auto sceneArgument = options.GetValue("--scene");
+			if (!sceneArgument.has_value() || sceneArgument->empty()) {
+				return { MakeUsageError("scene entity delete requires --scene") };
+			}
+
+			const auto entityIdArgument = options.GetValue("--entity-id");
+			if (!entityIdArgument.has_value() || entityIdArgument->empty()) {
+				return { MakeUsageError("scene entity delete requires --entity-id") };
+			}
+
+			const auto entityId = ParseEntityId(*entityIdArgument);
+			if (!entityId.has_value()) {
+				return { MakeUsageError("scene entity delete received an invalid --entity-id", *entityIdArgument) };
+			}
+
+			std::optional<ProjectContext> context;
+			if (options.GetValue("--project").has_value()) {
+				ProjectContext resolvedContext;
+				ResultEnvelope resolveResult;
+				if (!ResolveProjectContext(*m_Operations, options.GetValue("--project"), workingDirectory, resolvedContext, resolveResult)) {
+					return { std::move(resolveResult) };
+				}
+				context = resolvedContext;
+			}
+
+			const auto inputScenePath = ResolveScenePath(*sceneArgument, context, workingDirectory);
+			Ref<Scene> scene;
+			auto loadResult = m_Operations->LoadScene(inputScenePath, scene);
+			if (!loadResult.Succeeded()) {
+				return { std::move(loadResult) };
+			}
+
+			const std::array<uint32_t, 1> entityIds = { *entityId };
+			auto deleteResult = m_Operations->DeleteSceneEntities(*scene, entityIds);
+			if (!deleteResult.Succeeded()) {
+				return { std::move(deleteResult) };
+			}
+
+			const auto outputScenePath = options.GetValue("--output").has_value()
+				? ResolveScenePath(*options.GetValue("--output"), context, workingDirectory)
+				: inputScenePath;
+			auto saveResult = m_Operations->SaveScene(*scene, outputScenePath);
+			if (!saveResult.Succeeded()) {
+				return { std::move(saveResult) };
+			}
+
+			auto result = ResultEnvelope::Success("scene.entity.delete", outputScenePath.generic_string(), "Scene entity deleted and saved");
+			result.SetPayloadValue("scene_path", outputScenePath.generic_string());
+			result.SetPayloadValue("entity_id", std::to_string(*entityId));
+			CopyPayloadIfMissing(result, deleteResult);
+			CopyPayloadIfMissing(result, saveResult);
+			MergeDetails(result, deleteResult);
+			MergeDetails(result, saveResult);
+			return { std::move(result) };
+		}
+
+		if (command == "scene" && subcommand == "component" && (detailCommand == "add" || detailCommand == "remove")) {
+			OptionParser options;
+			ResultEnvelope optionError;
+			if (!options.Parse(optionTokens, { "--project", "--scene", "--entity-id", "--component", "--output" }, {}, optionError)) {
+				return { std::move(optionError) };
+			}
+
+			const auto sceneArgument = options.GetValue("--scene");
+			if (!sceneArgument.has_value() || sceneArgument->empty()) {
+				return { MakeUsageError("scene component command requires --scene") };
+			}
+
+			const auto entityIdArgument = options.GetValue("--entity-id");
+			if (!entityIdArgument.has_value() || entityIdArgument->empty()) {
+				return { MakeUsageError("scene component command requires --entity-id") };
+			}
+
+			const auto entityId = ParseEntityId(*entityIdArgument);
+			if (!entityId.has_value()) {
+				return { MakeUsageError("scene component command received an invalid --entity-id", *entityIdArgument) };
+			}
+
+			const auto componentArgument = options.GetValue("--component");
+			if (!componentArgument.has_value() || componentArgument->empty()) {
+				return { MakeUsageError("scene component command requires --component") };
+			}
+
+			const auto componentKind = ParseSceneComponentKind(*componentArgument);
+			if (!componentKind.has_value()) {
+				return { MakeUsageError("Unsupported scene component kind", *componentArgument) };
+			}
+
+			std::optional<ProjectContext> context;
+			if (options.GetValue("--project").has_value()) {
+				ProjectContext resolvedContext;
+				ResultEnvelope resolveResult;
+				if (!ResolveProjectContext(*m_Operations, options.GetValue("--project"), workingDirectory, resolvedContext, resolveResult)) {
+					return { std::move(resolveResult) };
+				}
+				context = resolvedContext;
+			}
+
+			const auto inputScenePath = ResolveScenePath(*sceneArgument, context, workingDirectory);
+			Ref<Scene> scene;
+			auto loadResult = m_Operations->LoadScene(inputScenePath, scene);
+			if (!loadResult.Succeeded()) {
+				return { std::move(loadResult) };
+			}
+
+			auto mutationResult = detailCommand == "add"
+				? m_Operations->AddSceneComponent(*scene, *entityId, *componentKind)
+				: m_Operations->RemoveSceneComponent(*scene, *entityId, *componentKind);
+			if (!mutationResult.Succeeded()) {
+				return { std::move(mutationResult) };
+			}
+
+			const auto outputScenePath = options.GetValue("--output").has_value()
+				? ResolveScenePath(*options.GetValue("--output"), context, workingDirectory)
+				: inputScenePath;
+			auto saveResult = m_Operations->SaveScene(*scene, outputScenePath);
+			if (!saveResult.Succeeded()) {
+				return { std::move(saveResult) };
+			}
+
+			auto result = ResultEnvelope::Success(
+				detailCommand == "add" ? "scene.component.add" : "scene.component.remove",
+				outputScenePath.generic_string(),
+				detailCommand == "add" ? "Scene component added and saved" : "Scene component removed and saved");
+			result.SetPayloadValue("scene_path", outputScenePath.generic_string());
+			result.SetPayloadValue("entity_id", std::to_string(*entityId));
+			result.SetPayloadValue("component_kind", std::string(ToString(*componentKind)));
+			CopyPayloadIfMissing(result, mutationResult);
+			CopyPayloadIfMissing(result, saveResult);
+			MergeDetails(result, mutationResult);
+			MergeDetails(result, saveResult);
 			return { std::move(result) };
 		}
 

@@ -1,4 +1,4 @@
-# Serialization And Integration
+# 序列化与集成
 
 ## 1. SceneSerializer 仍然是手工登记表，不是全自动场景反射
 
@@ -122,7 +122,7 @@ Scene 到渲染的正式组合条件是：
 2. `SceneService::ValidateScene(...)` 是否已报缺失组件
 3. `RenderSystem` 是否真的看到了这组三组件
 
-## Related Skills
+## 相关 Skill
 
 - 组件字段、反射和 `Serializer<T>` 如何工作：
   - 看 `huaengine-serialization-reflection/references/core-flow.md`

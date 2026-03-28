@@ -98,4 +98,5 @@
 | huaengine-rendering | 渲染模块 | huaengine-architecture | active |
 | huaengine-ecs-scene | ECS / Scene | huaengine-architecture | active |
 | huaengine-serialization-reflection | 序列化 / 反射 | huaengine-architecture | active |
+| huaengine-development-guidelines | 开发规范 / 约束 | huaengine-architecture, huaengine-editor-workbench | active |
 <!-- SKILL-INDEX-END -->

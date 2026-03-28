@@ -1,4 +1,4 @@
 interface:
   display_name: "HuaEngine Core Runtime"
-  short_description: "Navigate HuaEngine application lifecycle, layers, windowing, input, and ImGui runtime glue."
-  default_prompt: "Use $huaengine-core-runtime to inspect HuaEngine application lifecycle, events, windowing, input, logging, and ImGui integration."
+  short_description: "导航 HuaEngine 的应用生命周期、Layer、窗口、输入以及 ImGui 运行时胶水层。"
+  default_prompt: "使用 $huaengine-core-runtime 检查 HuaEngine 的应用生命周期、事件、窗口、输入、日志与 ImGui 集成。"

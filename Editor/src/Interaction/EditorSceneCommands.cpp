@@ -1,6 +1,8 @@
 #include "enginepch.h"
 #include "Interaction/EditorSceneCommands.h"
 
+#include <array>
+
 #include "Selection.h"
 #include "Workbench/SceneDocument.h"
 
@@ -21,6 +23,21 @@ namespace HE {
 
         Ref<Scene> GetScene(const EditorCommandContext& context) {
             return context.SceneDocument ? context.SceneDocument->SceneRef : nullptr;
+        }
+
+        ApplicationOperations* GetOperations(const EditorCommandContext& context) {
+            return context.Operations;
+        }
+
+        ResultEnvelope MakeOperationsMissingResult(std::string operation) {
+            auto result = ResultEnvelope::Failure(std::move(operation), "application.operations", "Application operations are not available");
+            result.AddDetail({
+                DiagnosticSeverity::Error,
+                "editor.operations.unavailable",
+                "Editor commands require ApplicationOperations to execute shared scene mutations",
+                {}
+            });
+            return result;
         }
 
         EntitySnapshot CaptureEntitySnapshot(const Entity& entity) {
@@ -51,60 +68,56 @@ namespace HE {
             return snapshot;
         }
 
-        Entity RestoreEntitySnapshot(Scene& scene, const EntitySnapshot& snapshot) {
-            Entity entity = scene.GetEntityManager().CreateEntity(snapshot.Name);
-            entity.GetComponent<TransformComponent>() = snapshot.Transform;
+        ResultEnvelope RestoreEntitySnapshot(const EditorCommandContext& context, const EntitySnapshot& snapshot, Entity& outEntity) {
+            auto scene = GetScene(context);
+            if (!scene) {
+                return ResultEnvelope::Failure("scene.entity.restore", "scene", "An active scene is required before restoring an entity snapshot");
+            }
+
+            auto* operations = GetOperations(context);
+            if (!operations) {
+                return MakeOperationsMissingResult("scene.entity.restore");
+            }
+
+            uint32_t entityId = 0;
+            auto createResult = operations->CreateSceneEntity(*scene, snapshot.Name, &entityId);
+            if (!createResult.Succeeded()) {
+                return createResult;
+            }
+
+            auto nameResult = operations->UpsertSceneEntityName(*scene, entityId, NameComponent(snapshot.Name));
+            if (!nameResult.Succeeded()) {
+                return nameResult;
+            }
+
+            auto transformResult = operations->UpsertSceneEntityTransform(*scene, entityId, snapshot.Transform);
+            if (!transformResult.Succeeded()) {
+                return transformResult;
+            }
 
             if (snapshot.HasCamera) {
-                entity.AddComponent<Rendering::CameraComponent>(snapshot.Camera);
+                auto cameraResult = operations->UpsertSceneCameraComponent(*scene, entityId, snapshot.Camera);
+                if (!cameraResult.Succeeded()) {
+                    return cameraResult;
+                }
             }
 
             if (snapshot.HasMesh) {
-                entity.AddComponent<Rendering::MeshComponent>(snapshot.Mesh);
+                auto meshResult = operations->UpsertSceneMeshComponent(*scene, entityId, snapshot.Mesh);
+                if (!meshResult.Succeeded()) {
+                    return meshResult;
+                }
             }
 
             if (snapshot.HasMaterial) {
-                entity.AddComponent<Rendering::MaterialComponent>(snapshot.Material);
-            }
-
-            if (snapshot.HasRenderer) {
-                entity.AddComponent<Rendering::RendererComponent>(snapshot.Renderer);
-            }
-
-            return entity;
-        }
-
-        Rendering::CameraComponent MakeDefaultCameraComponent() {
-            Rendering::CameraComponent component;
-            component.Camera = CreateRef<Rendering::Camera>();
-            component.Primary = true;
-            component.FixedAspectRatio = false;
-            return component;
-        }
-
-        Rendering::MeshComponent MakeDefaultMeshComponent() {
-            MeshManager::Instance().LoadDefaultMeshes();
-            return Rendering::MeshComponent("Quad");
-        }
-
-        Rendering::MaterialComponent MakeDefaultMaterialComponent() {
-            auto& library = Rendering::MaterialLibrary::Instance();
-            Ref<Material> baseMaterial = nullptr;
-
-            if (library.HasMaterial("SandboxMaterial")) {
-                baseMaterial = library.GetMaterial("SandboxMaterial");
-            }
-
-            if (!baseMaterial) {
-                if (!library.GetDefaultMaterial()) {
-                    library.CreateDefaultMaterials();
+                auto materialResult = operations->UpsertSceneMaterialComponent(*scene, entityId, snapshot.Material);
+                if (!materialResult.Succeeded()) {
+                    return materialResult;
                 }
-                baseMaterial = library.GetDefaultMaterial();
             }
 
-            Rendering::MaterialComponent component;
-            component.MaterialInstance = baseMaterial ? baseMaterial->CreateInstance() : nullptr;
-            return component;
+            outEntity = Entity(static_cast<entt::entity>(entityId), &scene->GetEntityManager());
+            return ResultEnvelope::Success("scene.entity.restore", snapshot.Name, "Scene entity restored from snapshot");
         }
 
         template<typename T>
@@ -127,10 +140,23 @@ namespace HE {
                     return ResultEnvelope::Failure("editor.entity.create", "scene", "An active scene is required before creating an entity");
                 }
 
-                Entity entity = scene->GetEntityManager().CreateEntity(m_EntityName);
-                m_RuntimeEntity = entity;
-                Selection::SetSelection(entity);
-                return ResultEnvelope::Success("editor.entity.create", entity.GetName(), "Created a new entity");
+                auto* operations = GetOperations(context);
+                if (!operations) {
+                    return MakeOperationsMissingResult("editor.entity.create");
+                }
+
+                uint32_t entityId = 0;
+                auto result = operations->CreateSceneEntity(*scene, m_EntityName, &entityId);
+                if (!result.Succeeded()) {
+                    return result;
+                }
+
+                m_RuntimeEntity = Entity(static_cast<entt::entity>(entityId), &scene->GetEntityManager());
+                Selection::SetSelection(m_RuntimeEntity);
+                result.Operation = "editor.entity.create";
+                result.Target = m_RuntimeEntity.GetName();
+                result.Summary = "Created a new entity";
+                return result;
             }
 
             ResultEnvelope Undo(const EditorCommandContext& context) override {
@@ -143,11 +169,24 @@ namespace HE {
                     return ResultEnvelope::Failure("editor.entity.create.undo", m_EntityName, "The created entity is no longer available");
                 }
 
-                scene->GetEntityManager().DestroyEntity(m_RuntimeEntity);
+                auto* operations = GetOperations(context);
+                if (!operations) {
+                    return MakeOperationsMissingResult("editor.entity.create.undo");
+                }
+
+                const std::array<uint32_t, 1> entityIds = { m_RuntimeEntity.GetUid() };
+                auto result = operations->DeleteSceneEntities(*scene, entityIds);
+                if (!result.Succeeded()) {
+                    return result;
+                }
+
                 Selection::RemoveFromSelection(m_RuntimeEntity);
                 Selection::RemoveInvalidSelections();
                 m_RuntimeEntity = {};
-                return ResultEnvelope::Success("editor.entity.create.undo", m_EntityName, "Removed the created entity");
+                result.Operation = "editor.entity.create.undo";
+                result.Target = m_EntityName;
+                result.Summary = "Removed the created entity";
+                return result;
             }
 
         private:
@@ -170,6 +209,11 @@ namespace HE {
                     return ResultEnvelope::Failure("editor.entity.delete", "scene", "An active scene is required before deleting entities");
                 }
 
+                auto* operations = GetOperations(context);
+                if (!operations) {
+                    return MakeOperationsMissingResult("editor.entity.delete");
+                }
+
                 if (!m_Initialized) {
                     m_Snapshots.clear();
                     for (const auto& entity : m_RuntimeEntities) {
@@ -181,14 +225,22 @@ namespace HE {
                     m_Initialized = true;
                 }
 
+                std::vector<uint32_t> entityIds;
+                entityIds.reserve(m_RuntimeEntities.size());
                 for (const auto& entity : m_RuntimeEntities) {
-                    if (entity.IsValid()) {
-                        scene->GetEntityManager().DestroyEntity(entity);
-                    }
+                    entityIds.push_back(entity.GetUid());
+                }
+
+                auto result = operations->DeleteSceneEntities(*scene, entityIds);
+                if (!result.Succeeded()) {
+                    return result;
                 }
 
                 Selection::ClearSelection();
-                return ResultEnvelope::Success("editor.entity.delete", "selection", m_Snapshots.size() > 1 ? "Deleted selected entities" : "Deleted selected entity");
+                result.Operation = "editor.entity.delete";
+                result.Target = "selection";
+                result.Summary = m_Snapshots.size() > 1 ? "Deleted selected entities" : "Deleted selected entity";
+                return result;
             }
 
             ResultEnvelope Undo(const EditorCommandContext& context) override {
@@ -197,11 +249,19 @@ namespace HE {
                     return ResultEnvelope::Failure("editor.entity.delete.undo", "scene", "An active scene is required before undoing entity deletion");
                 }
 
+                if (!GetOperations(context)) {
+                    return MakeOperationsMissingResult("editor.entity.delete.undo");
+                }
+
                 m_RuntimeEntities.clear();
                 std::vector<Entity> restored;
                 restored.reserve(m_Snapshots.size());
                 for (const auto& snapshot : m_Snapshots) {
-                    auto entity = RestoreEntitySnapshot(*scene, snapshot);
+                    Entity entity;
+                    auto restoreResult = RestoreEntitySnapshot(context, snapshot, entity);
+                    if (!restoreResult.Succeeded()) {
+                        return restoreResult;
+                    }
                     restored.push_back(entity);
                     m_RuntimeEntities.push_back(entity);
                 }
@@ -226,19 +286,36 @@ namespace HE {
                 if (!scene || !m_Entity.IsValid()) {
                     return ResultEnvelope::Failure("editor.component.add_camera", "entity", "A valid selected entity is required before adding CameraComponent");
                 }
-                if (m_Entity.HasComponent<Rendering::CameraComponent>()) {
-                    return ResultEnvelope::Failure("editor.component.add_camera", m_Entity.GetName(), "CameraComponent already exists on the selected entity");
+                auto* operations = GetOperations(context);
+                if (!operations) {
+                    return MakeOperationsMissingResult("editor.component.add_camera");
                 }
-                m_Entity.AddComponent<Rendering::CameraComponent>(MakeDefaultCameraComponent());
-                return ResultEnvelope::Success("editor.component.add_camera", m_Entity.GetName(), "Added CameraComponent");
+                auto result = operations->AddSceneComponent(*scene, m_Entity.GetUid(), SceneComponentKind::Camera);
+                if (!result.Succeeded()) {
+                    return result;
+                }
+                result.Operation = "editor.component.add_camera";
+                result.Target = m_Entity.GetName();
+                result.Summary = "Added CameraComponent";
+                return result;
             }
             ResultEnvelope Undo(const EditorCommandContext& context) override {
-                (void)context;
-                if (!m_Entity.IsValid() || !m_Entity.HasComponent<Rendering::CameraComponent>()) {
+                auto scene = GetScene(context);
+                if (!scene || !m_Entity.IsValid() || !m_Entity.HasComponent<Rendering::CameraComponent>()) {
                     return ResultEnvelope::Failure("editor.component.add_camera.undo", "entity", "CameraComponent is no longer available to remove");
                 }
-                m_Entity.RemoveComponent<Rendering::CameraComponent>();
-                return ResultEnvelope::Success("editor.component.add_camera.undo", m_Entity.GetName(), "Removed CameraComponent");
+                auto* operations = GetOperations(context);
+                if (!operations) {
+                    return MakeOperationsMissingResult("editor.component.add_camera.undo");
+                }
+                auto result = operations->RemoveSceneComponent(*scene, m_Entity.GetUid(), SceneComponentKind::Camera);
+                if (!result.Succeeded()) {
+                    return result;
+                }
+                result.Operation = "editor.component.add_camera.undo";
+                result.Target = m_Entity.GetName();
+                result.Summary = "Removed CameraComponent";
+                return result;
             }
         private:
             Entity m_Entity;
@@ -254,17 +331,37 @@ namespace HE {
                 if (!scene || !m_Entity.IsValid() || !m_Entity.HasComponent<Rendering::CameraComponent>()) {
                     return ResultEnvelope::Failure("editor.component.remove_camera", "entity", "CameraComponent is not available on the selected entity");
                 }
+                auto* operations = GetOperations(context);
+                if (!operations) {
+                    return MakeOperationsMissingResult("editor.component.remove_camera");
+                }
                 m_Component = m_Entity.GetComponent<Rendering::CameraComponent>();
-                m_Entity.RemoveComponent<Rendering::CameraComponent>();
-                return ResultEnvelope::Success("editor.component.remove_camera", m_Entity.GetName(), "Removed CameraComponent");
+                auto result = operations->RemoveSceneComponent(*scene, m_Entity.GetUid(), SceneComponentKind::Camera);
+                if (!result.Succeeded()) {
+                    return result;
+                }
+                result.Operation = "editor.component.remove_camera";
+                result.Target = m_Entity.GetName();
+                result.Summary = "Removed CameraComponent";
+                return result;
             }
             ResultEnvelope Undo(const EditorCommandContext& context) override {
-                (void)context;
-                if (!m_Entity.IsValid()) {
+                auto scene = GetScene(context);
+                if (!scene || !m_Entity.IsValid()) {
                     return ResultEnvelope::Failure("editor.component.remove_camera.undo", "entity", "The selected entity is no longer available");
                 }
-                m_Entity.AddComponent<Rendering::CameraComponent>(m_Component);
-                return ResultEnvelope::Success("editor.component.remove_camera.undo", m_Entity.GetName(), "Restored CameraComponent");
+                auto* operations = GetOperations(context);
+                if (!operations) {
+                    return MakeOperationsMissingResult("editor.component.remove_camera.undo");
+                }
+                auto result = operations->UpsertSceneCameraComponent(*scene, m_Entity.GetUid(), m_Component);
+                if (!result.Succeeded()) {
+                    return result;
+                }
+                result.Operation = "editor.component.remove_camera.undo";
+                result.Target = m_Entity.GetName();
+                result.Summary = "Restored CameraComponent";
+                return result;
             }
         private:
             Entity m_Entity;
@@ -280,19 +377,36 @@ namespace HE {
                 if (!scene || !m_Entity.IsValid()) {
                     return ResultEnvelope::Failure("editor.component.add_mesh", "entity", "A valid selected entity is required before adding MeshComponent");
                 }
-                if (m_Entity.HasComponent<Rendering::MeshComponent>()) {
-                    return ResultEnvelope::Failure("editor.component.add_mesh", m_Entity.GetName(), "MeshComponent already exists on the selected entity");
+                auto* operations = GetOperations(context);
+                if (!operations) {
+                    return MakeOperationsMissingResult("editor.component.add_mesh");
                 }
-                m_Entity.AddComponent<Rendering::MeshComponent>(MakeDefaultMeshComponent());
-                return ResultEnvelope::Success("editor.component.add_mesh", m_Entity.GetName(), "Added MeshComponent");
+                auto result = operations->AddSceneComponent(*scene, m_Entity.GetUid(), SceneComponentKind::Mesh);
+                if (!result.Succeeded()) {
+                    return result;
+                }
+                result.Operation = "editor.component.add_mesh";
+                result.Target = m_Entity.GetName();
+                result.Summary = "Added MeshComponent";
+                return result;
             }
             ResultEnvelope Undo(const EditorCommandContext& context) override {
-                (void)context;
-                if (!m_Entity.IsValid() || !m_Entity.HasComponent<Rendering::MeshComponent>()) {
+                auto scene = GetScene(context);
+                if (!scene || !m_Entity.IsValid() || !m_Entity.HasComponent<Rendering::MeshComponent>()) {
                     return ResultEnvelope::Failure("editor.component.add_mesh.undo", "entity", "MeshComponent is no longer available to remove");
                 }
-                m_Entity.RemoveComponent<Rendering::MeshComponent>();
-                return ResultEnvelope::Success("editor.component.add_mesh.undo", m_Entity.GetName(), "Removed MeshComponent");
+                auto* operations = GetOperations(context);
+                if (!operations) {
+                    return MakeOperationsMissingResult("editor.component.add_mesh.undo");
+                }
+                auto result = operations->RemoveSceneComponent(*scene, m_Entity.GetUid(), SceneComponentKind::Mesh);
+                if (!result.Succeeded()) {
+                    return result;
+                }
+                result.Operation = "editor.component.add_mesh.undo";
+                result.Target = m_Entity.GetName();
+                result.Summary = "Removed MeshComponent";
+                return result;
             }
         private:
             Entity m_Entity;
@@ -307,17 +421,37 @@ namespace HE {
                 if (!scene || !m_Entity.IsValid() || !m_Entity.HasComponent<Rendering::MeshComponent>()) {
                     return ResultEnvelope::Failure("editor.component.remove_mesh", "entity", "MeshComponent is not available on the selected entity");
                 }
+                auto* operations = GetOperations(context);
+                if (!operations) {
+                    return MakeOperationsMissingResult("editor.component.remove_mesh");
+                }
                 m_Component = m_Entity.GetComponent<Rendering::MeshComponent>();
-                m_Entity.RemoveComponent<Rendering::MeshComponent>();
-                return ResultEnvelope::Success("editor.component.remove_mesh", m_Entity.GetName(), "Removed MeshComponent");
+                auto result = operations->RemoveSceneComponent(*scene, m_Entity.GetUid(), SceneComponentKind::Mesh);
+                if (!result.Succeeded()) {
+                    return result;
+                }
+                result.Operation = "editor.component.remove_mesh";
+                result.Target = m_Entity.GetName();
+                result.Summary = "Removed MeshComponent";
+                return result;
             }
             ResultEnvelope Undo(const EditorCommandContext& context) override {
-                (void)context;
-                if (!m_Entity.IsValid()) {
+                auto scene = GetScene(context);
+                if (!scene || !m_Entity.IsValid()) {
                     return ResultEnvelope::Failure("editor.component.remove_mesh.undo", "entity", "The selected entity is no longer available");
                 }
-                m_Entity.AddComponent<Rendering::MeshComponent>(m_Component);
-                return ResultEnvelope::Success("editor.component.remove_mesh.undo", m_Entity.GetName(), "Restored MeshComponent");
+                auto* operations = GetOperations(context);
+                if (!operations) {
+                    return MakeOperationsMissingResult("editor.component.remove_mesh.undo");
+                }
+                auto result = operations->UpsertSceneMeshComponent(*scene, m_Entity.GetUid(), m_Component);
+                if (!result.Succeeded()) {
+                    return result;
+                }
+                result.Operation = "editor.component.remove_mesh.undo";
+                result.Target = m_Entity.GetName();
+                result.Summary = "Restored MeshComponent";
+                return result;
             }
         private:
             Entity m_Entity;
@@ -333,19 +467,36 @@ namespace HE {
                 if (!scene || !m_Entity.IsValid()) {
                     return ResultEnvelope::Failure("editor.component.add_material", "entity", "A valid selected entity is required before adding MaterialComponent");
                 }
-                if (m_Entity.HasComponent<Rendering::MaterialComponent>()) {
-                    return ResultEnvelope::Failure("editor.component.add_material", m_Entity.GetName(), "MaterialComponent already exists on the selected entity");
+                auto* operations = GetOperations(context);
+                if (!operations) {
+                    return MakeOperationsMissingResult("editor.component.add_material");
                 }
-                m_Entity.AddComponent<Rendering::MaterialComponent>(MakeDefaultMaterialComponent());
-                return ResultEnvelope::Success("editor.component.add_material", m_Entity.GetName(), "Added MaterialComponent");
+                auto result = operations->AddSceneComponent(*scene, m_Entity.GetUid(), SceneComponentKind::Material);
+                if (!result.Succeeded()) {
+                    return result;
+                }
+                result.Operation = "editor.component.add_material";
+                result.Target = m_Entity.GetName();
+                result.Summary = "Added MaterialComponent";
+                return result;
             }
             ResultEnvelope Undo(const EditorCommandContext& context) override {
-                (void)context;
-                if (!m_Entity.IsValid() || !m_Entity.HasComponent<Rendering::MaterialComponent>()) {
+                auto scene = GetScene(context);
+                if (!scene || !m_Entity.IsValid() || !m_Entity.HasComponent<Rendering::MaterialComponent>()) {
                     return ResultEnvelope::Failure("editor.component.add_material.undo", "entity", "MaterialComponent is no longer available to remove");
                 }
-                m_Entity.RemoveComponent<Rendering::MaterialComponent>();
-                return ResultEnvelope::Success("editor.component.add_material.undo", m_Entity.GetName(), "Removed MaterialComponent");
+                auto* operations = GetOperations(context);
+                if (!operations) {
+                    return MakeOperationsMissingResult("editor.component.add_material.undo");
+                }
+                auto result = operations->RemoveSceneComponent(*scene, m_Entity.GetUid(), SceneComponentKind::Material);
+                if (!result.Succeeded()) {
+                    return result;
+                }
+                result.Operation = "editor.component.add_material.undo";
+                result.Target = m_Entity.GetName();
+                result.Summary = "Removed MaterialComponent";
+                return result;
             }
         private:
             Entity m_Entity;
@@ -360,17 +511,37 @@ namespace HE {
                 if (!scene || !m_Entity.IsValid() || !m_Entity.HasComponent<Rendering::MaterialComponent>()) {
                     return ResultEnvelope::Failure("editor.component.remove_material", "entity", "MaterialComponent is not available on the selected entity");
                 }
+                auto* operations = GetOperations(context);
+                if (!operations) {
+                    return MakeOperationsMissingResult("editor.component.remove_material");
+                }
                 m_Component = m_Entity.GetComponent<Rendering::MaterialComponent>();
-                m_Entity.RemoveComponent<Rendering::MaterialComponent>();
-                return ResultEnvelope::Success("editor.component.remove_material", m_Entity.GetName(), "Removed MaterialComponent");
+                auto result = operations->RemoveSceneComponent(*scene, m_Entity.GetUid(), SceneComponentKind::Material);
+                if (!result.Succeeded()) {
+                    return result;
+                }
+                result.Operation = "editor.component.remove_material";
+                result.Target = m_Entity.GetName();
+                result.Summary = "Removed MaterialComponent";
+                return result;
             }
             ResultEnvelope Undo(const EditorCommandContext& context) override {
-                (void)context;
-                if (!m_Entity.IsValid()) {
+                auto scene = GetScene(context);
+                if (!scene || !m_Entity.IsValid()) {
                     return ResultEnvelope::Failure("editor.component.remove_material.undo", "entity", "The selected entity is no longer available");
                 }
-                m_Entity.AddComponent<Rendering::MaterialComponent>(m_Component);
-                return ResultEnvelope::Success("editor.component.remove_material.undo", m_Entity.GetName(), "Restored MaterialComponent");
+                auto* operations = GetOperations(context);
+                if (!operations) {
+                    return MakeOperationsMissingResult("editor.component.remove_material.undo");
+                }
+                auto result = operations->UpsertSceneMaterialComponent(*scene, m_Entity.GetUid(), m_Component);
+                if (!result.Succeeded()) {
+                    return result;
+                }
+                result.Operation = "editor.component.remove_material.undo";
+                result.Target = m_Entity.GetName();
+                result.Summary = "Restored MaterialComponent";
+                return result;
             }
         private:
             Entity m_Entity;

@@ -1,4 +1,4 @@
 interface:
   display_name: "HuaEngine Editor Workbench"
-  short_description: "Navigate HuaEngine Editor startup, panels, selection, and component editing flow."
-  default_prompt: "Use $huaengine-editor-workbench to inspect HuaEngine EditorLayer, panels, selection, and inspector behavior."
+  short_description: "导航 HuaEngine Editor 的启动流、面板、选择模型与组件编辑流程。"
+  default_prompt: "使用 $huaengine-editor-workbench 检查 HuaEngine 的 EditorLayer、各面板、选择状态与 Inspector 行为。"

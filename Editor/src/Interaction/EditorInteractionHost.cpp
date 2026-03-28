@@ -1,6 +1,7 @@
 #include "enginepch.h"
 #include "Interaction/EditorInteractionHost.h"
 
+#include "HuaEngine/Application.h"
 #include "Workbench/EditorWorkbenchState.h"
 #include "Workbench/ProjectSession.h"
 #include "Workbench/SceneDocument.h"
@@ -123,6 +124,7 @@ namespace HE {
 
     EditorCommandContext EditorInteractionHost::BuildCommandContext() const {
         return {
+            .Operations = &Application::GetInstance().GetOperations(),
             .WorkbenchState = m_WorkbenchState,
             .ProjectSession = m_ProjectSession,
             .SceneDocument = m_SceneDocument
