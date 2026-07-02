@@ -12,9 +12,6 @@ namespace HE::Rendering {
 		auto query = world.Query<TransformComponent, MeshComponent, MaterialComponent>();
 		query.ForEach([&](Entity entity, TransformComponent& transform, MeshComponent& mesh, MaterialComponent& material) {
 			auto vertexArray = mesh.GetVertexArray();
-			if (!vertexArray || !material.MaterialInstance) {
-				return;
-			}
 
 			RenderItem item;
 			item.SourceEntity = entity;
