@@ -84,7 +84,7 @@ int main() {
 	Require(smokePositionByType->Size == sizeof(SmokePosition), "Expected SmokePosition metadata size to match");
 	Require(!smokePositionByType->AllowMultiple, "Expected SmokePosition registration to disallow multiple by default");
 
-	const HE::ComponentMetadata* smokePositionByName = registry.FindByName(smokePositionRegistration.TypeName);
+	const HE::ComponentMetadata* smokePositionByName = registry.FindByName("Tests.SmokePosition");
 	Require(smokePositionByName == smokePositionByType, "Expected SmokePosition lookup by name to return the same metadata");
 	Require(registry.FindByTypeId(HE::ComponentTypeIdOf<SmokePosition>()) == smokePositionByType, "Expected SmokePosition lookup by type id to return the same metadata");
 	Require(registry.GetAll().size() == 1, "Expected registry to contain one component registration");

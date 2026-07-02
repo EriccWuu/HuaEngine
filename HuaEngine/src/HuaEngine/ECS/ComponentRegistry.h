@@ -2,6 +2,7 @@
 
 #include <cstddef>
 #include <string>
+#include <string_view>
 #include <unordered_map>
 #include <utility>
 #include <vector>
@@ -35,8 +36,8 @@ namespace HE {
 			using ComponentType = Detail::CleanComponentType<T>;
 
 			const ComponentTypeId typeId = ComponentTypeIdOf<ComponentType>();
-			if (m_TypeIdToIndex.find(typeId) != m_TypeIdToIndex.end() ||
-				m_TypeNameToIndex.find(registration.TypeName) != m_TypeNameToIndex.end()) {
+			if (m_ByTypeId.find(typeId) != m_ByTypeId.end() ||
+				m_ByName.find(registration.TypeName) != m_ByName.end()) {
 				return false;
 			}
 
@@ -57,10 +58,10 @@ namespace HE {
 				return new ComponentType(*static_cast<const ComponentType*>(instance));
 			};
 
-			const size_t index = m_Components.size();
-			m_TypeIdToIndex.emplace(metadata.TypeId, index);
-			m_TypeNameToIndex.emplace(metadata.TypeName, index);
-			m_Components.emplace_back(std::move(metadata));
+			const size_t index = m_Metadata.size();
+			m_ByTypeId.emplace(metadata.TypeId, index);
+			m_ByName.emplace(metadata.TypeName, index);
+			m_Metadata.emplace_back(std::move(metadata));
 			return true;
 		}
 
@@ -70,34 +71,12 @@ namespace HE {
 		}
 
 		[[nodiscard]] const ComponentMetadata* FindByTypeId(ComponentTypeId typeId) const;
-		[[nodiscard]] const ComponentMetadata* FindByName(const std::string& typeName) const;
+		[[nodiscard]] const ComponentMetadata* FindByName(std::string_view typeName) const;
 		[[nodiscard]] const std::vector<ComponentMetadata>& GetAll() const;
 
 	private:
-		std::vector<ComponentMetadata> m_Components;
-		std::unordered_map<ComponentTypeId, size_t> m_TypeIdToIndex;
-		std::unordered_map<std::string, size_t> m_TypeNameToIndex;
+		std::vector<ComponentMetadata> m_Metadata;
+		std::unordered_map<ComponentTypeId, size_t> m_ByTypeId;
+		std::unordered_map<std::string, size_t> m_ByName;
 	};
-
-	inline const ComponentMetadata* ComponentRegistry::FindByTypeId(ComponentTypeId typeId) const {
-		const auto it = m_TypeIdToIndex.find(typeId);
-		if (it == m_TypeIdToIndex.end()) {
-			return nullptr;
-		}
-
-		return &m_Components[it->second];
-	}
-
-	inline const ComponentMetadata* ComponentRegistry::FindByName(const std::string& typeName) const {
-		const auto it = m_TypeNameToIndex.find(typeName);
-		if (it == m_TypeNameToIndex.end()) {
-			return nullptr;
-		}
-
-		return &m_Components[it->second];
-	}
-
-	inline const std::vector<ComponentMetadata>& ComponentRegistry::GetAll() const {
-		return m_Components;
-	}
 }
