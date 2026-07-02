@@ -4,6 +4,7 @@
 #include "HuaEngine/Scene/Scene.h"
 #include "HuaEngine/Rendering/Renderer.h"
 #include "HuaEngine/Rendering/RenderPipeline/RenderPipeline.h"
+#include "HuaEngine/Rendering/RenderPipeline/RenderResourceResolver.h"
 #include "HuaEngine/Rendering/RenderPipeline/SceneRenderExtractor.h"
 #include "HuaEngine/Rendering/FrameBuffer.h"
 
@@ -25,6 +26,7 @@ namespace HE {
 		Ref<Rendering::Camera> m_Camera;
 		Ref<Rendering::FrameBuffer> m_Framebuffer;
 		Rendering::SceneRenderExtractor m_Extractor;
+		Rendering::RenderResourceResolver m_ResourceResolver;
 		Scope<Rendering::RenderPipeline> m_RenderPipeline;
 		Rendering::RenderResult m_LastRenderResult;
 	};

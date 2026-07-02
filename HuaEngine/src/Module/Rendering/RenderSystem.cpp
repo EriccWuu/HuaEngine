@@ -50,6 +50,6 @@ namespace HE {
 		view.Target = m_Framebuffer;
 
 		auto renderItems = m_Extractor.Extract(world);
-		m_LastRenderResult = m_RenderPipeline->Render(view, renderItems);
+		m_LastRenderResult = m_RenderPipeline->Render(view, renderItems, m_ResourceResolver);
 	}
 }

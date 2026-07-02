@@ -2,12 +2,16 @@
 #include "RenderPipeline.h"
 
 #include "HuaEngine/Rendering/RenderCommand.h"
+#include "HuaEngine/Rendering/RenderPipeline/RenderResourceResolver.h"
 #include "HuaEngine/Rendering/Renderer.h"
 
 namespace HE::Rendering {
 	RenderPipeline::~RenderPipeline() = default;
 
-	RenderResult RenderPipeline::Render(const RenderView& view, const std::vector<RenderItem>& renderItems) {
+	RenderResult RenderPipeline::Render(
+		const RenderView& view,
+		const std::vector<RenderItem>& renderItems,
+		const RenderResourceResolver& resourceResolver) {
 		RenderResult result;
 		result.Stats.RenderItems = static_cast<uint32_t>(renderItems.size());
 		result.Stats.VisibleItems = result.Stats.RenderItems;
@@ -26,12 +30,13 @@ namespace HE::Rendering {
 
 		Renderer::Begin(view.CameraRef);
 		for (const auto& item : renderItems) {
-			if (!item.VertexArrayRef || !item.MaterialInstanceRef || !item.MaterialInstanceRef->GetShader()) {
+			ResolvedRenderItem resolvedItem;
+			if (!resourceResolver.Resolve(item, resolvedItem, result.Diagnostics)) {
 				++result.Stats.SkippedItems;
 				continue;
 			}
 
-			Renderer::Submit(item.MaterialInstanceRef, item.VertexArrayRef, item.Transform);
+			Renderer::Submit(resolvedItem.MaterialInstanceRef, resolvedItem.VertexArrayRef, item.Transform);
 			++result.Stats.SubmittedItems;
 			++result.Stats.DrawCalls;
 		}

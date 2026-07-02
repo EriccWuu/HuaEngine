@@ -11,12 +11,10 @@ namespace HE::Rendering {
 
 		auto query = world.Query<TransformComponent, MeshComponent, MaterialComponent>();
 		query.ForEach([&](Entity entity, TransformComponent& transform, MeshComponent& mesh, MaterialComponent& material) {
-			auto vertexArray = mesh.GetVertexArray();
-
 			RenderItem item;
 			item.SourceEntity = entity;
 			item.Transform = transform.GetTransformMat();
-			item.VertexArrayRef = vertexArray;
+			item.MeshAssetName = mesh.MeshAssetName;
 			item.MaterialInstanceRef = material.MaterialInstance;
 			renderItems.push_back(item);
 		});

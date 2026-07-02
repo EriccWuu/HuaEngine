@@ -130,8 +130,12 @@ int main() {
 	Require(renderViewport.Operation == "rendering.render_scene_viewport", "Expected render operation id to stay stable");
 	Require(renderViewport.Payload.contains("render_items"), "Expected rendering.render_scene_viewport to report extracted render item count");
 	Require(renderViewport.Payload.contains("submitted_items"), "Expected rendering.render_scene_viewport to report submitted item count");
+	Require(renderViewport.Payload.contains("skipped_items"), "Expected rendering.render_scene_viewport to report skipped item count");
+	Require(renderViewport.Payload.contains("diagnostics"), "Expected rendering.render_scene_viewport to report diagnostic count");
 	Require(renderViewport.Payload.at("render_items") == "1", "Expected invalid renderable component triple to count as an extracted render item");
 	Require(renderViewport.Payload.at("submitted_items") == "0", "Expected invalid renderable resources to be skipped before submission");
+	Require(renderViewport.Payload.at("skipped_items") == "1", "Expected invalid renderable resources to increment skipped item count");
+	Require(renderViewport.Payload.at("diagnostics") == "1", "Expected invalid renderable resources to emit one diagnostic");
 
 	PrepareSandboxAssets();
 
@@ -147,8 +151,10 @@ int main() {
 	Require(renderLoadedScene.Succeeded(), "Expected loaded sandbox scene viewport render to succeed");
 	Require(renderLoadedScene.Payload.contains("render_items"), "Expected loaded sandbox scene render to report extracted render item count");
 	Require(renderLoadedScene.Payload.contains("submitted_items"), "Expected loaded sandbox scene render to report submitted item count");
+	Require(renderLoadedScene.Payload.contains("skipped_items"), "Expected loaded sandbox scene render to report skipped item count");
 	Require(renderLoadedScene.Payload.at("render_items") == "4", "Expected loaded sandbox scene render to extract four render items");
 	Require(renderLoadedScene.Payload.at("submitted_items") == "4", "Expected loaded sandbox scene render to submit four render items");
+	Require(renderLoadedScene.Payload.at("skipped_items") == "0", "Expected loaded sandbox scene render to skip no render items");
 	Require(HasRenderedPixel(framebuffer), "Expected loaded sandbox scene render to write at least one non-clear pixel");
 
 	std::cout << "RenderingOperationsSmoke passed" << std::endl;

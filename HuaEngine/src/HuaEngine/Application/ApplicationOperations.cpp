@@ -540,6 +540,8 @@ namespace HE {
 		result.SetPayloadValue("scene_name", scene.GetName());
 		result.SetPayloadValue("render_items", std::to_string(renderResult.Stats.RenderItems));
 		result.SetPayloadValue("submitted_items", std::to_string(renderResult.Stats.SubmittedItems));
+		result.SetPayloadValue("skipped_items", std::to_string(renderResult.Stats.SkippedItems));
+		result.SetPayloadValue("diagnostics", std::to_string(renderResult.Diagnostics.size()));
 		return result;
 	}
 

@@ -1,6 +1,8 @@
 #pragma once
 
 #include <cstdint>
+#include <string>
+#include <vector>
 
 #include "glm/glm.hpp"
 
@@ -22,6 +24,26 @@ namespace HE::Rendering {
 	struct RenderItem {
 		Entity SourceEntity;
 		glm::mat4 Transform = glm::mat4(1.0f);
+		std::string MeshAssetName;
+		Ref<MaterialInstance> MaterialInstanceRef;
+	};
+
+	enum class RenderDiagnosticCode {
+		MissingMeshAsset,
+		MissingVertexArray,
+		MissingMaterialInstance,
+		MissingBaseMaterial,
+		MissingShader
+	};
+
+	struct RenderDiagnostic {
+		RenderDiagnosticCode Code;
+		Entity SourceEntity;
+		std::string Message;
+	};
+
+	struct ResolvedRenderItem {
+		const RenderItem* Source = nullptr;
 		Ref<VertexArray> VertexArrayRef;
 		Ref<MaterialInstance> MaterialInstanceRef;
 	};
@@ -38,5 +60,6 @@ namespace HE::Rendering {
 	struct RenderResult {
 		bool Succeeded = false;
 		RenderStats Stats;
+		std::vector<RenderDiagnostic> Diagnostics;
 	};
 }
