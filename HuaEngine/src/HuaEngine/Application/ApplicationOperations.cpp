@@ -541,6 +541,9 @@ namespace HE {
 		result.SetPayloadValue("render_items", std::to_string(renderResult.Stats.RenderItems));
 		result.SetPayloadValue("submitted_items", std::to_string(renderResult.Stats.SubmittedItems));
 		result.SetPayloadValue("skipped_items", std::to_string(renderResult.Stats.SkippedItems));
+		result.SetPayloadValue("draw_calls", std::to_string(renderResult.Stats.DrawCalls));
+		result.SetPayloadValue("pass_count", std::to_string(renderResult.Stats.PassCount));
+		result.SetPayloadValue("visible_items", std::to_string(renderResult.Stats.VisibleItems));
 		result.SetPayloadValue("diagnostics", std::to_string(renderResult.Diagnostics.size()));
 		return result;
 	}

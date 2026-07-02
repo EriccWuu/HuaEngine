@@ -131,10 +131,16 @@ int main() {
 	Require(renderViewport.Payload.contains("render_items"), "Expected rendering.render_scene_viewport to report extracted render item count");
 	Require(renderViewport.Payload.contains("submitted_items"), "Expected rendering.render_scene_viewport to report submitted item count");
 	Require(renderViewport.Payload.contains("skipped_items"), "Expected rendering.render_scene_viewport to report skipped item count");
+	Require(renderViewport.Payload.contains("draw_calls"), "Expected rendering.render_scene_viewport to report draw call count");
+	Require(renderViewport.Payload.contains("pass_count"), "Expected rendering.render_scene_viewport to report render pass count");
+	Require(renderViewport.Payload.contains("visible_items"), "Expected rendering.render_scene_viewport to report visible item count");
 	Require(renderViewport.Payload.contains("diagnostics"), "Expected rendering.render_scene_viewport to report diagnostic count");
 	Require(renderViewport.Payload.at("render_items") == "1", "Expected invalid renderable component triple to count as an extracted render item");
 	Require(renderViewport.Payload.at("submitted_items") == "0", "Expected invalid renderable resources to be skipped before submission");
 	Require(renderViewport.Payload.at("skipped_items") == "1", "Expected invalid renderable resources to increment skipped item count");
+	Require(renderViewport.Payload.at("draw_calls") == "0", "Expected invalid renderable resources to issue no draw calls");
+	Require(renderViewport.Payload.at("pass_count") == "1", "Expected invalid renderable resources to execute one render pass");
+	Require(renderViewport.Payload.at("visible_items") == "1", "Expected invalid renderable resources to count one visible item");
 	Require(renderViewport.Payload.at("diagnostics") == "1", "Expected invalid renderable resources to emit one diagnostic");
 
 	PrepareSandboxAssets();
@@ -163,10 +169,16 @@ int main() {
 	Require(renderRuntimeMeshScene.Payload.contains("render_items"), "Expected runtime vertex-array scene render to report extracted render item count");
 	Require(renderRuntimeMeshScene.Payload.contains("submitted_items"), "Expected runtime vertex-array scene render to report submitted item count");
 	Require(renderRuntimeMeshScene.Payload.contains("skipped_items"), "Expected runtime vertex-array scene render to report skipped item count");
+	Require(renderRuntimeMeshScene.Payload.contains("draw_calls"), "Expected runtime vertex-array scene render to report draw call count");
+	Require(renderRuntimeMeshScene.Payload.contains("pass_count"), "Expected runtime vertex-array scene render to report render pass count");
+	Require(renderRuntimeMeshScene.Payload.contains("visible_items"), "Expected runtime vertex-array scene render to report visible item count");
 	Require(renderRuntimeMeshScene.Payload.contains("diagnostics"), "Expected runtime vertex-array scene render to report diagnostic count");
 	Require(renderRuntimeMeshScene.Payload.at("render_items") == "1", "Expected runtime vertex-array scene render to extract one render item");
 	Require(renderRuntimeMeshScene.Payload.at("submitted_items") == "1", "Expected runtime vertex-array scene render to submit one render item");
 	Require(renderRuntimeMeshScene.Payload.at("skipped_items") == "0", "Expected runtime vertex-array scene render to skip no render items");
+	Require(renderRuntimeMeshScene.Payload.at("draw_calls") == "1", "Expected runtime vertex-array scene render to issue one draw call");
+	Require(renderRuntimeMeshScene.Payload.at("pass_count") == "1", "Expected runtime vertex-array scene render to execute one render pass");
+	Require(renderRuntimeMeshScene.Payload.at("visible_items") == "1", "Expected runtime vertex-array scene render to count one visible item");
 	Require(renderRuntimeMeshScene.Payload.at("diagnostics") == "0", "Expected runtime vertex-array scene render to emit no diagnostics");
 
 	HE::Ref<HE::Scene> loadedScene;
@@ -182,10 +194,16 @@ int main() {
 	Require(renderLoadedScene.Payload.contains("render_items"), "Expected loaded sandbox scene render to report extracted render item count");
 	Require(renderLoadedScene.Payload.contains("submitted_items"), "Expected loaded sandbox scene render to report submitted item count");
 	Require(renderLoadedScene.Payload.contains("skipped_items"), "Expected loaded sandbox scene render to report skipped item count");
+	Require(renderLoadedScene.Payload.contains("draw_calls"), "Expected loaded sandbox scene render to report draw call count");
+	Require(renderLoadedScene.Payload.contains("pass_count"), "Expected loaded sandbox scene render to report render pass count");
+	Require(renderLoadedScene.Payload.contains("visible_items"), "Expected loaded sandbox scene render to report visible item count");
 	Require(renderLoadedScene.Payload.contains("diagnostics"), "Expected loaded sandbox scene render to report diagnostic count");
 	Require(renderLoadedScene.Payload.at("render_items") == "4", "Expected loaded sandbox scene render to extract four render items");
 	Require(renderLoadedScene.Payload.at("submitted_items") == "4", "Expected loaded sandbox scene render to submit four render items");
 	Require(renderLoadedScene.Payload.at("skipped_items") == "0", "Expected loaded sandbox scene render to skip no render items");
+	Require(renderLoadedScene.Payload.at("draw_calls") == "4", "Expected loaded sandbox scene render to issue four draw calls");
+	Require(renderLoadedScene.Payload.at("pass_count") == "1", "Expected loaded sandbox scene render to execute one render pass");
+	Require(renderLoadedScene.Payload.at("visible_items") == "4", "Expected loaded sandbox scene render to count four visible items");
 	Require(renderLoadedScene.Payload.at("diagnostics") == "0", "Expected loaded sandbox scene render to emit no diagnostics");
 	Require(HasRenderedPixel(framebuffer), "Expected loaded sandbox scene render to write at least one non-clear pixel");
 

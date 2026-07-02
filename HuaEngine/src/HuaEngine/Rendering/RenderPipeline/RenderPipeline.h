@@ -13,6 +13,6 @@ namespace HE::Rendering {
 		virtual RenderResult Render(
 			const RenderView& view,
 			const std::vector<RenderItem>& renderItems,
-			const RenderResourceResolver& resourceResolver);
+			const RenderResourceResolver& resourceResolver) = 0;
 	};
 }

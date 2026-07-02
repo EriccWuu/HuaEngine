@@ -14,6 +14,8 @@
 #include "HuaEngine/Rendering/VertexArray.h"
 
 namespace HE::Rendering {
+	class RenderResourceResolver;
+
 	struct RenderView {
 		Ref<Camera> CameraRef;
 		Ref<FrameBuffer> Target;
@@ -55,6 +57,14 @@ namespace HE::Rendering {
 		uint32_t DrawCalls = 0;
 		uint32_t VisibleItems = 0;
 		uint32_t PassCount = 0;
+	};
+
+	struct RenderPassContext {
+		const RenderView* View = nullptr;
+		const std::vector<RenderItem>* RenderItems = nullptr;
+		const RenderResourceResolver* ResourceResolver = nullptr;
+		RenderStats* Stats = nullptr;
+		std::vector<RenderDiagnostic>* Diagnostics = nullptr;
 	};
 
 	struct RenderResult {

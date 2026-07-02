@@ -1,11 +1,12 @@
 #include "enginepch.h"
 #include "HuaEngine/ECS/Components.h"
+#include "HuaEngine/Rendering/RenderPipeline/ForwardRenderPipeline.h"
 #include "RenderingComponent.h"
 #include "RenderSystem.h"
 
 namespace HE {
 	RenderSystem::RenderSystem(Ref<Scene> scene)
-		: m_Scene(std::move(scene)), m_RenderPipeline(CreateScope<Rendering::RenderPipeline>()) {}
+		: m_Scene(std::move(scene)), m_RenderPipeline(CreateScope<Rendering::ForwardRenderPipeline>()) {}
 
 	SystemDescriptor RenderSystem::Describe() const {
 		SystemDescriptor descriptor;
