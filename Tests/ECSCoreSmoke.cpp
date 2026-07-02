@@ -4,10 +4,21 @@
 #include <type_traits>
 #include <unordered_set>
 
+#include "HuaEngine/ECS/ComponentRegistry.h"
 #include "HuaEngine/ECS/ComponentType.h"
 #include "HuaEngine/ECS/EntityId.h"
 
 namespace {
+	struct SmokePosition {
+		float X = 0.0f;
+		float Y = 0.0f;
+	};
+
+	struct SmokeVelocity {
+		float X = 0.0f;
+		float Y = 0.0f;
+	};
+
 	struct PositionComponent {
 		float X = 0.0f;
 	};
@@ -56,6 +67,50 @@ int main() {
 	static_assert(HE::QueryTermTraits<HE::Read<PositionComponent>>::IsReadOnly);
 	static_assert(!HE::IsReadTerm<PositionComponent>::Value);
 	static_assert(HE::IsReadTerm<HE::Read<PositionComponent>>::Value);
+
+	HE::ComponentRegistry registry;
+	HE::ComponentRegistration smokePositionRegistration;
+	smokePositionRegistration.TypeName = "Tests.SmokePosition";
+	smokePositionRegistration.DisplayName = "Smoke Position";
+	smokePositionRegistration.Category = "Tests";
+
+	Require(registry.Register<SmokePosition>(smokePositionRegistration), "Expected SmokePosition registration to succeed");
+	const HE::ComponentMetadata* smokePositionByType = registry.FindByType<SmokePosition>();
+	Require(smokePositionByType != nullptr, "Expected SmokePosition lookup by type to succeed");
+	Require(smokePositionByType->TypeId == HE::ComponentTypeIdOf<SmokePosition>(), "Expected SmokePosition metadata type id to match");
+	Require(smokePositionByType->TypeName == "Tests.SmokePosition", "Expected SmokePosition metadata type name to match");
+	Require(smokePositionByType->DisplayName == "Smoke Position", "Expected SmokePosition metadata display name to match");
+	Require(smokePositionByType->Category == "Tests", "Expected SmokePosition metadata category to match");
+	Require(smokePositionByType->Size == sizeof(SmokePosition), "Expected SmokePosition metadata size to match");
+	Require(!smokePositionByType->AllowMultiple, "Expected SmokePosition registration to disallow multiple by default");
+
+	const HE::ComponentMetadata* smokePositionByName = registry.FindByName("Tests.SmokePosition");
+	Require(smokePositionByName == smokePositionByType, "Expected SmokePosition lookup by name to return the same metadata");
+	Require(registry.FindByTypeId(HE::ComponentTypeIdOf<SmokePosition>()) == smokePositionByType, "Expected SmokePosition lookup by type id to return the same metadata");
+	Require(registry.GetAll().size() == 1, "Expected registry to contain one component registration");
+
+	void* constructedSmokePosition = smokePositionByType->ConstructDefault();
+	Require(constructedSmokePosition != nullptr, "Expected SmokePosition ConstructDefault to allocate an instance");
+	static_cast<SmokePosition*>(constructedSmokePosition)->X = 42.0f;
+	static_cast<SmokePosition*>(constructedSmokePosition)->Y = 24.0f;
+	void* copiedSmokePosition = smokePositionByType->Copy(constructedSmokePosition);
+	Require(copiedSmokePosition != nullptr, "Expected SmokePosition Copy to allocate an instance");
+	Require(static_cast<SmokePosition*>(copiedSmokePosition)->X == 42.0f, "Expected SmokePosition Copy to preserve X");
+	Require(static_cast<SmokePosition*>(copiedSmokePosition)->Y == 24.0f, "Expected SmokePosition Copy to preserve Y");
+	smokePositionByType->Destroy(copiedSmokePosition);
+	smokePositionByType->Destroy(constructedSmokePosition);
+
+	HE::ComponentRegistration duplicateTypeRegistration;
+	duplicateTypeRegistration.TypeName = "Tests.SmokePositionDuplicateType";
+	duplicateTypeRegistration.DisplayName = "Smoke Position Duplicate Type";
+	duplicateTypeRegistration.Category = "Tests";
+	Require(!registry.Register<SmokePosition>(duplicateTypeRegistration), "Expected duplicate SmokePosition type registration to fail");
+
+	HE::ComponentRegistration duplicateNameRegistration;
+	duplicateNameRegistration.TypeName = "Tests.SmokePosition";
+	duplicateNameRegistration.DisplayName = "Smoke Velocity";
+	duplicateNameRegistration.Category = "Tests";
+	Require(!registry.Register<SmokeVelocity>(duplicateNameRegistration), "Expected duplicate SmokePosition type name registration to fail");
 
 	std::cout << "ECSCoreSmoke passed" << std::endl;
 	return 0;
