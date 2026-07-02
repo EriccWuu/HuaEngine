@@ -229,6 +229,12 @@ namespace HE::Serialization {
             value = static_cast<int8_t>(*intPtr);
             return true;
         }
+        if (auto* uintPtr = std::get_if<uint32_t>(&jsonValue)) {
+            if (*uintPtr <= INT8_MAX) {
+                value = static_cast<int8_t>(*uintPtr);
+                return true;
+            }
+        }
         return false;
     }
 
@@ -238,6 +244,12 @@ namespace HE::Serialization {
         if (auto* intPtr = std::get_if<int32_t>(&jsonValue)) {
             value = static_cast<int16_t>(*intPtr);
             return true;
+        }
+        if (auto* uintPtr = std::get_if<uint32_t>(&jsonValue)) {
+            if (*uintPtr <= INT16_MAX) {
+                value = static_cast<int16_t>(*uintPtr);
+                return true;
+            }
         }
         return false;
     }
@@ -249,6 +261,12 @@ namespace HE::Serialization {
             value = *intPtr;
             return true;
         }
+        if (auto* uintPtr = std::get_if<uint32_t>(&jsonValue)) {
+            if (*uintPtr <= INT32_MAX) {
+                value = static_cast<int32_t>(*uintPtr);
+                return true;
+            }
+        }
         return false;
     }
 
@@ -258,6 +276,20 @@ namespace HE::Serialization {
         if (auto* intPtr = std::get_if<int64_t>(&jsonValue)) {
             value = *intPtr;
             return true;
+        }
+        if (auto* int32Ptr = std::get_if<int32_t>(&jsonValue)) {
+            value = static_cast<int64_t>(*int32Ptr);
+            return true;
+        }
+        if (auto* uintPtr = std::get_if<uint32_t>(&jsonValue)) {
+            value = static_cast<int64_t>(*uintPtr);
+            return true;
+        }
+        if (auto* uint64Ptr = std::get_if<uint64_t>(&jsonValue)) {
+            if (*uint64Ptr <= static_cast<uint64_t>(INT64_MAX)) {
+                value = static_cast<int64_t>(*uint64Ptr);
+                return true;
+            }
         }
         return false;
     }

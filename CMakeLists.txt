@@ -204,6 +204,66 @@ if(WIN32)
 endif()
 configure_smoke_target(ECSBackendSmoke)
 
+add_executable(ReflectionSmoke Tests/ReflectionSmoke.cpp)
+target_include_directories(ReflectionSmoke PRIVATE
+    ${CMAKE_SOURCE_DIR}/HuaEngine/src
+    ${SPDLOG_INCLUDE_DIR}
+    ${GLM_INCLUDE_DIR}
+    ${IMGUI_INCLUDE_DIR}
+    ${STB_IMAGE_INCLUDE_DIR}
+)
+target_link_libraries(ReflectionSmoke PRIVATE HuaEngine)
+if(WIN32)
+    target_compile_definitions(ReflectionSmoke PRIVATE GLFW_INCLUDE_NONE)
+    if(MSVC)
+        set_target_properties(ReflectionSmoke PROPERTIES
+            MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>"
+        )
+        target_compile_options(ReflectionSmoke PRIVATE /utf-8)
+    endif()
+endif()
+configure_smoke_target(ReflectionSmoke)
+
+add_executable(SerializationSmoke Tests/SerializationSmoke.cpp)
+target_include_directories(SerializationSmoke PRIVATE
+    ${CMAKE_SOURCE_DIR}/HuaEngine/src
+    ${SPDLOG_INCLUDE_DIR}
+    ${GLM_INCLUDE_DIR}
+    ${IMGUI_INCLUDE_DIR}
+    ${STB_IMAGE_INCLUDE_DIR}
+)
+target_link_libraries(SerializationSmoke PRIVATE HuaEngine)
+if(WIN32)
+    target_compile_definitions(SerializationSmoke PRIVATE GLFW_INCLUDE_NONE)
+    if(MSVC)
+        set_target_properties(SerializationSmoke PROPERTIES
+            MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>"
+        )
+        target_compile_options(SerializationSmoke PRIVATE /utf-8)
+    endif()
+endif()
+configure_smoke_target(SerializationSmoke)
+
+add_executable(MaterialSerializationSmoke Tests/MaterialSerializationSmoke.cpp)
+target_include_directories(MaterialSerializationSmoke PRIVATE
+    ${CMAKE_SOURCE_DIR}/HuaEngine/src
+    ${SPDLOG_INCLUDE_DIR}
+    ${GLM_INCLUDE_DIR}
+    ${IMGUI_INCLUDE_DIR}
+    ${STB_IMAGE_INCLUDE_DIR}
+)
+target_link_libraries(MaterialSerializationSmoke PRIVATE HuaEngine)
+if(WIN32)
+    target_compile_definitions(MaterialSerializationSmoke PRIVATE GLFW_INCLUDE_NONE)
+    if(MSVC)
+        set_target_properties(MaterialSerializationSmoke PROPERTIES
+            MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>"
+        )
+        target_compile_options(MaterialSerializationSmoke PRIVATE /utf-8)
+    endif()
+endif()
+configure_smoke_target(MaterialSerializationSmoke)
+
 add_executable(ProjectServiceSmoke Tests/ProjectServiceSmoke.cpp)
 target_include_directories(ProjectServiceSmoke PRIVATE
     ${CMAKE_SOURCE_DIR}/HuaEngine/src
@@ -510,6 +570,9 @@ set_property(TARGET ECSCoreSmoke PROPERTY FOLDER "Tests")
 set_property(TARGET ECSQuerySchedulerSmoke PROPERTY FOLDER "Tests")
 set_property(TARGET ECSSceneSerializationSmoke PROPERTY FOLDER "Tests")
 set_property(TARGET ECSBackendSmoke PROPERTY FOLDER "Tests")
+set_property(TARGET ReflectionSmoke PROPERTY FOLDER "Tests")
+set_property(TARGET SerializationSmoke PROPERTY FOLDER "Tests")
+set_property(TARGET MaterialSerializationSmoke PROPERTY FOLDER "Tests")
 set_property(TARGET ProjectServiceSmoke PROPERTY FOLDER "Tests")
 set_property(TARGET SceneServiceSmoke PROPERTY FOLDER "Tests")
 set_property(TARGET AssetServiceSmoke PROPERTY FOLDER "Tests")
