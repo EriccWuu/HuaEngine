@@ -59,12 +59,16 @@ namespace HE {
 				(void)Build();
 			}
 
+			CommandBuffer commandBuffer;
+			context.SetCommandBuffer(&commandBuffer);
 			for (const size_t systemIndex : m_Order) {
 				auto& entry = m_Systems[systemIndex];
 				if (entry.Descriptor.Enabled) {
 					entry.Instance->Update(context);
+					commandBuffer.Playback(context.WorldRef());
 				}
 			}
+			context.SetCommandBuffer(nullptr);
 		}
 
 	private:

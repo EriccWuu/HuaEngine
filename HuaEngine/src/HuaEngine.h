@@ -31,6 +31,7 @@
 #include "HuaEngine/Rendering/EditorCamera.h"
 
 // ECS
+#include "HuaEngine/ECS/CommandBuffer.h"
 #include "HuaEngine/ECS/ComponentRegistry.h"
 #include "HuaEngine/ECS/ComponentType.h"
 #include "HuaEngine/ECS/EntityId.h"

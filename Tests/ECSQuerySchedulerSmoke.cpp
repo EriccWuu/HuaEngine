@@ -15,10 +15,14 @@ namespace {
 		float X = 0.0f;
 	};
 
+	struct DeferredTag {
+		int Value = 0;
+	};
+
 	class FirstSystem final : public HE::System {
 	public:
-		explicit FirstSystem(std::vector<int>& order)
-			: m_Order(order) {}
+		FirstSystem(std::vector<int>& order, HE::EntityId target)
+			: m_Order(order), m_Target(target) {}
 
 		HE::SystemDescriptor Describe() const override {
 			HE::SystemDescriptor descriptor;
@@ -29,11 +33,13 @@ namespace {
 
 		void Update(HE::SystemContext& context) override {
 			assert(context.DeltaTime() > 0.0f);
+			context.Commands().AddComponent<DeferredTag>(m_Target, DeferredTag{42});
 			m_Order.push_back(1);
 		}
 
 	private:
 		std::vector<int>& m_Order;
+		HE::EntityId m_Target;
 	};
 
 	class SecondSystem final : public HE::System {
@@ -50,12 +56,19 @@ namespace {
 		}
 
 		void Update(HE::SystemContext& context) override {
-			assert(context.WorldRef().GetEntityCount() == 0);
+			auto* tag = context.WorldRef().TryGetComponent<DeferredTag>(m_Target);
+			assert(tag != nullptr);
+			assert(tag->Value == 42);
 			m_Order.push_back(2);
+		}
+
+		void SetTarget(HE::EntityId target) {
+			m_Target = target;
 		}
 
 	private:
 		std::vector<int>& m_Order;
+		HE::EntityId m_Target;
 	};
 }
 
@@ -116,10 +129,31 @@ int main() {
 	world.DestroyEntity(explicitEntity.GetId());
 	assert(world.GetEntityCount() == 0);
 
+	auto commandEntity = world.CreateEntity("Command Target");
+	HE::CommandBuffer commandBuffer;
+	commandBuffer.AddComponent<QueryPosition>(commandEntity.GetId(), QueryPosition{7.0f});
+	assert(!commandEntity.HasComponent<QueryPosition>());
+	commandBuffer.Playback(world);
+	assert(commandEntity.GetComponent<QueryPosition>().X == 7.0f);
+
+	commandBuffer.RemoveComponent<QueryPosition>(commandEntity.GetId());
+	commandBuffer.Playback(world);
+	assert(!commandEntity.HasComponent<QueryPosition>());
+
+	const HE::EntityUuid createdUuid = commandBuffer.CreateEntity("Deferred Entity");
+	commandBuffer.DestroyEntity(commandEntity.GetId());
+	commandBuffer.Playback(world);
+	assert(!commandEntity.IsValid());
+	assert(world.GetEntity(createdUuid).IsValid());
+	assert(world.GetEntity(createdUuid).GetName() == "Deferred Entity");
+
 	std::vector<int> order;
 	HE::Scheduler scheduler;
-	scheduler.AddSystem(std::make_shared<SecondSystem>(order));
-	scheduler.AddSystem(std::make_shared<FirstSystem>(order));
+	auto schedulerEntity = world.CreateEntity("Scheduler Target");
+	auto secondSystem = std::make_shared<SecondSystem>(order);
+	secondSystem->SetTarget(schedulerEntity.GetId());
+	scheduler.AddSystem(secondSystem);
+	scheduler.AddSystem(std::make_shared<FirstSystem>(order, schedulerEntity.GetId()));
 	HE::SystemContext context{world, 1.0f / 60.0f};
 	const bool sorted = scheduler.Build();
 	assert(sorted);

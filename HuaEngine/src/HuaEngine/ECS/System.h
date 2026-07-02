@@ -4,6 +4,7 @@
 #include <vector>
 
 #include "HuaEngine/ECS/ComponentType.h"
+#include "HuaEngine/ECS/CommandBuffer.h"
 #include "HuaEngine/ECS/World.h"
 
 namespace HE {
@@ -33,11 +34,21 @@ namespace HE {
 
 		World& WorldRef() { return m_World; }
 		const World& WorldRef() const { return m_World; }
+		CommandBuffer& Commands() { return m_ActiveCommandBuffer ? *m_ActiveCommandBuffer : m_OwnedCommandBuffer; }
 		float DeltaTime() const { return m_DeltaTime; }
 
 	private:
+		void SetCommandBuffer(CommandBuffer* commandBuffer) {
+			m_ActiveCommandBuffer = commandBuffer;
+		}
+
+	private:
 		World& m_World;
+		CommandBuffer m_OwnedCommandBuffer;
+		CommandBuffer* m_ActiveCommandBuffer = nullptr;
 		float m_DeltaTime = 0.0f;
+
+		friend class Scheduler;
 	};
 
 	class System {
