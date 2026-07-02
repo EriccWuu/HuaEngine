@@ -95,6 +95,9 @@ imgui.ini
 # Test results
 TestResults/
 
+# Local agent worktrees
+.worktrees/
+
 # Additional ignore patterns specific to this project
 # Dependency build artifacts
 Dependencies/*/bin/
