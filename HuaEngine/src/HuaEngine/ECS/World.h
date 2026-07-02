@@ -26,9 +26,23 @@ namespace HE {
 		[[nodiscard]] bool IsAlive(EntityId id) const;
 		[[nodiscard]] size_t GetEntityCount() const { return m_EntityCount; }
 		[[nodiscard]] EntityId FindEntity(EntityUuid uuid) const;
-		[[nodiscard]] EntityUuid GetEntityUuid(EntityId id) const;
+		[[nodiscard]] EntityUuid GetUuid(EntityId id) const;
+		[[nodiscard]] EntityUuid GetEntityUuid(EntityId id) const { return GetUuid(id); }
 		[[nodiscard]] std::string GetEntityName(EntityId id) const;
 		void SetEntityName(EntityId id, const std::string& name);
+
+		template<typename Callback>
+		void ForEachEntity(Callback&& callback) {
+			for (uint32_t index = 0; index < m_Records.size(); ++index) {
+				const auto& record = m_Records[index];
+				const EntityId id{index, record.Generation};
+				if (!IsAlive(id)) {
+					continue;
+				}
+
+				callback(Entity(id, this));
+			}
+		}
 
 		template<typename T, typename... Args>
 		T& AddComponent(EntityId id, Args&&... args) {

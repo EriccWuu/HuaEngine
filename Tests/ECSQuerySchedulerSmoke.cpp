@@ -24,7 +24,17 @@ int main() {
 	const HE::EntityUuid uuid = entity.GetUuid();
 	assert(id);
 	assert(uuid != HE::EntityUuid{});
+	assert(world.GetUuid(id) == uuid);
 	assert(world.FindEntity(uuid) == id);
+
+	int aliveEntityCount = 0;
+	world.ForEachEntity([&](HE::Entity aliveEntity) {
+		assert(aliveEntity.IsValid());
+		assert(aliveEntity.GetId() == id);
+		assert(aliveEntity.GetUuid() == uuid);
+		++aliveEntityCount;
+	});
+	assert(aliveEntityCount == 1);
 
 	world.AddComponent<QueryPosition>(id, QueryPosition{1.0f});
 	world.AddComponent<QueryVelocity>(id, QueryVelocity{2.0f});

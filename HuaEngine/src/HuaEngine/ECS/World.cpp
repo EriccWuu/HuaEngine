@@ -4,7 +4,7 @@
 namespace HE {
 	namespace Detail {
 		EntityUuid GetWorldEntityUuid(const World* world, EntityId id) {
-			return world != nullptr ? world->GetEntityUuid(id) : EntityUuid{};
+			return world != nullptr ? world->GetUuid(id) : EntityUuid{};
 		}
 
 		std::string GetWorldEntityName(const World* world, EntityId id) {
@@ -80,7 +80,7 @@ namespace HE {
 		return iterator->second;
 	}
 
-	EntityUuid World::GetEntityUuid(EntityId id) const {
+	EntityUuid World::GetUuid(EntityId id) const {
 		if (!IsAlive(id)) {
 			return {};
 		}

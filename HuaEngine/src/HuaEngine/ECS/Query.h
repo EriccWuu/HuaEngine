@@ -28,16 +28,16 @@ namespace HE {
 				return;
 			}
 
-			for (auto& [entityId, component] : primaryStorage->Components) {
-				(void)component;
-				if (!m_World->IsAlive(entityId)) {
-					continue;
+			m_World->ForEachEntity([&](auto entity) {
+				const EntityId entityId = entity.GetId();
+				if (primaryStorage->Components.find(entityId) == primaryStorage->Components.end()) {
+					return;
 				}
 
 				if (((m_World->template TryGetComponent<typename QueryTermTraits<Terms>::ComponentType>(entityId) != nullptr) && ...)) {
 					std::invoke(std::forward<Callback>(callback), entityId, GetArgument<Terms>(entityId)...);
 				}
-			}
+			});
 		}
 
 	private:
