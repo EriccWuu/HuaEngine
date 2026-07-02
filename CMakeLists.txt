@@ -124,6 +124,27 @@ function(copy_headless_host_to_smoke target_name)
     )
 endfunction()
 
+add_executable(ECSCoreSmoke Tests/ECSCoreSmoke.cpp)
+target_include_directories(ECSCoreSmoke PRIVATE
+    ${CMAKE_SOURCE_DIR}/HuaEngine/src
+    ${SPDLOG_INCLUDE_DIR}
+    ${GLM_INCLUDE_DIR}
+    ${IMGUI_INCLUDE_DIR}
+    ${STB_IMAGE_INCLUDE_DIR}
+    ${ENTT_INCLUDE_DIR}
+)
+target_link_libraries(ECSCoreSmoke PRIVATE HuaEngine)
+if(WIN32)
+    target_compile_definitions(ECSCoreSmoke PRIVATE GLFW_INCLUDE_NONE)
+    if(MSVC)
+        set_target_properties(ECSCoreSmoke PROPERTIES
+            MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>"
+        )
+        target_compile_options(ECSCoreSmoke PRIVATE /utf-8)
+    endif()
+endif()
+configure_smoke_target(ECSCoreSmoke)
+
 add_executable(ProjectServiceSmoke Tests/ProjectServiceSmoke.cpp)
 target_include_directories(ProjectServiceSmoke PRIVATE
     ${CMAKE_SOURCE_DIR}/HuaEngine/src
@@ -439,6 +460,7 @@ set_property(TARGET ImGui PROPERTY FOLDER "Dependencies")
 set_property(TARGET HuaEngineHeadlessCore PROPERTY FOLDER "Hosts")
 set_property(TARGET HuaEngineHeadless PROPERTY FOLDER "Hosts")
 set_property(TARGET ProjectHub PROPERTY FOLDER "Hosts")
+set_property(TARGET ECSCoreSmoke PROPERTY FOLDER "Tests")
 set_property(TARGET ProjectServiceSmoke PROPERTY FOLDER "Tests")
 set_property(TARGET SceneServiceSmoke PROPERTY FOLDER "Tests")
 set_property(TARGET AssetServiceSmoke PROPERTY FOLDER "Tests")
