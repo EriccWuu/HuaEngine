@@ -35,7 +35,7 @@ namespace HE {
 				}
 
 				if (((m_World->template TryGetComponent<typename QueryTermTraits<Terms>::ComponentType>(entityId) != nullptr) && ...)) {
-					std::invoke(std::forward<Callback>(callback), entityId, GetArgument<Terms>(entityId)...);
+					std::invoke(std::forward<Callback>(callback), entity, GetArgument<Terms>(entityId)...);
 				}
 			});
 		}

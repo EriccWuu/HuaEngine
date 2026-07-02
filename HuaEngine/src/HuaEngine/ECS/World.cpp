@@ -23,6 +23,19 @@ namespace HE {
 	}
 
 	Entity World::CreateEntity(const std::string& name) {
+		return CreateEntityWithUuid(GenerateUuid(), name);
+	}
+
+	Entity World::CreateEntityWithUuid(EntityUuid uuid, std::string_view name) {
+		if (uuid == EntityUuid{}) {
+			uuid = GenerateUuid();
+		}
+
+		Entity existingEntity = GetEntity(uuid);
+		if (existingEntity.IsValid()) {
+			return existingEntity;
+		}
+
 		uint32_t index = 0;
 
 		if (!m_FreeIndices.empty()) {
@@ -32,22 +45,26 @@ namespace HE {
 			EntityRecord& record = m_Records[index];
 			++record.Generation;
 			record.Alive = true;
-			record.Uuid = GenerateUuid();
-			record.Name = name.empty() ? "Entity" : name;
+			record.Uuid = uuid;
+			record.Name = name.empty() ? "Entity" : std::string(name);
 		}
 		else {
 			index = static_cast<uint32_t>(m_Records.size());
 			EntityRecord record;
 			record.Generation = 1;
 			record.Alive = true;
-			record.Uuid = GenerateUuid();
-			record.Name = name.empty() ? "Entity" : name;
+			record.Uuid = uuid;
+			record.Name = name.empty() ? "Entity" : std::string(name);
 			m_Records.push_back(std::move(record));
 		}
 
 		const EntityId id{index, m_Records[index].Generation};
 		m_UuidToEntity[m_Records[index].Uuid] = id;
 		++m_EntityCount;
+
+		if (uuid.High == 0 && uuid.Low >= m_NextUuid) {
+			m_NextUuid = uuid.Low + 1;
+		}
 
 		return Entity(id, this);
 	}
@@ -78,6 +95,18 @@ namespace HE {
 		}
 
 		return iterator->second;
+	}
+
+	Entity World::GetEntity(EntityId id) {
+		if (!IsAlive(id)) {
+			return {};
+		}
+
+		return Entity(id, this);
+	}
+
+	Entity World::GetEntity(EntityUuid uuid) {
+		return GetEntity(FindEntity(uuid));
 	}
 
 	EntityUuid World::GetUuid(EntityId id) const {

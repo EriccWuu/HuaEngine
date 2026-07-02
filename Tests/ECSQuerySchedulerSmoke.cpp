@@ -27,14 +27,25 @@ int main() {
 	assert(world.GetUuid(id) == uuid);
 	assert(world.FindEntity(uuid) == id);
 
+	const HE::EntityUuid explicitUuid{0x1111222233334444ULL, 0x5555666677778888ULL};
+	auto explicitEntity = world.CreateEntityWithUuid(explicitUuid, "Explicit");
+	assert(explicitEntity.IsValid());
+	assert(world.GetEntity(explicitUuid).GetId() == explicitEntity.GetId());
+	assert(world.GetEntity(explicitEntity.GetId()).GetUuid() == explicitUuid);
+
 	int aliveEntityCount = 0;
 	world.ForEachEntity([&](HE::Entity aliveEntity) {
 		assert(aliveEntity.IsValid());
-		assert(aliveEntity.GetId() == id);
-		assert(aliveEntity.GetUuid() == uuid);
 		++aliveEntityCount;
 	});
-	assert(aliveEntityCount == 1);
+	assert(aliveEntityCount == 2);
+
+	entity.AddComponent<QueryPosition>(QueryPosition{4.0f});
+	assert(entity.HasComponent<QueryPosition>());
+	assert(entity.GetComponent<QueryPosition>().X == 4.0f);
+	assert(entity.TryGetComponent<QueryPosition>() != nullptr);
+	entity.RemoveComponent<QueryPosition>();
+	assert(!entity.HasComponent<QueryPosition>());
 
 	world.AddComponent<QueryPosition>(id, QueryPosition{1.0f});
 	world.AddComponent<QueryVelocity>(id, QueryVelocity{2.0f});
@@ -44,8 +55,8 @@ int main() {
 	assert(position->X == 1.0f);
 
 	world.Query<QueryPosition, HE::Read<QueryVelocity>>().ForEach(
-		[](HE::EntityId entityId, QueryPosition& pos, const QueryVelocity& vel) {
-			assert(entityId);
+		[&](HE::Entity found, QueryPosition& pos, const QueryVelocity& vel) {
+			assert(found.GetId() == id);
 			pos.X += vel.X;
 		});
 
@@ -56,6 +67,7 @@ int main() {
 	world.DestroyEntity(id);
 	assert(!world.IsAlive(id));
 	assert(world.TryGetComponent<QueryPosition>(id) == nullptr);
+	world.DestroyEntity(explicitEntity.GetId());
 	assert(world.GetEntityCount() == 0);
 
 	std::cout << "ECSQuerySchedulerSmoke passed" << std::endl;

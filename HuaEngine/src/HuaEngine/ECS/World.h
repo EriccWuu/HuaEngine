@@ -4,6 +4,7 @@
 #include <cstdint>
 #include <memory>
 #include <string>
+#include <string_view>
 #include <unordered_map>
 #include <utility>
 #include <vector>
@@ -21,11 +22,14 @@ namespace HE {
 		World() = default;
 
 		Entity CreateEntity(const std::string& name = "Entity");
+		Entity CreateEntityWithUuid(EntityUuid uuid, std::string_view name);
 		void DestroyEntity(EntityId id);
 
 		[[nodiscard]] bool IsAlive(EntityId id) const;
 		[[nodiscard]] size_t GetEntityCount() const { return m_EntityCount; }
 		[[nodiscard]] EntityId FindEntity(EntityUuid uuid) const;
+		[[nodiscard]] Entity GetEntity(EntityId id);
+		[[nodiscard]] Entity GetEntity(EntityUuid uuid);
 		[[nodiscard]] EntityUuid GetUuid(EntityId id) const;
 		[[nodiscard]] EntityUuid GetEntityUuid(EntityId id) const { return GetUuid(id); }
 		[[nodiscard]] std::string GetEntityName(EntityId id) const;
@@ -191,13 +195,79 @@ namespace HE {
 		return HE::Query<Terms...>(*this);
 	}
 
+	template<typename T, typename... Args>
+	T& Entity::AddComponent(Args&&... args) {
+		if (m_World != nullptr) {
+			return m_World->AddComponent<T>(m_Id, std::forward<Args>(args)...);
+		}
+
+		T& component = m_EntityManager->m_Registry.template emplace<T>(m_EntityHandle, std::forward<Args>(args)...);
+		return component;
+	}
+
+	template<typename T>
+	T& Entity::GetComponent() {
+		if (m_World != nullptr) {
+			return *m_World->TryGetComponent<T>(m_Id);
+		}
+
+		T& component = m_EntityManager->m_Registry.template get<T>(m_EntityHandle);
+		return component;
+	}
+
+	template<typename T>
+	const T& Entity::GetComponent() const {
+		if (m_World != nullptr) {
+			return *m_World->TryGetComponent<T>(m_Id);
+		}
+
+		const T& component = m_EntityManager->m_Registry.template get<T>(m_EntityHandle);
+		return component;
+	}
+
+	template<typename T>
+	bool Entity::HasComponent() const {
+		if (m_World != nullptr) {
+			return m_World->HasComponent<T>(m_Id);
+		}
+
+		return m_EntityManager != nullptr
+			&& m_EntityManager->m_Registry.template all_of<T>(m_EntityHandle);
+	}
+
+	template<typename T>
+	void Entity::RemoveComponent() {
+		if (m_World != nullptr) {
+			m_World->RemoveComponent<T>(m_Id);
+			return;
+		}
+
+		m_EntityManager->m_Registry.template remove<T>(m_EntityHandle);
+	}
+
 	template<typename T>
 	T* Entity::TryGetComponent() {
-		return m_World != nullptr ? m_World->TryGetComponent<T>(m_Id) : nullptr;
+		if (m_World != nullptr) {
+			return m_World->TryGetComponent<T>(m_Id);
+		}
+
+		if (m_EntityManager == nullptr || !m_EntityManager->m_Registry.template all_of<T>(m_EntityHandle)) {
+			return nullptr;
+		}
+
+		return &m_EntityManager->m_Registry.template get<T>(m_EntityHandle);
 	}
 
 	template<typename T>
 	const T* Entity::TryGetComponent() const {
-		return m_World != nullptr ? m_World->TryGetComponent<T>(m_Id) : nullptr;
+		if (m_World != nullptr) {
+			return m_World->TryGetComponent<T>(m_Id);
+		}
+
+		if (m_EntityManager == nullptr || !m_EntityManager->m_Registry.template all_of<T>(m_EntityHandle)) {
+			return nullptr;
+		}
+
+		return &m_EntityManager->m_Registry.template get<T>(m_EntityHandle);
 	}
 }

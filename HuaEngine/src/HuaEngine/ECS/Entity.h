@@ -29,32 +29,19 @@ namespace HE {
 			: m_Id(id), m_World(world) {}
 
 		template<typename T, typename... Args>
-		T& AddComponent(Args&&... args) {
-			T& component = m_EntityManager->m_Registry.template emplace<T>(m_EntityHandle, std::forward<Args>(args)...);
-			return component;
-		}
+		T& AddComponent(Args&&... args);
 
 		template<typename T>
-		T& GetComponent() {
-			T& component = m_EntityManager->m_Registry.template get<T>(m_EntityHandle);
-			return component;
-		}
+		T& GetComponent();
 
 		template<typename T>
-		const T& GetComponent() const {
-			const T& component = m_EntityManager->m_Registry.template get<T>(m_EntityHandle);
-			return component;
-		}
+		const T& GetComponent() const;
 
 		template<typename T>
-		bool HasComponent() const {
-			return m_EntityManager->m_Registry.template all_of<T>(m_EntityHandle);
-		}
+		bool HasComponent() const;
 
 		template<typename T>
-		void RemoveComponent() {
-			m_EntityManager->m_Registry.template remove<T>(m_EntityHandle);
-		}
+		void RemoveComponent();
 
 		template<typename T>
 		T* TryGetComponent();
@@ -132,3 +119,5 @@ namespace HE {
 		friend class World;
 	};
 }
+
+#include "HuaEngine/ECS/World.h"
