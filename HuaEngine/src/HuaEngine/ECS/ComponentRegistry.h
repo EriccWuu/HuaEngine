@@ -2,7 +2,6 @@
 
 #include <cstddef>
 #include <string>
-#include <string_view>
 #include <unordered_map>
 #include <utility>
 #include <vector>
@@ -71,7 +70,7 @@ namespace HE {
 		}
 
 		[[nodiscard]] const ComponentMetadata* FindByTypeId(ComponentTypeId typeId) const;
-		[[nodiscard]] const ComponentMetadata* FindByName(std::string_view typeName) const;
+		[[nodiscard]] const ComponentMetadata* FindByName(const std::string& typeName) const;
 		[[nodiscard]] const std::vector<ComponentMetadata>& GetAll() const;
 
 	private:
@@ -89,8 +88,8 @@ namespace HE {
 		return &m_Components[it->second];
 	}
 
-	inline const ComponentMetadata* ComponentRegistry::FindByName(std::string_view typeName) const {
-		const auto it = m_TypeNameToIndex.find(std::string(typeName));
+	inline const ComponentMetadata* ComponentRegistry::FindByName(const std::string& typeName) const {
+		const auto it = m_TypeNameToIndex.find(typeName);
 		if (it == m_TypeNameToIndex.end()) {
 			return nullptr;
 		}
