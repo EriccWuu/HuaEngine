@@ -26,15 +26,18 @@ namespace {
 			auto& scriptComponent = view.template get<HE::NativeScriptComponent>(entityHandle);
 			callback(entity, scriptComponent);
 		}
+
+		auto query = scene.GetWorld().Query<HE::NativeScriptComponent>();
+		query.ForEach([&](HE::Entity entity, HE::NativeScriptComponent& scriptComponent) {
+			callback(entity, scriptComponent);
+		});
 	}
 
 	HE::ScriptStatusReport CollectScriptStatus(HE::Scene& scene) {
 		HE::ScriptStatusReport report;
-		auto view = scene.View<HE::NativeScriptComponent>();
-		for (auto entityHandle : view) {
+		ForEachScriptComponent(scene, [&](HE::Entity, HE::NativeScriptComponent& scriptComponent) {
 			++report.TotalScriptComponents;
 
-			auto& scriptComponent = view.template get<HE::NativeScriptComponent>(entityHandle);
 			if (scriptComponent.Enabled) {
 				++report.EnabledScriptComponents;
 			}
@@ -47,7 +50,7 @@ namespace {
 			if (scriptComponent.Enabled && !scriptComponent.IsBound()) {
 				++report.MissingBindingComponents;
 			}
-		}
+		});
 
 		return report;
 	}

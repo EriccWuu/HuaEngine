@@ -72,12 +72,40 @@ namespace {
 			++DestroyCount;
 		}
 	};
+
+	struct WorldOnlyScript final : HE::ScriptableEntity {
+		static inline int CreateCount = 0;
+		static inline int UpdateCount = 0;
+		static inline int DestroyCount = 0;
+
+		static void Reset() {
+			CreateCount = 0;
+			UpdateCount = 0;
+			DestroyCount = 0;
+		}
+
+	protected:
+		void OnCreate() override {
+			++CreateCount;
+			GetComponent<HE::TransformComponent>().Position.x += 5.0f;
+		}
+
+		void OnUpdate() override {
+			++UpdateCount;
+			GetComponent<HE::TransformComponent>().Position.x += 2.0f;
+		}
+
+		void OnDestroy() override {
+			++DestroyCount;
+		}
+	};
 }
 
 int main() {
 	HE::Log::Init();
 	CountingScript::Reset();
 	ReplacementScript::Reset();
+	WorldOnlyScript::Reset();
 
 	HE::Scene scene("ScriptSmokeScene");
 	HE::ScriptService scriptService;
@@ -142,6 +170,32 @@ int main() {
 	Require(shutdownResult.RequiresManualIntervention(), "Expected shutdown to surface the remaining missing binding issue");
 	Require(activeReport.ActiveScriptInstances == 0, "Expected shutdown report to reflect zero active script instances");
 	RequirePayloadValue(shutdownResult, "active_script_instances", "0");
+
+	HE::Scene worldScene("WorldScriptScene");
+	auto worldEntity = worldScene.GetWorld().CreateEntity("World Script Entity");
+	worldEntity.AddComponent<HE::TransformComponent>();
+	auto worldBindResult = scriptService.BindNativeScript<WorldOnlyScript>(worldEntity, "WorldOnlyScript");
+	Require(worldBindResult.Succeeded(), "Expected script.bind to succeed for a world entity");
+
+	HE::ScriptStatusReport worldInitialReport;
+	auto worldInitialStatus = scriptService.CheckSceneScripts(worldScene, &worldInitialReport);
+	Require(worldInitialStatus.Succeeded(), "Expected world script.status to succeed for a bound script component");
+	Require(worldInitialReport.TotalScriptComponents == 1, "Expected one world script component before runtime starts");
+
+	auto worldInitializeResult = scriptService.InitializeSceneScripts(worldScene, &worldInitialReport);
+	Require(worldInitializeResult.Succeeded(), "Expected world script.initialize to succeed");
+	Require(WorldOnlyScript::CreateCount == 1, "Expected world script initialization to create one instance");
+	Require(worldEntity.GetComponent<HE::TransformComponent>().Position.x == 5.0f, "Expected world script OnCreate to mutate Transform");
+
+	HE::ScriptStatusReport worldUpdateReport;
+	auto worldUpdateResult = scriptService.UpdateSceneScripts(worldScene, &worldUpdateReport);
+	Require(worldUpdateResult.Succeeded(), "Expected world script.update to succeed");
+	Require(WorldOnlyScript::UpdateCount == 1, "Expected world script.update to run once");
+	Require(worldEntity.GetComponent<HE::TransformComponent>().Position.x == 7.0f, "Expected world script OnUpdate to mutate Transform");
+
+	auto worldShutdownResult = scriptService.ShutdownSceneScripts(worldScene, &worldUpdateReport);
+	Require(worldShutdownResult.Succeeded(), "Expected world script.shutdown to succeed");
+	Require(WorldOnlyScript::DestroyCount == 1, "Expected world script shutdown to destroy the instance");
 
 	std::cout << "ScriptServiceSmoke passed" << std::endl;
 	return 0;

@@ -1,7 +1,7 @@
 #pragma once
 
 #include "HuaEngine/Core/Core.h"
-#include "HuaEngine/ECS/Syetem.h"
+#include "HuaEngine/ECS/System.h"
 #include "HuaEngine/Scene/Scene.h"
 #include "ScriptService.h"
 
@@ -11,6 +11,8 @@ namespace HE {
 		ScriptRuntimeSystem(Scene& scene, ScriptService& scriptService)
 			: m_Scene(&scene), m_ScriptService(&scriptService) {}
 
+		SystemDescriptor Describe() const override;
+		void Update(SystemContext& context) override;
 		void Update() override;
 
 	private:
