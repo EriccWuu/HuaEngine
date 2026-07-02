@@ -2,6 +2,7 @@
 
 #include <typeindex>
 #include "HuaEngine/ECS/Entity.h"
+#include "HuaEngine/ECS/World.h"
 #include "HuaEngine/ECS/Components.h"
 #include "Module/Rendering/RenderingComponent.h"
 #include "ComponentEditor.h"
@@ -15,7 +16,7 @@ namespace HE {
             std::function<bool(std::type_index)> CanRemove;
         };
 
-        using DrawFunction = std::function<bool(entt::registry&, entt::entity, const DrawOptions&)>;
+        using DrawFunction = std::function<bool(World&, EntityId, const DrawOptions&)>;
 
         struct ComponentInfo {
             std::string displayName;
@@ -26,10 +27,9 @@ namespace HE {
         void Register(const std::string& displayName) {
             ComponentInfo info;
             info.displayName = displayName;
-            info.drawFunc = [displayName](entt::registry& reg, entt::entity ent, const DrawOptions& options) {
-                if (reg.all_of<T>(ent)) {
+            info.drawFunc = [displayName](World& world, EntityId entityId, const DrawOptions& options) {
+                if (auto* component = world.TryGetComponent<T>(entityId)) {
                     const std::type_index componentType(typeid(T));
-                    T& component = reg.get<T>(ent);
                     const bool open = ImGui::CollapsingHeader(displayName.c_str(), ImGuiTreeNodeFlags_DefaultOpen);
                     if (options.RequestRemove && ImGui::BeginPopupContextItem((displayName + "ContextMenu").c_str())) {
                         const bool canRemove = options.CanRemove ? options.CanRemove(componentType) : false;
@@ -42,7 +42,7 @@ namespace HE {
 
                     if (open) {
                         ImGui::Indent();
-                        const bool changed = DrawComponentEditor(component);
+                        const bool changed = DrawComponentEditor(*component);
                         ImGui::Unindent();
                         return changed;
                     }
@@ -56,11 +56,11 @@ namespace HE {
             registeredTypes.push_back(index);
         }
 
-        bool DrawComponents(entt::registry& registry, entt::entity entity, const DrawOptions& options = {}) const {
+        bool DrawComponents(World& world, EntityId entityId, const DrawOptions& options = {}) const {
             bool changed = false;
             for (const auto& type : registeredTypes) {
                 const auto& info = components.at(type);
-                changed |= info.drawFunc(registry, entity, options);
+                changed |= info.drawFunc(world, entityId, options);
             }
 
             return changed;

@@ -116,8 +116,8 @@ namespace HE {
                 }
             }
 
-            outEntity = Entity(static_cast<entt::entity>(entityId), &scene->GetEntityManager());
-            return ResultEnvelope::Success("scene.entity.restore", snapshot.Name, "Scene entity restored from snapshot");
+            outEntity = scene->GetWorld().GetEntityByIndex(entityId);
+			return ResultEnvelope::Success("scene.entity.restore", snapshot.Name, "Scene entity restored from snapshot");
         }
 
         template<typename T>
@@ -151,7 +151,8 @@ namespace HE {
                     return result;
                 }
 
-                m_RuntimeEntity = Entity(static_cast<entt::entity>(entityId), &scene->GetEntityManager());
+                m_RuntimeEntity = scene->GetWorld().GetEntityByIndex(entityId);
+                m_RuntimeEntityUuid = m_RuntimeEntity.GetUuid();
                 Selection::SetSelection(m_RuntimeEntity);
                 result.Operation = "editor.entity.create";
                 result.Target = m_RuntimeEntity.GetName();
@@ -180,9 +181,10 @@ namespace HE {
                     return result;
                 }
 
-                Selection::RemoveFromSelection(m_RuntimeEntity);
+                Selection::SetSelectedEntity({});
                 Selection::RemoveInvalidSelections();
                 m_RuntimeEntity = {};
+                m_RuntimeEntityUuid = {};
                 result.Operation = "editor.entity.create.undo";
                 result.Target = m_EntityName;
                 result.Summary = "Removed the created entity";
@@ -192,6 +194,7 @@ namespace HE {
         private:
             std::string m_EntityName;
             Entity m_RuntimeEntity;
+            EntityUuid m_RuntimeEntityUuid;
         };
 
         class DeleteEntitiesCommand final : public IEditorCommand {

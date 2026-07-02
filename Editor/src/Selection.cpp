@@ -4,18 +4,34 @@
 #include <algorithm>
 
 namespace HE {
-	std::vector<Entity> Selection::m_Selections;
+	std::vector<EntityUuid> Selection::m_SelectedEntityUuids;
+	std::vector<Entity> Selection::m_ResolvedSelections;
 	Entity Selection::m_EmptySelection;
 
 	void Selection::SetSelection(const Entity& selection) {
-		m_Selections.clear();
-		if (selection.IsValid()) {
-			m_Selections.push_back(selection);
+		SetSelectedEntity(selection.IsValid() ? selection.GetUuid() : EntityUuid{});
+	}
+
+	void Selection::SetSelectedEntity(EntityUuid uuid) {
+		m_SelectedEntityUuids.clear();
+		if (uuid != EntityUuid{}) {
+			m_SelectedEntityUuids.push_back(uuid);
 		}
 	}
 
 	void Selection::SetSelections(std::vector<Entity> selections) {
-		m_Selections = std::move(selections);
+		m_SelectedEntityUuids.clear();
+		m_SelectedEntityUuids.reserve(selections.size());
+		for (const Entity& selection : selections) {
+			if (selection.IsValid()) {
+				m_SelectedEntityUuids.push_back(selection.GetUuid());
+			}
+		}
+		RemoveInvalidSelections();
+	}
+
+	void Selection::SetSelectedEntities(std::vector<EntityUuid> selections) {
+		m_SelectedEntityUuids = std::move(selections);
 		RemoveInvalidSelections();
 	}
 
@@ -24,7 +40,7 @@ namespace HE {
 			return;
 		}
 
-		m_Selections.push_back(selection);
+		m_SelectedEntityUuids.push_back(selection.GetUuid());
 	}
 
 	void Selection::ToggleSelection(const Entity& selection) {
@@ -37,68 +53,116 @@ namespace HE {
 			return;
 		}
 
-		m_Selections.push_back(selection);
+		m_SelectedEntityUuids.push_back(selection.GetUuid());
 	}
 
 	void Selection::RemoveFromSelection(const Entity& selection) {
-		m_Selections.erase(
+		const EntityUuid uuid = selection.GetUuid();
+		m_SelectedEntityUuids.erase(
 			std::remove_if(
-				m_Selections.begin(),
-				m_Selections.end(),
-				[&selection](const Entity& candidate) {
-					return candidate == selection;
+				m_SelectedEntityUuids.begin(),
+				m_SelectedEntityUuids.end(),
+				[uuid](EntityUuid candidate) {
+					return candidate == uuid;
 				}),
-			m_Selections.end());
+			m_SelectedEntityUuids.end());
 	}
 
 	Entity& Selection::GetSelection() {
 		RemoveInvalidSelections();
-		return m_Selections.empty() ? m_EmptySelection : m_Selections.front();
+		return m_EmptySelection;
 	}
 
 	const std::vector<Entity>& Selection::GetSelections() {
 		RemoveInvalidSelections();
-		return m_Selections;
+		m_ResolvedSelections.clear();
+		return m_ResolvedSelections;
+	}
+
+	Entity Selection::ResolvePrimarySelection(World& world) {
+		RemoveInvalidSelections(world);
+		return m_SelectedEntityUuids.empty() ? Entity{} : world.GetEntity(m_SelectedEntityUuids.front());
+	}
+
+	const std::vector<Entity>& Selection::ResolveSelections(World& world) {
+		RemoveInvalidSelections(world);
+		m_ResolvedSelections.clear();
+		m_ResolvedSelections.reserve(m_SelectedEntityUuids.size());
+		for (EntityUuid uuid : m_SelectedEntityUuids) {
+			Entity entity = world.GetEntity(uuid);
+			if (entity.IsValid()) {
+				m_ResolvedSelections.push_back(entity);
+			}
+		}
+		return m_ResolvedSelections;
+	}
+
+	EntityUuid Selection::GetSelectedEntityUuid() {
+		RemoveInvalidSelections();
+		return m_SelectedEntityUuids.empty() ? EntityUuid{} : m_SelectedEntityUuids.front();
+	}
+
+	const std::vector<EntityUuid>& Selection::GetSelectedEntityUuids() {
+		RemoveInvalidSelections();
+		return m_SelectedEntityUuids;
 	}
 
 	bool Selection::HasSelection() {
 		RemoveInvalidSelections();
-		return !m_Selections.empty();
+		return !m_SelectedEntityUuids.empty();
 	}
 
 	bool Selection::HasSingleSelection() {
 		RemoveInvalidSelections();
-		return m_Selections.size() == 1;
+		return m_SelectedEntityUuids.size() == 1;
 	}
 
 	bool Selection::IsSelected(const Entity& selection) {
 		RemoveInvalidSelections();
+		if (!selection.IsValid()) {
+			return false;
+		}
+
+		const EntityUuid uuid = selection.GetUuid();
 		return std::any_of(
-			m_Selections.begin(),
-			m_Selections.end(),
-			[&selection](const Entity& candidate) {
-				return candidate == selection;
+			m_SelectedEntityUuids.begin(),
+			m_SelectedEntityUuids.end(),
+			[uuid](EntityUuid candidate) {
+				return candidate == uuid;
 			});
 	}
 
 	size_t Selection::Count() {
 		RemoveInvalidSelections();
-		return m_Selections.size();
+		return m_SelectedEntityUuids.size();
 	}
 
 	void Selection::ClearSelection() {
-		m_Selections.clear();
+		m_SelectedEntityUuids.clear();
+		m_ResolvedSelections.clear();
 		m_EmptySelection = {};
 	}
 
 	void Selection::RemoveInvalidSelections() {
-		m_Selections.erase(
+		m_SelectedEntityUuids.erase(
 			std::remove_if(
-				m_Selections.begin(),
-				m_Selections.end(),
-				[](const Entity& selection) {
-					return !selection.IsValid();
+				m_SelectedEntityUuids.begin(),
+				m_SelectedEntityUuids.end(),
+				[](EntityUuid selection) {
+					return selection == EntityUuid{};
 				}),
-			m_Selections.end());
+			m_SelectedEntityUuids.end());
+	}
+
+	void Selection::RemoveInvalidSelections(World& world) {
+		RemoveInvalidSelections();
+		m_SelectedEntityUuids.erase(
+			std::remove_if(
+				m_SelectedEntityUuids.begin(),
+				m_SelectedEntityUuids.end(),
+				[&world](EntityUuid selection) {
+					return !world.GetEntity(selection).IsValid();
+				}),
+			m_SelectedEntityUuids.end());
 	}
 }

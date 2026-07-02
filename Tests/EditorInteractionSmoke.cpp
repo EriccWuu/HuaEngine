@@ -39,13 +39,7 @@ namespace {
     };
 
     size_t CountEntities(HE::Scene& scene) {
-        auto& registry = scene.GetEntityManager().GetRegistry();
-        size_t count = 0;
-        for (auto entityHandle : registry.view<HE::TransformComponent>()) {
-            (void)entityHandle;
-            ++count;
-        }
-        return count;
+        return scene.GetWorld().GetEntityCount();
     }
 }
 
@@ -145,10 +139,11 @@ int main() {
     auto createEntityResult = interactionHost.ExecuteCommand(HE::CreateCreateEntityCommand("Smoke Entity 1"));
     Require(createEntityResult.Succeeded(), "Expected create-entity command to succeed");
     Require(HE::Selection::HasSingleSelection(), "Expected create-entity command to select the new entity");
+    Require(HE::Selection::GetSelectedEntityUuid() != HE::EntityUuid{}, "Expected create-entity command to store the selection uuid");
     Require(sceneDocument.Dirty, "Expected command execution to mark the scene document dirty");
     Require(CountEntities(*scene) == 1, "Expected exactly one entity after the first create command");
 
-    auto firstEntity = HE::Selection::GetPrimarySelection();
+    auto firstEntity = HE::Selection::ResolvePrimarySelection(scene->GetWorld());
     auto addCameraResult = interactionHost.ExecuteCommand(HE::CreateAddComponentCommand(HE::EditorInspectableComponent::Camera, firstEntity));
     Require(addCameraResult.Succeeded(), "Expected add-camera command to succeed");
     Require(firstEntity.HasComponent<HE::Rendering::CameraComponent>(), "Expected CameraComponent to exist after add-camera");
@@ -163,11 +158,11 @@ int main() {
 
     auto createSecondEntityResult = interactionHost.ExecuteCommand(HE::CreateCreateEntityCommand("Smoke Entity 2"));
     Require(createSecondEntityResult.Succeeded(), "Expected second create-entity command to succeed");
-    auto secondEntity = HE::Selection::GetPrimarySelection();
+    auto secondEntity = HE::Selection::ResolvePrimarySelection(scene->GetWorld());
     Require(CountEntities(*scene) == 2, "Expected two entities after the second create command");
 
     HE::Selection::SetSelections({ firstEntity, secondEntity });
-    auto deleteEntitiesResult = interactionHost.ExecuteCommand(HE::CreateDeleteEntitiesCommand(HE::Selection::GetSelections()));
+    auto deleteEntitiesResult = interactionHost.ExecuteCommand(HE::CreateDeleteEntitiesCommand(HE::Selection::ResolveSelections(scene->GetWorld())));
     Require(deleteEntitiesResult.Succeeded(), "Expected delete-selected command to succeed");
     Require(!HE::Selection::HasSelection(), "Expected delete-selected command to clear the selection");
     Require(CountEntities(*scene) == 0, "Expected delete-selected command to remove both entities");

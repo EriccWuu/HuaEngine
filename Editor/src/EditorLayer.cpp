@@ -363,12 +363,7 @@ namespace HE {
         summary.ScenePath = m_SceneDocument.ScenePath.generic_string();
         summary.Source = ToString(m_SceneDocument.Source);
         if (m_SceneDocument.SceneRef) {
-            auto& registry = m_SceneDocument.SceneRef->GetEntityManager().GetRegistry();
-            summary.EntityCount = 0;
-            for (auto entity : registry.view<TransformComponent>()) {
-                (void)entity;
-                ++summary.EntityCount;
-            }
+            summary.EntityCount = static_cast<uint32_t>(m_SceneDocument.SceneRef->GetWorld().GetEntityCount());
         }
         m_WorkbenchState.SetSceneDocumentSummary(summary);
     }
@@ -420,9 +415,12 @@ namespace HE {
                 .Shortcut = "",
                 .Tooltip = "Remove a component from the selected entity",
                 .Enabled = true,
-                .IsEnabled = [type = descriptor.Type]() {
-                    return Selection::HasSingleSelection()
-                        && CanRemoveInspectableComponent(type, Selection::GetPrimarySelection());
+                .IsEnabled = [this, type = descriptor.Type]() {
+                    if (!m_SceneDocument.SceneRef || !Selection::HasSingleSelection()) {
+                        return false;
+                    }
+
+                    return CanRemoveInspectableComponent(type, Selection::ResolvePrimarySelection(m_SceneDocument.SceneRef->GetWorld()));
                 },
                 .Trigger = [this, type = descriptor.Type]() { RemoveComponentFromPrimarySelection(type); }
             });
@@ -804,39 +802,37 @@ namespace HE {
         }
 
         MeshManager::Instance().LoadDefaultMeshes();
-        auto& registry = scene->GetEntityManager().GetRegistry();
-
-        auto meshView = registry.view<Rendering::MeshComponent>();
-        for (auto entity : meshView) {
-            auto& meshComponent = meshView.get<Rendering::MeshComponent>(entity);
+        bool meshesAvailable = true;
+        scene->GetWorld().Query<Rendering::MeshComponent>().ForEach([&](Entity, Rendering::MeshComponent& meshComponent) {
             if (!EnsureMeshAvailable(meshComponent.MeshAssetName)) {
-                return false;
+                meshesAvailable = false;
+                return;
             }
-        }
+        });
 
-        auto materialView = registry.view<Rendering::MaterialComponent>();
-        for (auto entity : materialView) {
-            auto& materialComponent = materialView.get<Rendering::MaterialComponent>(entity);
-            if (!materialComponent.MaterialInstance) {
-                continue;
-            }
+        bool materialsAvailable = true;
+        scene->GetWorld().Query<Rendering::MaterialComponent>().ForEach([&](Entity, Rendering::MaterialComponent& materialComponent) {
+			if (!materialComponent.MaterialInstance) {
+				return;
+			}
 
-            auto baseMaterial = materialComponent.MaterialInstance->GetBaseMaterial();
-            const std::string baseMaterialName = baseMaterial ? baseMaterial->GetName() : std::string();
-            if (baseMaterialName.empty()) {
-                continue;
-            }
+			auto baseMaterial = materialComponent.MaterialInstance->GetBaseMaterial();
+			const std::string baseMaterialName = baseMaterial ? baseMaterial->GetName() : std::string();
+			if (baseMaterialName.empty()) {
+				return;
+			}
 
-            if (!EnsureMaterialAvailable(baseMaterialName)) {
-                return false;
-            }
+			if (!EnsureMaterialAvailable(baseMaterialName)) {
+				materialsAvailable = false;
+				return;
+			}
 
-            if (Rendering::MaterialLibrary::Instance().HasMaterial(baseMaterialName)) {
-                materialComponent.MaterialInstance->SetBaseMaterial(Rendering::MaterialLibrary::Instance().GetMaterial(baseMaterialName));
-            }
-        }
+			if (Rendering::MaterialLibrary::Instance().HasMaterial(baseMaterialName)) {
+				materialComponent.MaterialInstance->SetBaseMaterial(Rendering::MaterialLibrary::Instance().GetMaterial(baseMaterialName));
+			}
+        });
 
-        return true;
+        return meshesAvailable && materialsAvailable;
     }
 
     bool EditorLayer::BootstrapDemoScene() {
@@ -939,10 +935,11 @@ namespace HE {
         auto firstMaterialInstance = m_SandboxMaterial->CreateInstance();
         firstMaterialInstance->SetParameter("u_Color", glm::vec4(1.0f, 1.0f, 0.8f, 1.0f));
 
-        auto firstSquare = std::make_shared<Entity>(scene->GetEntityManager().CreateEntity());
-        firstSquare->AddComponent<MeshComponent>("Quad");
-        firstSquare->AddComponent<MaterialComponent>(firstMaterialInstance);
-        auto& firstTransform = firstSquare->GetComponent<TransformComponent>();
+        auto firstSquare = scene->GetWorld().CreateEntity("First Square");
+        firstSquare.AddComponent<TransformComponent>();
+        firstSquare.AddComponent<MeshComponent>("Quad");
+        firstSquare.AddComponent<MaterialComponent>(firstMaterialInstance);
+        auto& firstTransform = firstSquare.GetComponent<TransformComponent>();
         firstTransform.Position.z -= 3.0f;
         firstTransform.Position += glm::vec3{ 0.5f, 0.5f, 0.0f };
 
@@ -950,28 +947,31 @@ namespace HE {
         secondMaterialInstance->SetParameter("u_Color", glm::vec4(0.8f, 0.4f, 0.9f, 1.0f));
         secondMaterialInstance->SetParameter("u_TextureScale", glm::vec2(2.0f, 2.0f));
 
-        auto secondSquare = std::make_shared<Entity>(scene->GetEntityManager().CreateEntity());
-        secondSquare->AddComponent<MeshComponent>("CustomSquare");
-        secondSquare->AddComponent<MaterialComponent>(secondMaterialInstance);
-        auto& secondTransform = secondSquare->GetComponent<TransformComponent>();
+        auto secondSquare = scene->GetWorld().CreateEntity("Second Square");
+        secondSquare.AddComponent<TransformComponent>();
+        secondSquare.AddComponent<MeshComponent>("CustomSquare");
+        secondSquare.AddComponent<MaterialComponent>(secondMaterialInstance);
+        auto& secondTransform = secondSquare.GetComponent<TransformComponent>();
         secondTransform.Position.z -= 3.0f;
         secondTransform.Position -= glm::vec3{ 0.5f, 0.5f, 0.0f };
 
         auto sharedMaterialInstance = m_SandboxMaterial->CreateInstance();
         sharedMaterialInstance->SetParameter("u_Color", glm::vec4(0.8f, 0.0f, 0.9f, 1.0f));
 
-        auto cubeEntity = std::make_shared<Entity>(scene->GetEntityManager().CreateEntity());
-        cubeEntity->AddComponent<MeshComponent>("Cube");
-        cubeEntity->AddComponent<MaterialComponent>(sharedMaterialInstance);
-        auto& cubeTransform = cubeEntity->GetComponent<TransformComponent>();
+        auto cubeEntity = scene->GetWorld().CreateEntity("Cube");
+        cubeEntity.AddComponent<TransformComponent>();
+        cubeEntity.AddComponent<MeshComponent>("Cube");
+        cubeEntity.AddComponent<MaterialComponent>(sharedMaterialInstance);
+        auto& cubeTransform = cubeEntity.GetComponent<TransformComponent>();
         cubeTransform.Position.z = -3.0f;
         cubeTransform.Position += glm::vec3{ -1.5f, 0.0f, 0.0f };
         cubeTransform.Scale *= 0.5f;
 
-        auto sphereEntity = std::make_shared<Entity>(scene->GetEntityManager().CreateEntity());
-        sphereEntity->AddComponent<MeshComponent>("Sphere");
-        sphereEntity->AddComponent<MaterialComponent>(sharedMaterialInstance);
-        auto& sphereTransform = sphereEntity->GetComponent<TransformComponent>();
+        auto sphereEntity = scene->GetWorld().CreateEntity("Sphere");
+        sphereEntity.AddComponent<TransformComponent>();
+        sphereEntity.AddComponent<MeshComponent>("Sphere");
+        sphereEntity.AddComponent<MaterialComponent>(sharedMaterialInstance);
+        auto& sphereTransform = sphereEntity.GetComponent<TransformComponent>();
         sphereTransform.Position.z = -3.0f;
         sphereTransform.Position += glm::vec3{ 1.5f, 0.0f, 0.0f };
         sphereTransform.Scale *= 0.5f;
@@ -1205,18 +1205,15 @@ namespace HE {
             return "Entity";
         }
 
-        auto& registry = m_SceneDocument.SceneRef->GetEntityManager().GetRegistry();
         size_t suffix = 1;
         while (true) {
             const std::string candidate = "Entity " + std::to_string(suffix);
             bool exists = false;
-            for (auto entityHandle : registry.view<NameComponent>()) {
-                const auto& nameComponent = registry.get<NameComponent>(entityHandle);
-                if (nameComponent.Name == candidate) {
+            m_SceneDocument.SceneRef->GetWorld().ForEachEntity([&](Entity entity) {
+                if (entity.GetName() == candidate) {
                     exists = true;
-                    break;
                 }
-            }
+            });
 
             if (!exists) {
                 return candidate;
@@ -1231,27 +1228,27 @@ namespace HE {
     }
 
     void EditorLayer::DeleteSelectedEntities() {
-        if (!Selection::HasSelection()) {
+        if (!Selection::HasSelection() || !m_SceneDocument.SceneRef) {
             return;
         }
 
-        ExecuteEditorCommand(CreateDeleteEntitiesCommand(Selection::GetSelections()));
+        ExecuteEditorCommand(CreateDeleteEntitiesCommand(Selection::ResolveSelections(m_SceneDocument.SceneRef->GetWorld())));
     }
 
     void EditorLayer::AddComponentToPrimarySelection(EditorInspectableComponent type) {
-        if (!Selection::HasSingleSelection()) {
+        if (!Selection::HasSingleSelection() || !m_SceneDocument.SceneRef) {
             return;
         }
 
-        ExecuteEditorCommand(CreateAddComponentCommand(type, Selection::GetPrimarySelection()));
+        ExecuteEditorCommand(CreateAddComponentCommand(type, Selection::ResolvePrimarySelection(m_SceneDocument.SceneRef->GetWorld())));
     }
 
     void EditorLayer::RemoveComponentFromPrimarySelection(EditorInspectableComponent type) {
-        if (!Selection::HasSingleSelection()) {
+        if (!Selection::HasSingleSelection() || !m_SceneDocument.SceneRef) {
             return;
         }
 
-        ExecuteEditorCommand(CreateRemoveComponentCommand(type, Selection::GetPrimarySelection()));
+        ExecuteEditorCommand(CreateRemoveComponentCommand(type, Selection::ResolvePrimarySelection(m_SceneDocument.SceneRef->GetWorld())));
     }
 
     void EditorLayer::HandleGlobalShortcuts() {

@@ -5,6 +5,7 @@
 
 #include "Interaction/EditorInteractionHost.h"
 #include "Selection.h"
+#include "Workbench/SceneDocument.h"
 
 namespace HE {
     namespace {
@@ -73,7 +74,14 @@ namespace HE {
 		}
 		if (Selection::HasSelection()) {
             if (!Selection::HasSingleSelection()) {
-                const auto& selections = Selection::GetSelections();
+                if (!m_InteractionHost || !m_InteractionHost->GetSceneDocument() || !m_InteractionHost->GetSceneDocument()->SceneRef) {
+                    ImGui::TextUnformatted("No entity selected.");
+                    ImGui::End();
+                    return changed;
+                }
+
+                auto& world = m_InteractionHost->GetSceneDocument()->SceneRef->GetWorld();
+                const auto& selections = Selection::ResolveSelections(world);
                 ImGui::Text("%zu entities selected", selections.size());
                 ImGui::TextDisabled("Multi-selection is currently summary-only.");
                 ImGui::Separator();
@@ -95,7 +103,21 @@ namespace HE {
                 return changed;
             }
 
-			auto& selection = Selection::GetPrimarySelection();
+            if (!m_InteractionHost || !m_InteractionHost->GetSceneDocument() || !m_InteractionHost->GetSceneDocument()->SceneRef) {
+                ImGui::TextUnformatted("No entity selected.");
+                ImGui::End();
+                return changed;
+            }
+
+            auto& world = m_InteractionHost->GetSceneDocument()->SceneRef->GetWorld();
+			auto selection = Selection::ResolvePrimarySelection(world);
+            if (!selection.IsValid()) {
+                Selection::ClearSelection();
+                ImGui::TextUnformatted("No entity selected.");
+                ImGui::End();
+                return changed;
+            }
+
 			ImGui::Text("%s", selection.GetName().c_str());
             if (ImGui::BeginPopupContextWindow("InspectorEntityContextMenu")) {
                 if (ImGui::MenuItem("Add Component...")) {
@@ -105,8 +127,8 @@ namespace HE {
                 ImGui::EndPopup();
             }
 			changed |= ComponentEditorRegistry::Instance().DrawComponents(
-                selection.m_EntityManager->GetRegistry(),
-                selection.m_EntityHandle,
+                world,
+                selection.GetId(),
                 {
                     .RequestRemove = [this](std::type_index type) {
                         if (const auto* descriptor = FindInspectableComponentByType(type)) {
@@ -115,13 +137,18 @@ namespace HE {
                             }
                         }
                     },
-                    .CanRemove = [](std::type_index type) {
+                    .CanRemove = [this](std::type_index type) {
                         if (!Selection::HasSingleSelection()) {
                             return false;
                         }
 
                         const auto* descriptor = FindInspectableComponentByType(type);
-                        return descriptor != nullptr && CanRemoveInspectableComponent(descriptor->Type, Selection::GetPrimarySelection());
+                        if (!m_InteractionHost || !m_InteractionHost->GetSceneDocument() || !m_InteractionHost->GetSceneDocument()->SceneRef) {
+                            return false;
+                        }
+
+                        auto entity = Selection::ResolvePrimarySelection(m_InteractionHost->GetSceneDocument()->SceneRef->GetWorld());
+                        return descriptor != nullptr && CanRemoveInspectableComponent(descriptor->Type, entity);
                     }
                 });
             DrawAddComponentWindow();
@@ -168,7 +195,16 @@ namespace HE {
             return;
         }
 
-        const auto& selection = Selection::GetPrimarySelection();
+        if (!m_InteractionHost || !m_InteractionHost->GetSceneDocument() || !m_InteractionHost->GetSceneDocument()->SceneRef) {
+            ImGui::End();
+            return;
+        }
+
+        const auto selection = Selection::ResolvePrimarySelection(m_InteractionHost->GetSceneDocument()->SceneRef->GetWorld());
+        if (!selection.IsValid()) {
+            ImGui::End();
+            return;
+        }
         for (const auto& descriptor : GetEditorInspectableComponents()) {
             const bool alreadyHas = EntityHasInspectableComponent(descriptor.Type, selection);
             if (ImGui::Selectable(descriptor.DisplayName.c_str(), false, 0, ImVec2(0.0f, 0.0f)) && !alreadyHas) {

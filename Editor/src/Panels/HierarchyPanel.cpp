@@ -1,8 +1,6 @@
 #include "enginepch.h"
 #include "HierarchyPanel.h"
 
-#include "entt.hpp"
-
 #include "imgui.h"
 #include <imgui_internal.h>
 #include <misc/cpp/imgui_stdlib.h>
@@ -80,10 +78,6 @@ namespace HE {
 			return;
 		}
 
-		auto& entityManager = m_Context->GetEntityManager();
-		auto& reg = entityManager.GetRegistry();
-		auto view = reg.view<TransformComponent>();
-
 		ImGui::SetNextItemWidth(-FLT_MIN);
 		ImGui::SetNextItemShortcut(ImGuiMod_Ctrl | ImGuiKey_F, ImGuiInputFlags_Tooltip);
 		ImGui::PushItemFlag(ImGuiItemFlags_NoNavDefaultFocus, true);
@@ -91,10 +85,12 @@ namespace HE {
 			m_Filter.Build();
 		ImGui::PopItemFlag();
 
-		for (auto entity : view) {
-			Entity e(entity, &entityManager);
-			DrawEntityNode(e);
-		}
+		m_Context->GetWorld().ForEachEntity([&](Entity entity) {
+            if (m_Filter.IsActive() && !m_Filter.PassFilter(entity.GetName().c_str())) {
+                return;
+            }
+			DrawEntityNode(entity);
+		});
 
         HandleBackgroundSelectionClear();
 
@@ -111,7 +107,8 @@ namespace HE {
 	}
 
 	void HierarchyPanel::DrawEntityNode(Entity& entity) {
-		ImGui::PushID(entity.GetUid());
+		const std::string entityUuid = ToString(entity.GetUuid());
+		ImGui::PushID(entityUuid.c_str());
 		ImGuiTreeNodeFlags tree_flags = ImGuiTreeNodeFlags_None;
 		tree_flags |= ImGuiTreeNodeFlags_OpenOnArrow | ImGuiTreeNodeFlags_OpenOnDoubleClick;    // Standard opening mode as we are likely to want to add selection afterwards
 		tree_flags |= ImGuiTreeNodeFlags_NavLeftJumpsBackHere;   
@@ -120,7 +117,7 @@ namespace HE {
 			tree_flags |= ImGuiTreeNodeFlags_Selected;
 		}
 			
-		bool node_open = ImGui::TreeNodeEx(std::to_string(entity.GetUid()).c_str(), tree_flags, "%s", entity.GetName().c_str());
+		bool node_open = ImGui::TreeNodeEx(entityUuid.c_str(), tree_flags, "%s", entity.GetName().c_str());
 
 		if (ImGui::IsItemClicked()) {
 			HandleEntitySelection(entity);
@@ -159,7 +156,7 @@ namespace HE {
             return;
         }
 
-        const uint32_t entityId = entity.GetUid();
+        const EntityUuid entityId = entity.GetUuid();
         if (ImGui::BeginDragDropSource(ImGuiDragDropFlags_SourceAllowNullID)) {
             ImGui::SetDragDropPayload(intent->PayloadType.c_str(), &entityId, sizeof(entityId));
             ImGui::TextUnformatted(intent->Label.empty() ? entity.GetName().c_str() : intent->Label.c_str());
