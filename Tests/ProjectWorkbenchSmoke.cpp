@@ -31,10 +31,14 @@ namespace {
 	};
 
 	HE::TransformComponent& GetFirstTransform(HE::Scene& scene) {
-		auto& registry = scene.GetEntityManager().GetRegistry();
-		auto view = registry.view<HE::TransformComponent>();
-		Require(!view.empty(), "Expected at least one TransformComponent in the scene");
-		return view.get<HE::TransformComponent>(*view.begin());
+		HE::TransformComponent* firstTransform = nullptr;
+		scene.GetWorld().Query<HE::TransformComponent>().ForEach([&](HE::Entity, HE::TransformComponent& transform) {
+			if (firstTransform == nullptr) {
+				firstTransform = &transform;
+			}
+		});
+		Require(firstTransform != nullptr, "Expected at least one TransformComponent in the scene");
+		return *firstTransform;
 	}
 }
 
@@ -73,7 +77,7 @@ int main() {
 	auto createScene = operations.CreateScene("WorkbenchScene", scene);
 	Require(createScene.Succeeded() && scene, "Expected scene.create to succeed");
 
-	auto entity = scene->GetEntityManager().CreateEntity();
+	auto entity = scene->GetWorld().CreateEntity();
 	auto& transform = entity.GetComponent<HE::TransformComponent>();
 	transform.Position = { 1.0f, 2.0f, 3.0f };
 
@@ -121,15 +125,20 @@ int main() {
 	HE::EditorSessionStorage::Clear();
 	Require(!std::filesystem::exists(HE::EditorSessionStorage::GetSessionFilePath()), "Expected editor session storage to clear persisted state");
 
-	std::filesystem::remove_all(smokeRoot, errorCode);
-	Require(!errorCode, "Expected smoke cleanup to succeed");
-
 	if (originalLocalAppData != nullptr) {
 		_putenv_s("LOCALAPPDATA", originalLocalAppData);
 		free(originalLocalAppData);
 	} else {
 		_putenv_s("LOCALAPPDATA", "");
 	}
+
+	HE::Log::GetCoreLogger().reset();
+	HE::Log::GetClientLogger().reset();
+	HE::Log::GetLogSink().reset();
+
+	errorCode.clear();
+	std::filesystem::remove_all(smokeRoot, errorCode);
+	Require(!errorCode, "Expected smoke cleanup to succeed");
 
 	std::cout << "ProjectWorkbenchSmoke passed" << std::endl;
 	return 0;

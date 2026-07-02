@@ -35,7 +35,6 @@
 #include "HuaEngine/ECS/ComponentType.h"
 #include "HuaEngine/ECS/EntityId.h"
 #include "HuaEngine/ECS/Entity.h"
-#include "HuaEngine/ECS/EntityManager.h"
 #include "HuaEngine/ECS/Components.h"
 #include "HuaEngine/ECS/Query.h"
 #include "HuaEngine/ECS/Scheduler.h"

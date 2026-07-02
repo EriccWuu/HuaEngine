@@ -64,7 +64,7 @@ namespace HE {
 
 	class ENGINE_API ApplicationOperations {
 	public:
-		[[nodiscard]] const OperationRegistry& GetRegistry() const { return m_Registry; }
+		[[nodiscard]] const OperationRegistry& GetOperationRegistry() const { return m_Registry; }
 		[[nodiscard]] bool Supports(std::string_view operationName) const { return m_Registry.Contains(operationName); }
 		[[nodiscard]] const OperationDescriptor* FindOperation(std::string_view operationName) const { return m_Registry.Find(operationName); }
 

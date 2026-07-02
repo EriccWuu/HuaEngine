@@ -76,8 +76,8 @@ namespace HE {
 		[[nodiscard]] ResultEnvelope ResolveTextureAsset(AssetHandle handle, Ref<Rendering::Texture2D>& outTexture) const;
 		[[nodiscard]] ResultEnvelope ValidateRegistry(const ProjectContext& context, AssetValidationReport* outReport = nullptr) const;
 
-		[[nodiscard]] const AssetRegistry& GetRegistry() const { return m_Registry; }
-		[[nodiscard]] AssetRegistry& GetRegistry() { return m_Registry; }
+		[[nodiscard]] const AssetRegistry& GetAssetRegistry() const { return m_Registry; }
+		[[nodiscard]] AssetRegistry& GetAssetRegistry() { return m_Registry; }
 
 	private:
 		AssetRegistry m_Registry;

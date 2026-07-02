@@ -120,7 +120,7 @@ int main() {
 	auto missingAssetResult = assetService.ResolveAsset(static_cast<HE::AssetHandle>(9999), missingRecord);
 	Require(missingAssetResult.Failed(), "Expected resolving an unknown asset handle to fail");
 
-	Require(assetService.GetRegistry().GetAssetCount() == 3, "Expected registry to contain exactly three operational asset records");
+	Require(assetService.GetAssetRegistry().GetAssetCount() == 3, "Expected registry to contain exactly three operational asset records");
 
 	std::filesystem::remove_all(smokeRoot, errorCode);
 	Require(!errorCode, "Expected asset smoke temporary directory cleanup to succeed");

@@ -15,29 +15,26 @@ namespace HE {
 
             // Create scene
             Scene scene;
-            auto& entityManager = scene.GetEntityManager();
-            auto& registry = entityManager.GetRegistry();
-
             // Create entity1 - Transform component
-            auto entity1 = registry.create();
+            auto entity1 = scene.GetWorld().CreateEntity("Entity 1");
             TransformComponent transform1;
             transform1.Position = {1.0f, 2.0f, 3.0f};
             transform1.Rotation = {0.0f, 45.0f, 0.0f};
             transform1.Scale = {2.0f, 1.5f, 1.0f};
-            registry.emplace<TransformComponent>(entity1, transform1);
+            entity1.AddComponent<TransformComponent>(transform1);
 
             // Create entity2 - Different Transform
-            auto entity2 = registry.create();
+            auto entity2 = scene.GetWorld().CreateEntity("Entity 2");
             TransformComponent transform2;
             transform2.Position = {-5.0f, 0.0f, 10.0f};
             transform2.Rotation = {90.0f, 0.0f, 0.0f};
             transform2.Scale = {0.5f, 0.5f, 0.5f};
-            registry.emplace<TransformComponent>(entity2, transform2);
+            entity2.AddComponent<TransformComponent>(transform2);
 
             // Create entity3 - Default Transform
-            auto entity3 = registry.create();
+            auto entity3 = scene.GetWorld().CreateEntity("Entity 3");
             TransformComponent transform3; // Use default values
-            registry.emplace<TransformComponent>(entity3, transform3);
+            entity3.AddComponent<TransformComponent>(transform3);
 
             HE_CORE_INFO("Created scene with 3 entities:");
             HE_CORE_INFO("- Entity 1: Position({}, {}, {}), Rotation({}, {}, {}), Scale({}, {}, {})",
@@ -64,21 +61,19 @@ namespace HE {
                 HE_CORE_INFO("✅ Scene deserialization successful!");
 
                 // Verify loaded data
-                auto& loadedRegistry = loadedScene.GetEntityManager().GetRegistry();
                 uint32_t entityCount = 0;
                 uint32_t transformCount = 0;
 
-                for (auto entity : loadedRegistry.storage<entt::entity>()) {
+                loadedScene.GetWorld().ForEachEntity([&](Entity entity) {
                     entityCount++;
-                    if (loadedRegistry.all_of<TransformComponent>(entity)) {
+                    if (auto* transform = entity.TryGetComponent<TransformComponent>()) {
                         transformCount++;
-                        auto& transform = loadedRegistry.get<TransformComponent>(entity);
                         HE_CORE_INFO("- Loaded Entity: Position({}, {}, {}), Rotation({}, {}, {}), Scale({}, {}, {})",
-                            transform.Position.x, transform.Position.y, transform.Position.z,
-                            transform.Rotation.x, transform.Rotation.y, transform.Rotation.z,
-                            transform.Scale.x, transform.Scale.y, transform.Scale.z);
+                            transform->Position.x, transform->Position.y, transform->Position.z,
+                            transform->Rotation.x, transform->Rotation.y, transform->Rotation.z,
+                            transform->Scale.x, transform->Scale.y, transform->Scale.z);
                     }
-                }
+                });
 
                 HE_CORE_INFO("Loaded scene contains {} entities with {} transform components",
                     entityCount, transformCount);

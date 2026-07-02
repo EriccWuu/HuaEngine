@@ -96,8 +96,8 @@ namespace HE {
 
 		if (request.Operation == "ops.list") {
 			auto result = ResultEnvelope::Success("ops.list", "operation_registry", "Formal operations listed for agent host");
-			result.SetPayloadValue("operation_count", std::to_string(m_Operations->GetRegistry().Size()));
-			return { std::move(result), m_Operations->GetRegistry().List() };
+			result.SetPayloadValue("operation_count", std::to_string(m_Operations->GetOperationRegistry().Size()));
+			return { std::move(result), m_Operations->GetOperationRegistry().List() };
 		}
 
 		if (request.Operation == "project.initialize") {

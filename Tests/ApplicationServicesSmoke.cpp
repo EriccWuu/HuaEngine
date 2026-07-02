@@ -41,7 +41,7 @@ int main() {
 
 	HE::Scene scene("ApplicationServicesScene");
 	scene.AddSyetem(HE::CreateRef<HE::ScriptRuntimeSystem>(scene, services.Scripts()));
-	auto entity = scene.GetEntityManager().CreateEntity();
+	auto entity = scene.GetWorld().CreateEntity();
 	entity.AddComponent<HE::MeshComponent>("ServicesQuad");
 	entity.AddComponent<HE::MaterialComponent>();
 

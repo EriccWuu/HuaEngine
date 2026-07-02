@@ -99,7 +99,7 @@ int main() {
 	invalidAssetRecord.RelativePath = std::filesystem::path("Broken/Invalid.asset");
 	invalidAssetRecord.AbsolutePath = projectContext.GetAssetRootPath() / invalidAssetRecord.RelativePath;
 	invalidAssetRecord.ExistsOnDisk = false;
-	const auto invalidAssetHandle = assetService.GetRegistry().Upsert(invalidAssetRecord);
+	const auto invalidAssetHandle = assetService.GetAssetRegistry().Upsert(invalidAssetRecord);
 	Require(invalidAssetHandle != 0, "Expected invalid asset record insertion to produce a handle for degradation coverage");
 
 	HE::ValidationReport degradedReport;

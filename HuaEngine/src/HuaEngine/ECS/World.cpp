@@ -66,7 +66,9 @@ namespace HE {
 			m_NextUuid = uuid.Low + 1;
 		}
 
-		return Entity(id, this);
+		auto entity = Entity(id, this);
+		entity.AddComponent<TransformComponent>();
+		return entity;
 	}
 
 	void World::DestroyEntity(EntityId id) {

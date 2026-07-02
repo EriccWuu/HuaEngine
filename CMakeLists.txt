@@ -41,7 +41,6 @@ set(GLAD_INCLUDE_DIR "${CMAKE_SOURCE_DIR}/Dependencies/glad/include")
 set(IMGUI_INCLUDE_DIR "${CMAKE_SOURCE_DIR}/Dependencies/imgui")
 set(GLM_INCLUDE_DIR "${CMAKE_SOURCE_DIR}/Dependencies/glm")
 set(STB_IMAGE_INCLUDE_DIR "${CMAKE_SOURCE_DIR}/Dependencies/stb_image")
-set(ENTT_INCLUDE_DIR "${CMAKE_SOURCE_DIR}/Dependencies/entt")
 
 # Compiler specific settings
 if(MSVC)
@@ -131,7 +130,6 @@ target_include_directories(ECSCoreSmoke PRIVATE
     ${GLM_INCLUDE_DIR}
     ${IMGUI_INCLUDE_DIR}
     ${STB_IMAGE_INCLUDE_DIR}
-    ${ENTT_INCLUDE_DIR}
 )
 target_link_libraries(ECSCoreSmoke PRIVATE HuaEngine)
 if(WIN32)
@@ -152,7 +150,6 @@ target_include_directories(ECSQuerySchedulerSmoke PRIVATE
     ${GLM_INCLUDE_DIR}
     ${IMGUI_INCLUDE_DIR}
     ${STB_IMAGE_INCLUDE_DIR}
-    ${ENTT_INCLUDE_DIR}
 )
 target_link_libraries(ECSQuerySchedulerSmoke PRIVATE HuaEngine)
 if(WIN32)
@@ -173,7 +170,6 @@ target_include_directories(ECSSceneSerializationSmoke PRIVATE
     ${GLM_INCLUDE_DIR}
     ${IMGUI_INCLUDE_DIR}
     ${STB_IMAGE_INCLUDE_DIR}
-    ${ENTT_INCLUDE_DIR}
 )
 target_link_libraries(ECSSceneSerializationSmoke PRIVATE HuaEngine)
 if(WIN32)
@@ -194,7 +190,6 @@ target_include_directories(ProjectServiceSmoke PRIVATE
     ${GLM_INCLUDE_DIR}
     ${IMGUI_INCLUDE_DIR}
     ${STB_IMAGE_INCLUDE_DIR}
-    ${ENTT_INCLUDE_DIR}
 )
 target_link_libraries(ProjectServiceSmoke PRIVATE HuaEngine)
 if(WIN32)
@@ -215,7 +210,6 @@ target_include_directories(SceneServiceSmoke PRIVATE
     ${GLM_INCLUDE_DIR}
     ${IMGUI_INCLUDE_DIR}
     ${STB_IMAGE_INCLUDE_DIR}
-    ${ENTT_INCLUDE_DIR}
 )
 target_link_libraries(SceneServiceSmoke PRIVATE HuaEngine)
 if(WIN32)
@@ -236,7 +230,6 @@ target_include_directories(AssetServiceSmoke PRIVATE
     ${GLM_INCLUDE_DIR}
     ${IMGUI_INCLUDE_DIR}
     ${STB_IMAGE_INCLUDE_DIR}
-    ${ENTT_INCLUDE_DIR}
 )
 target_link_libraries(AssetServiceSmoke PRIVATE HuaEngine)
 if(WIN32)
@@ -257,7 +250,6 @@ target_include_directories(ScriptServiceSmoke PRIVATE
     ${GLM_INCLUDE_DIR}
     ${IMGUI_INCLUDE_DIR}
     ${STB_IMAGE_INCLUDE_DIR}
-    ${ENTT_INCLUDE_DIR}
 )
 target_link_libraries(ScriptServiceSmoke PRIVATE HuaEngine)
 if(WIN32)
@@ -278,7 +270,6 @@ target_include_directories(ValidationServiceSmoke PRIVATE
     ${GLM_INCLUDE_DIR}
     ${IMGUI_INCLUDE_DIR}
     ${STB_IMAGE_INCLUDE_DIR}
-    ${ENTT_INCLUDE_DIR}
 )
 target_link_libraries(ValidationServiceSmoke PRIVATE HuaEngine)
 if(WIN32)
@@ -299,7 +290,6 @@ target_include_directories(ApplicationServicesSmoke PRIVATE
     ${GLM_INCLUDE_DIR}
     ${IMGUI_INCLUDE_DIR}
     ${STB_IMAGE_INCLUDE_DIR}
-    ${ENTT_INCLUDE_DIR}
 )
 target_link_libraries(ApplicationServicesSmoke PRIVATE HuaEngine)
 if(WIN32)
@@ -320,7 +310,6 @@ target_include_directories(ApplicationOperationsSmoke PRIVATE
     ${GLM_INCLUDE_DIR}
     ${IMGUI_INCLUDE_DIR}
     ${STB_IMAGE_INCLUDE_DIR}
-    ${ENTT_INCLUDE_DIR}
 )
 target_link_libraries(ApplicationOperationsSmoke PRIVATE HuaEngine)
 if(WIN32)
@@ -341,7 +330,6 @@ target_include_directories(AgentHostAdapterSmoke PRIVATE
     ${GLM_INCLUDE_DIR}
     ${IMGUI_INCLUDE_DIR}
     ${STB_IMAGE_INCLUDE_DIR}
-    ${ENTT_INCLUDE_DIR}
 )
 target_link_libraries(AgentHostAdapterSmoke PRIVATE HuaEngine)
 if(WIN32)
@@ -363,7 +351,6 @@ target_include_directories(HeadlessHostSmoke PRIVATE
     ${GLM_INCLUDE_DIR}
     ${IMGUI_INCLUDE_DIR}
     ${STB_IMAGE_INCLUDE_DIR}
-    ${ENTT_INCLUDE_DIR}
 )
 target_link_libraries(HeadlessHostSmoke PRIVATE HuaEngineHeadlessCore)
 if(WIN32)
@@ -397,7 +384,6 @@ target_include_directories(RenderingOperationsSmoke PRIVATE
     ${GLM_INCLUDE_DIR}
     ${IMGUI_INCLUDE_DIR}
     ${STB_IMAGE_INCLUDE_DIR}
-    ${ENTT_INCLUDE_DIR}
 )
 target_link_libraries(RenderingOperationsSmoke PRIVATE HuaEngine)
 if(WIN32)
@@ -420,7 +406,6 @@ target_include_directories(HostConsistencySmoke PRIVATE
     ${GLM_INCLUDE_DIR}
     ${IMGUI_INCLUDE_DIR}
     ${STB_IMAGE_INCLUDE_DIR}
-    ${ENTT_INCLUDE_DIR}
 )
 target_link_libraries(HostConsistencySmoke PRIVATE HuaEngine)
 if(WIN32)
@@ -446,7 +431,6 @@ target_include_directories(ProjectWorkbenchSmoke PRIVATE
     ${GLM_INCLUDE_DIR}
     ${IMGUI_INCLUDE_DIR}
     ${STB_IMAGE_INCLUDE_DIR}
-    ${ENTT_INCLUDE_DIR}
 )
 target_link_libraries(ProjectWorkbenchSmoke PRIVATE HuaEngine)
 if(WIN32)
@@ -478,7 +462,6 @@ target_include_directories(EditorInteractionSmoke PRIVATE
     ${GLM_INCLUDE_DIR}
     ${IMGUI_INCLUDE_DIR}
     ${STB_IMAGE_INCLUDE_DIR}
-    ${ENTT_INCLUDE_DIR}
 )
 target_link_libraries(EditorInteractionSmoke PRIVATE HuaEngine ImGui)
 if(WIN32)

@@ -2,7 +2,6 @@
 
 #include <string>
 #include "HuaEngine/ECS/Entity.h"
-#include "HuaEngine/ECS/EntityManager.h"
 #include "HuaEngine/ECS/Scheduler.h"
 #include "HuaEngine/ECS/System.h"
 #include "HuaEngine/ECS/World.h"
@@ -29,17 +28,6 @@ namespace HE {
 		World& GetWorld() { return m_World; }
 		const World& GetWorld() const { return m_World; }
 		Scheduler& GetScheduler() { return m_Scheduler; }
-		EntityManager& GetEntityManager() { return m_EntityManager; }
-
-		template<typename Type, typename... Other, typename... Args>
-		[[nodiscard]] decltype(auto) View(Args... args) {
-			return m_EntityManager.GetRegistry().view<Type, Other...>(args...);
-		}
-
-		template<typename... Type, typename... Args>
-		[[nodiscard]] decltype(auto) Get(Args... args) {
-			return m_EntityManager.GetRegistry().get<Type...>(args...);
-		}
 
 		template<typename T>
 		[[nodiscard]] Ref<T> FindSystem() const {
@@ -57,7 +45,6 @@ namespace HE {
 		std::string m_Name;
 		World m_World;
 		Scheduler m_Scheduler;
-		EntityManager m_EntityManager;
 		std::vector<Ref<System>> m_Systems;
 	};
 }

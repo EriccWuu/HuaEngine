@@ -100,16 +100,13 @@ namespace HE::Test {
         // Test 4: Scene serialization
         {
             Scene scene;
-            auto& entityManager = scene.GetEntityManager();
-            auto& registry = entityManager.GetRegistry();
-
             // Create some entities with components
             for (int i = 0; i < 3; ++i) {
-                auto entity = registry.create();
+                auto entity = scene.GetWorld().CreateEntity("Serialized Entity");
 
                 TransformComponent transform;
                 transform.Position = {static_cast<float>(i), 0.0f, 0.0f};
-                registry.emplace<TransformComponent>(entity, transform);
+                entity.AddComponent<TransformComponent>(transform);
             }
 
             // Save the scene
@@ -123,11 +120,7 @@ namespace HE::Test {
                 std::cout << "Scene loaded successfully!" << std::endl;
 
                 // Count entities in loaded scene
-                auto& loadedRegistry = loadedScene.GetEntityManager().GetRegistry();
-                size_t entityCount = 0;
-                for (auto entity : loadedRegistry.storage<entt::entity>()) {
-                    ++entityCount;
-                }
+                const size_t entityCount = loadedScene.GetWorld().GetEntityCount();
                 std::cout << "Loaded scene has " << entityCount << " entities" << std::endl;
             }
         }

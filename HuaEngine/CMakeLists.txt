@@ -19,16 +19,10 @@ file(GLOB STB_IMAGE_SOURCES
     "${STB_IMAGE_INCLUDE_DIR}/*.h"
 )
 
-# Collect ENTT files
-file(GLOB_RECURSE ENTT_SOURCES
-    "${ENTT_INCLUDE_DIR}/*.hpp"
-)
-
 # Create the HuaEngine library
 add_library(HuaEngine STATIC
     ${HUAENGINE_SOURCES}
     ${STB_IMAGE_SOURCES}
-    ${ENTT_SOURCES}
 )
 
 # Create source groups to maintain folder structure in Visual Studio
@@ -49,11 +43,6 @@ foreach(source IN ITEMS ${STB_IMAGE_SOURCES})
     source_group("Dependencies\\STB Image" FILES "${source}")
 endforeach()
 
-# Create source groups for ENTT
-foreach(source IN ITEMS ${ENTT_SOURCES})
-    source_group("Dependencies\\ENTT" FILES "${source}")
-endforeach()
-
 # Include directories
 target_include_directories(HuaEngine
     PUBLIC
@@ -66,7 +55,6 @@ target_include_directories(HuaEngine
         ${IMGUI_INCLUDE_DIR}
         ${GLM_INCLUDE_DIR}
         ${STB_IMAGE_INCLUDE_DIR}
-        ${ENTT_INCLUDE_DIR}
 )
 
 # Link libraries

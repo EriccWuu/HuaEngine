@@ -111,7 +111,7 @@ int main() {
 	HE::ScriptService scriptService;
 	scene.AddSyetem(HE::CreateRef<HE::ScriptRuntimeSystem>(scene, scriptService));
 
-	auto scriptedEntity = scene.GetEntityManager().CreateEntity();
+	auto scriptedEntity = scene.GetWorld().CreateEntity();
 	auto bindResult = scriptService.BindNativeScript<CountingScript>(scriptedEntity, "CountingScript");
 	Require(bindResult.Succeeded(), "Expected script.bind to succeed");
 
@@ -158,7 +158,7 @@ int main() {
 	Require(ReplacementScript::DestroyCount == 1, "Expected direct unbind to destroy the active replacement script instance");
 	Require(!scriptedEntity.HasComponent<HE::NativeScriptComponent>(), "Expected unbind to remove the native script component");
 
-	auto invalidEntity = scene.GetEntityManager().CreateEntity();
+	auto invalidEntity = scene.GetWorld().CreateEntity();
 	invalidEntity.AddComponent<HE::NativeScriptComponent>();
 
 	HE::ScriptStatusReport degradedReport;

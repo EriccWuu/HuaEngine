@@ -224,78 +224,39 @@ namespace HE {
 
 	template<typename T, typename... Args>
 	T& Entity::AddComponent(Args&&... args) {
-		if (m_World != nullptr) {
-			return m_World->AddComponent<T>(m_Id, std::forward<Args>(args)...);
-		}
-
-		T& component = m_EntityManager->m_Registry.template emplace<T>(m_EntityHandle, std::forward<Args>(args)...);
-		return component;
+		return m_World->AddComponent<T>(m_Id, std::forward<Args>(args)...);
 	}
 
 	template<typename T>
 	T& Entity::GetComponent() {
-		if (m_World != nullptr) {
-			return *m_World->TryGetComponent<T>(m_Id);
-		}
-
-		T& component = m_EntityManager->m_Registry.template get<T>(m_EntityHandle);
-		return component;
+		return *m_World->TryGetComponent<T>(m_Id);
 	}
 
 	template<typename T>
 	const T& Entity::GetComponent() const {
-		if (m_World != nullptr) {
-			return *m_World->TryGetComponent<T>(m_Id);
-		}
-
-		const T& component = m_EntityManager->m_Registry.template get<T>(m_EntityHandle);
-		return component;
+		return *m_World->TryGetComponent<T>(m_Id);
 	}
 
 	template<typename T>
 	bool Entity::HasComponent() const {
-		if (m_World != nullptr) {
-			return m_World->HasComponent<T>(m_Id);
-		}
-
-		return m_EntityManager != nullptr
-			&& m_EntityManager->m_Registry.template all_of<T>(m_EntityHandle);
+		return m_World != nullptr && m_World->HasComponent<T>(m_Id);
 	}
 
 	template<typename T>
 	void Entity::RemoveComponent() {
-		if (m_World != nullptr) {
+		if (m_World) {
 			m_World->RemoveComponent<T>(m_Id);
-			return;
 		}
-
-		m_EntityManager->m_Registry.template remove<T>(m_EntityHandle);
 	}
 
 	template<typename T>
 	T* Entity::TryGetComponent() {
-		if (m_World != nullptr) {
-			return m_World->TryGetComponent<T>(m_Id);
-		}
-
-		if (m_EntityManager == nullptr || !m_EntityManager->m_Registry.template all_of<T>(m_EntityHandle)) {
-			return nullptr;
-		}
-
-		return &m_EntityManager->m_Registry.template get<T>(m_EntityHandle);
+		return m_World != nullptr ? m_World->TryGetComponent<T>(m_Id) : nullptr;
 	}
 
 	template<typename T>
 	const T* Entity::TryGetComponent() const {
-		if (m_World != nullptr) {
-			return m_World->TryGetComponent<T>(m_Id);
-		}
-
-		if (m_EntityManager == nullptr || !m_EntityManager->m_Registry.template all_of<T>(m_EntityHandle)) {
-			return nullptr;
-		}
-
-		return &m_EntityManager->m_Registry.template get<T>(m_EntityHandle);
+		return m_World != nullptr ? m_World->TryGetComponent<T>(m_Id) : nullptr;
 	}
 
 	inline void* Entity::TryGetComponentByType(ComponentTypeId typeId) {

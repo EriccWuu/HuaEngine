@@ -20,13 +20,6 @@ namespace {
 
 	template<typename Callback>
 	void ForEachScriptComponent(HE::Scene& scene, Callback&& callback) {
-		auto view = scene.View<HE::NativeScriptComponent>();
-		for (auto entityHandle : view) {
-			HE::Entity entity(entityHandle, &scene.GetEntityManager());
-			auto& scriptComponent = view.template get<HE::NativeScriptComponent>(entityHandle);
-			callback(entity, scriptComponent);
-		}
-
 		auto query = scene.GetWorld().Query<HE::NativeScriptComponent>();
 		query.ForEach([&](HE::Entity entity, HE::NativeScriptComponent& scriptComponent) {
 			callback(entity, scriptComponent);

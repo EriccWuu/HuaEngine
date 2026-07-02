@@ -39,7 +39,6 @@ target_include_directories(ProjectHub PRIVATE
     ${GLM_INCLUDE_DIR}
     ${IMGUI_INCLUDE_DIR}
     ${STB_IMAGE_INCLUDE_DIR}
-    ${ENTT_INCLUDE_DIR}
 )
 
 target_link_libraries(ProjectHub PRIVATE
