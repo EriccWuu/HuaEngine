@@ -31,6 +31,7 @@ namespace HE {
 		[[nodiscard]] EntityId FindEntity(EntityUuid uuid) const;
 		[[nodiscard]] Entity GetEntity(EntityId id);
 		[[nodiscard]] Entity GetEntity(EntityUuid uuid);
+		[[nodiscard]] Entity GetEntityByIndex(uint32_t index);
 		[[nodiscard]] EntityUuid GetUuid(EntityId id) const;
 		[[nodiscard]] EntityUuid GetEntityUuid(EntityId id) const { return GetUuid(id); }
 		[[nodiscard]] std::string GetEntityName(EntityId id) const;

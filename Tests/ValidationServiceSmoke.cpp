@@ -44,9 +44,10 @@ int main() {
 
 	HE::Scene scene("ValidationScene");
 	HE::ScriptService scriptService;
-	scene.AddSyetem(HE::CreateRef<HE::ScriptRuntimeSystem>(scene, scriptService));
+	scene.AddSystem(HE::CreateRef<HE::ScriptRuntimeSystem>(scene, scriptService));
 
-	auto primaryEntity = scene.GetEntityManager().CreateEntity();
+	auto primaryEntity = scene.GetWorld().CreateEntity("Validation Entity");
+	primaryEntity.AddComponent<HE::TransformComponent>();
 	primaryEntity.AddComponent<HE::MeshComponent>("ValidationMesh");
 	primaryEntity.AddComponent<HE::MaterialComponent>();
 	auto bindScriptResult = scriptService.BindNativeScript<ValidationSmokeScript>(primaryEntity, "ValidationSmokeScript");
@@ -87,7 +88,8 @@ int main() {
 	RequirePayloadValue(healthyValidation, "script_status", "success");
 	RequirePayloadValue(healthyValidation, "can_continue_automatically", "true");
 
-	auto invalidScriptEntity = scene.GetEntityManager().CreateEntity();
+	auto invalidScriptEntity = scene.GetWorld().CreateEntity("Invalid Script Entity");
+	invalidScriptEntity.AddComponent<HE::TransformComponent>();
 	invalidScriptEntity.AddComponent<HE::NativeScriptComponent>();
 	primaryEntity.RemoveComponent<HE::TransformComponent>();
 

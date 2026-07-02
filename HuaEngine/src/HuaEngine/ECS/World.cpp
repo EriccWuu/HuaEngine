@@ -123,6 +123,15 @@ namespace HE {
 		return GetEntity(FindEntity(uuid));
 	}
 
+	Entity World::GetEntityByIndex(uint32_t index) {
+		if (index >= m_Records.size()) {
+			return {};
+		}
+
+		const EntityId id{index, m_Records[index].Generation};
+		return GetEntity(id);
+	}
+
 	EntityUuid World::GetUuid(EntityId id) const {
 		if (!IsAlive(id)) {
 			return {};

@@ -36,8 +36,7 @@ namespace {
 	}
 
 	HE::Entity ResolveSceneEntity(HE::Scene& scene, uint32_t entityId) {
-		auto& entityManager = scene.GetEntityManager();
-		return { static_cast<entt::entity>(entityId), &entityManager };
+		return scene.GetWorld().GetEntityByIndex(entityId);
 	}
 
 	bool EnsureSceneEntityExists(HE::Scene& scene, uint32_t entityId, HE::ResultEnvelope& outError) {
@@ -138,7 +137,8 @@ namespace HE {
 		std::string_view entityName,
 		uint32_t* outEntityId) const
 	{
-		auto entity = scene.GetEntityManager().CreateEntity(std::string(entityName));
+		auto entity = scene.GetWorld().CreateEntity(std::string(entityName));
+		entity.AddComponent<TransformComponent>();
 		const auto entityId = entity.GetUid();
 		if (outEntityId) {
 			*outEntityId = entityId;
@@ -169,7 +169,7 @@ namespace HE {
 				continue;
 			}
 
-			scene.GetEntityManager().DestroyEntity(entity);
+			scene.GetWorld().DestroyEntity(entity.GetId());
 			++deletedCount;
 		}
 
@@ -200,8 +200,9 @@ namespace HE {
 			return resolveError;
 		}
 
-		auto& registry = scene.GetEntityManager().GetRegistry();
-		registry.emplace_or_replace<NameComponent>(static_cast<entt::entity>(entityId), component);
+		auto entity = ResolveSceneEntity(scene, entityId);
+		entity.SetName(component.Name);
+		scene.GetWorld().AddComponent<NameComponent>(entity.GetId(), component);
 
 		auto result = ResultEnvelope::Success("scene.entity.upsert_name", MakeSceneEntityTarget(scene, entityId), "Scene entity name updated");
 		result.SetPayloadValue("entity_id", std::to_string(entityId));
@@ -220,8 +221,7 @@ namespace HE {
 			return resolveError;
 		}
 
-		auto& registry = scene.GetEntityManager().GetRegistry();
-		registry.emplace_or_replace<TransformComponent>(static_cast<entt::entity>(entityId), component);
+		scene.GetWorld().AddComponent<TransformComponent>(ResolveSceneEntity(scene, entityId).GetId(), component);
 
 		auto result = ResultEnvelope::Success("scene.entity.upsert_transform", MakeSceneEntityTarget(scene, entityId), "Scene entity transform updated");
 		result.SetPayloadValue("entity_id", std::to_string(entityId));
@@ -239,21 +239,20 @@ namespace HE {
 			return resolveError;
 		}
 
-		auto& registry = scene.GetEntityManager().GetRegistry();
-		const auto handle = static_cast<entt::entity>(entityId);
+		auto entity = ResolveSceneEntity(scene, entityId);
 		switch (componentKind) {
 		case SceneComponentKind::Camera:
-			if (registry.all_of<Rendering::CameraComponent>(handle)) {
+			if (entity.HasComponent<Rendering::CameraComponent>()) {
 				return ResultEnvelope::Failure("scene.component.add", MakeSceneEntityTarget(scene, entityId), "Camera component already exists on the target entity");
 			}
 			break;
 		case SceneComponentKind::Mesh:
-			if (registry.all_of<Rendering::MeshComponent>(handle)) {
+			if (entity.HasComponent<Rendering::MeshComponent>()) {
 				return ResultEnvelope::Failure("scene.component.add", MakeSceneEntityTarget(scene, entityId), "Mesh component already exists on the target entity");
 			}
 			break;
 		case SceneComponentKind::Material:
-			if (registry.all_of<Rendering::MaterialComponent>(handle)) {
+			if (entity.HasComponent<Rendering::MaterialComponent>()) {
 				return ResultEnvelope::Failure("scene.component.add", MakeSceneEntityTarget(scene, entityId), "Material component already exists on the target entity");
 			}
 			break;
@@ -284,26 +283,25 @@ namespace HE {
 			return resolveError;
 		}
 
-		auto& registry = scene.GetEntityManager().GetRegistry();
-		const auto handle = static_cast<entt::entity>(entityId);
+		auto entity = ResolveSceneEntity(scene, entityId);
 		switch (componentKind) {
 		case SceneComponentKind::Camera:
-			if (!registry.all_of<Rendering::CameraComponent>(handle)) {
+			if (!entity.HasComponent<Rendering::CameraComponent>()) {
 				return ResultEnvelope::Failure("scene.component.remove", MakeSceneEntityTarget(scene, entityId), "Camera component is not present on the target entity");
 			}
-			registry.remove<Rendering::CameraComponent>(handle);
+			entity.RemoveComponent<Rendering::CameraComponent>();
 			break;
 		case SceneComponentKind::Mesh:
-			if (!registry.all_of<Rendering::MeshComponent>(handle)) {
+			if (!entity.HasComponent<Rendering::MeshComponent>()) {
 				return ResultEnvelope::Failure("scene.component.remove", MakeSceneEntityTarget(scene, entityId), "Mesh component is not present on the target entity");
 			}
-			registry.remove<Rendering::MeshComponent>(handle);
+			entity.RemoveComponent<Rendering::MeshComponent>();
 			break;
 		case SceneComponentKind::Material:
-			if (!registry.all_of<Rendering::MaterialComponent>(handle)) {
+			if (!entity.HasComponent<Rendering::MaterialComponent>()) {
 				return ResultEnvelope::Failure("scene.component.remove", MakeSceneEntityTarget(scene, entityId), "Material component is not present on the target entity");
 			}
-			registry.remove<Rendering::MaterialComponent>(handle);
+			entity.RemoveComponent<Rendering::MaterialComponent>();
 			break;
 		}
 
@@ -324,8 +322,7 @@ namespace HE {
 			return resolveError;
 		}
 
-		auto& registry = scene.GetEntityManager().GetRegistry();
-		registry.emplace_or_replace<Rendering::CameraComponent>(static_cast<entt::entity>(entityId), component);
+		scene.GetWorld().AddComponent<Rendering::CameraComponent>(ResolveSceneEntity(scene, entityId).GetId(), component);
 
 		auto result = ResultEnvelope::Success("scene.component.upsert", MakeSceneEntityTarget(scene, entityId), "Camera component upserted");
 		result.SetPayloadValue("entity_id", std::to_string(entityId));
@@ -344,8 +341,7 @@ namespace HE {
 			return resolveError;
 		}
 
-		auto& registry = scene.GetEntityManager().GetRegistry();
-		registry.emplace_or_replace<Rendering::MeshComponent>(static_cast<entt::entity>(entityId), component);
+		scene.GetWorld().AddComponent<Rendering::MeshComponent>(ResolveSceneEntity(scene, entityId).GetId(), component);
 
 		auto result = ResultEnvelope::Success("scene.component.upsert", MakeSceneEntityTarget(scene, entityId), "Mesh component upserted");
 		result.SetPayloadValue("entity_id", std::to_string(entityId));
@@ -364,8 +360,7 @@ namespace HE {
 			return resolveError;
 		}
 
-		auto& registry = scene.GetEntityManager().GetRegistry();
-		registry.emplace_or_replace<Rendering::MaterialComponent>(static_cast<entt::entity>(entityId), component);
+		scene.GetWorld().AddComponent<Rendering::MaterialComponent>(ResolveSceneEntity(scene, entityId).GetId(), component);
 
 		auto result = ResultEnvelope::Success("scene.component.upsert", MakeSceneEntityTarget(scene, entityId), "Material component upserted");
 		result.SetPayloadValue("entity_id", std::to_string(entityId));
@@ -463,7 +458,7 @@ namespace HE {
 
 	ResultEnvelope ApplicationOperations::AttachScriptRuntime(Scene& scene) const
 	{
-		scene.AddSyetem(CreateRef<ScriptRuntimeSystem>(scene, m_Services->Scripts()));
+		scene.AddSystem(CreateRef<ScriptRuntimeSystem>(scene, m_Services->Scripts()));
 
 		auto result = ResultEnvelope::Success("script.attach_runtime", scene.GetName(), "Scene script runtime attached");
 		result.SetPayloadValue("scene_name", scene.GetName());
@@ -510,7 +505,7 @@ namespace HE {
 		const bool createdNewSystem = !renderSystem;
 		if (createdNewSystem) {
 			renderSystem = CreateRef<RenderSystem>(scene);
-			scene->AddSyetem(renderSystem);
+			scene->AddSystem(renderSystem);
 		}
 
 		auto framebufferBinding = framebuffer;
@@ -533,7 +528,7 @@ namespace HE {
 			return result;
 		}
 
-		renderSystem->RenderSingleCamera(scene, camera);
+		renderSystem->RenderSingleCamera(scene.GetWorld(), camera);
 
 		auto result = ResultEnvelope::Success("rendering.render_scene_viewport", scene.GetName(), "Scene viewport rendered");
 		result.SetPayloadValue("scene_name", scene.GetName());
