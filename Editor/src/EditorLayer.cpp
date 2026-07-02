@@ -1681,7 +1681,7 @@ namespace HE {
         }
 
         ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2{ 0, 0 });
-        ImGui::Begin("Scene");
+        ImGui::Begin("Game");
         if (!m_SceneDocument.SceneRef) {
             ImGui::TextUnformatted("No scene loaded.");
             ImGui::TextWrapped("Use the Scene menu or the Project panel to create or open a scene document inside the current project.");
