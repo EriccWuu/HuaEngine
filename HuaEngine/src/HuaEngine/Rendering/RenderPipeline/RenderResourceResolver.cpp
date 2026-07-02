@@ -2,6 +2,7 @@
 #include "RenderResourceResolver.h"
 
 #include "HuaEngine/Rendering/Mesh/MeshManager.h"
+#include "Module/Rendering/RenderingComponent.h"
 
 namespace HE::Rendering {
 	namespace {
@@ -12,6 +13,15 @@ namespace HE::Rendering {
 			std::string message) {
 			diagnostics.push_back({ code, sourceEntity, std::move(message) });
 		}
+
+		Ref<VertexArray> ResolveCachedVertexArray(const RenderItem& item) {
+			if (!item.SourceEntity.IsValid()) {
+				return nullptr;
+			}
+
+			const auto* meshComponent = item.SourceEntity.TryGetComponent<MeshComponent>();
+			return meshComponent != nullptr ? meshComponent->m_CachedVertexArray : nullptr;
+		}
 	}
 
 	bool RenderResourceResolver::Resolve(
@@ -21,8 +31,20 @@ namespace HE::Rendering {
 		outResolvedItem = {};
 		outResolvedItem.Source = &item;
 
-		auto mesh = MeshManager::Instance().GetMesh(item.MeshAssetName);
-		if (!mesh) {
+		Ref<Mesh> mesh = nullptr;
+		Ref<VertexArray> vertexArray = nullptr;
+		if (!item.MeshAssetName.empty()) {
+			mesh = MeshManager::Instance().GetMesh(item.MeshAssetName);
+			if (mesh) {
+				vertexArray = mesh->GetVertexArray();
+			}
+		}
+
+		if (!vertexArray) {
+			vertexArray = ResolveCachedVertexArray(item);
+		}
+
+		if (!vertexArray && !mesh) {
 			AddDiagnostic(
 				diagnostics,
 				RenderDiagnosticCode::MissingMeshAsset,
@@ -31,7 +53,6 @@ namespace HE::Rendering {
 			return false;
 		}
 
-		auto vertexArray = mesh->GetVertexArray();
 		if (!vertexArray) {
 			AddDiagnostic(
 				diagnostics,

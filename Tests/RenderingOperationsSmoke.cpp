@@ -139,6 +139,36 @@ int main() {
 
 	PrepareSandboxAssets();
 
+	HE::Ref<HE::Scene> runtimeMeshScene;
+	auto createRuntimeMeshScene = operations.CreateScene("RuntimeVertexArraySmoke", runtimeMeshScene);
+	Require(createRuntimeMeshScene.Succeeded() && runtimeMeshScene, "Expected runtime vertex-array scene.create to succeed for rendering smoke");
+
+	auto runtimeMesh = HE::Rendering::MeshManager::Instance().GetMesh("CustomSquare");
+	Require(static_cast<bool>(runtimeMesh), "Expected CustomSquare mesh to be registered for runtime vertex-array smoke");
+	auto runtimeVertexArray = runtimeMesh->GetVertexArray();
+	Require(static_cast<bool>(runtimeVertexArray), "Expected CustomSquare mesh to provide a vertex array for runtime vertex-array smoke");
+
+	auto runtimeMaterial = HE::Rendering::MaterialLibrary::Instance().GetMaterial("SandboxMaterial");
+	Require(static_cast<bool>(runtimeMaterial), "Expected SandboxMaterial to be registered for runtime vertex-array smoke");
+	Require(static_cast<bool>(runtimeMaterial->GetShader()), "Expected SandboxMaterial to provide a shader for runtime vertex-array smoke");
+
+	auto runtimeRenderable = runtimeMeshScene->GetWorld().CreateEntity("Runtime VertexArray Renderable");
+	runtimeRenderable.AddComponent<HE::Rendering::MeshComponent>(runtimeVertexArray);
+	runtimeRenderable.AddComponent<HE::Rendering::MaterialComponent>(runtimeMaterial->CreateInstance());
+
+	auto attachRuntimeMeshSceneRenderer = operations.AttachSceneViewportRenderer(runtimeMeshScene, framebuffer);
+	Require(attachRuntimeMeshSceneRenderer.Succeeded(), "Expected runtime vertex-array scene renderer attach to succeed");
+	auto renderRuntimeMeshScene = operations.RenderSceneViewport(*runtimeMeshScene, camera);
+	Require(renderRuntimeMeshScene.Succeeded(), "Expected runtime vertex-array scene viewport render to succeed");
+	Require(renderRuntimeMeshScene.Payload.contains("render_items"), "Expected runtime vertex-array scene render to report extracted render item count");
+	Require(renderRuntimeMeshScene.Payload.contains("submitted_items"), "Expected runtime vertex-array scene render to report submitted item count");
+	Require(renderRuntimeMeshScene.Payload.contains("skipped_items"), "Expected runtime vertex-array scene render to report skipped item count");
+	Require(renderRuntimeMeshScene.Payload.contains("diagnostics"), "Expected runtime vertex-array scene render to report diagnostic count");
+	Require(renderRuntimeMeshScene.Payload.at("render_items") == "1", "Expected runtime vertex-array scene render to extract one render item");
+	Require(renderRuntimeMeshScene.Payload.at("submitted_items") == "1", "Expected runtime vertex-array scene render to submit one render item");
+	Require(renderRuntimeMeshScene.Payload.at("skipped_items") == "0", "Expected runtime vertex-array scene render to skip no render items");
+	Require(renderRuntimeMeshScene.Payload.at("diagnostics") == "0", "Expected runtime vertex-array scene render to emit no diagnostics");
+
 	HE::Ref<HE::Scene> loadedScene;
 	const auto scenePath = HE::ResourcePaths::ResolveEngineResourcePath("SandboxScene.scene");
 	auto loadScene = operations.LoadScene(scenePath, loadedScene);
@@ -152,9 +182,11 @@ int main() {
 	Require(renderLoadedScene.Payload.contains("render_items"), "Expected loaded sandbox scene render to report extracted render item count");
 	Require(renderLoadedScene.Payload.contains("submitted_items"), "Expected loaded sandbox scene render to report submitted item count");
 	Require(renderLoadedScene.Payload.contains("skipped_items"), "Expected loaded sandbox scene render to report skipped item count");
+	Require(renderLoadedScene.Payload.contains("diagnostics"), "Expected loaded sandbox scene render to report diagnostic count");
 	Require(renderLoadedScene.Payload.at("render_items") == "4", "Expected loaded sandbox scene render to extract four render items");
 	Require(renderLoadedScene.Payload.at("submitted_items") == "4", "Expected loaded sandbox scene render to submit four render items");
 	Require(renderLoadedScene.Payload.at("skipped_items") == "0", "Expected loaded sandbox scene render to skip no render items");
+	Require(renderLoadedScene.Payload.at("diagnostics") == "0", "Expected loaded sandbox scene render to emit no diagnostics");
 	Require(HasRenderedPixel(framebuffer), "Expected loaded sandbox scene render to write at least one non-clear pixel");
 
 	std::cout << "RenderingOperationsSmoke passed" << std::endl;
