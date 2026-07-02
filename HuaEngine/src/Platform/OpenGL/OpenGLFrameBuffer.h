@@ -14,6 +14,7 @@ namespace HE::Rendering {
 		virtual void Resize(uint32_t width, uint32_t height) override;
 
 		virtual void ClearAttachment(uint32_t index, int value) override;
+		virtual FrameBufferPixelRGBA8 ReadPixelRGBA8(uint32_t attachmentIndex, uint32_t x, uint32_t y) const override;
 
 		virtual uint32_t GetRenderID() const override { return m_RenderID; }
 

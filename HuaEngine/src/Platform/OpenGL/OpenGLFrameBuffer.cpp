@@ -114,6 +114,29 @@ namespace HE::Rendering {
 		glClearTexImage(m_ColorAttachments[index], 0, Utils::TextureFormatToGL(spec.Format), GL_INT, &value);
 	}
 
+	FrameBufferPixelRGBA8 OpenGLFrameBuffer::ReadPixelRGBA8(uint32_t attachmentIndex, uint32_t x, uint32_t y) const {
+		HE_CORE_ASSERT(attachmentIndex < m_ColorAttachments.size(), "Color attachment index out of range");
+		HE_CORE_ASSERT(x < m_Specification.Width && y < m_Specification.Height, "Framebuffer pixel coordinates out of bounds");
+		HE_CORE_ASSERT(m_ColorAttachmentSpecifications[attachmentIndex].Format == FrameBufferTextureFormat::RGBA8, "ReadPixelRGBA8 requires an RGBA8 attachment");
+
+		GLint previousReadFramebuffer = 0;
+		glGetIntegerv(GL_READ_FRAMEBUFFER_BINDING, &previousReadFramebuffer);
+
+		glBindFramebuffer(GL_READ_FRAMEBUFFER, m_RenderID);
+
+		GLint framebufferReadBuffer = 0;
+		glGetIntegerv(GL_READ_BUFFER, &framebufferReadBuffer);
+		glReadBuffer(GL_COLOR_ATTACHMENT0 + attachmentIndex);
+
+		uint8_t pixel[4] = {};
+		glReadPixels(x, y, 1, 1, GL_RGBA, GL_UNSIGNED_BYTE, pixel);
+
+		glReadBuffer(framebufferReadBuffer);
+		glBindFramebuffer(GL_READ_FRAMEBUFFER, previousReadFramebuffer);
+
+		return { pixel[0], pixel[1], pixel[2], pixel[3] };
+	}
+
 	void OpenGLFrameBuffer::Invalidate() {
 		if (m_RenderID) {
 			glDeleteFramebuffers(1, &m_RenderID);
@@ -155,7 +178,7 @@ namespace HE::Rendering {
 			glCreateTextures(target, 1, &m_DepthAttachment);
 			glBindTexture(target, m_DepthAttachment);
 			switch (m_DepthAttachmentSpecification.Format) {
-				case FrameBufferTextureFormat::RGBA8:
+				case FrameBufferTextureFormat::DEPTH24_STENCIL8:
 					Utils::AttachDepthTexture(m_DepthAttachment, m_Specification.Samples, GL_DEPTH24_STENCIL8, GL_DEPTH_STENCIL_ATTACHMENT, m_Specification.Width, m_Specification.Height);
 					break;
 			}

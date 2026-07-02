@@ -54,6 +54,36 @@ namespace {
 			});
 		return renderableCount;
 	}
+
+	bool IsClearColor(const HE::Rendering::FrameBufferPixelRGBA8& pixel) {
+		return pixel.R == 26 && pixel.G == 26 && pixel.B == 26 && pixel.A == 255;
+	}
+
+	bool HasRenderedPixel(const HE::Ref<HE::FrameBuffer>& framebuffer) {
+		const auto& specification = framebuffer->GetSpecification();
+		const uint32_t width = specification.Width;
+		const uint32_t height = specification.Height;
+		const uint32_t samplePoints[][2] = {
+			{ width / 2, height / 2 },
+			{ width / 4, height / 4 },
+			{ width / 2, height / 4 },
+			{ (width * 3) / 4, height / 4 },
+			{ width / 4, height / 2 },
+			{ (width * 3) / 4, height / 2 },
+			{ width / 4, (height * 3) / 4 },
+			{ width / 2, (height * 3) / 4 },
+			{ (width * 3) / 4, (height * 3) / 4 }
+		};
+
+		for (const auto& point : samplePoints) {
+			const auto pixel = framebuffer->ReadPixelRGBA8(0, point[0], point[1]);
+			if (!IsClearColor(pixel)) {
+				return true;
+			}
+		}
+
+		return false;
+	}
 }
 
 int main() {
@@ -73,7 +103,7 @@ int main() {
 	HE::FrameBufferSpecification specification;
 	specification.Width = 320;
 	specification.Height = 180;
-	specification.Attachments = { HE::FrameBufferTextureFormat::RGBA8 };
+	specification.Attachments = { HE::FrameBufferTextureFormat::RGBA8, HE::FrameBufferTextureFormat::DEPTH24_STENCIL8 };
 	auto framebuffer = HE::FrameBuffer::Create(specification);
 	Require(static_cast<bool>(framebuffer), "Expected framebuffer creation to succeed");
 
@@ -107,6 +137,7 @@ int main() {
 	Require(attachLoadedSceneRenderer.Succeeded(), "Expected loaded scene renderer attach to succeed");
 	auto renderLoadedScene = operations.RenderSceneViewport(*loadedScene, camera);
 	Require(renderLoadedScene.Succeeded(), "Expected loaded sandbox scene viewport render to succeed");
+	Require(HasRenderedPixel(framebuffer), "Expected loaded sandbox scene render to write at least one non-clear pixel");
 
 	std::cout << "RenderingOperationsSmoke passed" << std::endl;
 	return 0;

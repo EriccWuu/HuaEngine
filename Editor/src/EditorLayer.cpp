@@ -549,7 +549,7 @@ namespace HE {
         FrameBufferSpecification spec;
         spec.Width = 1280;
         spec.Height = 720;
-        spec.Attachments = { FrameBufferTextureFormat::RGBA8 };
+        spec.Attachments = { FrameBufferTextureFormat::RGBA8, FrameBufferTextureFormat::DEPTH24_STENCIL8 };
         m_FrameBuffer = FrameBuffer::Create(spec);
 
         if (m_SceneDocument.SceneRef) {

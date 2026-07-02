@@ -37,6 +37,11 @@ namespace HE {
 	}
 
 	void RenderSystem::RenderSingleCamera(World& world, Rendering::Camera& camera) {
+		if (!m_Framebuffer) {
+			HE_CORE_WARN("RenderSystem::RenderSingleCamera skipped because no framebuffer is attached");
+			return;
+		}
+
 		auto materialQuery = world.Query<TransformComponent, Rendering::MeshComponent, Rendering::MaterialComponent>();
 		m_Framebuffer->Bind();
 		Rendering::RenderCommand::SetClearColor({ 0.1f, 0.1f, 0.1f, 1.0f });
