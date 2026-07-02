@@ -1668,7 +1668,7 @@ namespace HE {
         ImGui::DockBuilderDockWindow("Hierarchy", hierarchyDockId);
         ImGui::DockBuilderDockWindow("Inspector", rightDockId);
         ImGui::DockBuilderDockWindow("Console", bottomDockId);
-        ImGui::DockBuilderDockWindow("Scene", centerDockId);
+        ImGui::DockBuilderDockWindow("Game", centerDockId);
         ImGui::DockBuilderFinish(dockspaceId);
     }
 

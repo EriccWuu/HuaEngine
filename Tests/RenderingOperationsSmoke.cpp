@@ -4,6 +4,7 @@
 #include <string>
 
 #include "HuaEngine.h"
+#include "HuaEngine/Core/ResourcePaths.h"
 
 namespace {
 	void Require(bool condition, const std::string& message) {
@@ -26,6 +27,32 @@ namespace {
 		SmokeApplication()
 			: HE::Application(MakeApplicationSpecification()) {}
 	};
+
+	void PrepareSandboxAssets() {
+		HE::Rendering::MeshManager::Instance().LoadDefaultMeshes();
+
+		const auto customMeshPath = HE::ResourcePaths::ResolveEngineResourcePath("CustomMesh.mesh");
+		auto customMesh = HE::Rendering::Mesh::LoadFromFile(customMeshPath.generic_string());
+		Require(static_cast<bool>(customMesh), "Expected CustomMesh.mesh to load for renderable scene smoke");
+		HE::Rendering::MeshManager::Instance().RegisterMesh("CustomSquare", customMesh);
+
+		auto sandboxMaterial = HE::Rendering::Material::Create("SandboxMaterial", HE::Rendering::MaterialType::Custom);
+		const auto materialPath = HE::ResourcePaths::ResolveEngineResourcePath("SandboxMaterial.material");
+		Require(HE::Serialization::LoadMaterial(materialPath.generic_string(), *sandboxMaterial), "Expected SandboxMaterial.material to load for renderable scene smoke");
+		Require(static_cast<bool>(sandboxMaterial->GetShader()), "Expected loaded sandbox material to have a shader");
+		HE::Rendering::MaterialLibrary::Instance().RegisterMaterial(sandboxMaterial->GetName(), sandboxMaterial);
+	}
+
+	uint32_t CountRenderableSubmissions(HE::Scene& scene) {
+		uint32_t renderableCount = 0;
+		scene.GetWorld().Query<HE::TransformComponent, HE::Rendering::MeshComponent, HE::Rendering::MaterialComponent>().ForEach(
+			[&](HE::Entity, HE::TransformComponent&, HE::Rendering::MeshComponent& mesh, HE::Rendering::MaterialComponent& material) {
+				if (mesh.GetVertexArray() && material.MaterialInstance && material.MaterialInstance->GetShader()) {
+					++renderableCount;
+				}
+			});
+		return renderableCount;
+	}
 }
 
 int main() {
@@ -66,6 +93,19 @@ int main() {
 	auto renderViewport = operations.RenderSceneViewport(*scene, camera);
 	Require(renderViewport.Succeeded(), "Expected rendering.render_scene_viewport to succeed");
 	Require(renderViewport.Operation == "rendering.render_scene_viewport", "Expected render operation id to stay stable");
+
+	PrepareSandboxAssets();
+
+	HE::Ref<HE::Scene> loadedScene;
+	const auto scenePath = HE::ResourcePaths::ResolveEngineResourcePath("SandboxScene.scene");
+	auto loadScene = operations.LoadScene(scenePath, loadedScene);
+	Require(loadScene.Succeeded() && loadedScene, "Expected sandbox scene load to succeed");
+	Require(CountRenderableSubmissions(*loadedScene) == 4, "Expected loaded sandbox scene to expose four renderable submissions");
+
+	auto attachLoadedSceneRenderer = operations.AttachSceneViewportRenderer(loadedScene, framebuffer);
+	Require(attachLoadedSceneRenderer.Succeeded(), "Expected loaded scene renderer attach to succeed");
+	auto renderLoadedScene = operations.RenderSceneViewport(*loadedScene, camera);
+	Require(renderLoadedScene.Succeeded(), "Expected loaded sandbox scene viewport render to succeed");
 
 	std::cout << "RenderingOperationsSmoke passed" << std::endl;
 	return 0;
