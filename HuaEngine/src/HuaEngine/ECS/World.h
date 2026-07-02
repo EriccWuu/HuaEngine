@@ -9,6 +9,8 @@
 #include <utility>
 #include <vector>
 
+#include "entt.hpp"
+#include "HuaEngine/Core/Assert.h"
 #include "HuaEngine/ECS/ComponentType.h"
 #include "HuaEngine/ECS/Entity.h"
 #include "HuaEngine/ECS/EntityId.h"
@@ -55,49 +57,35 @@ namespace HE {
 
 		template<typename T, typename... Args>
 		T& AddComponent(EntityId id, Args&&... args) {
-			auto& storage = GetOrCreateStorage<T>();
-			T component{std::forward<Args>(args)...};
-			auto [iterator, inserted] = storage.Components.insert_or_assign(id, std::move(component));
-			(void)inserted;
-			return iterator->second;
+			using ComponentType = typename Detail::CleanComponentType<T>;
+			EnsureComponentAccessors<ComponentType>();
+
+			auto* record = TryGetRecord(id);
+			HE_CORE_ASSERT(record != nullptr, "Cannot add a component to an invalid entity");
+			TrackComponentType(id, ComponentTypeIdOf<ComponentType>());
+			return m_Registry.emplace_or_replace<ComponentType>(record->RawEntity, std::forward<Args>(args)...);
 		}
 
 		template<typename T>
 		T* TryGetComponent(EntityId id) {
-			if (!IsAlive(id)) {
+			using ComponentType = typename Detail::CleanComponentType<T>;
+			auto* record = TryGetRecord(id);
+			if (record == nullptr || !m_Registry.all_of<ComponentType>(record->RawEntity)) {
 				return nullptr;
 			}
 
-			auto* storage = GetStorage<T>();
-			if (storage == nullptr) {
-				return nullptr;
-			}
-
-			auto iterator = storage->Components.find(id);
-			if (iterator == storage->Components.end()) {
-				return nullptr;
-			}
-
-			return &iterator->second;
+			return &m_Registry.get<ComponentType>(record->RawEntity);
 		}
 
 		template<typename T>
 		const T* TryGetComponent(EntityId id) const {
-			if (!IsAlive(id)) {
+			using ComponentType = typename Detail::CleanComponentType<T>;
+			const auto* record = TryGetRecord(id);
+			if (record == nullptr || !m_Registry.all_of<ComponentType>(record->RawEntity)) {
 				return nullptr;
 			}
 
-			const auto* storage = GetStorage<T>();
-			if (storage == nullptr) {
-				return nullptr;
-			}
-
-			auto iterator = storage->Components.find(id);
-			if (iterator == storage->Components.end()) {
-				return nullptr;
-			}
-
-			return &iterator->second;
+			return &m_Registry.get<ComponentType>(record->RawEntity);
 		}
 
 		template<typename T>
@@ -107,12 +95,14 @@ namespace HE {
 
 		template<typename T>
 		void RemoveComponent(EntityId id) {
-			auto* storage = GetStorage<T>();
-			if (storage == nullptr) {
+			using ComponentType = typename Detail::CleanComponentType<T>;
+			auto* record = TryGetRecord(id);
+			if (record == nullptr || !m_Registry.all_of<ComponentType>(record->RawEntity)) {
 				return;
 			}
 
-			storage->Components.erase(id);
+			m_Registry.remove<ComponentType>(record->RawEntity);
+			UntrackComponentType(id, ComponentTypeIdOf<ComponentType>());
 		}
 
 		template<typename... Terms>
@@ -124,80 +114,36 @@ namespace HE {
 			bool Alive = false;
 			EntityUuid Uuid;
 			std::string Name = "Entity";
+			entt::entity RawEntity = entt::null;
 		};
 
-		struct IComponentStorage {
-			virtual ~IComponentStorage() = default;
-			virtual void Remove(EntityId id) = 0;
-			virtual bool Contains(EntityId id) const = 0;
-			virtual void* TryGetRaw(EntityId id) = 0;
-			virtual const void* TryGetRaw(EntityId id) const = 0;
-		};
-
-		template<typename T>
-		struct ComponentStorage final : IComponentStorage {
-			std::unordered_map<EntityId, T> Components;
-
-			void Remove(EntityId id) override {
-				Components.erase(id);
-			}
-
-			bool Contains(EntityId id) const override {
-				return Components.find(id) != Components.end();
-			}
-
-			void* TryGetRaw(EntityId id) override {
-				auto iterator = Components.find(id);
-				return iterator != Components.end() ? &iterator->second : nullptr;
-			}
-
-			const void* TryGetRaw(EntityId id) const override {
-				auto iterator = Components.find(id);
-				return iterator != Components.end() ? &iterator->second : nullptr;
-			}
+		struct ComponentAccessors {
+			void* (*TryGetRaw)(entt::registry&, entt::entity) = nullptr;
+			const void* (*TryGetRawConst)(const entt::registry&, entt::entity) = nullptr;
 		};
 
 		template<typename T>
-		ComponentStorage<typename Detail::CleanComponentType<T>>& GetOrCreateStorage() {
+		void EnsureComponentAccessors() {
 			using ComponentType = typename Detail::CleanComponentType<T>;
 			const ComponentTypeId typeId = ComponentTypeIdOf<ComponentType>();
-
-			auto iterator = m_ComponentStorages.find(typeId);
-			if (iterator == m_ComponentStorages.end()) {
-				auto storage = std::make_unique<ComponentStorage<ComponentType>>();
-				auto* storagePointer = storage.get();
-				m_ComponentStorages.emplace(typeId, std::move(storage));
-				return *storagePointer;
+			if (m_ComponentAccessors.find(typeId) != m_ComponentAccessors.end()) {
+				return;
 			}
 
-			return *static_cast<ComponentStorage<ComponentType>*>(iterator->second.get());
+			m_ComponentAccessors.emplace(typeId, ComponentAccessors{
+				.TryGetRaw = [](entt::registry& registry, entt::entity entity) -> void* {
+					return registry.all_of<ComponentType>(entity) ? &registry.get<ComponentType>(entity) : nullptr;
+				},
+				.TryGetRawConst = [](const entt::registry& registry, entt::entity entity) -> const void* {
+					return registry.all_of<ComponentType>(entity) ? &registry.get<ComponentType>(entity) : nullptr;
+				}
+			});
 		}
 
-		template<typename T>
-		ComponentStorage<typename Detail::CleanComponentType<T>>* GetStorage() {
-			using ComponentType = typename Detail::CleanComponentType<T>;
-			const ComponentTypeId typeId = ComponentTypeIdOf<ComponentType>();
-
-			auto iterator = m_ComponentStorages.find(typeId);
-			if (iterator == m_ComponentStorages.end()) {
-				return nullptr;
-			}
-
-			return static_cast<ComponentStorage<ComponentType>*>(iterator->second.get());
-		}
-
-		template<typename T>
-		const ComponentStorage<typename Detail::CleanComponentType<T>>* GetStorage() const {
-			using ComponentType = typename Detail::CleanComponentType<T>;
-			const ComponentTypeId typeId = ComponentTypeIdOf<ComponentType>();
-
-			auto iterator = m_ComponentStorages.find(typeId);
-			if (iterator == m_ComponentStorages.end()) {
-				return nullptr;
-			}
-
-			return static_cast<const ComponentStorage<ComponentType>*>(iterator->second.get());
-		}
+		[[nodiscard]] EntityRecord* TryGetRecord(EntityId id);
+		[[nodiscard]] const EntityRecord* TryGetRecord(EntityId id) const;
+		void TrackComponentType(EntityId id, ComponentTypeId typeId);
+		void UntrackComponentType(EntityId id, ComponentTypeId typeId);
 
 		[[nodiscard]] EntityUuid GenerateUuid();
 
@@ -205,12 +151,11 @@ namespace HE {
 		std::vector<EntityRecord> m_Records;
 		std::vector<uint32_t> m_FreeIndices;
 		std::unordered_map<EntityUuid, EntityId> m_UuidToEntity;
-		std::unordered_map<ComponentTypeId, std::unique_ptr<IComponentStorage>> m_ComponentStorages;
+		std::unordered_map<ComponentTypeId, ComponentAccessors> m_ComponentAccessors;
+		std::unordered_map<EntityId, std::vector<ComponentTypeId>> m_ComponentTypesByEntity;
+		entt::registry m_Registry;
 		size_t m_EntityCount = 0;
 		uint64_t m_NextUuid = 1;
-
-		template<typename... Terms>
-		friend class Query;
 	};
 }
 

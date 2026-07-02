@@ -1,6 +1,8 @@
 #include "enginepch.h"
 #include "HuaEngine/ECS/World.h"
 
+#include <algorithm>
+
 namespace HE {
 	namespace Detail {
 		EntityUuid GetWorldEntityUuid(const World* world, EntityId id) {
@@ -47,6 +49,7 @@ namespace HE {
 			record.Alive = true;
 			record.Uuid = uuid;
 			record.Name = name.empty() ? "Entity" : std::string(name);
+			record.RawEntity = m_Registry.create();
 		}
 		else {
 			index = static_cast<uint32_t>(m_Records.size());
@@ -55,6 +58,7 @@ namespace HE {
 			record.Alive = true;
 			record.Uuid = uuid;
 			record.Name = name.empty() ? "Entity" : std::string(name);
+			record.RawEntity = m_Registry.create();
 			m_Records.push_back(std::move(record));
 		}
 
@@ -81,18 +85,21 @@ namespace HE {
 		m_UuidToEntity.erase(record.Uuid);
 		m_FreeIndices.push_back(id.Index);
 		--m_EntityCount;
+		m_ComponentTypesByEntity.erase(id);
 
-		for (auto& [typeId, storage] : m_ComponentStorages) {
-			(void)typeId;
-			storage->Remove(id);
+		if (record.RawEntity != entt::null && m_Registry.valid(record.RawEntity)) {
+			m_Registry.destroy(record.RawEntity);
 		}
+		record.RawEntity = entt::null;
 	}
 
 	void World::Clear() {
 		m_Records.clear();
 		m_FreeIndices.clear();
 		m_UuidToEntity.clear();
-		m_ComponentStorages.clear();
+		m_ComponentTypesByEntity.clear();
+		m_ComponentAccessors.clear();
+		m_Registry.clear();
 		m_EntityCount = 0;
 		m_NextUuid = 1;
 	}
@@ -159,47 +166,79 @@ namespace HE {
 	}
 
 	const void* World::TryGetComponentByType(EntityId id, ComponentTypeId typeId) const {
-		if (!IsAlive(id)) {
+		const auto* record = TryGetRecord(id);
+		if (record == nullptr) {
 			return nullptr;
 		}
 
-		const auto iterator = m_ComponentStorages.find(typeId);
-		if (iterator == m_ComponentStorages.end()) {
+		const auto iterator = m_ComponentAccessors.find(typeId);
+		if (iterator == m_ComponentAccessors.end() || iterator->second.TryGetRawConst == nullptr) {
 			return nullptr;
 		}
 
-		return iterator->second->TryGetRaw(id);
+		return iterator->second.TryGetRawConst(m_Registry, record->RawEntity);
 	}
 
 	void* World::TryGetComponentByType(EntityId id, ComponentTypeId typeId) {
-		if (!IsAlive(id)) {
+		auto* record = TryGetRecord(id);
+		if (record == nullptr) {
 			return nullptr;
 		}
 
-		const auto iterator = m_ComponentStorages.find(typeId);
-		if (iterator == m_ComponentStorages.end()) {
+		const auto iterator = m_ComponentAccessors.find(typeId);
+		if (iterator == m_ComponentAccessors.end() || iterator->second.TryGetRaw == nullptr) {
 			return nullptr;
 		}
 
-		return iterator->second->TryGetRaw(id);
+		return iterator->second.TryGetRaw(m_Registry, record->RawEntity);
 	}
 
 	std::vector<ComponentTypeId> World::ListComponentTypes(EntityId id) const {
-		std::vector<ComponentTypeId> componentTypes;
-		if (!IsAlive(id)) {
-			return componentTypes;
+		const auto iterator = m_ComponentTypesByEntity.find(id);
+		if (iterator == m_ComponentTypesByEntity.end()) {
+			return {};
 		}
 
-		for (const auto& [typeId, storage] : m_ComponentStorages) {
-			if (storage->Contains(id)) {
-				componentTypes.push_back(typeId);
-			}
-		}
-
-		return componentTypes;
+		return iterator->second;
 	}
 
 	EntityUuid World::GenerateUuid() {
 		return EntityUuid{0, m_NextUuid++};
+	}
+
+	World::EntityRecord* World::TryGetRecord(EntityId id) {
+		if (!IsAlive(id)) {
+			return nullptr;
+		}
+
+		return &m_Records[id.Index];
+	}
+
+	const World::EntityRecord* World::TryGetRecord(EntityId id) const {
+		if (!IsAlive(id)) {
+			return nullptr;
+		}
+
+		return &m_Records[id.Index];
+	}
+
+	void World::TrackComponentType(EntityId id, ComponentTypeId typeId) {
+		auto& componentTypes = m_ComponentTypesByEntity[id];
+		if (std::find(componentTypes.begin(), componentTypes.end(), typeId) == componentTypes.end()) {
+			componentTypes.push_back(typeId);
+		}
+	}
+
+	void World::UntrackComponentType(EntityId id, ComponentTypeId typeId) {
+		auto iterator = m_ComponentTypesByEntity.find(id);
+		if (iterator == m_ComponentTypesByEntity.end()) {
+			return;
+		}
+
+		auto& componentTypes = iterator->second;
+		componentTypes.erase(std::remove(componentTypes.begin(), componentTypes.end(), typeId), componentTypes.end());
+		if (componentTypes.empty()) {
+			m_ComponentTypesByEntity.erase(iterator);
+		}
 	}
 }

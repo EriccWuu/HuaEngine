@@ -45,6 +45,12 @@ endforeach()
 
 # Include directories
 target_include_directories(HuaEngine
+    SYSTEM
+    PUBLIC
+        ${ENTT_INCLUDE_DIR}
+)
+
+target_include_directories(HuaEngine
     PUBLIC
         $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/src>
         $<INSTALL_INTERFACE:src>

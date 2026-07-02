@@ -41,6 +41,7 @@ set(GLAD_INCLUDE_DIR "${CMAKE_SOURCE_DIR}/Dependencies/glad/include")
 set(IMGUI_INCLUDE_DIR "${CMAKE_SOURCE_DIR}/Dependencies/imgui")
 set(GLM_INCLUDE_DIR "${CMAKE_SOURCE_DIR}/Dependencies/glm")
 set(STB_IMAGE_INCLUDE_DIR "${CMAKE_SOURCE_DIR}/Dependencies/stb_image")
+set(ENTT_INCLUDE_DIR "${CMAKE_SOURCE_DIR}/Dependencies/entt")
 
 # Compiler specific settings
 if(MSVC)
@@ -182,6 +183,26 @@ if(WIN32)
     endif()
 endif()
 configure_smoke_target(ECSSceneSerializationSmoke)
+
+add_executable(ECSBackendSmoke Tests/ECSBackendSmoke.cpp)
+target_include_directories(ECSBackendSmoke PRIVATE
+    ${CMAKE_SOURCE_DIR}/HuaEngine/src
+    ${SPDLOG_INCLUDE_DIR}
+    ${GLM_INCLUDE_DIR}
+    ${IMGUI_INCLUDE_DIR}
+    ${STB_IMAGE_INCLUDE_DIR}
+)
+target_link_libraries(ECSBackendSmoke PRIVATE HuaEngine)
+if(WIN32)
+    target_compile_definitions(ECSBackendSmoke PRIVATE GLFW_INCLUDE_NONE)
+    if(MSVC)
+        set_target_properties(ECSBackendSmoke PROPERTIES
+            MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>"
+        )
+        target_compile_options(ECSBackendSmoke PRIVATE /utf-8)
+    endif()
+endif()
+configure_smoke_target(ECSBackendSmoke)
 
 add_executable(ProjectServiceSmoke Tests/ProjectServiceSmoke.cpp)
 target_include_directories(ProjectServiceSmoke PRIVATE
@@ -488,6 +509,7 @@ set_property(TARGET ProjectHub PROPERTY FOLDER "Hosts")
 set_property(TARGET ECSCoreSmoke PROPERTY FOLDER "Tests")
 set_property(TARGET ECSQuerySchedulerSmoke PROPERTY FOLDER "Tests")
 set_property(TARGET ECSSceneSerializationSmoke PROPERTY FOLDER "Tests")
+set_property(TARGET ECSBackendSmoke PROPERTY FOLDER "Tests")
 set_property(TARGET ProjectServiceSmoke PROPERTY FOLDER "Tests")
 set_property(TARGET SceneServiceSmoke PROPERTY FOLDER "Tests")
 set_property(TARGET AssetServiceSmoke PROPERTY FOLDER "Tests")

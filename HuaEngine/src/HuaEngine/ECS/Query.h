@@ -20,20 +20,8 @@ namespace HE {
 
 		template<typename Callback>
 		void ForEach(Callback&& callback) {
-			using FirstTerm = std::tuple_element_t<0, std::tuple<Terms...>>;
-			using FirstComponent = typename QueryTermTraits<FirstTerm>::ComponentType;
-
-			auto* primaryStorage = m_World->template GetStorage<FirstComponent>();
-			if (primaryStorage == nullptr) {
-				return;
-			}
-
 			m_World->ForEachEntity([&](auto entity) {
 				const EntityId entityId = entity.GetId();
-				if (primaryStorage->Components.find(entityId) == primaryStorage->Components.end()) {
-					return;
-				}
-
 				if (((m_World->template TryGetComponent<typename QueryTermTraits<Terms>::ComponentType>(entityId) != nullptr) && ...)) {
 					std::invoke(std::forward<Callback>(callback), entity, GetArgument<Terms>(entityId)...);
 				}
