@@ -31,10 +31,17 @@
 #include "HuaEngine/Rendering/EditorCamera.h"
 
 // ECS
+#include "HuaEngine/ECS/ComponentRegistry.h"
+#include "HuaEngine/ECS/ComponentType.h"
+#include "HuaEngine/ECS/EntityId.h"
 #include "HuaEngine/ECS/Entity.h"
 #include "HuaEngine/ECS/EntityManager.h"
 #include "HuaEngine/ECS/Components.h"
+#include "HuaEngine/ECS/Query.h"
+#include "HuaEngine/ECS/Scheduler.h"
 #include "HuaEngine/ECS/ScriptableEntity.h"
+#include "HuaEngine/ECS/System.h"
+#include "HuaEngine/ECS/World.h"
 #include "Module/Rendering/RenderingComponent.h"
 
 // Scene

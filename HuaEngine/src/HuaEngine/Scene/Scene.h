@@ -2,8 +2,10 @@
 
 #include <string>
 #include "HuaEngine/ECS/Entity.h"
-#include "HuaEngine/ECS/Syetem.h"
 #include "HuaEngine/ECS/EntityManager.h"
+#include "HuaEngine/ECS/Scheduler.h"
+#include "HuaEngine/ECS/System.h"
+#include "HuaEngine/ECS/World.h"
 
 namespace HE {
 
@@ -14,12 +16,19 @@ namespace HE {
 		~Scene() = default;
 
 		void Update();
+		void OnRuntimeStart();
+		void OnUpdate(float deltaTime = 0.0f);
+		void OnRuntimeStop();
 
 		// Scene name
 		const std::string& GetName() const { return m_Name; }
 		void SetName(const std::string& name) { m_Name = name; }
 
-		void AddSyetem(Ref<System> system) { m_Systems.emplace_back(system); }
+		void AddSystem(Ref<System> system);
+		void AddSyetem(Ref<System> system) { AddSystem(system); }
+		World& GetWorld() { return m_World; }
+		const World& GetWorld() const { return m_World; }
+		Scheduler& GetScheduler() { return m_Scheduler; }
 		EntityManager& GetEntityManager() { return m_EntityManager; }
 
 		template<typename Type, typename... Other, typename... Args>
@@ -46,6 +55,8 @@ namespace HE {
 
 	private:
 		std::string m_Name;
+		World m_World;
+		Scheduler m_Scheduler;
 		EntityManager m_EntityManager;
 		std::vector<Ref<System>> m_Systems;
 	};

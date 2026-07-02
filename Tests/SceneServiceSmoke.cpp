@@ -63,6 +63,10 @@ int main() {
 	Require(static_cast<bool>(scene), "Expected created scene reference to be valid");
 	Require(scene->GetName() == "SmokeScene", "Expected created scene name to match");
 
+	auto ecsSceneEntity = scene->GetWorld().CreateEntity("Scene Entity");
+	Require(ecsSceneEntity.IsValid(), "Expected scene world to create a valid entity");
+	Require(scene->GetWorld().GetEntityCount() == 1, "Expected scene world to track created entities");
+
 	auto firstEntity = scene->GetEntityManager().CreateEntity();
 	firstEntity.GetComponent<HE::TransformComponent>().Position = { 1.0f, 2.0f, 3.0f };
 	auto secondEntity = scene->GetEntityManager().CreateEntity();
