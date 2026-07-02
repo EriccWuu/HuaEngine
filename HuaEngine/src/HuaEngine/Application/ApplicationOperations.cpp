@@ -529,9 +529,17 @@ namespace HE {
 		}
 
 		renderSystem->RenderSingleCamera(scene.GetWorld(), camera);
+		const auto& renderResult = renderSystem->GetLastRenderResult();
+		if (!renderResult.Succeeded) {
+			auto result = ResultEnvelope::Failure("rendering.render_scene_viewport", scene.GetName(), "Scene viewport render failed");
+			result.AddDetail({ DiagnosticSeverity::Error, "rendering.render_scene_viewport.pipeline_failed", "RenderPipeline did not produce a successful result", {} });
+			return result;
+		}
 
 		auto result = ResultEnvelope::Success("rendering.render_scene_viewport", scene.GetName(), "Scene viewport rendered");
 		result.SetPayloadValue("scene_name", scene.GetName());
+		result.SetPayloadValue("render_items", std::to_string(renderResult.Stats.RenderItems));
+		result.SetPayloadValue("submitted_items", std::to_string(renderResult.Stats.SubmittedItems));
 		return result;
 	}
 

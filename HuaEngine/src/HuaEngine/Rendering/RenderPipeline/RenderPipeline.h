@@ -1,13 +1,13 @@
 #pragma once
 
-#include "HuaEngine/Core/Core.h"
-#include "HuaEngine/Scene/Scene.h"
-#include "HuaEngine/Rendering/Camera.h"
+#include <vector>
+
+#include "HuaEngine/Rendering/RenderPipeline/RenderTypes.h"
 
 namespace HE::Rendering {
 	class RenderPipeline {
 	public:
 		virtual ~RenderPipeline();
-		virtual void Render(Scene& scene, Camera& camera, float width, float height);
+		virtual RenderResult Render(const RenderView& view, const std::vector<RenderItem>& renderItems);
 	};
 }

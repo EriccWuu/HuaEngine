@@ -124,6 +124,8 @@ int main() {
 	auto renderViewport = operations.RenderSceneViewport(*scene, camera);
 	Require(renderViewport.Succeeded(), "Expected rendering.render_scene_viewport to succeed");
 	Require(renderViewport.Operation == "rendering.render_scene_viewport", "Expected render operation id to stay stable");
+	Require(renderViewport.Payload.contains("render_items"), "Expected rendering.render_scene_viewport to report extracted render item count");
+	Require(renderViewport.Payload.contains("submitted_items"), "Expected rendering.render_scene_viewport to report submitted item count");
 
 	PrepareSandboxAssets();
 
@@ -137,6 +139,9 @@ int main() {
 	Require(attachLoadedSceneRenderer.Succeeded(), "Expected loaded scene renderer attach to succeed");
 	auto renderLoadedScene = operations.RenderSceneViewport(*loadedScene, camera);
 	Require(renderLoadedScene.Succeeded(), "Expected loaded sandbox scene viewport render to succeed");
+	Require(renderLoadedScene.Payload.contains("render_items"), "Expected loaded sandbox scene render to report extracted render item count");
+	Require(renderLoadedScene.Payload.contains("submitted_items"), "Expected loaded sandbox scene render to report submitted item count");
+	Require(renderLoadedScene.Payload.at("render_items") == "4", "Expected loaded sandbox scene render to extract four render items");
 	Require(HasRenderedPixel(framebuffer), "Expected loaded sandbox scene render to write at least one non-clear pixel");
 
 	std::cout << "RenderingOperationsSmoke passed" << std::endl;

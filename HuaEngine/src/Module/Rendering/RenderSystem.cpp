@@ -2,9 +2,11 @@
 #include "HuaEngine/ECS/Components.h"
 #include "RenderingComponent.h"
 #include "RenderSystem.h"
-#include "HuaEngine/Rendering/RenderCommand.h"
 
 namespace HE {
+	RenderSystem::RenderSystem(Ref<Scene> scene)
+		: m_Scene(std::move(scene)), m_RenderPipeline(CreateScope<Rendering::RenderPipeline>()) {}
+
 	SystemDescriptor RenderSystem::Describe() const {
 		SystemDescriptor descriptor;
 		descriptor.Name = "RenderSystem";
@@ -37,26 +39,17 @@ namespace HE {
 	}
 
 	void RenderSystem::RenderSingleCamera(World& world, Rendering::Camera& camera) {
+		m_LastRenderResult = {};
 		if (!m_Framebuffer) {
 			HE_CORE_WARN("RenderSystem::RenderSingleCamera skipped because no framebuffer is attached");
 			return;
 		}
 
-		auto materialQuery = world.Query<TransformComponent, Rendering::MeshComponent, Rendering::MaterialComponent>();
-		m_Framebuffer->Bind();
-		Rendering::RenderCommand::SetClearColor({ 0.1f, 0.1f, 0.1f, 1.0f });
-		Rendering::RenderCommand::Clear();
+		Rendering::RenderView view;
+		view.CameraRef = CreateRef<Rendering::Camera>(camera);
+		view.Target = m_Framebuffer;
 
-		Rendering::Renderer::Begin(std::make_shared<Rendering::Camera>(camera));
-
-		materialQuery.ForEach([&](Entity, TransformComponent& transform, Rendering::MeshComponent& mesh, Rendering::MaterialComponent& materialComp) {
-			auto vertexArray = mesh.GetVertexArray();
-			if (materialComp.MaterialInstance && vertexArray) {
-				Rendering::Renderer::Submit(materialComp.MaterialInstance, vertexArray, transform.GetTransformMat());
-			}
-		});
-
-		Rendering::Renderer::End();
-		m_Framebuffer->Unbind();
+		auto renderItems = m_Extractor.Extract(world);
+		m_LastRenderResult = m_RenderPipeline->Render(view, renderItems);
 	}
 }
