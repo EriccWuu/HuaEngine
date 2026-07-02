@@ -2,72 +2,12 @@
 #include "SceneSerializer.h"
 
 #include "HuaEngine/ECS/ComponentRegistry.h"
-#include "Module/Rendering/RenderingComponent.h"
 
 namespace {
 	HE::ComponentRegistry CreateSceneComponentRegistry() {
 		HE::ComponentRegistry registry;
 		HE::RegisterCoreComponents(registry);
 		return registry;
-	}
-
-	bool DeserializeLegacySceneComponent(
-		HE::Serialization::SerializationBackend& backend,
-		const std::string& componentName,
-		void* component) {
-		if (componentName == "NameComponent") {
-			auto& name = *static_cast<HE::NameComponent*>(component);
-			backend.BeginObject(componentName);
-			const bool success = backend.Deserialize("name", name.Name);
-			backend.EndObject();
-			return success;
-		}
-
-		if (componentName == "TransformComponent") {
-			auto& transform = *static_cast<HE::TransformComponent*>(component);
-			backend.BeginObject(componentName);
-			const bool success =
-				HE::Serialization::DeserializeValue(backend, "position", transform.Position) &&
-				HE::Serialization::DeserializeValue(backend, "rotation", transform.Rotation) &&
-				HE::Serialization::DeserializeValue(backend, "scale", transform.Scale);
-			backend.EndObject();
-			return success;
-		}
-
-		if (componentName == "CameraComponent") {
-			auto& camera = *static_cast<HE::Rendering::CameraComponent*>(component);
-			backend.BeginObject(componentName);
-			bool success = false;
-			if (backend.HasField("primary")) {
-				success = backend.Deserialize("primary", camera.Primary) || success;
-			}
-			if (backend.HasField("fixed_aspect_ratio")) {
-				success = backend.Deserialize("fixed_aspect_ratio", camera.FixedAspectRatio) || success;
-			}
-			backend.EndObject();
-			return success;
-		}
-
-		if (componentName == "MeshComponent") {
-			auto& mesh = *static_cast<HE::Rendering::MeshComponent*>(component);
-			backend.BeginObject(componentName);
-			const bool success = backend.Deserialize("mesh_asset", mesh.MeshAssetName);
-			backend.EndObject();
-			return success;
-		}
-
-		if (componentName == "MaterialComponent") {
-			auto& material = *static_cast<HE::Rendering::MaterialComponent*>(component);
-			backend.BeginObject(componentName);
-			bool success = false;
-			if (backend.HasField("material_instance")) {
-				success = HE::Serialization::DeserializeValue(backend, "material_instance", material.MaterialInstance);
-			}
-			backend.EndObject();
-			return success;
-		}
-
-		return false;
 	}
 
 	void SerializeEntity(
@@ -123,8 +63,7 @@ namespace {
 				}
 
 				void* component = metadata->ConstructDefault();
-				const bool success = metadata->Deserialize(backend, componentName, component) ||
-					DeserializeLegacySceneComponent(backend, componentName, component);
+				const bool success = metadata->Deserialize(backend, componentName, component);
 				if (success) {
 					metadata->AddCopyToWorld(scene.GetWorld(), entity.GetId(), component);
 				}

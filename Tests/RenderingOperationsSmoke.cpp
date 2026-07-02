@@ -47,7 +47,8 @@ namespace {
 		uint32_t renderableCount = 0;
 		scene.GetWorld().Query<HE::TransformComponent, HE::Rendering::MeshComponent, HE::Rendering::MaterialComponent>().ForEach(
 			[&](HE::Entity, HE::TransformComponent&, HE::Rendering::MeshComponent& mesh, HE::Rendering::MaterialComponent& material) {
-				if (mesh.GetVertexArray() && material.MaterialInstance && material.MaterialInstance->GetShader()) {
+				const auto baseMaterial = material.MaterialInstance ? material.MaterialInstance->GetBaseMaterial() : nullptr;
+				if (mesh.GetVertexArray() && baseMaterial && baseMaterial->GetShader()) {
 					++renderableCount;
 				}
 			});
