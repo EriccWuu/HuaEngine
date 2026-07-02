@@ -4,7 +4,6 @@
 #include "HuaEngine/ECS/Components.h"
 #include "HuaEngine/Serialization/Serialization.h"
 #include "HuaEngine/Serialization/SerializationManager.h"
-#include "entt.hpp"
 
 namespace HE::Serialization {
 

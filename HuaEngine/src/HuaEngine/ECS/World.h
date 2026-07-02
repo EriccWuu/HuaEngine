@@ -24,6 +24,7 @@ namespace HE {
 		Entity CreateEntity(const std::string& name = "Entity");
 		Entity CreateEntityWithUuid(EntityUuid uuid, std::string_view name);
 		void DestroyEntity(EntityId id);
+		void Clear();
 
 		[[nodiscard]] bool IsAlive(EntityId id) const;
 		[[nodiscard]] size_t GetEntityCount() const { return m_EntityCount; }
@@ -34,6 +35,9 @@ namespace HE {
 		[[nodiscard]] EntityUuid GetEntityUuid(EntityId id) const { return GetUuid(id); }
 		[[nodiscard]] std::string GetEntityName(EntityId id) const;
 		void SetEntityName(EntityId id, const std::string& name);
+		[[nodiscard]] const void* TryGetComponentByType(EntityId id, ComponentTypeId typeId) const;
+		[[nodiscard]] void* TryGetComponentByType(EntityId id, ComponentTypeId typeId);
+		[[nodiscard]] std::vector<ComponentTypeId> ListComponentTypes(EntityId id) const;
 
 		template<typename Callback>
 		void ForEachEntity(Callback&& callback) {
@@ -123,11 +127,33 @@ namespace HE {
 
 		struct IComponentStorage {
 			virtual ~IComponentStorage() = default;
+			virtual void Remove(EntityId id) = 0;
+			virtual bool Contains(EntityId id) const = 0;
+			virtual void* TryGetRaw(EntityId id) = 0;
+			virtual const void* TryGetRaw(EntityId id) const = 0;
 		};
 
 		template<typename T>
 		struct ComponentStorage final : IComponentStorage {
 			std::unordered_map<EntityId, T> Components;
+
+			void Remove(EntityId id) override {
+				Components.erase(id);
+			}
+
+			bool Contains(EntityId id) const override {
+				return Components.find(id) != Components.end();
+			}
+
+			void* TryGetRaw(EntityId id) override {
+				auto iterator = Components.find(id);
+				return iterator != Components.end() ? &iterator->second : nullptr;
+			}
+
+			const void* TryGetRaw(EntityId id) const override {
+				auto iterator = Components.find(id);
+				return iterator != Components.end() ? &iterator->second : nullptr;
+			}
 		};
 
 		template<typename T>
@@ -269,5 +295,17 @@ namespace HE {
 		}
 
 		return &m_EntityManager->m_Registry.template get<T>(m_EntityHandle);
+	}
+
+	inline void* Entity::TryGetComponentByType(ComponentTypeId typeId) {
+		return m_World != nullptr ? m_World->TryGetComponentByType(m_Id, typeId) : nullptr;
+	}
+
+	inline const void* Entity::TryGetComponentByType(ComponentTypeId typeId) const {
+		return m_World != nullptr ? m_World->TryGetComponentByType(m_Id, typeId) : nullptr;
+	}
+
+	inline std::vector<ComponentTypeId> Entity::ListComponentTypes() const {
+		return m_World != nullptr ? m_World->ListComponentTypes(m_Id) : std::vector<ComponentTypeId>{};
 	}
 }

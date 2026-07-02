@@ -22,27 +22,7 @@ namespace {
 	}
 
 	uint32_t CountEntities(HE::Scene& scene) {
-		uint32_t entityCount = 0;
-		auto& registry = scene.GetEntityManager().GetRegistry();
-		for (auto [entity] : registry.storage<entt::entity>().each()) {
-			if (!registry.valid(entity)) {
-				continue;
-			}
-
-			(void)entity;
-			++entityCount;
-		}
-		return entityCount;
-	}
-
-	entt::entity FindFirstLiveEntity(entt::registry& registry) {
-		for (auto [entity] : registry.storage<entt::entity>().each()) {
-			if (registry.valid(entity)) {
-				return entity;
-			}
-		}
-
-		return entt::null;
+		return static_cast<uint32_t>(scene.GetWorld().GetEntityCount());
 	}
 }
 
@@ -63,17 +43,15 @@ int main() {
 	Require(static_cast<bool>(scene), "Expected created scene reference to be valid");
 	Require(scene->GetName() == "SmokeScene", "Expected created scene name to match");
 
-	auto ecsSceneEntity = scene->GetWorld().CreateEntity("Scene Entity");
-	Require(ecsSceneEntity.IsValid(), "Expected scene world to create a valid entity");
-	Require(scene->GetWorld().GetEntityCount() == 1, "Expected scene world to track created entities");
-
-	auto firstEntity = scene->GetEntityManager().CreateEntity();
-	firstEntity.GetComponent<HE::TransformComponent>().Position = { 1.0f, 2.0f, 3.0f };
-	auto secondEntity = scene->GetEntityManager().CreateEntity();
-	secondEntity.GetComponent<HE::TransformComponent>().Position = { -2.0f, 0.5f, 4.0f };
-	auto renderEntity = scene->GetEntityManager().CreateEntity();
+	auto firstEntity = scene->GetWorld().CreateEntity("First Entity");
+	firstEntity.AddComponent<HE::TransformComponent>().Position = { 1.0f, 2.0f, 3.0f };
+	auto secondEntity = scene->GetWorld().CreateEntity("Second Entity");
+	secondEntity.AddComponent<HE::TransformComponent>().Position = { -2.0f, 0.5f, 4.0f };
+	auto renderEntity = scene->GetWorld().CreateEntity("Render Entity");
+	renderEntity.AddComponent<HE::TransformComponent>();
 	renderEntity.AddComponent<HE::MeshComponent>("SmokeMesh");
 	renderEntity.AddComponent<HE::MaterialComponent>();
+	Require(scene->GetWorld().GetEntityCount() == 3, "Expected scene world to track created entities");
 
 	HE::SceneValidationReport validReport;
 	auto validResult = sceneService.ValidateScene(*scene, &validReport);
@@ -91,7 +69,7 @@ int main() {
 	Require(sceneFileText.find("\"component_type_id\"") == std::string::npos, "Expected scene serialization to avoid legacy component_type_id fields");
 	Require(sceneFileText.find("\"compId\"") == std::string::npos, "Expected scene serialization to avoid legacy compId fields");
 
-	scene->GetEntityManager().DestroyEntity(secondEntity);
+	scene->GetWorld().DestroyEntity(secondEntity.GetId());
 	auto saveAfterDelete = sceneService.SaveScene(*scene, sceneFilePath);
 	Require(saveAfterDelete.Succeeded(), "Expected scene.save to succeed after deleting an entity");
 	const auto sceneFileTextAfterDelete = ReadFileText(sceneFilePath);
@@ -112,18 +90,22 @@ int main() {
 	Require(loadedReport.RenderEntitiesMissingMaterial == 0, "Expected loaded scene render pair to remain valid after round-trip");
 	Require(loadedReport.EntitiesUsingLegacyRenderer == 0, "Expected loaded scene to remain free of legacy renderers");
 
-	auto& loadedRegistry = loadedScene->GetEntityManager().GetRegistry();
-	const auto firstLoadedEntity = FindFirstLiveEntity(loadedRegistry);
-	Require(firstLoadedEntity != entt::null, "Expected loaded scene to expose at least one live entity");
-	loadedRegistry.emplace<HE::RendererComponent>(firstLoadedEntity);
+	HE::Entity firstLoadedEntity;
+	loadedScene->GetWorld().ForEachEntity([&](HE::Entity entity) {
+		if (!firstLoadedEntity.IsValid()) {
+			firstLoadedEntity = entity;
+		}
+	});
+	Require(firstLoadedEntity.IsValid(), "Expected loaded scene to expose at least one live entity");
+	firstLoadedEntity.AddComponent<HE::RendererComponent>();
 
 	HE::SceneValidationReport legacyRendererReport;
 	auto legacyRendererValidation = sceneService.ValidateScene(*loadedScene, &legacyRendererReport);
 	Require(legacyRendererValidation.RequiresManualIntervention(), "Expected legacy RendererComponent usage to require manual intervention");
 	Require(legacyRendererReport.EntitiesUsingLegacyRenderer == 1, "Expected degraded scene report to count exactly one entity using legacy renderer");
 
-	loadedRegistry.remove<HE::RendererComponent>(firstLoadedEntity);
-	loadedRegistry.remove<HE::TransformComponent>(firstLoadedEntity);
+	firstLoadedEntity.RemoveComponent<HE::RendererComponent>();
+	firstLoadedEntity.RemoveComponent<HE::TransformComponent>();
 
 	HE::SceneValidationReport degradedReport;
 	auto degradedValidation = sceneService.ValidateScene(*loadedScene, &degradedReport);

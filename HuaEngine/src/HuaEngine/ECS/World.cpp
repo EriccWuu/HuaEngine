@@ -79,6 +79,20 @@ namespace HE {
 		m_UuidToEntity.erase(record.Uuid);
 		m_FreeIndices.push_back(id.Index);
 		--m_EntityCount;
+
+		for (auto& [typeId, storage] : m_ComponentStorages) {
+			(void)typeId;
+			storage->Remove(id);
+		}
+	}
+
+	void World::Clear() {
+		m_Records.clear();
+		m_FreeIndices.clear();
+		m_UuidToEntity.clear();
+		m_ComponentStorages.clear();
+		m_EntityCount = 0;
+		m_NextUuid = 1;
 	}
 
 	bool World::IsAlive(EntityId id) const {
@@ -131,6 +145,47 @@ namespace HE {
 		}
 
 		m_Records[id.Index].Name = name.empty() ? "Entity" : name;
+	}
+
+	const void* World::TryGetComponentByType(EntityId id, ComponentTypeId typeId) const {
+		if (!IsAlive(id)) {
+			return nullptr;
+		}
+
+		const auto iterator = m_ComponentStorages.find(typeId);
+		if (iterator == m_ComponentStorages.end()) {
+			return nullptr;
+		}
+
+		return iterator->second->TryGetRaw(id);
+	}
+
+	void* World::TryGetComponentByType(EntityId id, ComponentTypeId typeId) {
+		if (!IsAlive(id)) {
+			return nullptr;
+		}
+
+		const auto iterator = m_ComponentStorages.find(typeId);
+		if (iterator == m_ComponentStorages.end()) {
+			return nullptr;
+		}
+
+		return iterator->second->TryGetRaw(id);
+	}
+
+	std::vector<ComponentTypeId> World::ListComponentTypes(EntityId id) const {
+		std::vector<ComponentTypeId> componentTypes;
+		if (!IsAlive(id)) {
+			return componentTypes;
+		}
+
+		for (const auto& [typeId, storage] : m_ComponentStorages) {
+			if (storage->Contains(id)) {
+				componentTypes.push_back(typeId);
+			}
+		}
+
+		return componentTypes;
 	}
 
 	EntityUuid World::GenerateUuid() {

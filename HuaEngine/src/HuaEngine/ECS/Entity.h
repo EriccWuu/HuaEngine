@@ -2,10 +2,12 @@
 
 #include <string>
 #include <utility>
+#include <vector>
 
 #include "HuaEngine/Core/Core.h"
 #include "entt.hpp"
 #include "Components.h"
+#include "ComponentType.h"
 #include "EntityId.h"
 #include "EntityManager.h"
 
@@ -48,6 +50,10 @@ namespace HE {
 
 		template<typename T>
 		const T* TryGetComponent() const;
+
+		[[nodiscard]] void* TryGetComponentByType(ComponentTypeId typeId);
+		[[nodiscard]] const void* TryGetComponentByType(ComponentTypeId typeId) const;
+		[[nodiscard]] std::vector<ComponentTypeId> ListComponentTypes() const;
 
 		EntityId GetId() const { return m_Id; }
 		EntityUuid GetUuid() const {

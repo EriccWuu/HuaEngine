@@ -1,6 +1,7 @@
 #pragma once
 
 #include <cstddef>
+#include <functional>
 #include <string>
 #include <string_view>
 #include <unordered_map>
@@ -8,6 +9,9 @@
 #include <vector>
 
 #include "HuaEngine/ECS/ComponentType.h"
+#include "HuaEngine/ECS/EntityId.h"
+#include "HuaEngine/ECS/World.h"
+#include "HuaEngine/Serialization/SerializationCore.h"
 
 namespace HE {
 	struct ComponentRegistration {
@@ -27,6 +31,9 @@ namespace HE {
 		void* (*ConstructDefault)() = nullptr;
 		void (*Destroy)(void*) = nullptr;
 		void* (*Copy)(const void*) = nullptr;
+		std::function<void(Serialization::SerializationBackend&, const std::string&, const void*)> Serialize;
+		std::function<bool(Serialization::SerializationBackend&, const std::string&, void*)> Deserialize;
+		std::function<void(World&, EntityId, const void*)> AddCopyToWorld;
 	};
 
 	class ComponentRegistry {
@@ -57,6 +64,15 @@ namespace HE {
 			metadata.Copy = [](const void* instance) -> void* {
 				return new ComponentType(*static_cast<const ComponentType*>(instance));
 			};
+			metadata.Serialize = [](Serialization::SerializationBackend& backend, const std::string& name, const void* component) {
+				Serialization::Serializer<ComponentType>::Serialize(backend, name, *static_cast<const ComponentType*>(component));
+			};
+			metadata.Deserialize = [](Serialization::SerializationBackend& backend, const std::string& name, void* component) {
+				return Serialization::Serializer<ComponentType>::Deserialize(backend, name, *static_cast<ComponentType*>(component));
+			};
+			metadata.AddCopyToWorld = [](World& world, EntityId id, const void* component) {
+				world.AddComponent<ComponentType>(id, *static_cast<const ComponentType*>(component));
+			};
 
 			const size_t index = m_Metadata.size();
 			m_ByTypeId.emplace(metadata.TypeId, index);
@@ -79,4 +95,6 @@ namespace HE {
 		std::unordered_map<ComponentTypeId, size_t> m_ByTypeId;
 		std::unordered_map<std::string, size_t> m_ByName;
 	};
+
+	void RegisterCoreComponents(ComponentRegistry& registry);
 }

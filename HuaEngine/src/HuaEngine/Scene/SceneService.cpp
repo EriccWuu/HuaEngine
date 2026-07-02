@@ -131,14 +131,13 @@ namespace HE {
 		SceneValidationReport report;
 		report.HasName = !scene.GetName().empty();
 
-		auto& registry = const_cast<Scene&>(scene).GetEntityManager().GetRegistry();
-		for (auto entity : registry.storage<entt::entity>()) {
+		const_cast<Scene&>(scene).GetWorld().ForEachEntity([&](Entity entity) {
 			++report.EntityCount;
 
-			const bool hasTransform = registry.all_of<TransformComponent>(entity);
-			const bool hasMesh = registry.all_of<Rendering::MeshComponent>(entity);
-			const bool hasMaterial = registry.all_of<Rendering::MaterialComponent>(entity);
-			const bool hasLegacyRenderer = registry.all_of<Rendering::RendererComponent>(entity);
+			const bool hasTransform = entity.HasComponent<TransformComponent>();
+			const bool hasMesh = entity.HasComponent<Rendering::MeshComponent>();
+			const bool hasMaterial = entity.HasComponent<Rendering::MaterialComponent>();
+			const bool hasLegacyRenderer = entity.HasComponent<Rendering::RendererComponent>();
 
 			if (!hasTransform) {
 				++report.EntitiesMissingTransform;
@@ -155,7 +154,7 @@ namespace HE {
 			if (hasLegacyRenderer) {
 				++report.EntitiesUsingLegacyRenderer;
 			}
-		}
+		});
 
 		if (outReport) {
 			*outReport = report;
