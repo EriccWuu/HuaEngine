@@ -8,7 +8,7 @@
 
 - [refactored-engine-architecture.md](/D:/Workspace/VS%20Workspace/HuaEngine/docs/refactored-engine-architecture.md)
 - [editor-project-workbench.md](/D:/Workspace/VS%20Workspace/HuaEngine/docs/editor-project-workbench.md)
-- [huaengine-headless-cli.md](/D:/Workspace/VS%20Workspace/HuaEngine/docs/huaengine-headless-cli.md)
+- [huaengine-cli.md](/D:/Workspace/VS%20Workspace/HuaEngine/docs/huaengine-cli.md)
 
 ## 2. 适用范围
 
@@ -17,7 +17,7 @@
 - `HuaEngine/` 核心引擎库
 - `Editor/` 项目工作台
 - `ProjectHub/` 项目启动器
-- `Headless/` CLI 与自动化宿主
+- `CLI/` CLI 与自动化宿主
 - `Tests/` smoke 与回归验证
 - `Resources/` 引擎开发态共享资源
 
@@ -29,7 +29,7 @@
 
 - `ProjectHub.exe` 负责无项目入口、项目选择、项目创建、拉起 `Editor.exe`
 - `Editor.exe` 负责项目绑定的 GUI 工作台
-- `HuaEngineHeadless.exe` 负责 CLI / 自动化 / Agent 调用
+- `HuaEngineCLI.exe` 负责 CLI / 自动化 / Agent 调用
 
 禁止在宿主里直接复制一套项目、场景、资产、脚本、验证逻辑。
 
@@ -42,7 +42,7 @@
 - `OperationRegistry`
 - `ResultEnvelope`
 
-凡是可能被 `Editor`、`Headless`、后续 Agent 宿主共同消费的能力，都必须优先进入正式操作面，再由不同宿主调用。
+凡是可能被 `Editor`、`CLI`、后续 Agent 宿主共同消费的能力，都必须优先进入正式操作面，再由不同宿主调用。
 
 ### 3.3 写操作必须统一
 
@@ -65,7 +65,7 @@
 读取型能力不要求一刀切全部命令化，但必须区分两类：
 
 - `共享查询能力`
-  - 会被 GUI、headless、自动化、Agent 共同消费
+  - 会被 GUI、CLI、自动化、Agent 共同消费
   - 应逐步沉淀为正式 query facade
 - `Editor 实时面板读取`
   - 仅用于 GUI 每帧渲染
@@ -76,7 +76,7 @@
 - `Hierarchy`、`Inspector` 这类每帧 UI 渲染，允许在仅只读的 GUI 渲染路径内直接读运行时场景
 - 但不能把共享写能力继续藏在这些面板内部
 
-### 3.5 GUI 与 Headless 必须对齐结果语义
+### 3.5 GUI 与 CLI 必须对齐结果语义
 
 共享操作必须统一返回：
 
@@ -84,7 +84,7 @@
 - `Success / Failure / ManualInterventionRequired`
 - 稳定的 `operation / target / summary / payload / details`
 
-禁止 GUI 自己定义一套成功失败语义，headless 再定义另一套。
+禁止 GUI 自己定义一套成功失败语义，CLI 再定义另一套。
 
 ## 4. 分层约束
 
@@ -139,7 +139,7 @@
 
 - 提供稳定的业务规则与生命周期
 - 提供清晰的输入输出契约
-- 不感知具体宿主是 GUI 还是 headless
+- 不感知具体宿主是 GUI 还是 CLI
 
 领域层禁止：
 
@@ -183,9 +183,9 @@
 - 所有项目级、场景级写操作必须走正式操作面
 - 面板层负责交互，不直接扮演领域服务
 
-### 5.3 Headless
+### 5.3 CLI
 
-`Headless` 是正式自动化入口。
+`CLI` 是正式自动化入口。
 
 要求：
 
@@ -263,7 +263,7 @@
 
 - 能进入 `ApplicationOperations` 的，必须先进入 `ApplicationOperations`
 - `Editor` 命令层只做调用与撤销编排，不拥有另一套写语义
-- `Headless` 只能调用正式操作面，不允许自己补一套场景改写逻辑
+- `CLI` 只能调用正式操作面，不允许自己补一套场景改写逻辑
 
 ### 7.2 组件设计
 
@@ -372,7 +372,7 @@
 因此：
 
 - `Hierarchy`、`Inspector` 当前直接读 runtime scene 是允许的
-- 但如果一个读取能力未来需要被 `Headless`、自动化、Agent 复用，应优先补成正式 query facade
+- 但如果一个读取能力未来需要被 `CLI`、自动化、Agent 复用，应优先补成正式 query facade
 
 判断标准：
 
@@ -388,7 +388,7 @@
 优先覆盖：
 
 - `ApplicationOperations` 级别 smoke
-- `Headless` 命令工作流 smoke
+- `CLI` 命令工作流 smoke
 - `Editor` 交互核心 smoke
 
 ### 11.2 验证层次
@@ -408,14 +408,14 @@
 
 - `docs/refactored-engine-architecture.md`
 - `docs/editor-project-workbench.md`
-- `docs/huaengine-headless-cli.md`
+- `docs/huaengine-cli.md`
 - 对应模块 Skill
 
 ## 12. 禁止事项
 
 后续开发中，以下行为默认禁止：
 
-- 在 `Editor` 和 `Headless` 中各自实现一套相同写逻辑
+- 在 `Editor` 和 `CLI` 中各自实现一套相同写逻辑
 - 绕过 `ApplicationOperations` 直接实现共享写能力
 - 在面板类中偷偷直接落盘文件
 - 为兼容临时需求重新扩散旧 schema
@@ -431,7 +431,7 @@
 2. 如果是共享业务能力，是否应进入 `ApplicationOperations`？
 3. 这是写操作，还是读取操作？
 4. 如果是写操作，是否已经只有一套权威入口？
-5. 如果是读取操作，是否未来需要被 headless / 自动化 / Agent 复用？
+5. 如果是读取操作，是否未来需要被 CLI / 自动化 / Agent 复用？
 6. 是否破坏了当前 `ProjectSession / SceneDocument / EditorWorkbenchState` 模型？
 7. 是否需要新增或更新 smoke？
 8. 是否需要同步文档和模块 Skill？
@@ -442,7 +442,7 @@
 
 - 保持宿主薄化
 - 继续强化正式操作面
-- 不让 GUI 和 headless 再次分叉
+- 不让 GUI 和 CLI 再次分叉
 - 保持工作台状态模型统一
 - 保持序列化 schema 收紧
 - 保持资源根统一

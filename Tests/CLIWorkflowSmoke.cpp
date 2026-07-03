@@ -91,7 +91,7 @@ namespace {
 		return commandLine;
 	}
 
-	ProcessResult RunHeadlessCommand(
+	ProcessResult RunCLICommand(
 		const std::filesystem::path& executable,
 		const std::vector<std::string>& arguments,
 		const std::filesystem::path& workingDirectory) {
@@ -127,7 +127,7 @@ namespace {
 			&startupInfo,
 			&processInfo);
 		CloseHandle(writePipe);
-		Expect(created == TRUE, "Failed to launch HuaEngineHeadless.exe");
+		Expect(created == TRUE, "Failed to launch HuaEngineCLI.exe");
 
 		std::string output;
 		char buffer[4096];
@@ -169,10 +169,10 @@ namespace {
 
 int main() {
 	const auto binaryDirectory = GetCurrentExecutablePath().parent_path();
-	const auto headlessExecutable = binaryDirectory / "HuaEngineHeadless.exe";
-	Expect(std::filesystem::exists(headlessExecutable), "HuaEngineHeadless.exe must exist next to the smoke executable");
+	const auto cliExecutable = binaryDirectory / "HuaEngineCLI.exe";
+	Expect(std::filesystem::exists(cliExecutable), "HuaEngineCLI.exe must exist next to the smoke executable");
 
-	const auto tempRoot = std::filesystem::temp_directory_path() / "huaengine_headless_workflow_smoke";
+	const auto tempRoot = std::filesystem::temp_directory_path() / "huaengine_cli_workflow_smoke";
 	std::error_code errorCode;
 	std::filesystem::remove_all(tempRoot, errorCode);
 	std::filesystem::create_directories(tempRoot, errorCode);
@@ -187,7 +187,7 @@ int main() {
 			"ops list",
 			{ "ops", "list" },
 			{
-				"\"host\":\"huaengine-headless\"",
+				"\"host\":\"huaengine-cli\"",
 				"\"operation\":\"cli.ops_list\"",
 				"\"status\":\"success\"",
 				"\"data\":{\"operations\":[",
@@ -262,7 +262,7 @@ int main() {
 	};
 
 	for (const auto& step : workflow) {
-		const auto result = RunHeadlessCommand(headlessExecutable, step.Arguments, binaryDirectory);
+		const auto result = RunCLICommand(cliExecutable, step.Arguments, binaryDirectory);
 		Expect(result.ExitCode == 0, step.Name + " should exit with code 0\n" + result.Output);
 
 		for (const auto& fragment : step.ExpectedFragments) {
@@ -275,6 +275,6 @@ int main() {
 	}
 
 	std::filesystem::remove_all(tempRoot, errorCode);
-	std::cout << "HeadlessWorkflowSmoke passed" << std::endl;
+	std::cout << "CLIWorkflowSmoke passed" << std::endl;
 	return 0;
 }

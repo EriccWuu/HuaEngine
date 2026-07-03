@@ -6,8 +6,8 @@
 
 #include "HuaEngine/Application/ApplicationOperations.h"
 
-namespace HE::Headless {
-	struct HeadlessCommandResponse {
+namespace HE::CLI {
+	struct CLICommandResponse {
 		ResultEnvelope Result;
 		std::vector<OperationDescriptor> Operations;
 	};
@@ -16,7 +16,7 @@ namespace HE::Headless {
 	public:
 		explicit CommandRunner(ApplicationOperations& operations);
 
-		[[nodiscard]] HeadlessCommandResponse Run(
+		[[nodiscard]] CLICommandResponse Run(
 			const std::vector<std::string>& arguments,
 			const std::filesystem::path& workingDirectory) const;
 

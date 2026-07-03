@@ -10,13 +10,13 @@ The current HuaEngine architecture is:
 
 - `ProjectHub.exe`: launcher-only no-project entry
 - `Editor.exe`: project-bound GUI workbench
-- `HuaEngineHeadless.exe`: CLI/headless interface
+- `HuaEngineCLI.exe`: CLI interface
 
 `Sandbox` has been removed from the active host topology.
 
 ## 3. Layering
 
-- Host layer: ProjectHub, Editor, Headless
+- Host layer: ProjectHub, Editor, CLI
 - Control layer: Application, ApplicationOperations, OperationRegistry, ResultEnvelope
 - Domain layer: ProjectService, SceneService, AssetService, ScriptService, ValidationService
 - Engine core layer: ECS, Scene, Serialization, Reflection, Rendering, OpenGL backend, Window/Event/ImGui
@@ -27,7 +27,7 @@ The current HuaEngine architecture is:
 graph TD
     A[ProjectHub Host] --> B[Application]
     C[Editor Host] --> B
-    D[Headless Host] --> B
+    D[CLI Host] --> B
 
     B --> E[ApplicationOperations]
     B --> F[Window / LayerStack / Event / ImGui]

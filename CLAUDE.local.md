@@ -4,7 +4,7 @@
 
 ## 项目概述
 
-**HuaEngine** - 一个基于 ECS 架构的 C++20 游戏引擎，使用 CMake 构建，基于 OpenGL/GLFW/GLAD 渲染，并提供 ProjectHub、Editor 与 Headless 应用。技术栈：C++20 / CMake / OpenGL / EnTT / ImGui。
+**HuaEngine** - 一个基于 ECS 架构的 C++20 游戏引擎，使用 CMake 构建，基于 OpenGL/GLFW/GLAD 渲染，并提供 ProjectHub、Editor 与 CLI 应用。技术栈：C++20 / CMake / OpenGL / EnTT / ImGui。
 - `HuaEngine/src/HuaEngine/` - 引擎核心模块，包含 Core、ECS、Rendering、Scene、Serialization、Events、GUI 等子系统
 - `Editor/` - 编辑器应用，负责基于 ImGui 的工具界面与引擎集成
 

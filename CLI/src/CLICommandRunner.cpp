@@ -1,5 +1,5 @@
 #include "enginepch.h"
-#include "HeadlessCommandRunner.h"
+#include "CLICommandRunner.h"
 
 #include <algorithm>
 #include <array>
@@ -229,13 +229,13 @@ namespace {
 	}
 }
 
-namespace HE::Headless {
+namespace HE::CLI {
 	CommandRunner::CommandRunner(ApplicationOperations& operations)
 		: m_Operations(&operations)
 	{
 	}
 
-	HeadlessCommandResponse CommandRunner::Run(
+	CLICommandResponse CommandRunner::Run(
 		const std::vector<std::string>& arguments,
 		const std::filesystem::path& workingDirectory) const {
 		if (!m_Operations) {
@@ -256,7 +256,7 @@ namespace HE::Headless {
 			arguments.size() > optionStartIndex ? arguments.size() - optionStartIndex : 0);
 
 		if (command == "help") {
-			auto result = ResultEnvelope::Success("cli.help", "command_line", "Headless command help");
+			auto result = ResultEnvelope::Success("cli.help", "command_line", "CLI command help");
 			result.AddDetail({ DiagnosticSeverity::Info, "cli.help.summary", "Use 'ops list' to inspect the formal operation registry", {} });
 			result.AddDetail({ DiagnosticSeverity::Info, "cli.help.commands", "Supported commands include: project init/status, scene create/validate, scene entity create/delete, scene component add/remove, asset register-default-mesh/validate, script status/initialize/update/shutdown, validation run", {} });
 			return { std::move(result) };

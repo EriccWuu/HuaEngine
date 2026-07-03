@@ -1,5 +1,5 @@
 #include "enginepch.h"
-#include "HeadlessJsonWriter.h"
+#include "CLIJsonWriter.h"
 
 #include <algorithm>
 #include <sstream>
@@ -53,11 +53,11 @@ namespace {
 	}
 }
 
-namespace HE::Headless {
-	std::string RenderJson(const HeadlessCommandResponse& response) {
+namespace HE::CLI {
+	std::string RenderJson(const CLICommandResponse& response) {
 		std::ostringstream stream;
 		stream << "{";
-		stream << "\"host\":\"huaengine-headless\",";
+		stream << "\"host\":\"huaengine-cli\",";
 		stream << "\"result\":{";
 		stream << "\"operation\":\"" << EscapeJson(response.Result.Operation) << "\",";
 		stream << "\"target\":\"" << EscapeJson(response.Result.Target) << "\",";

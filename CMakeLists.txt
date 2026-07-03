@@ -82,7 +82,7 @@ add_subdirectory(Dependencies/imgui)
 add_subdirectory(HuaEngine)
 add_subdirectory(Editor)
 add_subdirectory(ProjectHub)
-add_subdirectory(Headless)
+add_subdirectory(CLI)
 
 set(SMOKE_RUNTIME_OUTPUT_DIRECTORY
     "${CMAKE_BINARY_DIR}/bin/$<CONFIG>-${CMAKE_SYSTEM_NAME}-${ARCHITECTURE}/smoke")
@@ -115,11 +115,11 @@ function(configure_smoke_target target_name)
     endif()
 endfunction()
 
-function(copy_headless_host_to_smoke target_name)
+function(copy_cli_host_to_smoke target_name)
     add_custom_command(TARGET ${target_name} POST_BUILD
         COMMAND ${CMAKE_COMMAND} -E copy_if_different
-            "$<TARGET_FILE:HuaEngineHeadless>"
-            "$<TARGET_FILE_DIR:${target_name}>/$<TARGET_FILE_NAME:HuaEngineHeadless>"
+            "$<TARGET_FILE:HuaEngineCLI>"
+            "$<TARGET_FILE_DIR:${target_name}>/$<TARGET_FILE_NAME:HuaEngineCLI>"
         VERBATIM
     )
 endfunction()
@@ -424,39 +424,39 @@ if(WIN32)
 endif()
 configure_smoke_target(AgentHostAdapterSmoke)
 
-add_executable(HeadlessHostSmoke Tests/HeadlessHostSmoke.cpp)
-target_include_directories(HeadlessHostSmoke PRIVATE
-    ${CMAKE_SOURCE_DIR}/Headless/src
+add_executable(CLIHostSmoke Tests/CLIHostSmoke.cpp)
+target_include_directories(CLIHostSmoke PRIVATE
+    ${CMAKE_SOURCE_DIR}/CLI/src
     ${CMAKE_SOURCE_DIR}/HuaEngine/src
     ${SPDLOG_INCLUDE_DIR}
     ${GLM_INCLUDE_DIR}
     ${IMGUI_INCLUDE_DIR}
     ${STB_IMAGE_INCLUDE_DIR}
 )
-target_link_libraries(HeadlessHostSmoke PRIVATE HuaEngineHeadlessCore)
+target_link_libraries(CLIHostSmoke PRIVATE HuaEngineCLICore)
 if(WIN32)
-    target_compile_definitions(HeadlessHostSmoke PRIVATE GLFW_INCLUDE_NONE)
+    target_compile_definitions(CLIHostSmoke PRIVATE GLFW_INCLUDE_NONE)
     if(MSVC)
-        set_target_properties(HeadlessHostSmoke PROPERTIES
+        set_target_properties(CLIHostSmoke PROPERTIES
             MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>"
         )
-        target_compile_options(HeadlessHostSmoke PRIVATE /utf-8)
+        target_compile_options(CLIHostSmoke PRIVATE /utf-8)
     endif()
 endif()
-configure_smoke_target(HeadlessHostSmoke)
+configure_smoke_target(CLIHostSmoke)
 
-add_executable(HeadlessWorkflowSmoke Tests/HeadlessWorkflowSmoke.cpp)
-add_dependencies(HeadlessWorkflowSmoke HuaEngineHeadless)
+add_executable(CLIWorkflowSmoke Tests/CLIWorkflowSmoke.cpp)
+add_dependencies(CLIWorkflowSmoke HuaEngineCLI)
 if(WIN32)
     if(MSVC)
-        set_target_properties(HeadlessWorkflowSmoke PROPERTIES
+        set_target_properties(CLIWorkflowSmoke PROPERTIES
             MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>"
         )
-        target_compile_options(HeadlessWorkflowSmoke PRIVATE /utf-8)
+        target_compile_options(CLIWorkflowSmoke PRIVATE /utf-8)
     endif()
 endif()
-configure_smoke_target(HeadlessWorkflowSmoke)
-copy_headless_host_to_smoke(HeadlessWorkflowSmoke)
+configure_smoke_target(CLIWorkflowSmoke)
+copy_cli_host_to_smoke(CLIWorkflowSmoke)
 
 add_executable(RenderingOperationsSmoke Tests/RenderingOperationsSmoke.cpp)
 target_include_directories(RenderingOperationsSmoke PRIVATE
@@ -479,7 +479,7 @@ endif()
 configure_smoke_target(RenderingOperationsSmoke)
 
 add_executable(HostConsistencySmoke Tests/HostConsistencySmoke.cpp)
-add_dependencies(HostConsistencySmoke HuaEngineHeadless)
+add_dependencies(HostConsistencySmoke HuaEngineCLI)
 target_include_directories(HostConsistencySmoke PRIVATE
     ${CMAKE_SOURCE_DIR}/Editor/src
     ${CMAKE_SOURCE_DIR}/HuaEngine/src
@@ -499,7 +499,7 @@ if(WIN32)
     endif()
 endif()
 configure_smoke_target(HostConsistencySmoke)
-copy_headless_host_to_smoke(HostConsistencySmoke)
+copy_cli_host_to_smoke(HostConsistencySmoke)
 
 add_executable(ProjectWorkbenchSmoke
     Tests/ProjectWorkbenchSmoke.cpp
@@ -563,8 +563,8 @@ set_property(DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR} PROPERTY VS_STARTUP_PROJECT P
 set_property(TARGET glfw PROPERTY FOLDER "Dependencies")
 set_property(TARGET GLAD PROPERTY FOLDER "Dependencies")
 set_property(TARGET ImGui PROPERTY FOLDER "Dependencies")
-set_property(TARGET HuaEngineHeadlessCore PROPERTY FOLDER "Hosts")
-set_property(TARGET HuaEngineHeadless PROPERTY FOLDER "Hosts")
+set_property(TARGET HuaEngineCLICore PROPERTY FOLDER "Hosts")
+set_property(TARGET HuaEngineCLI PROPERTY FOLDER "Hosts")
 set_property(TARGET ProjectHub PROPERTY FOLDER "Hosts")
 set_property(TARGET ECSCoreSmoke PROPERTY FOLDER "Tests")
 set_property(TARGET ECSQuerySchedulerSmoke PROPERTY FOLDER "Tests")
@@ -581,8 +581,8 @@ set_property(TARGET ValidationServiceSmoke PROPERTY FOLDER "Tests")
 set_property(TARGET ApplicationServicesSmoke PROPERTY FOLDER "Tests")
 set_property(TARGET ApplicationOperationsSmoke PROPERTY FOLDER "Tests")
 set_property(TARGET AgentHostAdapterSmoke PROPERTY FOLDER "Tests")
-set_property(TARGET HeadlessHostSmoke PROPERTY FOLDER "Tests")
-set_property(TARGET HeadlessWorkflowSmoke PROPERTY FOLDER "Tests")
+set_property(TARGET CLIHostSmoke PROPERTY FOLDER "Tests")
+set_property(TARGET CLIWorkflowSmoke PROPERTY FOLDER "Tests")
 set_property(TARGET RenderingOperationsSmoke PROPERTY FOLDER "Tests")
 set_property(TARGET HostConsistencySmoke PROPERTY FOLDER "Tests")
 set_property(TARGET ProjectWorkbenchSmoke PROPERTY FOLDER "Tests")

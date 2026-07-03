@@ -1,8 +1,8 @@
-# HuaEngine Headless CLI 使用文档
+# HuaEngine CLI 使用文档
 
 ## 1. 定位
 
-`HuaEngineHeadless.exe` 是当前引擎正式的无 GUI 控制面。
+`HuaEngineCLI.exe` 是当前引擎正式的无 GUI 控制面。
 
 它的定位不是“测试小工具”，而是：
 
@@ -25,16 +25,16 @@
 
 ```powershell
 cmake -S . -B build
-cmake --build build --config Debug --target HuaEngineHeadless
+cmake --build build --config Debug --target HuaEngineCLI
 ```
 
 如果你不确定可执行文件落在哪里，可以在构建目录里搜索：
 
 ```powershell
-Get-ChildItem -Recurse -Filter HuaEngineHeadless.exe build
+Get-ChildItem -Recurse -Filter HuaEngineCLI.exe build
 ```
 
-下文用 `<headless>` 代表 `HuaEngineHeadless.exe` 的实际路径。
+下文用 `<CLI>` 代表 `HuaEngineCLI.exe` 的实际路径。
 
 ## 3. 输出契约
 
@@ -42,7 +42,7 @@ Get-ChildItem -Recurse -Filter HuaEngineHeadless.exe build
 
 ```json
 {
-  "host": "huaengine-headless",
+  "host": "huaengine-cli",
   "result": {
     "operation": "scene.create",
     "target": "D:/path/to/scene.scene",
@@ -60,7 +60,7 @@ Get-ChildItem -Recurse -Filter HuaEngineHeadless.exe build
 其中：
 
 - `host`
-  - 固定为 `huaengine-headless`
+  - 固定为 `huaengine-cli`
 - `result.operation`
   - 正式操作名，不一定和 CLI 子命令字面完全相同
 - `result.status`
@@ -83,7 +83,7 @@ Get-ChildItem -Recurse -Filter HuaEngineHeadless.exe build
 - `2`
   - `manual_intervention_required`
 - `70`
-  - headless 宿主内部未处理异常
+  - CLI 宿主内部未处理异常
 
 脚本自动化时，建议同时看：
 
@@ -139,7 +139,7 @@ Get-ChildItem -Recurse -Filter HuaEngineHeadless.exe build
 ### 7.1 `help`
 
 ```powershell
-<headless> help
+<CLI> help
 ```
 
 用途：
@@ -150,7 +150,7 @@ Get-ChildItem -Recurse -Filter HuaEngineHeadless.exe build
 ### 7.2 `ops list`
 
 ```powershell
-<headless> ops list
+<CLI> ops list
 ```
 
 用途：
@@ -177,7 +177,7 @@ Get-ChildItem -Recurse -Filter HuaEngineHeadless.exe build
 ### 7.3 `project init`
 
 ```powershell
-<headless> project init --root D:/Workspace/MyGame --name MyGame
+<CLI> project init --root D:/Workspace/MyGame --name MyGame
 ```
 
 可选项：
@@ -197,7 +197,7 @@ Get-ChildItem -Recurse -Filter HuaEngineHeadless.exe build
 ### 7.4 `project status`
 
 ```powershell
-<headless> project status --path D:/Workspace/MyGame
+<CLI> project status --path D:/Workspace/MyGame
 ```
 
 可选项：
@@ -214,11 +214,11 @@ Get-ChildItem -Recurse -Filter HuaEngineHeadless.exe build
 ### 7.5 `scene create`
 
 ```powershell
-<headless> scene create --project D:/Workspace/MyGame --name "Main Scene"
+<CLI> scene create --project D:/Workspace/MyGame --name "Main Scene"
 ```
 
 ```powershell
-<headless> scene create --project D:/Workspace/MyGame --name "Main Scene" --output gameplay/main.scene
+<CLI> scene create --project D:/Workspace/MyGame --name "Main Scene" --output gameplay/main.scene
 ```
 
 参数：
@@ -240,7 +240,7 @@ Get-ChildItem -Recurse -Filter HuaEngineHeadless.exe build
 ### 7.6 `scene validate`
 
 ```powershell
-<headless> scene validate --project D:/Workspace/MyGame --scene gameplay/main.scene
+<CLI> scene validate --project D:/Workspace/MyGame --scene gameplay/main.scene
 ```
 
 参数：
@@ -261,11 +261,11 @@ Get-ChildItem -Recurse -Filter HuaEngineHeadless.exe build
 ### 7.7 `asset register-default-mesh`
 
 ```powershell
-<headless> asset register-default-mesh --project D:/Workspace/MyGame --asset-id builtin.quad
+<CLI> asset register-default-mesh --project D:/Workspace/MyGame --asset-id builtin.quad
 ```
 
 ```powershell
-<headless> asset register-default-mesh --project D:/Workspace/MyGame --asset-id builtin.cube --primitive cube --name "Default Cube"
+<CLI> asset register-default-mesh --project D:/Workspace/MyGame --asset-id builtin.cube --primitive cube --name "Default Cube"
 ```
 
 参数：
@@ -288,7 +288,7 @@ Get-ChildItem -Recurse -Filter HuaEngineHeadless.exe build
 ### 7.8 `asset validate`
 
 ```powershell
-<headless> asset validate --path D:/Workspace/MyGame
+<CLI> asset validate --path D:/Workspace/MyGame
 ```
 
 参数：
@@ -305,7 +305,7 @@ Get-ChildItem -Recurse -Filter HuaEngineHeadless.exe build
 ### 7.9 `script status`
 
 ```powershell
-<headless> script status --project D:/Workspace/MyGame --scene gameplay/main.scene
+<CLI> script status --project D:/Workspace/MyGame --scene gameplay/main.scene
 ```
 
 作用：
@@ -321,7 +321,7 @@ Get-ChildItem -Recurse -Filter HuaEngineHeadless.exe build
 ### 7.10 `script initialize`
 
 ```powershell
-<headless> script initialize --project D:/Workspace/MyGame --scene gameplay/main.scene
+<CLI> script initialize --project D:/Workspace/MyGame --scene gameplay/main.scene
 ```
 
 作用：
@@ -332,7 +332,7 @@ Get-ChildItem -Recurse -Filter HuaEngineHeadless.exe build
 ### 7.11 `script update`
 
 ```powershell
-<headless> script update --project D:/Workspace/MyGame --scene gameplay/main.scene
+<CLI> script update --project D:/Workspace/MyGame --scene gameplay/main.scene
 ```
 
 作用：
@@ -348,7 +348,7 @@ Get-ChildItem -Recurse -Filter HuaEngineHeadless.exe build
 ### 7.12 `script shutdown`
 
 ```powershell
-<headless> script shutdown --project D:/Workspace/MyGame --scene gameplay/main.scene
+<CLI> script shutdown --project D:/Workspace/MyGame --scene gameplay/main.scene
 ```
 
 作用：
@@ -361,19 +361,19 @@ Get-ChildItem -Recurse -Filter HuaEngineHeadless.exe build
 只校验项目：
 
 ```powershell
-<headless> validation run --path D:/Workspace/MyGame
+<CLI> validation run --path D:/Workspace/MyGame
 ```
 
 校验项目和资产：
 
 ```powershell
-<headless> validation run --path D:/Workspace/MyGame --include-assets
+<CLI> validation run --path D:/Workspace/MyGame --include-assets
 ```
 
 校验项目、场景、资产、脚本：
 
 ```powershell
-<headless> validation run --path D:/Workspace/MyGame --scene gameplay/main.scene --include-assets --include-scripts
+<CLI> validation run --path D:/Workspace/MyGame --scene gameplay/main.scene --include-assets --include-scripts
 ```
 
 参数：
@@ -398,20 +398,20 @@ Get-ChildItem -Recurse -Filter HuaEngineHeadless.exe build
 ### 8.1 新建项目到最小可运行资产
 
 ```powershell
-<headless> project init --root D:/Workspace/MyGame --name MyGame
-<headless> asset register-default-mesh --project D:/Workspace/MyGame --asset-id builtin.quad
-<headless> scene create --project D:/Workspace/MyGame --name Main
-<headless> validation run --path D:/Workspace/MyGame --include-assets
+<CLI> project init --root D:/Workspace/MyGame --name MyGame
+<CLI> asset register-default-mesh --project D:/Workspace/MyGame --asset-id builtin.quad
+<CLI> scene create --project D:/Workspace/MyGame --name Main
+<CLI> validation run --path D:/Workspace/MyGame --include-assets
 ```
 
 ### 8.2 场景和脚本 smoke
 
 ```powershell
-<headless> scene validate --project D:/Workspace/MyGame --scene main.scene
-<headless> script status --project D:/Workspace/MyGame --scene main.scene
-<headless> script initialize --project D:/Workspace/MyGame --scene main.scene
-<headless> script update --project D:/Workspace/MyGame --scene main.scene
-<headless> script shutdown --project D:/Workspace/MyGame --scene main.scene
+<CLI> scene validate --project D:/Workspace/MyGame --scene main.scene
+<CLI> script status --project D:/Workspace/MyGame --scene main.scene
+<CLI> script initialize --project D:/Workspace/MyGame --scene main.scene
+<CLI> script update --project D:/Workspace/MyGame --scene main.scene
+<CLI> script shutdown --project D:/Workspace/MyGame --scene main.scene
 ```
 
 ### 8.3 自动化脚本判断建议
@@ -438,7 +438,7 @@ Get-ChildItem -Recurse -Filter HuaEngineHeadless.exe build
 
 - `Editor`
   - 是 GUI 宿主
-- `HuaEngineHeadless`
+- `HuaEngineCLI`
   - 是无 GUI 宿主
 
 它们都消费同一套正式控制面：

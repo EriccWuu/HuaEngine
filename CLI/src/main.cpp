@@ -4,16 +4,16 @@
 #include <iostream>
 #include <vector>
 
-#include "HeadlessApplication.h"
-#include "HeadlessCommandRunner.h"
-#include "HeadlessJsonWriter.h"
+#include "CLIApplication.h"
+#include "CLICommandRunner.h"
+#include "CLIJsonWriter.h"
 #include "HuaEngine/Core/Log.h"
 
 int main(int argc, char** argv) {
 	try {
 		HE::Log::Init({ .EnableConsoleOutput = false });
 
-		HE::Headless::HeadlessApplication application;
+		HE::CLI::CLIApplication application;
 		application.Start();
 
 		std::vector<std::string> arguments;
@@ -22,21 +22,21 @@ int main(int argc, char** argv) {
 			arguments.emplace_back(argv[index]);
 		}
 
-		HE::Headless::CommandRunner runner(application.GetOperations());
+		HE::CLI::CommandRunner runner(application.GetOperations());
 		auto response = runner.Run(arguments, std::filesystem::current_path());
-		std::cout << HE::Headless::RenderJson(response) << std::endl;
-		return HE::Headless::ExitCodeFor(response.Result);
+		std::cout << HE::CLI::RenderJson(response) << std::endl;
+		return HE::CLI::ExitCodeFor(response.Result);
 	}
 	catch (const std::exception& exception) {
-		HE::ResultEnvelope result = HE::ResultEnvelope::Failure("cli.exception", "command_line", "Unhandled exception during headless execution");
+		HE::ResultEnvelope result = HE::ResultEnvelope::Failure("cli.exception", "command_line", "Unhandled exception during cli execution");
 		result.AddDetail({ HE::DiagnosticSeverity::Error, "cli.exception.std", exception.what(), {} });
-		std::cout << HE::Headless::RenderJson({ std::move(result) }) << std::endl;
+		std::cout << HE::CLI::RenderJson({ std::move(result) }) << std::endl;
 		return 70;
 	}
 	catch (...) {
-		HE::ResultEnvelope result = HE::ResultEnvelope::Failure("cli.exception", "command_line", "Unhandled non-standard exception during headless execution");
+		HE::ResultEnvelope result = HE::ResultEnvelope::Failure("cli.exception", "command_line", "Unhandled non-standard exception during cli execution");
 		result.AddDetail({ HE::DiagnosticSeverity::Error, "cli.exception.unknown", "Unknown exception type", {} });
-		std::cout << HE::Headless::RenderJson({ std::move(result) }) << std::endl;
+		std::cout << HE::CLI::RenderJson({ std::move(result) }) << std::endl;
 		return 70;
 	}
 }

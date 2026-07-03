@@ -3,9 +3,9 @@
 #include <string>
 #include <vector>
 
-#include "HeadlessApplication.h"
-#include "HeadlessCommandRunner.h"
-#include "HeadlessJsonWriter.h"
+#include "CLIApplication.h"
+#include "CLICommandRunner.h"
+#include "CLIJsonWriter.h"
 #include "HuaEngine/Core/Log.h"
 
 namespace {
@@ -20,22 +20,22 @@ namespace {
 int main() {
 	HE::Log::Init({ .EnableConsoleOutput = false });
 
-	const auto tempRoot = std::filesystem::temp_directory_path() / "huaengine_headless_host_smoke";
+	const auto tempRoot = std::filesystem::temp_directory_path() / "huaengine_cli_host_smoke";
 	std::error_code errorCode;
 	std::filesystem::remove_all(tempRoot, errorCode);
 	std::filesystem::create_directories(tempRoot, errorCode);
 	Expect(!errorCode, "Failed to create temporary smoke directory");
 
-	HE::Headless::HeadlessApplication application;
+	HE::CLI::CLIApplication application;
 	application.Start();
 
-	HE::Headless::CommandRunner runner(application.GetOperations());
+	HE::CLI::CommandRunner runner(application.GetOperations());
 
 	auto opsResponse = runner.Run({ "ops", "list" }, tempRoot);
 	Expect(opsResponse.Result.Succeeded(), "ops list should succeed");
 	Expect(!opsResponse.Operations.empty(), "ops list should expose the operation registry");
 
-	auto projectResponse = runner.Run({ "project", "init", "--root", tempRoot.string(), "--name", "HeadlessSmoke" }, tempRoot);
+	auto projectResponse = runner.Run({ "project", "init", "--root", tempRoot.string(), "--name", "CLISmoke" }, tempRoot);
 	Expect(projectResponse.Result.Succeeded(), "project init should succeed");
 
 	auto sceneResponse = runner.Run({ "scene", "create", "--project", tempRoot.string(), "--name", "SmokeScene" }, tempRoot);
@@ -67,11 +67,11 @@ int main() {
 	}, tempRoot);
 	Expect(validationResponse.Result.Succeeded(), "validation run should succeed for the smoke workflow");
 
-	const auto renderedJson = HE::Headless::RenderJson(validationResponse);
-	Expect(renderedJson.find("\"host\":\"huaengine-headless\"") != std::string::npos, "Rendered JSON should identify the headless host");
+	const auto renderedJson = HE::CLI::RenderJson(validationResponse);
+	Expect(renderedJson.find("\"host\":\"huaengine-cli\"") != std::string::npos, "Rendered JSON should identify the cli host");
 	Expect(renderedJson.find("\"operation\":\"validation.validate\"") != std::string::npos, "Rendered JSON should preserve the formal operation id");
 
 	std::filesystem::remove_all(tempRoot, errorCode);
-	std::cout << "HeadlessHostSmoke passed" << std::endl;
+	std::cout << "CLIHostSmoke passed" << std::endl;
 	return 0;
 }

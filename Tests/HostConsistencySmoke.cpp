@@ -110,7 +110,7 @@ namespace {
 			&startupInfo,
 			&processInfo);
 		CloseHandle(writePipe);
-		Require(created == TRUE, "Failed to launch headless host");
+		Require(created == TRUE, "Failed to launch cli host");
 
 		std::string output;
 		char buffer[4096];
@@ -122,7 +122,7 @@ namespace {
 		CloseHandle(readPipe);
 		WaitForSingleObject(processInfo.hProcess, INFINITE);
 		DWORD exitCode = 0;
-		Require(GetExitCodeProcess(processInfo.hProcess, &exitCode) == TRUE, "Failed to read headless exit code");
+		Require(GetExitCodeProcess(processInfo.hProcess, &exitCode) == TRUE, "Failed to read cli exit code");
 		CloseHandle(processInfo.hThread);
 		CloseHandle(processInfo.hProcess);
 		return { exitCode, std::move(output) };
@@ -189,11 +189,11 @@ int main() {
 	Require(guiFacingValidation.Succeeded(), "Expected in-process validation to succeed");
 	workbenchState.CaptureValidation(guiFacingValidation, validationReport, "gui.validation");
 
-	const auto headlessExecutable = GetCurrentExecutableDirectory() / "HuaEngineHeadless.exe";
-	Require(std::filesystem::exists(headlessExecutable), "Expected HuaEngineHeadless.exe next to HostConsistencySmoke.exe");
+	const auto cliExecutable = GetCurrentExecutableDirectory() / "HuaEngineCLI.exe";
+	Require(std::filesystem::exists(cliExecutable), "Expected HuaEngineCLI.exe next to HostConsistencySmoke.exe");
 
-	const auto headlessValidation = RunProcess(
-		headlessExecutable,
+	const auto cliValidation = RunProcess(
+		cliExecutable,
 		{
 			"validation", "run",
 			"--path", (smokeRoot / "Project").string(),
@@ -203,27 +203,27 @@ int main() {
 		},
 		GetCurrentExecutableDirectory());
 
-	Require(headlessValidation.ExitCode == 0, "Expected headless validation to succeed");
+	Require(cliValidation.ExitCode == 0, "Expected cli validation to succeed");
 	const auto* guiResult = workbenchState.GetLastValidationResult();
 	Require(guiResult != nullptr, "Expected GUI-facing state to capture a validation result");
-	RequireContains(headlessValidation.Output, "\"operation\":\"" + guiResult->Operation + "\"", "Expected operation id parity");
-	RequireContains(headlessValidation.Output, "\"target\":\"" + guiResult->Target + "\"", "Expected target parity");
-	RequireContains(headlessValidation.Output, "\"status\":\"" + std::string(HE::ToString(guiResult->Status)) + "\"", "Expected status parity");
-	RequireContains(headlessValidation.Output, "\"summary\":\"" + guiResult->Summary + "\"", "Expected summary parity");
-	RequireContains(headlessValidation.Output, "\"can_continue_automatically\":" + std::string(guiResult->CanContinueAutomatically() ? "true" : "false"), "Expected continue parity");
-	RequireContains(headlessValidation.Output, "\"requires_manual_intervention\":" + std::string(guiResult->RequiresManualIntervention() ? "true" : "false"), "Expected manual intervention parity");
+	RequireContains(cliValidation.Output, "\"operation\":\"" + guiResult->Operation + "\"", "Expected operation id parity");
+	RequireContains(cliValidation.Output, "\"target\":\"" + guiResult->Target + "\"", "Expected target parity");
+	RequireContains(cliValidation.Output, "\"status\":\"" + std::string(HE::ToString(guiResult->Status)) + "\"", "Expected status parity");
+	RequireContains(cliValidation.Output, "\"summary\":\"" + guiResult->Summary + "\"", "Expected summary parity");
+	RequireContains(cliValidation.Output, "\"can_continue_automatically\":" + std::string(guiResult->CanContinueAutomatically() ? "true" : "false"), "Expected continue parity");
+	RequireContains(cliValidation.Output, "\"requires_manual_intervention\":" + std::string(guiResult->RequiresManualIntervention() ? "true" : "false"), "Expected manual intervention parity");
 
 	for (const auto& [key, value] : guiResult->Payload) {
 		RequireContains(
-			headlessValidation.Output,
+			cliValidation.Output,
 			"\"" + key + "\":\"" + value + "\"",
 			"Expected payload parity for key: " + key);
 	}
 
 	for (const auto& detail : guiResult->Details) {
-		RequireContains(headlessValidation.Output, "\"severity\":\"" + std::string(HE::ToString(detail.Severity)) + "\"", "Expected detail severity parity");
-		RequireContains(headlessValidation.Output, "\"code\":\"" + detail.Code + "\"", "Expected detail code parity");
-		RequireContains(headlessValidation.Output, "\"message\":\"" + detail.Message + "\"", "Expected detail message parity");
+		RequireContains(cliValidation.Output, "\"severity\":\"" + std::string(HE::ToString(detail.Severity)) + "\"", "Expected detail severity parity");
+		RequireContains(cliValidation.Output, "\"code\":\"" + detail.Code + "\"", "Expected detail code parity");
+		RequireContains(cliValidation.Output, "\"message\":\"" + detail.Message + "\"", "Expected detail message parity");
 	}
 
 	Require(guiResult->Payload.at("validated_domain_count") == std::to_string(validationReport.DomainCount), "Expected validated domain count parity");
