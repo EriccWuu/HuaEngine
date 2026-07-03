@@ -458,6 +458,19 @@ endif()
 configure_smoke_target(CLIWorkflowSmoke)
 copy_cli_host_to_smoke(CLIWorkflowSmoke)
 
+add_executable(CLIContractSmoke Tests/CLIContractSmoke.cpp)
+add_dependencies(CLIContractSmoke HuaEngineCLI)
+if(WIN32)
+    if(MSVC)
+        set_target_properties(CLIContractSmoke PROPERTIES
+            MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>"
+        )
+        target_compile_options(CLIContractSmoke PRIVATE /utf-8)
+    endif()
+endif()
+configure_smoke_target(CLIContractSmoke)
+copy_cli_host_to_smoke(CLIContractSmoke)
+
 add_executable(RenderingOperationsSmoke Tests/RenderingOperationsSmoke.cpp)
 target_include_directories(RenderingOperationsSmoke PRIVATE
     ${CMAKE_SOURCE_DIR}/HuaEngine/src
@@ -583,6 +596,7 @@ set_property(TARGET ApplicationOperationsSmoke PROPERTY FOLDER "Tests")
 set_property(TARGET AgentHostAdapterSmoke PROPERTY FOLDER "Tests")
 set_property(TARGET CLIHostSmoke PROPERTY FOLDER "Tests")
 set_property(TARGET CLIWorkflowSmoke PROPERTY FOLDER "Tests")
+set_property(TARGET CLIContractSmoke PROPERTY FOLDER "Tests")
 set_property(TARGET RenderingOperationsSmoke PROPERTY FOLDER "Tests")
 set_property(TARGET HostConsistencySmoke PROPERTY FOLDER "Tests")
 set_property(TARGET ProjectWorkbenchSmoke PROPERTY FOLDER "Tests")
