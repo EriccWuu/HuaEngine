@@ -1,33 +1,36 @@
-#include <cstddef>
+#include <span>
+#include <string_view>
 
 #include "HuaEngine/Reflection/Reflection.h"
 
 #ifndef HE_GENERATED_REFLECTION_METADATA_DECLARED
 #define HE_GENERATED_REFLECTION_METADATA_DECLARED
 
-namespace HE::Reflection::Generated {
+namespace HE {
+class ComponentRegistry;
+} // namespace HE
 
-struct GeneratedFieldInfo {
-    const char* Name;
-    const char* Type;
-    const char* DisplayName;
-    const char* Category;
+namespace HE::Generated {
+
+struct ReflectedFieldInfo {
+    std::string_view Name;
+    std::string_view Type;
 };
 
-struct GeneratedTypeInfo {
-    const char* Name;
-    const char* QualifiedName;
-    const char* DisplayName;
-    const char* Category;
-    const char* Source;
-    const GeneratedFieldInfo* Fields;
-    std::size_t FieldCount;
+struct ReflectedTypeInfo {
+    std::string_view Name;
+    std::string_view QualifiedName;
+    std::string_view Kind;
+    std::string_view DisplayName;
+    std::string_view Category;
+    std::span<const ReflectedFieldInfo> Fields;
 };
 
-const GeneratedTypeInfo* GetGeneratedReflectionTypes();
-std::size_t GetGeneratedReflectionTypeCount();
+std::span<const ReflectedTypeInfo> GetReflectedTypes();
+const ReflectedTypeInfo* FindReflectedType(std::string_view qualifiedName);
+void RegisterGeneratedComponents(ComponentRegistry& registry);
 
-} // namespace HE::Reflection::Generated
+} // namespace HE::Generated
 
 #endif // HE_GENERATED_REFLECTION_METADATA_DECLARED
 

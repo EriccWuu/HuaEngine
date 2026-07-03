@@ -224,6 +224,26 @@ if(WIN32)
 endif()
 configure_smoke_target(ReflectionSmoke)
 
+add_executable(ReflectionGeneratedSmoke Tests/ReflectionGeneratedSmoke.cpp)
+target_include_directories(ReflectionGeneratedSmoke PRIVATE
+    ${CMAKE_SOURCE_DIR}/HuaEngine/src
+    ${SPDLOG_INCLUDE_DIR}
+    ${GLM_INCLUDE_DIR}
+    ${IMGUI_INCLUDE_DIR}
+    ${STB_IMAGE_INCLUDE_DIR}
+)
+target_link_libraries(ReflectionGeneratedSmoke PRIVATE HuaEngine)
+if(WIN32)
+    target_compile_definitions(ReflectionGeneratedSmoke PRIVATE GLFW_INCLUDE_NONE)
+    if(MSVC)
+        set_target_properties(ReflectionGeneratedSmoke PROPERTIES
+            MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>"
+        )
+        target_compile_options(ReflectionGeneratedSmoke PRIVATE /utf-8)
+    endif()
+endif()
+configure_smoke_target(ReflectionGeneratedSmoke)
+
 add_executable(SerializationSmoke Tests/SerializationSmoke.cpp)
 target_include_directories(SerializationSmoke PRIVATE
     ${CMAKE_SOURCE_DIR}/HuaEngine/src
@@ -584,6 +604,7 @@ set_property(TARGET ECSQuerySchedulerSmoke PROPERTY FOLDER "Tests")
 set_property(TARGET ECSSceneSerializationSmoke PROPERTY FOLDER "Tests")
 set_property(TARGET ECSBackendSmoke PROPERTY FOLDER "Tests")
 set_property(TARGET ReflectionSmoke PROPERTY FOLDER "Tests")
+set_property(TARGET ReflectionGeneratedSmoke PROPERTY FOLDER "Tests")
 set_property(TARGET SerializationSmoke PROPERTY FOLDER "Tests")
 set_property(TARGET MaterialSerializationSmoke PROPERTY FOLDER "Tests")
 set_property(TARGET ProjectServiceSmoke PROPERTY FOLDER "Tests")

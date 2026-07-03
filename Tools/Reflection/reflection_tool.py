@@ -505,6 +505,14 @@ def legacy_reflection_type_guard(qualified_name: str) -> str:
     return f"HE_GENERATED_REFLECTION_TYPE_{macro_identifier(qualified_name)}"
 
 
+def generated_include_for_source(source: str) -> str:
+    normalized = source.replace("\\", "/")
+    prefix = "HuaEngine/src/"
+    if normalized.startswith(prefix):
+        return normalized[len(prefix) :]
+    return normalized
+
+
 def write_legacy_reflection_specialization(
     lines: List[str],
     reflected_type: Dict[str, Any],
@@ -531,38 +539,42 @@ def write_generated_files(manifest: Dict[str, Any], out_dir: Path) -> None:
     out_dir.mkdir(parents=True, exist_ok=True)
     header_path = out_dir / "GeneratedReflection.h"
     source_path = out_dir / "GeneratedReflection.cpp"
+    manifest_types = manifest.get("types", [])
 
     header_lines = [
-        "#include <cstddef>",
+        "#include <span>",
+        "#include <string_view>",
         "",
         '#include "HuaEngine/Reflection/Reflection.h"',
         "",
         "#ifndef HE_GENERATED_REFLECTION_METADATA_DECLARED",
         "#define HE_GENERATED_REFLECTION_METADATA_DECLARED",
         "",
-        "namespace HE::Reflection::Generated {",
+        "namespace HE {",
+        "class ComponentRegistry;",
+        "} // namespace HE",
         "",
-        "struct GeneratedFieldInfo {",
-        "    const char* Name;",
-        "    const char* Type;",
-        "    const char* DisplayName;",
-        "    const char* Category;",
+        "namespace HE::Generated {",
+        "",
+        "struct ReflectedFieldInfo {",
+        "    std::string_view Name;",
+        "    std::string_view Type;",
         "};",
         "",
-        "struct GeneratedTypeInfo {",
-        "    const char* Name;",
-        "    const char* QualifiedName;",
-        "    const char* DisplayName;",
-        "    const char* Category;",
-        "    const char* Source;",
-        "    const GeneratedFieldInfo* Fields;",
-        "    std::size_t FieldCount;",
+        "struct ReflectedTypeInfo {",
+        "    std::string_view Name;",
+        "    std::string_view QualifiedName;",
+        "    std::string_view Kind;",
+        "    std::string_view DisplayName;",
+        "    std::string_view Category;",
+        "    std::span<const ReflectedFieldInfo> Fields;",
         "};",
         "",
-        "const GeneratedTypeInfo* GetGeneratedReflectionTypes();",
-        "std::size_t GetGeneratedReflectionTypeCount();",
+        "std::span<const ReflectedTypeInfo> GetReflectedTypes();",
+        "const ReflectedTypeInfo* FindReflectedType(std::string_view qualifiedName);",
+        "void RegisterGeneratedComponents(ComponentRegistry& registry);",
         "",
-        "} // namespace HE::Reflection::Generated",
+        "} // namespace HE::Generated",
         "",
         "#endif // HE_GENERATED_REFLECTION_METADATA_DECLARED",
         "",
@@ -583,17 +595,33 @@ def write_generated_files(manifest: Dict[str, Any], out_dir: Path) -> None:
 
     header = "\n".join(header_lines)
 
+    include_paths = sorted(
+        {
+            generated_include_for_source(reflected_type.get("source", ""))
+            for reflected_type in manifest_types
+            if reflected_type.get("source", "")
+        }
+    )
+
     lines = [
         '#include "GeneratedReflection.h"',
         "",
-        "namespace HE::Reflection::Generated {",
-        "",
+        '#include "HuaEngine/ECS/ComponentRegistry.h"',
     ]
+    for include_path in include_paths:
+        lines.append(f'#include "{include_path}"')
+    lines.extend(
+        [
+            "",
+            "namespace HE::Generated {",
+            "",
+        ]
+    )
 
-    for type_index, reflected_type in enumerate(manifest.get("types", [])):
+    for type_index, reflected_type in enumerate(manifest_types):
         fields = reflected_type.get("fields", [])
         if fields:
-            lines.append(f"static constexpr GeneratedFieldInfo Type{type_index}Fields[] = {{")
+            lines.append(f"static constexpr ReflectedFieldInfo Type{type_index}Fields[] = {{")
             for field in fields:
                 lines.append(
                     "    {"
@@ -601,8 +629,6 @@ def write_generated_files(manifest: Dict[str, Any], out_dir: Path) -> None:
                         [
                             cpp_string(field.get("name", "")),
                             cpp_string(field.get("type", "")),
-                            cpp_string(field.get("display_name", "")),
-                            cpp_string(field.get("category", "")),
                         ]
                     )
                     + "},"
@@ -610,44 +636,60 @@ def write_generated_files(manifest: Dict[str, Any], out_dir: Path) -> None:
             lines.append("};")
             lines.append("")
 
-    manifest_types = manifest.get("types", [])
     if manifest_types:
-        lines.append("static constexpr GeneratedTypeInfo Types[] = {")
+        lines.append("static constexpr ReflectedTypeInfo Types[] = {")
         for type_index, reflected_type in enumerate(manifest_types):
             field_count = len(reflected_type.get("fields", []))
-            field_pointer = f"Type{type_index}Fields" if field_count else "nullptr"
+            field_span = (
+                f"std::span<const ReflectedFieldInfo>{{Type{type_index}Fields}}"
+                if field_count
+                else "std::span<const ReflectedFieldInfo>{}"
+            )
             lines.append(
                 "    {"
                 + ", ".join(
                     [
                         cpp_string(reflected_type.get("name", "")),
                         cpp_string(reflected_type.get("qualified_name", "")),
+                        cpp_string(reflected_type.get("kind", "")),
                         cpp_string(reflected_type.get("display_name", "")),
                         cpp_string(reflected_type.get("category", "")),
-                        cpp_string(reflected_type.get("source", "")),
-                        field_pointer,
-                        str(field_count),
+                        field_span,
                     ]
                 )
                 + "},"
             )
         lines.append("};")
         lines.append("")
-    lines.append("const GeneratedTypeInfo* GetGeneratedReflectionTypes() {")
+    lines.append("std::span<const ReflectedTypeInfo> GetReflectedTypes() {")
     if manifest_types:
         lines.append("    return Types;")
     else:
-        lines.append("    return nullptr;")
+        lines.append("    return {};")
     lines.append("}")
     lines.append("")
-    lines.append("std::size_t GetGeneratedReflectionTypeCount() {")
-    if manifest_types:
-        lines.append("    return sizeof(Types) / sizeof(Types[0]);")
-    else:
-        lines.append("    return 0;")
+    lines.append("const ReflectedTypeInfo* FindReflectedType(std::string_view qualifiedName) {")
+    lines.append("    for (const ReflectedTypeInfo& type : GetReflectedTypes()) {")
+    lines.append("        if (type.QualifiedName == qualifiedName) {")
+    lines.append("            return &type;")
+    lines.append("        }")
+    lines.append("    }")
+    lines.append("")
+    lines.append("    return nullptr;")
     lines.append("}")
     lines.append("")
-    lines.append("} // namespace HE::Reflection::Generated")
+    lines.append("void RegisterGeneratedComponents(ComponentRegistry& registry) {")
+    for reflected_type in manifest_types:
+        if reflected_type.get("kind", "") != "component":
+            continue
+        lines.append(f"    registry.Register<{reflected_type.get('qualified_name', '')}>({{")
+        lines.append(f"        .TypeName = {cpp_string(reflected_type.get('name', ''))},")
+        lines.append(f"        .DisplayName = {cpp_string(reflected_type.get('display_name', ''))},")
+        lines.append(f"        .Category = {cpp_string(reflected_type.get('category', ''))}")
+        lines.append("    });")
+    lines.append("}")
+    lines.append("")
+    lines.append("} // namespace HE::Generated")
     lines.append("")
 
     header_path.write_text(header, encoding="utf-8")

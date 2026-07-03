@@ -1,44 +1,82 @@
 #include "GeneratedReflection.h"
 
-namespace HE::Reflection::Generated {
+#include "HuaEngine/ECS/ComponentRegistry.h"
+#include "HuaEngine/ECS/Components.h"
+#include "Module/Rendering/RenderingComponent.h"
 
-static constexpr GeneratedFieldInfo Type0Fields[] = {
-    {"Name", "std::string", "", ""},
+namespace HE::Generated {
+
+static constexpr ReflectedFieldInfo Type0Fields[] = {
+    {"Name", "std::string"},
 };
 
-static constexpr GeneratedFieldInfo Type1Fields[] = {
-    {"Primary", "bool", "", ""},
-    {"FixedAspectRatio", "bool", "", ""},
+static constexpr ReflectedFieldInfo Type1Fields[] = {
+    {"Primary", "bool"},
+    {"FixedAspectRatio", "bool"},
 };
 
-static constexpr GeneratedFieldInfo Type2Fields[] = {
-    {"MaterialInstance", "Ref<HE::Rendering::MaterialInstance>", "", ""},
+static constexpr ReflectedFieldInfo Type2Fields[] = {
+    {"MaterialInstance", "Ref<HE::Rendering::MaterialInstance>"},
 };
 
-static constexpr GeneratedFieldInfo Type3Fields[] = {
-    {"MeshAssetName", "std::string", "", ""},
+static constexpr ReflectedFieldInfo Type3Fields[] = {
+    {"MeshAssetName", "std::string"},
 };
 
-static constexpr GeneratedFieldInfo Type4Fields[] = {
-    {"Position", "glm::vec3", "", ""},
-    {"Rotation", "glm::vec3", "", ""},
-    {"Scale", "glm::vec3", "", ""},
+static constexpr ReflectedFieldInfo Type4Fields[] = {
+    {"Position", "glm::vec3"},
+    {"Rotation", "glm::vec3"},
+    {"Scale", "glm::vec3"},
 };
 
-static constexpr GeneratedTypeInfo Types[] = {
-    {"NameComponent", "HE::NameComponent", "Name", "Core", "HuaEngine/src/HuaEngine/ECS/Components.h", Type0Fields, 1},
-    {"CameraComponent", "HE::Rendering::CameraComponent", "Camera", "Rendering", "HuaEngine/src/Module/Rendering/RenderingComponent.h", Type1Fields, 2},
-    {"MaterialComponent", "HE::Rendering::MaterialComponent", "Material", "Rendering", "HuaEngine/src/Module/Rendering/RenderingComponent.h", Type2Fields, 1},
-    {"MeshComponent", "HE::Rendering::MeshComponent", "Mesh", "Rendering", "HuaEngine/src/Module/Rendering/RenderingComponent.h", Type3Fields, 1},
-    {"TransformComponent", "HE::TransformComponent", "Transform", "Core", "HuaEngine/src/HuaEngine/ECS/Components.h", Type4Fields, 3},
+static constexpr ReflectedTypeInfo Types[] = {
+    {"NameComponent", "HE::NameComponent", "component", "Name", "Core", std::span<const ReflectedFieldInfo>{Type0Fields}},
+    {"CameraComponent", "HE::Rendering::CameraComponent", "component", "Camera", "Rendering", std::span<const ReflectedFieldInfo>{Type1Fields}},
+    {"MaterialComponent", "HE::Rendering::MaterialComponent", "component", "Material", "Rendering", std::span<const ReflectedFieldInfo>{Type2Fields}},
+    {"MeshComponent", "HE::Rendering::MeshComponent", "component", "Mesh", "Rendering", std::span<const ReflectedFieldInfo>{Type3Fields}},
+    {"TransformComponent", "HE::TransformComponent", "component", "Transform", "Core", std::span<const ReflectedFieldInfo>{Type4Fields}},
 };
 
-const GeneratedTypeInfo* GetGeneratedReflectionTypes() {
+std::span<const ReflectedTypeInfo> GetReflectedTypes() {
     return Types;
 }
 
-std::size_t GetGeneratedReflectionTypeCount() {
-    return sizeof(Types) / sizeof(Types[0]);
+const ReflectedTypeInfo* FindReflectedType(std::string_view qualifiedName) {
+    for (const ReflectedTypeInfo& type : GetReflectedTypes()) {
+        if (type.QualifiedName == qualifiedName) {
+            return &type;
+        }
+    }
+
+    return nullptr;
 }
 
-} // namespace HE::Reflection::Generated
+void RegisterGeneratedComponents(ComponentRegistry& registry) {
+    registry.Register<HE::NameComponent>({
+        .TypeName = "NameComponent",
+        .DisplayName = "Name",
+        .Category = "Core"
+    });
+    registry.Register<HE::Rendering::CameraComponent>({
+        .TypeName = "CameraComponent",
+        .DisplayName = "Camera",
+        .Category = "Rendering"
+    });
+    registry.Register<HE::Rendering::MaterialComponent>({
+        .TypeName = "MaterialComponent",
+        .DisplayName = "Material",
+        .Category = "Rendering"
+    });
+    registry.Register<HE::Rendering::MeshComponent>({
+        .TypeName = "MeshComponent",
+        .DisplayName = "Mesh",
+        .Category = "Rendering"
+    });
+    registry.Register<HE::TransformComponent>({
+        .TypeName = "TransformComponent",
+        .DisplayName = "Transform",
+        .Category = "Core"
+    });
+}
+
+} // namespace HE::Generated

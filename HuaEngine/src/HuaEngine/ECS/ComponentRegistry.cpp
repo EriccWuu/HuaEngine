@@ -1,6 +1,5 @@
 #include "HuaEngine/ECS/ComponentRegistry.h"
-#include "HuaEngine/ECS/Components.h"
-#include "Module/Rendering/RenderingComponent.h"
+#include "HuaEngine/Generated/GeneratedReflection.h"
 
 namespace HE {
 	const ComponentMetadata* ComponentRegistry::FindByTypeId(ComponentTypeId typeId) const {
@@ -27,30 +26,6 @@ namespace HE {
 	}
 
 	void RegisterCoreComponents(ComponentRegistry& registry) {
-		registry.Register<NameComponent>({
-			.TypeName = "NameComponent",
-			.DisplayName = "Name",
-			.Category = "Core"
-		});
-		registry.Register<TransformComponent>({
-			.TypeName = "TransformComponent",
-			.DisplayName = "Transform",
-			.Category = "Core"
-		});
-		registry.Register<Rendering::CameraComponent>({
-			.TypeName = "CameraComponent",
-			.DisplayName = "Camera",
-			.Category = "Rendering"
-		});
-		registry.Register<Rendering::MeshComponent>({
-			.TypeName = "MeshComponent",
-			.DisplayName = "Mesh",
-			.Category = "Rendering"
-		});
-		registry.Register<Rendering::MaterialComponent>({
-			.TypeName = "MaterialComponent",
-			.DisplayName = "Material",
-			.Category = "Rendering"
-		});
+		Generated::RegisterGeneratedComponents(registry);
 	}
 }
