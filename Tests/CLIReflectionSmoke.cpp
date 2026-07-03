@@ -10,6 +10,23 @@
 #include <windows.h>
 
 namespace {
+	std::vector<std::filesystem::path>& CleanupPaths() {
+		static std::vector<std::filesystem::path> paths;
+		return paths;
+	}
+
+	void CleanupRegisteredPaths() {
+		std::error_code errorCode;
+		for (const auto& path : CleanupPaths()) {
+			std::filesystem::remove_all(path, errorCode);
+			errorCode.clear();
+		}
+	}
+
+	void RegisterCleanupPath(std::filesystem::path path) {
+		CleanupPaths().push_back(std::move(path));
+	}
+
 	struct ProcessResult {
 		DWORD ExitCode = 0;
 		std::string Output;
@@ -245,6 +262,7 @@ namespace {
 		const std::filesystem::path& workingDirectory,
 		const std::filesystem::path& repositoryRoot) {
 		const auto fixtureRoot = repositoryRoot / ".workspace" / "reflection_cli_smoke" / "root with spaces %USERNAME% & meta";
+		RegisterCleanupPath(repositoryRoot / ".workspace" / "reflection_cli_smoke");
 		std::error_code errorCode;
 		std::filesystem::remove_all(fixtureRoot, errorCode);
 		Expect(!errorCode, "Failed to clean CLI shell-safe fixture");
@@ -288,11 +306,16 @@ namespace {
 }
 
 int main() {
+	(void)CleanupPaths();
+	std::atexit(CleanupRegisteredPaths);
+
 	const auto binaryDirectory = GetCurrentExecutablePath().parent_path();
 	const auto cliExecutable = binaryDirectory / "HuaEngineCLI.exe";
 	Expect(std::filesystem::exists(cliExecutable), "HuaEngineCLI.exe must exist next to the smoke executable");
 
 	const auto repositoryRoot = FindRepositoryRoot(std::filesystem::current_path());
+	RegisterCleanupPath(repositoryRoot / "Tools" / "Reflection" / "__pycache__");
+	RegisterCleanupPath(repositoryRoot / ".workspace" / "reflection" / "reflection_manifest.json");
 	ExpectReflectionResult(cliExecutable, binaryDirectory, repositoryRoot, "scan", "reflection.scan");
 	ExpectReflectionResult(cliExecutable, binaryDirectory, repositoryRoot, "validate", "reflection.validate");
 	RunShellSafePathSmoke(cliExecutable, binaryDirectory, repositoryRoot);

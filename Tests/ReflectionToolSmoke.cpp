@@ -10,6 +10,23 @@
 #include <windows.h>
 
 namespace {
+	std::vector<std::filesystem::path>& CleanupPaths() {
+		static std::vector<std::filesystem::path> paths;
+		return paths;
+	}
+
+	void CleanupRegisteredPaths() {
+		std::error_code errorCode;
+		for (const auto& path : CleanupPaths()) {
+			std::filesystem::remove_all(path, errorCode);
+			errorCode.clear();
+		}
+	}
+
+	void RegisterCleanupPath(std::filesystem::path path) {
+		CleanupPaths().push_back(std::move(path));
+	}
+
 	struct ProcessResult {
 		DWORD ExitCode = 0;
 		std::string Command;
@@ -289,6 +306,7 @@ namespace {
 		const std::filesystem::path& repositoryRoot,
 		const std::filesystem::path& reflectionToolPath) {
 		const auto workspaceRoot = repositoryRoot / ".workspace" / "reflection_negative_smoke";
+		RegisterCleanupPath(workspaceRoot);
 		std::error_code errorCode;
 		std::filesystem::create_directories(workspaceRoot, errorCode);
 		Expect(!errorCode, "Failed to prepare reflection negative smoke workspace");
@@ -374,9 +392,13 @@ namespace {
 }
 
 int main() {
+	(void)CleanupPaths();
+	std::atexit(CleanupRegisteredPaths);
+
 	const auto binaryDirectory = GetCurrentExecutablePath().parent_path();
 	const auto repositoryRoot = FindRepositoryRoot(binaryDirectory);
 	const auto reflectionToolPath = repositoryRoot / "Tools" / "Reflection" / "reflection_tool.py";
+	RegisterCleanupPath(reflectionToolPath.parent_path() / "__pycache__");
 
 	std::error_code errorCode;
 	const auto workspaceReflectionDirectory = repositoryRoot / ".workspace" / "reflection";
@@ -385,6 +407,8 @@ int main() {
 
 	const auto manifestPath = workspaceReflectionDirectory / "reflection_tool_smoke_manifest.json";
 	const auto validatePath = workspaceReflectionDirectory / "reflection_tool_validate.json";
+	RegisterCleanupPath(manifestPath);
+	RegisterCleanupPath(validatePath);
 	std::filesystem::remove(manifestPath, errorCode);
 	std::filesystem::remove(validatePath, errorCode);
 

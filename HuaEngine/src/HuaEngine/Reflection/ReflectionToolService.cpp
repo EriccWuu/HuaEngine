@@ -111,6 +111,19 @@ namespace {
 		return wide;
 	}
 
+	struct ToolArgument {
+		std::wstring ProcessValue;
+		std::string DisplayValue;
+	};
+
+	ToolArgument LiteralArgument(std::string_view value) {
+		return { Utf8ToWide(value), std::string(value) };
+	}
+
+	ToolArgument PathArgument(const std::filesystem::path& path) {
+		return { path.wstring(), path.generic_string() };
+	}
+
 	std::wstring QuoteForWindowsCommandLine(const std::wstring& argument) {
 		if (argument.empty()) {
 			return L"\"\"";
@@ -151,44 +164,112 @@ namespace {
 		return quoted;
 	}
 
-	std::wstring BuildWindowsCommandLine(const std::vector<std::string>& arguments) {
+	std::wstring BuildWindowsCommandLine(const std::vector<ToolArgument>& arguments) {
 		std::wstring commandLine;
 		for (const auto& argument : arguments) {
 			if (!commandLine.empty()) {
 				commandLine += L" ";
 			}
-			commandLine += QuoteForWindowsCommandLine(Utf8ToWide(argument));
+			commandLine += QuoteForWindowsCommandLine(argument.ProcessValue);
 		}
 
 		return commandLine;
 	}
 
-	ToolExecutionResult RunToolCommand(const std::vector<std::string>& arguments) {
+	std::string BuildDisplayCommand(const std::vector<ToolArgument>& arguments) {
+		std::string command;
+		for (const auto& argument : arguments) {
+			if (!command.empty()) {
+				command += " ";
+			}
+			command += QuoteForDisplay(argument.DisplayValue);
+		}
+
+		return command;
+	}
+
+	struct ScopedHandle {
+		HANDLE Value = nullptr;
+
+		ScopedHandle() = default;
+		explicit ScopedHandle(HANDLE handle) : Value(handle) {}
+		ScopedHandle(const ScopedHandle&) = delete;
+		ScopedHandle& operator=(const ScopedHandle&) = delete;
+
+		~ScopedHandle() {
+			Reset();
+		}
+
+		HANDLE Get() const {
+			return Value;
+		}
+
+		HANDLE* Put() {
+			Reset();
+			return &Value;
+		}
+
+		void Reset(HANDLE handle = nullptr) {
+			if (Value != nullptr && Value != INVALID_HANDLE_VALUE) {
+				CloseHandle(Value);
+			}
+			Value = handle;
+		}
+	};
+
+	ToolExecutionResult RunToolCommand(const std::vector<ToolArgument>& arguments) {
 		ToolExecutionResult result;
 
 		SECURITY_ATTRIBUTES securityAttributes{};
 		securityAttributes.nLength = sizeof(securityAttributes);
 		securityAttributes.bInheritHandle = TRUE;
 
-		HANDLE readPipe = nullptr;
-		HANDLE writePipe = nullptr;
-		if (!CreatePipe(&readPipe, &writePipe, &securityAttributes, 0)) {
+		ScopedHandle readPipe;
+		ScopedHandle writePipe;
+		if (!CreatePipe(readPipe.Put(), writePipe.Put(), &securityAttributes, 0)) {
 			result.Output = "Failed to create reflection tool output pipe.";
 			return result;
 		}
-		if (!SetHandleInformation(readPipe, HANDLE_FLAG_INHERIT, 0)) {
-			CloseHandle(readPipe);
-			CloseHandle(writePipe);
+		if (!SetHandleInformation(readPipe.Get(), HANDLE_FLAG_INHERIT, 0)) {
 			result.Output = "Failed to configure reflection tool output pipe.";
 			return result;
 		}
 
-		STARTUPINFOW startupInfo{};
-		startupInfo.cb = sizeof(startupInfo);
-		startupInfo.dwFlags = STARTF_USESTDHANDLES;
-		startupInfo.hStdInput = GetStdHandle(STD_INPUT_HANDLE);
-		startupInfo.hStdOutput = writePipe;
-		startupInfo.hStdError = writePipe;
+		SIZE_T attributeListSize = 0;
+		InitializeProcThreadAttributeList(nullptr, 1, 0, &attributeListSize);
+		if (attributeListSize == 0) {
+			result.Output = "Failed to size reflection tool process attributes.";
+			return result;
+		}
+
+		std::vector<unsigned char> attributeListStorage(attributeListSize);
+		auto* attributeList = reinterpret_cast<LPPROC_THREAD_ATTRIBUTE_LIST>(attributeListStorage.data());
+		if (!InitializeProcThreadAttributeList(attributeList, 1, 0, &attributeListSize)) {
+			result.Output = "Failed to initialize reflection tool process attributes.";
+			return result;
+		}
+
+		HANDLE inheritedHandles[] = { writePipe.Get() };
+		if (!UpdateProcThreadAttribute(
+			attributeList,
+			0,
+			PROC_THREAD_ATTRIBUTE_HANDLE_LIST,
+			inheritedHandles,
+			sizeof(inheritedHandles),
+			nullptr,
+			nullptr)) {
+			DeleteProcThreadAttributeList(attributeList);
+			result.Output = "Failed to configure reflection tool inherited handles.";
+			return result;
+		}
+
+		STARTUPINFOEXW startupInfo{};
+		startupInfo.StartupInfo.cb = sizeof(startupInfo);
+		startupInfo.StartupInfo.dwFlags = STARTF_USESTDHANDLES;
+		startupInfo.StartupInfo.hStdInput = nullptr;
+		startupInfo.StartupInfo.hStdOutput = writePipe.Get();
+		startupInfo.StartupInfo.hStdError = writePipe.Get();
+		startupInfo.lpAttributeList = attributeList;
 
 		PROCESS_INFORMATION processInfo{};
 		std::wstring commandLine = BuildWindowsCommandLine(arguments);
@@ -198,26 +279,26 @@ namespace {
 			nullptr,
 			nullptr,
 			TRUE,
-			0,
+			EXTENDED_STARTUPINFO_PRESENT,
 			nullptr,
 			nullptr,
-			&startupInfo,
+			&startupInfo.StartupInfo,
 			&processInfo);
-		CloseHandle(writePipe);
+		DeleteProcThreadAttributeList(attributeList);
+		writePipe.Reset();
 
 		if (!created) {
-			CloseHandle(readPipe);
 			result.Output = "Failed to launch reflection tool process.";
 			return result;
 		}
 
 		char buffer[4096];
 		DWORD bytesRead = 0;
-		while (ReadFile(readPipe, buffer, static_cast<DWORD>(sizeof(buffer)), &bytesRead, nullptr) && bytesRead > 0) {
+		while (ReadFile(readPipe.Get(), buffer, static_cast<DWORD>(sizeof(buffer)), &bytesRead, nullptr) && bytesRead > 0) {
 			result.Output.append(buffer, bytesRead);
 		}
 
-		CloseHandle(readPipe);
+		readPipe.Reset();
 		WaitForSingleObject(processInfo.hProcess, INFINITE);
 
 		DWORD exitCode = 1;
@@ -229,6 +310,16 @@ namespace {
 		return result;
 	}
 #else
+	using ToolArgument = std::string;
+
+	ToolArgument LiteralArgument(std::string_view value) {
+		return std::string(value);
+	}
+
+	ToolArgument PathArgument(const std::filesystem::path& path) {
+		return path.string();
+	}
+
 	ToolExecutionResult RunToolCommand(const std::vector<std::string>& arguments) {
 		ToolExecutionResult result;
 
@@ -313,17 +404,17 @@ namespace {
 		std::string operation,
 		std::string summary,
 		const HE::ReflectionToolRequest& request,
-		const std::vector<std::string>& toolArguments,
+		const std::vector<ToolArgument>& toolArguments,
 		bool countFromManifest) {
 		const auto toolPath = request.RootPath / "Tools" / "Reflection" / "reflection_tool.py";
 		if (!std::filesystem::exists(toolPath)) {
 			return MakeRequestFailure(std::move(operation), request.RootPath, "Reflection tool script was not found", toolPath.generic_string());
 		}
 
-		std::vector<std::string> arguments;
+		std::vector<ToolArgument> arguments;
 		arguments.reserve(toolArguments.size() + 2);
-		arguments.push_back("python");
-		arguments.push_back(toolPath.string());
+		arguments.push_back(LiteralArgument("python"));
+		arguments.push_back(PathArgument(toolPath));
 		arguments.insert(arguments.end(), toolArguments.begin(), toolArguments.end());
 
 		const auto execution = RunToolCommand(arguments);
@@ -377,7 +468,7 @@ namespace HE {
 			"reflection.scan",
 			"Reflection manifest generated",
 			resolved,
-			{ "scan", "--root", resolved.RootPath.string(), "--out", resolved.ManifestPath.string() },
+			{ LiteralArgument("scan"), LiteralArgument("--root"), PathArgument(resolved.RootPath), LiteralArgument("--out"), PathArgument(resolved.ManifestPath) },
 			true);
 	}
 
@@ -398,7 +489,7 @@ namespace HE {
 			"reflection.generate",
 			"Reflection files generated",
 			resolved,
-			{ "generate", "--manifest", resolved.ManifestPath.string(), "--out-dir", resolved.OutputDirectory.string() },
+			{ LiteralArgument("generate"), LiteralArgument("--manifest"), PathArgument(resolved.ManifestPath), LiteralArgument("--out-dir"), PathArgument(resolved.OutputDirectory) },
 			true);
 
 		if (generateResult.Succeeded() && generateResult.Payload.find("tool_output") != generateResult.Payload.end()) {
@@ -417,7 +508,7 @@ namespace HE {
 			"reflection.validate",
 			"Reflection manifest validated",
 			resolved,
-			{ "validate", "--root", resolved.RootPath.string() },
+			{ LiteralArgument("validate"), LiteralArgument("--root"), PathArgument(resolved.RootPath) },
 			false);
 	}
 }
