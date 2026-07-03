@@ -194,10 +194,10 @@ namespace HE::CLI {
 			CLICommandDomain::Reflection,
 			"reflection.generate",
 			"Generate C++ reflection metadata files.",
-			"reflection generate --root <path> --out-dir <path> [--out <manifest>]",
+			"reflection generate --root <path> [--out-dir <path>] [--out <manifest>]",
 			{
 				ValueOption("--root", "Repository root path.", true),
-				ValueOption("--out-dir", "Generated C++ output directory.", true),
+				ValueOption("--out-dir", "Generated C++ output directory."),
 				ValueOption("--out", "Manifest output path.")
 			}
 		});

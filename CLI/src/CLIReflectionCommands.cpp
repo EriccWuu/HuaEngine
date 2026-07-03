@@ -62,7 +62,7 @@ namespace HE::CLI {
 		}
 
 		if (command.Path == std::vector<std::string>{ "reflection", "generate" }) {
-			if (!BuildReflectionRequest(command, options, context, true, request, requestError)) {
+			if (!BuildReflectionRequest(command, options, context, false, request, requestError)) {
 				return { std::move(requestError) };
 			}
 
