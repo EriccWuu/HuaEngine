@@ -180,6 +180,30 @@ namespace {
 				std::to_string(result.ExitCode) + "\nOutput:\n" + result.Output);
 	}
 
+	void ExpectCommandFailedWith(
+		const ProcessResult& result,
+		const std::string& label,
+		std::string_view expectedDiagnostic) {
+		Expect(
+			result.ExitCode != 0,
+			label + " should exit with a non-zero code\nCommand: " + result.Command + "\nOutput:\n" + result.Output);
+		Expect(
+			result.Output.find(expectedDiagnostic) != std::string::npos,
+			label + " should report diagnostic " + std::string(expectedDiagnostic) + "\nOutput:\n" + result.Output);
+	}
+
+	void WriteTextFile(const std::filesystem::path& path, std::string_view content) {
+		std::error_code errorCode;
+		std::filesystem::create_directories(path.parent_path(), errorCode);
+		Expect(!errorCode, "Failed to create fixture directory: " + path.parent_path().string());
+
+		std::ofstream stream(path, std::ios::binary);
+		Expect(stream.is_open(), "Failed to open fixture file: " + path.string());
+		stream << content;
+		stream.close();
+		Expect(stream.good(), "Failed to write fixture file: " + path.string());
+	}
+
 	std::filesystem::path GetCurrentExecutablePath() {
 		std::wstring buffer(MAX_PATH, L'\0');
 		for (;;) {
@@ -212,6 +236,140 @@ namespace {
 
 		Expect(false, "Failed to locate repository root");
 		return {};
+	}
+
+	void ValidateNegativeFixture(
+		const std::filesystem::path& reflectionToolPath,
+		const std::filesystem::path& workspaceRoot,
+		const std::string& fixtureName,
+		std::string_view source,
+		std::string_view expectedDiagnostic) {
+		const auto fixtureRoot = workspaceRoot / fixtureName;
+		std::error_code errorCode;
+		std::filesystem::remove_all(fixtureRoot, errorCode);
+		Expect(!errorCode, "Failed to clean negative fixture: " + fixtureRoot.string());
+		WriteTextFile(fixtureRoot / "HuaEngine" / "src" / "Fixture" / "FixtureComponent.h", source);
+
+		const auto result = RunCommand(
+			{ "python", reflectionToolPath.string(), "validate", "--root", fixtureRoot.string() },
+			fixtureRoot);
+		ExpectCommandFailedWith(result, fixtureName, expectedDiagnostic);
+	}
+
+	void ValidateGeneratedDriftFixture(
+		const std::filesystem::path& reflectionToolPath,
+		const std::filesystem::path& workspaceRoot) {
+		const auto fixtureRoot = workspaceRoot / "generated_drift";
+		std::error_code errorCode;
+		std::filesystem::remove_all(fixtureRoot, errorCode);
+		Expect(!errorCode, "Failed to clean generated drift fixture");
+		WriteTextFile(
+			fixtureRoot / "HuaEngine" / "src" / "Fixture" / "DriftComponent.h",
+			"namespace HE {\n"
+			"HE_REFLECT_" "COMPONENT(DisplayName=\"Drift\", Category=\"Fixture\")\n"
+			"struct DriftComponent {\n"
+			"    HE_REFLECT_" "FIELD()\n"
+			"    int Value = 1;\n"
+			"};\n"
+			"}\n");
+		WriteTextFile(
+			fixtureRoot / "HuaEngine" / "src" / "HuaEngine" / "Generated" / "GeneratedReflection.h",
+			"// stale generated header\n");
+		WriteTextFile(
+			fixtureRoot / "HuaEngine" / "src" / "HuaEngine" / "Generated" / "GeneratedReflection.cpp",
+			"// stale generated source\n");
+
+		const auto result = RunCommand(
+			{ "python", reflectionToolPath.string(), "validate", "--root", fixtureRoot.string() },
+			fixtureRoot);
+		ExpectCommandFailedWith(result, "generated drift fixture", "generated.drift");
+	}
+
+	void RunNegativeValidationSmoke(
+		const std::filesystem::path& repositoryRoot,
+		const std::filesystem::path& reflectionToolPath) {
+		const auto workspaceRoot = repositoryRoot / ".workspace" / "reflection_negative_smoke";
+		std::error_code errorCode;
+		std::filesystem::create_directories(workspaceRoot, errorCode);
+		Expect(!errorCode, "Failed to prepare reflection negative smoke workspace");
+
+		ValidateNegativeFixture(
+			reflectionToolPath,
+			workspaceRoot,
+			"missing_display_name",
+			"namespace HE {\n"
+			"HE_REFLECT_" "COMPONENT(Category=\"Fixture\")\n"
+			"struct MissingDisplayNameComponent {\n"
+			"    HE_REFLECT_" "FIELD()\n"
+			"    int Value = 1;\n"
+			"};\n"
+			"}\n",
+			"component.missing_display_name");
+
+		ValidateNegativeFixture(
+			reflectionToolPath,
+			workspaceRoot,
+			"missing_category",
+			"namespace HE {\n"
+			"HE_REFLECT_" "COMPONENT(DisplayName=\"Missing Category\")\n"
+			"struct MissingCategoryComponent {\n"
+			"    HE_REFLECT_" "FIELD()\n"
+			"    int Value = 1;\n"
+			"};\n"
+			"}\n",
+			"component.missing_category");
+
+		ValidateNegativeFixture(
+			reflectionToolPath,
+			workspaceRoot,
+			"empty_fields",
+			"namespace HE {\n"
+			"HE_REFLECT_" "COMPONENT(DisplayName=\"Empty\", Category=\"Fixture\")\n"
+			"struct EmptyFieldsComponent {\n"
+			"};\n"
+			"}\n",
+			"component.no_reflected_fields");
+
+		ValidateNegativeFixture(
+			reflectionToolPath,
+			workspaceRoot,
+			"invalid_field",
+			"namespace HE {\n"
+			"HE_REFLECT_" "COMPONENT(DisplayName=\"Invalid\", Category=\"Fixture\")\n"
+			"struct InvalidFieldComponent {\n"
+			"    HE_REFLECT_" "FIELD()\n"
+			"    void NotAField();\n"
+			"};\n"
+			"}\n",
+			"field.unparsed_declaration");
+
+		const auto duplicateRoot = workspaceRoot / "duplicate_type";
+		std::filesystem::remove_all(duplicateRoot, errorCode);
+		Expect(!errorCode, "Failed to clean duplicate type fixture");
+		WriteTextFile(
+			duplicateRoot / "HuaEngine" / "src" / "A" / "DuplicateComponent.h",
+			"namespace HE {\n"
+			"HE_REFLECT_" "COMPONENT(DisplayName=\"Duplicate A\", Category=\"Fixture\")\n"
+			"struct DuplicateComponent {\n"
+			"    HE_REFLECT_" "FIELD()\n"
+			"    int A = 1;\n"
+			"};\n"
+			"}\n");
+		WriteTextFile(
+			duplicateRoot / "HuaEngine" / "src" / "B" / "DuplicateComponent.h",
+			"namespace HE {\n"
+			"HE_REFLECT_" "COMPONENT(DisplayName=\"Duplicate B\", Category=\"Fixture\")\n"
+			"struct DuplicateComponent {\n"
+			"    HE_REFLECT_" "FIELD()\n"
+			"    int B = 2;\n"
+			"};\n"
+			"}\n");
+		const auto duplicateResult = RunCommand(
+			{ "python", reflectionToolPath.string(), "validate", "--root", duplicateRoot.string() },
+			duplicateRoot);
+		ExpectCommandFailedWith(duplicateResult, "duplicate type fixture", "component.duplicate_qualified_name");
+
+		ValidateGeneratedDriftFixture(reflectionToolPath, workspaceRoot);
 	}
 }
 
@@ -246,6 +404,8 @@ int main() {
 	validateOutput << validateResult.Output;
 	validateOutput.close();
 	Expect(validateOutput.good(), "Failed to write reflection tool validate output file");
+
+	RunNegativeValidationSmoke(repositoryRoot, reflectionToolPath);
 
 	std::cout << "ReflectionToolSmoke passed" << std::endl;
 	return 0;

@@ -8,6 +8,7 @@ import json
 import os
 import re
 import sys
+import tempfile
 from pathlib import Path
 from typing import Any, Dict, Iterable, List, Optional, Sequence, Tuple
 
@@ -358,7 +359,7 @@ def collect_fields(
         if parsed is None:
             diagnostics.append(
                 make_diagnostic(
-                    "warning",
+                    "error",
                     "field.unparsed_declaration",
                     "HE_REFLECT_FIELD is not followed by a simple field declaration.",
                     source,
@@ -434,6 +435,72 @@ def scan_file(root: Path, path: Path, diagnostics: List[Dict[str, Any]]) -> List
     return types
 
 
+def validate_reflected_types(manifest: Dict[str, Any]) -> None:
+    diagnostics = manifest.setdefault("diagnostics", [])
+    seen_qualified_names: Dict[str, Dict[str, Any]] = {}
+
+    for reflected_type in manifest.get("types", []):
+        source = reflected_type.get("source")
+        line = reflected_type.get("line")
+        qualified_name = reflected_type.get("qualified_name", "")
+
+        if reflected_type.get("kind") == "component":
+            if not reflected_type.get("display_name"):
+                diagnostics.append(
+                    make_diagnostic(
+                        "error",
+                        "component.missing_display_name",
+                        "HE_REFLECT_COMPONENT is missing required DisplayName metadata.",
+                        source,
+                        line,
+                    )
+                )
+            if not reflected_type.get("category"):
+                diagnostics.append(
+                    make_diagnostic(
+                        "error",
+                        "component.missing_category",
+                        "HE_REFLECT_COMPONENT is missing required Category metadata.",
+                        source,
+                        line,
+                    )
+                )
+            if not reflected_type.get("fields"):
+                diagnostics.append(
+                    make_diagnostic(
+                        "error",
+                        "component.no_reflected_fields",
+                        "HE_REFLECT_COMPONENT types must declare at least one HE_REFLECT_FIELD.",
+                        source,
+                        line,
+                    )
+                )
+
+        if qualified_name:
+            previous = seen_qualified_names.get(qualified_name)
+            if previous is not None:
+                diagnostics.append(
+                    make_diagnostic(
+                        "error",
+                        "component.duplicate_qualified_name",
+                        f"Duplicate reflected type qualified_name: {qualified_name}",
+                        source,
+                        line,
+                    )
+                )
+                diagnostics.append(
+                    make_diagnostic(
+                        "error",
+                        "component.duplicate_qualified_name",
+                        f"Duplicate reflected type qualified_name first seen here: {qualified_name}",
+                        previous.get("source"),
+                        previous.get("line"),
+                    )
+                )
+            else:
+                seen_qualified_names[qualified_name] = reflected_type
+
+
 def scan_root(root: Path) -> Dict[str, Any]:
     diagnostics: List[Dict[str, Any]] = []
     types: List[Dict[str, Any]] = []
@@ -460,11 +527,49 @@ def scan_root(root: Path) -> Dict[str, Any]:
             types.extend(scan_file(resolved_root, path, diagnostics))
 
     types.sort(key=lambda item: (item["qualified_name"], item["source"], item["line"]))
-    return {
+    manifest = {
         "schema_version": SCHEMA_VERSION,
         "types": types,
         "diagnostics": diagnostics,
     }
+    validate_reflected_types(manifest)
+    return manifest
+
+
+def add_generated_drift_diagnostics(root: Path, manifest: Dict[str, Any]) -> None:
+    generated_dir = root.resolve() / "HuaEngine" / "src" / "HuaEngine" / "Generated"
+    generated_files = [
+        generated_dir / "GeneratedReflection.h",
+        generated_dir / "GeneratedReflection.cpp",
+    ]
+    if not generated_dir.exists() and not any(path.exists() for path in generated_files):
+        return
+
+    diagnostics = manifest.setdefault("diagnostics", [])
+    with tempfile.TemporaryDirectory(prefix="hua_reflection_validate_") as temp_dir:
+        expected_dir = Path(temp_dir)
+        write_generated_files(manifest, expected_dir)
+
+        for generated_file in generated_files:
+            expected_file = expected_dir / generated_file.name
+            if not generated_file.exists():
+                diagnostics.append(
+                    make_diagnostic(
+                        "error",
+                        "generated.drift",
+                        f"Generated reflection file is missing: {normalize_path(generated_file)}",
+                    )
+                )
+                continue
+
+            if read_text(generated_file) != read_text(expected_file):
+                diagnostics.append(
+                    make_diagnostic(
+                        "error",
+                        "generated.drift",
+                        f"Generated reflection file is out of date: {normalize_path(generated_file)}",
+                    )
+                )
 
 
 def has_error_diagnostic(manifest: Dict[str, Any]) -> bool:
@@ -727,7 +832,9 @@ def command_generate(args: argparse.Namespace) -> int:
 
 
 def command_validate(args: argparse.Namespace) -> int:
-    manifest = scan_root(Path(args.root))
+    root = Path(args.root)
+    manifest = scan_root(root)
+    add_generated_drift_diagnostics(root, manifest)
     print(json.dumps(manifest, indent=2))
     return 1 if has_error_diagnostic(manifest) else 0
 

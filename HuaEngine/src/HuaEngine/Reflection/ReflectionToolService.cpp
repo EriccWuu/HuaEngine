@@ -1,18 +1,19 @@
 #include "enginepch.h"
 #include "ReflectionToolService.h"
 
-#include <array>
-#include <cstdio>
 #include <fstream>
 #include <sstream>
+#include <string_view>
 #include <system_error>
+#include <vector>
 
 #ifdef HE_PLATFORM_WINDOWS
-#define HE_POPEN _popen
-#define HE_PCLOSE _pclose
+#define WIN32_LEAN_AND_MEAN
+#include <windows.h>
 #else
-#define HE_POPEN popen
-#define HE_PCLOSE pclose
+#include <sys/types.h>
+#include <sys/wait.h>
+#include <unistd.h>
 #endif
 
 namespace {
@@ -33,21 +34,6 @@ namespace {
 		}
 
 		return absolutePath.lexically_normal();
-	}
-
-	std::string QuotePath(const std::filesystem::path& path) {
-		std::string value = path.string();
-		std::string quoted;
-		quoted.reserve(value.size() + 2);
-		quoted.push_back('"');
-		for (const char character : value) {
-			if (character == '"') {
-				quoted.push_back('\\');
-			}
-			quoted.push_back(character);
-		}
-		quoted.push_back('"');
-		return quoted;
 	}
 
 	std::string ReadFileText(const std::filesystem::path& path) {
@@ -76,23 +62,226 @@ namespace {
 		std::string Output;
 	};
 
-	ToolExecutionResult RunToolCommand(const std::string& command) {
-		ToolExecutionResult result;
-		std::array<char, 4096> buffer{};
+	std::string QuoteForDisplay(std::string_view argument) {
+		if (!argument.empty() && argument.find_first_of(" \t\n\v\"") == std::string_view::npos) {
+			return std::string(argument);
+		}
 
-		FILE* pipe = HE_POPEN(command.c_str(), "r");
-		if (!pipe) {
+		std::string quoted = "\"";
+		for (const char character : argument) {
+			if (character == '"' || character == '\\') {
+				quoted += '\\';
+			}
+			quoted += character;
+		}
+
+		quoted += "\"";
+		return quoted;
+	}
+
+	std::string BuildDisplayCommand(const std::vector<std::string>& arguments) {
+		std::string command;
+		for (const auto& argument : arguments) {
+			if (!command.empty()) {
+				command += " ";
+			}
+			command += QuoteForDisplay(argument);
+		}
+
+		return command;
+	}
+
+#ifdef HE_PLATFORM_WINDOWS
+	std::wstring Utf8ToWide(std::string_view value) {
+		if (value.empty()) {
+			return {};
+		}
+
+		const int required = MultiByteToWideChar(CP_UTF8, 0, value.data(), static_cast<int>(value.size()), nullptr, 0);
+		if (required <= 0) {
+			return {};
+		}
+
+		std::wstring wide(required, L'\0');
+		const int written = MultiByteToWideChar(CP_UTF8, 0, value.data(), static_cast<int>(value.size()), wide.data(), required);
+		if (written != required) {
+			return {};
+		}
+
+		return wide;
+	}
+
+	std::wstring QuoteForWindowsCommandLine(const std::wstring& argument) {
+		if (argument.empty()) {
+			return L"\"\"";
+		}
+
+		if (argument.find_first_of(L" \t\n\v\"") == std::wstring::npos) {
+			return argument;
+		}
+
+		std::wstring quoted = L"\"";
+		size_t backslashCount = 0;
+		for (const wchar_t character : argument) {
+			if (character == L'\\') {
+				++backslashCount;
+				continue;
+			}
+
+			if (character == L'"') {
+				quoted.append(backslashCount * 2 + 1, L'\\');
+				quoted += L'"';
+				backslashCount = 0;
+				continue;
+			}
+
+			if (backslashCount > 0) {
+				quoted.append(backslashCount, L'\\');
+				backslashCount = 0;
+			}
+
+			quoted += character;
+		}
+
+		if (backslashCount > 0) {
+			quoted.append(backslashCount * 2, L'\\');
+		}
+
+		quoted += L"\"";
+		return quoted;
+	}
+
+	std::wstring BuildWindowsCommandLine(const std::vector<std::string>& arguments) {
+		std::wstring commandLine;
+		for (const auto& argument : arguments) {
+			if (!commandLine.empty()) {
+				commandLine += L" ";
+			}
+			commandLine += QuoteForWindowsCommandLine(Utf8ToWide(argument));
+		}
+
+		return commandLine;
+	}
+
+	ToolExecutionResult RunToolCommand(const std::vector<std::string>& arguments) {
+		ToolExecutionResult result;
+
+		SECURITY_ATTRIBUTES securityAttributes{};
+		securityAttributes.nLength = sizeof(securityAttributes);
+		securityAttributes.bInheritHandle = TRUE;
+
+		HANDLE readPipe = nullptr;
+		HANDLE writePipe = nullptr;
+		if (!CreatePipe(&readPipe, &writePipe, &securityAttributes, 0)) {
+			result.Output = "Failed to create reflection tool output pipe.";
+			return result;
+		}
+		if (!SetHandleInformation(readPipe, HANDLE_FLAG_INHERIT, 0)) {
+			CloseHandle(readPipe);
+			CloseHandle(writePipe);
+			result.Output = "Failed to configure reflection tool output pipe.";
+			return result;
+		}
+
+		STARTUPINFOW startupInfo{};
+		startupInfo.cb = sizeof(startupInfo);
+		startupInfo.dwFlags = STARTF_USESTDHANDLES;
+		startupInfo.hStdInput = GetStdHandle(STD_INPUT_HANDLE);
+		startupInfo.hStdOutput = writePipe;
+		startupInfo.hStdError = writePipe;
+
+		PROCESS_INFORMATION processInfo{};
+		std::wstring commandLine = BuildWindowsCommandLine(arguments);
+		const BOOL created = CreateProcessW(
+			nullptr,
+			commandLine.data(),
+			nullptr,
+			nullptr,
+			TRUE,
+			0,
+			nullptr,
+			nullptr,
+			&startupInfo,
+			&processInfo);
+		CloseHandle(writePipe);
+
+		if (!created) {
+			CloseHandle(readPipe);
 			result.Output = "Failed to launch reflection tool process.";
 			return result;
 		}
 
-		while (fgets(buffer.data(), static_cast<int>(buffer.size()), pipe) != nullptr) {
-			result.Output += buffer.data();
+		char buffer[4096];
+		DWORD bytesRead = 0;
+		while (ReadFile(readPipe, buffer, static_cast<DWORD>(sizeof(buffer)), &bytesRead, nullptr) && bytesRead > 0) {
+			result.Output.append(buffer, bytesRead);
 		}
 
-		result.ExitCode = HE_PCLOSE(pipe);
+		CloseHandle(readPipe);
+		WaitForSingleObject(processInfo.hProcess, INFINITE);
+
+		DWORD exitCode = 1;
+		if (GetExitCodeProcess(processInfo.hProcess, &exitCode)) {
+			result.ExitCode = static_cast<int>(exitCode);
+		}
+		CloseHandle(processInfo.hThread);
+		CloseHandle(processInfo.hProcess);
 		return result;
 	}
+#else
+	ToolExecutionResult RunToolCommand(const std::vector<std::string>& arguments) {
+		ToolExecutionResult result;
+
+		int outputPipe[2] = { -1, -1 };
+		if (pipe(outputPipe) != 0) {
+			result.Output = "Failed to create reflection tool output pipe.";
+			return result;
+		}
+
+		const pid_t child = fork();
+		if (child < 0) {
+			close(outputPipe[0]);
+			close(outputPipe[1]);
+			result.Output = "Failed to fork reflection tool process.";
+			return result;
+		}
+
+		if (child == 0) {
+			dup2(outputPipe[1], STDOUT_FILENO);
+			dup2(outputPipe[1], STDERR_FILENO);
+			close(outputPipe[0]);
+			close(outputPipe[1]);
+
+			std::vector<char*> argv;
+			argv.reserve(arguments.size() + 1);
+			for (const auto& argument : arguments) {
+				argv.push_back(const_cast<char*>(argument.c_str()));
+			}
+			argv.push_back(nullptr);
+			execvp(argv[0], argv.data());
+			_exit(127);
+		}
+
+		close(outputPipe[1]);
+		char buffer[4096];
+		ssize_t bytesRead = 0;
+		while ((bytesRead = read(outputPipe[0], buffer, sizeof(buffer))) > 0) {
+			result.Output.append(buffer, static_cast<size_t>(bytesRead));
+		}
+		close(outputPipe[0]);
+
+		int status = 0;
+		if (waitpid(child, &status, 0) == child) {
+			if (WIFEXITED(status)) {
+				result.ExitCode = WEXITSTATUS(status);
+			}
+			else if (WIFSIGNALED(status)) {
+				result.ExitCode = 128 + WTERMSIG(status);
+			}
+		}
+		return result;
+	}
+#endif
 
 	HE::ResultEnvelope MakeRequestFailure(
 		std::string operation,
@@ -124,15 +313,20 @@ namespace {
 		std::string operation,
 		std::string summary,
 		const HE::ReflectionToolRequest& request,
-		const std::string& arguments,
+		const std::vector<std::string>& toolArguments,
 		bool countFromManifest) {
 		const auto toolPath = request.RootPath / "Tools" / "Reflection" / "reflection_tool.py";
 		if (!std::filesystem::exists(toolPath)) {
 			return MakeRequestFailure(std::move(operation), request.RootPath, "Reflection tool script was not found", toolPath.generic_string());
 		}
 
-		const std::string command = "python " + QuotePath(toolPath) + " " + arguments + " 2>&1";
-		const auto execution = RunToolCommand(command);
+		std::vector<std::string> arguments;
+		arguments.reserve(toolArguments.size() + 2);
+		arguments.push_back("python");
+		arguments.push_back(toolPath.string());
+		arguments.insert(arguments.end(), toolArguments.begin(), toolArguments.end());
+
+		const auto execution = RunToolCommand(arguments);
 		const std::string manifestText = countFromManifest ? ReadFileText(request.ManifestPath) : std::string();
 		const size_t reflectedTypeCount = countFromManifest
 			? CountQualifiedNames(manifestText)
@@ -145,7 +339,7 @@ namespace {
 				HE::DiagnosticSeverity::Error,
 				"reflection.tool.exit_code",
 				"Reflection tool returned a non-zero exit code",
-				std::to_string(execution.ExitCode)
+				std::to_string(execution.ExitCode) + " from " + BuildDisplayCommand(arguments)
 			});
 			return result;
 		}
@@ -183,7 +377,7 @@ namespace HE {
 			"reflection.scan",
 			"Reflection manifest generated",
 			resolved,
-			"scan --root " + QuotePath(resolved.RootPath) + " --out " + QuotePath(resolved.ManifestPath),
+			{ "scan", "--root", resolved.RootPath.string(), "--out", resolved.ManifestPath.string() },
 			true);
 	}
 
@@ -204,7 +398,7 @@ namespace HE {
 			"reflection.generate",
 			"Reflection files generated",
 			resolved,
-			"generate --manifest " + QuotePath(resolved.ManifestPath) + " --out-dir " + QuotePath(resolved.OutputDirectory),
+			{ "generate", "--manifest", resolved.ManifestPath.string(), "--out-dir", resolved.OutputDirectory.string() },
 			true);
 
 		if (generateResult.Succeeded() && generateResult.Payload.find("tool_output") != generateResult.Payload.end()) {
@@ -223,7 +417,7 @@ namespace HE {
 			"reflection.validate",
 			"Reflection manifest validated",
 			resolved,
-			"validate --root " + QuotePath(resolved.RootPath),
+			{ "validate", "--root", resolved.RootPath.string() },
 			false);
 	}
 }

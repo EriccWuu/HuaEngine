@@ -1,5 +1,6 @@
 #include <cstdlib>
 #include <filesystem>
+#include <fstream>
 #include <iostream>
 #include <string>
 #include <string_view>
@@ -147,6 +148,26 @@ namespace {
 			std::string(context) + ": missing fragment " + std::string(fragment) + "\n" + std::string(output));
 	}
 
+	void WriteTextFile(const std::filesystem::path& path, std::string_view content) {
+		std::error_code errorCode;
+		std::filesystem::create_directories(path.parent_path(), errorCode);
+		Expect(!errorCode, "Failed to create fixture directory: " + path.parent_path().string());
+
+		std::ofstream stream(path, std::ios::binary);
+		Expect(stream.is_open(), "Failed to open fixture file: " + path.string());
+		stream << content;
+		stream.close();
+		Expect(stream.good(), "Failed to write fixture file: " + path.string());
+	}
+
+	void CopyFileToFixture(const std::filesystem::path& source, const std::filesystem::path& destination) {
+		std::error_code errorCode;
+		std::filesystem::create_directories(destination.parent_path(), errorCode);
+		Expect(!errorCode, "Failed to create fixture directory: " + destination.parent_path().string());
+		std::filesystem::copy_file(source, destination, std::filesystem::copy_options::overwrite_existing, errorCode);
+		Expect(!errorCode, "Failed to copy fixture file from " + source.string() + " to " + destination.string());
+	}
+
 	void ExpectResultEnvelope(
 		std::string_view output,
 		std::string_view operation,
@@ -205,6 +226,65 @@ namespace {
 		Expect(result.ExitCode == 0, std::string(command) + " should exit with code 0\n" + result.Output);
 		ExpectResultEnvelope(result.Output, operation, "5", command);
 	}
+
+	void ExpectReflectionResult(
+		const std::filesystem::path& cliExecutable,
+		const std::filesystem::path& workingDirectory,
+		const std::vector<std::string>& arguments,
+		std::string_view operation,
+		std::string_view reflectedTypeCount,
+		std::string_view context) {
+		const auto result = RunCLICommand(cliExecutable, arguments, workingDirectory);
+
+		Expect(result.ExitCode == 0, std::string(context) + " should exit with code 0\n" + result.Output);
+		ExpectResultEnvelope(result.Output, operation, reflectedTypeCount, context);
+	}
+
+	void RunShellSafePathSmoke(
+		const std::filesystem::path& cliExecutable,
+		const std::filesystem::path& workingDirectory,
+		const std::filesystem::path& repositoryRoot) {
+		const auto fixtureRoot = repositoryRoot / ".workspace" / "reflection_cli_smoke" / "root with spaces %USERNAME% & meta";
+		std::error_code errorCode;
+		std::filesystem::remove_all(fixtureRoot, errorCode);
+		Expect(!errorCode, "Failed to clean CLI shell-safe fixture");
+
+		CopyFileToFixture(
+			repositoryRoot / "Tools" / "Reflection" / "reflection_tool.py",
+			fixtureRoot / "Tools" / "Reflection" / "reflection_tool.py");
+		WriteTextFile(
+			fixtureRoot / "HuaEngine" / "src" / "Fixture" / "ShellSafeComponent.h",
+			"namespace HE {\n"
+			"HE_REFLECT_" "COMPONENT(DisplayName=\"Shell Safe\", Category=\"Fixture\")\n"
+			"struct ShellSafeComponent {\n"
+			"    HE_REFLECT_" "FIELD()\n"
+			"    int Value = 7;\n"
+			"};\n"
+			"}\n");
+
+		const auto generatedDirectory = fixtureRoot / "HuaEngine" / "src" / "HuaEngine" / "Generated";
+		ExpectReflectionResult(
+			cliExecutable,
+			workingDirectory,
+			{ "reflection", "scan", "--root", fixtureRoot.string() },
+			"reflection.scan",
+			"1",
+			"reflection scan with shell-safe root");
+		ExpectReflectionResult(
+			cliExecutable,
+			workingDirectory,
+			{ "reflection", "generate", "--root", fixtureRoot.string(), "--out-dir", generatedDirectory.string() },
+			"reflection.generate",
+			"1",
+			"reflection generate with shell-safe root");
+		ExpectReflectionResult(
+			cliExecutable,
+			workingDirectory,
+			{ "reflection", "validate", "--root", fixtureRoot.string() },
+			"reflection.validate",
+			"1",
+			"reflection validate with shell-safe root");
+	}
 }
 
 int main() {
@@ -215,6 +295,7 @@ int main() {
 	const auto repositoryRoot = FindRepositoryRoot(std::filesystem::current_path());
 	ExpectReflectionResult(cliExecutable, binaryDirectory, repositoryRoot, "scan", "reflection.scan");
 	ExpectReflectionResult(cliExecutable, binaryDirectory, repositoryRoot, "validate", "reflection.validate");
+	RunShellSafePathSmoke(cliExecutable, binaryDirectory, repositoryRoot);
 
 	std::cout << "CLIReflectionSmoke passed" << std::endl;
 	return 0;
