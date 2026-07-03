@@ -147,6 +147,16 @@ namespace {
 			std::string(context) + ": missing fragment " + std::string(fragment) + "\n" + std::string(output));
 	}
 
+	void ExpectResultEnvelope(
+		std::string_view output,
+		std::string_view operation,
+		std::string_view reflectedTypeCount,
+		std::string_view context) {
+		ExpectContains(output, "\"operation\":\"" + std::string(operation) + "\"", context);
+		ExpectContains(output, "\"status\":\"success\"", context);
+		ExpectContains(output, "\"reflected_type_count\":\"" + std::string(reflectedTypeCount) + "\"", context);
+	}
+
 	std::filesystem::path GetCurrentExecutablePath() {
 		std::wstring buffer(MAX_PATH, L'\0');
 		for (;;) {
@@ -193,9 +203,7 @@ namespace {
 			workingDirectory);
 
 		Expect(result.ExitCode == 0, std::string(command) + " should exit with code 0\n" + result.Output);
-		ExpectContains(result.Output, "\"operation\":\"" + std::string(operation) + "\"", command);
-		ExpectContains(result.Output, "\"status\":\"success\"", command);
-		ExpectContains(result.Output, "\"reflected_type_count\":\"5\"", command);
+		ExpectResultEnvelope(result.Output, operation, "5", command);
 	}
 }
 
