@@ -274,6 +274,15 @@ int main() {
 		}
 	}
 
+	const auto nestedProjectDirectory = tempRoot / "Scenes" / "Nested";
+	std::filesystem::create_directories(nestedProjectDirectory, errorCode);
+	Expect(!errorCode, "Failed to create nested project smoke directory");
+
+	const auto cwdProjectStatus = RunCLICommand(cliExecutable, { "project", "status" }, nestedProjectDirectory);
+	Expect(cwdProjectStatus.ExitCode == 0, "cwd project status should exit with code 0\n" + cwdProjectStatus.Output);
+	ExpectContains(cwdProjectStatus.Output, "\"operation\":\"project.status\"", "cwd project status");
+	ExpectContains(cwdProjectStatus.Output, "\"status\":\"success\"", "cwd project status");
+
 	std::filesystem::remove_all(tempRoot, errorCode);
 	std::cout << "CLIWorkflowSmoke passed" << std::endl;
 	return 0;

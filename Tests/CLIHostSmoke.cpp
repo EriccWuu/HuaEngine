@@ -1,9 +1,11 @@
 #include <filesystem>
 #include <iostream>
 #include <string>
+#include <string_view>
 #include <vector>
 
 #include "CLIApplication.h"
+#include "CLICommandCatalog.h"
 #include "CLICommandRunner.h"
 #include "CLIJsonWriter.h"
 #include "HuaEngine/Core/Log.h"
@@ -14,6 +16,10 @@ namespace {
 			std::cerr << message << std::endl;
 			std::exit(1);
 		}
+	}
+
+	bool StartsWith(std::string_view value, std::string_view prefix) {
+		return value.size() >= prefix.size() && value.substr(0, prefix.size()) == prefix;
 	}
 }
 
@@ -29,7 +35,32 @@ int main() {
 	HE::CLI::CLIApplication application;
 	application.Start();
 
+	HE::CLI::CLICommandCatalog catalog;
+	Expect(!catalog.Commands().empty(), "CLI command catalog should not be empty");
+	for (const auto& command : catalog.Commands()) {
+		Expect(!command.Summary.empty(), "Catalog command summary should not be empty");
+		Expect(!command.Usage.empty(), "Catalog command usage should not be empty");
+
+		if (!StartsWith(command.FormalOperation, "cli.")) {
+			Expect(
+				application.GetOperations().Supports(command.FormalOperation),
+				"Catalog command formal operation should be registered: " + command.FormalOperation);
+		}
+	}
+
 	HE::CLI::CommandRunner runner(application.GetOperations());
+
+	auto helpResponse = runner.Run({ "help" }, tempRoot);
+	Expect(helpResponse.Result.Succeeded(), "help should succeed");
+	Expect(!helpResponse.Result.Details.empty(), "help should emit catalog-backed details");
+	bool hasCatalogHelpDetail = false;
+	for (const auto& detail : helpResponse.Result.Details) {
+		if (detail.Code == "cli.help.command") {
+			hasCatalogHelpDetail = true;
+			break;
+		}
+	}
+	Expect(hasCatalogHelpDetail, "help should include cli.help.command details from the catalog");
 
 	auto opsResponse = runner.Run({ "ops", "list" }, tempRoot);
 	Expect(opsResponse.Result.Succeeded(), "ops list should succeed");

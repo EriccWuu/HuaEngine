@@ -116,12 +116,31 @@ Get-ChildItem -Recurse -Filter HuaEngineCLI.exe build
 
 如果没有显式传项目路径，CLI 会从当前工作目录尝试解析。
 
-## 6. 命令总览
+## 6. Command Catalog 与 Operation Registry
+
+CLI 里有两张表，职责不同，不能混用：
+
+- Command Catalog
+  - 描述 CLI 命令本身，例如 `project status`、`scene create`、`asset register-default-mesh`
+  - 负责用户可见的命令路径、用法、参数摘要和 help 输出
+  - 允许存在 `cli.*` 这样的 CLI 宿主命令，例如 `help` 和 `ops list`
+- Operation Registry
+  - 描述引擎正式能力，例如 `project.initialize`、`scene.create`、`asset.create_builtin_mesh`
+  - 是自动化和宿主层判断正式能力是否存在的来源
+  - `ops list` 只展示这张正式 OperationRegistry，不展示 CLI 别名或 help 命令
+
+因此：
+
+- `help` 展示的是 CLI 用法，来源是 Command Catalog。
+- `ops list` 展示的是正式 OperationRegistry，适合脚本确认引擎能力。
+- 新增 CLI 命令时，应先把命令路径、summary、usage 和参数定义加入 catalog，再接入 handler，最后补 smoke 覆盖。
+
+## 7. 命令总览
 
 | 命令 | 作用 | 备注 |
 |---|---|---|
 | `help` | 输出帮助摘要 | 不接受选项 |
-| `ops list` | 列出正式 operation registry | `data.operations` 返回列表 |
+| `ops list` | 列出正式 OperationRegistry | `data.operations` 返回列表 |
 | `project init` | 初始化项目根 | 会创建 `.huaengine/project.json` 和托管目录 |
 | `project status` | 检查项目状态 | 验证 metadata、assets、scenes 目录 |
 | `scene create` | 创建并保存场景 | 先建内存 Scene，再落盘 |
@@ -134,9 +153,9 @@ Get-ChildItem -Recurse -Filter HuaEngineCLI.exe build
 | `script shutdown` | 销毁活动脚本实例 | 会先附着 script runtime |
 | `validation run` | 聚合校验项目/场景/资产/脚本 | 可按 flag 增减域 |
 
-## 7. 命令详解
+## 8. 命令详解
 
-### 7.1 `help`
+### 8.1 `help`
 
 ```powershell
 <CLI> help
@@ -147,7 +166,7 @@ Get-ChildItem -Recurse -Filter HuaEngineCLI.exe build
 - 查看 CLI 摘要
 - 快速确认当前宿主可执行
 
-### 7.2 `ops list`
+### 8.2 `ops list`
 
 ```powershell
 <CLI> ops list
@@ -155,7 +174,7 @@ Get-ChildItem -Recurse -Filter HuaEngineCLI.exe build
 
 用途：
 
-- 列出当前正式 operation registry
+- 列出当前正式 OperationRegistry
 - 确认自动化层应该调用哪些正式能力名
 
 返回中会包含：
@@ -174,7 +193,7 @@ Get-ChildItem -Recurse -Filter HuaEngineCLI.exe build
 }
 ```
 
-### 7.3 `project init`
+### 8.3 `project init`
 
 ```powershell
 <CLI> project init --root D:/Workspace/MyGame --name MyGame
@@ -194,7 +213,7 @@ Get-ChildItem -Recurse -Filter HuaEngineCLI.exe build
 - 创建托管目录
 - 建立后续 asset/scene CLI 的上下文根
 
-### 7.4 `project status`
+### 8.4 `project status`
 
 ```powershell
 <CLI> project status --path D:/Workspace/MyGame
@@ -211,7 +230,7 @@ Get-ChildItem -Recurse -Filter HuaEngineCLI.exe build
 - 检查 metadata 目录
 - 检查 asset/scene 目录
 
-### 7.5 `scene create`
+### 8.5 `scene create`
 
 ```powershell
 <CLI> scene create --project D:/Workspace/MyGame --name "Main Scene"
@@ -237,7 +256,7 @@ Get-ChildItem -Recurse -Filter HuaEngineCLI.exe build
 - `scene_name`
 - `scene_path`
 
-### 7.6 `scene validate`
+### 8.6 `scene validate`
 
 ```powershell
 <CLI> scene validate --project D:/Workspace/MyGame --scene gameplay/main.scene
@@ -258,7 +277,7 @@ Get-ChildItem -Recurse -Filter HuaEngineCLI.exe build
 - 是否有渲染实体缺失 `MaterialComponent`
 - 是否仍使用 legacy `RendererComponent`
 
-### 7.7 `asset register-default-mesh`
+### 8.7 `asset register-default-mesh`
 
 ```powershell
 <CLI> asset register-default-mesh --project D:/Workspace/MyGame --asset-id builtin.quad
@@ -285,7 +304,7 @@ Get-ChildItem -Recurse -Filter HuaEngineCLI.exe build
 - 持久化到项目资产空间
 - 同步登记到正式资产注册表
 
-### 7.8 `asset validate`
+### 8.8 `asset validate`
 
 ```powershell
 <CLI> asset validate --path D:/Workspace/MyGame
@@ -302,7 +321,7 @@ Get-ChildItem -Recurse -Filter HuaEngineCLI.exe build
 - 校验项目资产注册表健康度
 - 发现缺文件、类型不匹配或需人工介入的问题
 
-### 7.9 `script status`
+### 8.9 `script status`
 
 ```powershell
 <CLI> script status --project D:/Workspace/MyGame --scene gameplay/main.scene
@@ -318,7 +337,7 @@ Get-ChildItem -Recurse -Filter HuaEngineCLI.exe build
 - 这一步只检查当前场景里的脚本状态
 - 不会自动初始化脚本实例
 
-### 7.10 `script initialize`
+### 8.10 `script initialize`
 
 ```powershell
 <CLI> script initialize --project D:/Workspace/MyGame --scene gameplay/main.scene
@@ -329,7 +348,7 @@ Get-ChildItem -Recurse -Filter HuaEngineCLI.exe build
 - 先附着 script runtime
 - 再为场景创建脚本实例
 
-### 7.11 `script update`
+### 8.11 `script update`
 
 ```powershell
 <CLI> script update --project D:/Workspace/MyGame --scene gameplay/main.scene
@@ -345,7 +364,7 @@ Get-ChildItem -Recurse -Filter HuaEngineCLI.exe build
 - 单步 smoke
 - 无 GUI 逻辑验证
 
-### 7.12 `script shutdown`
+### 8.12 `script shutdown`
 
 ```powershell
 <CLI> script shutdown --project D:/Workspace/MyGame --scene gameplay/main.scene
@@ -356,7 +375,7 @@ Get-ChildItem -Recurse -Filter HuaEngineCLI.exe build
 - 先附着 script runtime
 - 再销毁活动脚本实例
 
-### 7.13 `validation run`
+### 8.13 `validation run`
 
 只校验项目：
 
@@ -393,9 +412,9 @@ Get-ChildItem -Recurse -Filter HuaEngineCLI.exe build
 - 聚合 project/scene/asset/script 多域验证
 - 统一得到一份正式 `ValidationReport` 结果语义
 
-## 8. 推荐工作流
+## 9. 推荐工作流
 
-### 8.1 新建项目到最小可运行资产
+### 9.1 新建项目到最小可运行资产
 
 ```powershell
 <CLI> project init --root D:/Workspace/MyGame --name MyGame
@@ -404,7 +423,7 @@ Get-ChildItem -Recurse -Filter HuaEngineCLI.exe build
 <CLI> validation run --path D:/Workspace/MyGame --include-assets
 ```
 
-### 8.2 场景和脚本 smoke
+### 9.2 场景和脚本 smoke
 
 ```powershell
 <CLI> scene validate --project D:/Workspace/MyGame --scene main.scene
@@ -414,7 +433,7 @@ Get-ChildItem -Recurse -Filter HuaEngineCLI.exe build
 <CLI> script shutdown --project D:/Workspace/MyGame --scene main.scene
 ```
 
-### 8.3 自动化脚本判断建议
+### 9.3 自动化脚本判断建议
 
 推荐脚本按这个顺序判断：
 
@@ -423,16 +442,16 @@ Get-ChildItem -Recurse -Filter HuaEngineCLI.exe build
 3. 再看 `result.can_continue_automatically`
 4. 最后按 `payload` 和 `details` 做分支处理
 
-## 9. 常见注意点
+## 10. 常见注意点
 
-- `ops list` 展示的是正式 operation 名，不是 CLI 别名表
+- `ops list` 展示的是正式 OperationRegistry，不是 CLI 别名表
 - `scene create` 的 CLI 命令会映射到正式 `scene.create`
 - `asset register-default-mesh` 的正式 operation 名是 `asset.create_builtin_mesh`
 - `validation run --include-scripts` 必须同时给 `--scene`
 - CLI 当前输出契约是 JSON，不要混用日志文本去做机器解析
 - 如果状态是 `manual_intervention_required`，脚本层应把它当成“需要停下来处理”的显式信号
 
-## 10. 与 GUI 的关系
+## 11. 与 GUI 的关系
 
 当前架构里：
 
