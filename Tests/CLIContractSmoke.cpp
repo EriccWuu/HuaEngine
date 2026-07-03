@@ -166,6 +166,18 @@ namespace {
 		}
 	}
 
+	std::vector<std::string> UsageFailureFragments(std::string_view summary) {
+		return {
+			"\"host\":\"huaengine-cli\"",
+			"\"result\":{",
+			"\"operation\":\"cli.usage\"",
+			"\"status\":\"failure\"",
+			"\"summary\":\"" + std::string(summary) + "\"",
+			"\"payload\":{}",
+			"\"details\":["
+		};
+	}
+
 	std::filesystem::path GetCurrentExecutablePath() {
 		std::wstring buffer(MAX_PATH, L'\0');
 		for (;;) {
@@ -198,44 +210,37 @@ int main() {
 			"empty arguments",
 			{},
 			1,
-			{
-				"\"host\":\"huaengine-cli\"",
-				"\"result\":{",
-				"\"operation\":\"cli.usage\"",
-				"\"status\":\"failure\"",
-				"\"payload\":{}",
-				"\"details\":["
-			}
+			UsageFailureFragments("No command specified")
 		},
 		{
 			"unknown command",
 			{ "definitely-unknown" },
 			1,
-			{ "\"operation\":\"cli.usage\"", "\"status\":\"failure\"", "\"summary\":\"Unknown command\"" }
+			UsageFailureFragments("Unknown command")
 		},
 		{
 			"unknown option",
 			{ "project", "status", "--definitely-unknown" },
 			1,
-			{ "\"operation\":\"cli.usage\"", "\"status\":\"failure\"", "\"summary\":\"Unknown option\"" }
+			UsageFailureFragments("Unknown option")
 		},
 		{
 			"missing option value",
 			{ "project", "status", "--path" },
 			1,
-			{ "\"operation\":\"cli.usage\"", "\"status\":\"failure\"", "\"summary\":\"Option requires a value\"" }
+			UsageFailureFragments("Option requires a value")
 		},
 		{
 			"missing required option",
 			{ "scene", "create", "--project", tempRoot.string() },
 			1,
-			{ "\"operation\":\"cli.usage\"", "\"status\":\"failure\"", "\"summary\":\"scene create requires --name\"" }
+			UsageFailureFragments("scene create requires --name")
 		},
 		{
 			"validation include scripts missing scene",
 			{ "validation", "run", "--path", tempRoot.string(), "--include-scripts" },
 			1,
-			{ "\"operation\":\"cli.usage\"", "\"status\":\"failure\"", "\"summary\":\"validation run with --include-scripts requires --scene\"" }
+			UsageFailureFragments("validation run with --include-scripts requires --scene")
 		}
 	};
 
