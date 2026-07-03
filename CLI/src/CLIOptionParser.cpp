@@ -68,20 +68,6 @@ namespace HE::CLI {
 			parsedOptions.Values[token] = value;
 		}
 
-		for (const auto& option : command.Options) {
-			if (!option.Required) {
-				continue;
-			}
-
-			const bool isPresent = option.RequiresValue
-				? parsedOptions.Values.contains(option.Name)
-				: parsedOptions.Flags.contains(option.Name);
-			if (!isPresent) {
-				outError = MakeUsageError(command, "Missing required option", option.Name);
-				return false;
-			}
-		}
-
 		outOptions = std::move(parsedOptions);
 		return true;
 	}

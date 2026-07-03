@@ -4,6 +4,7 @@
 #include <string>
 #include <vector>
 
+#include "CLICommandCatalog.h"
 #include "HuaEngine/Application/ApplicationOperations.h"
 
 namespace HE::CLI {
@@ -22,5 +23,6 @@ namespace HE::CLI {
 
 	private:
 		ApplicationOperations* m_Operations = nullptr;
+		CLICommandCatalog m_Catalog;
 	};
 }
