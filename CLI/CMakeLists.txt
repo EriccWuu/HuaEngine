@@ -16,6 +16,7 @@ set(CLI_CORE_SOURCES
     src/CLIMetaCommands.cpp
     src/CLIOptionParser.cpp
     src/CLIProjectCommands.cpp
+    src/CLIReflectionCommands.cpp
     src/CLISceneCommands.cpp
     src/CLIScriptCommands.cpp
     src/CLIValidationCommands.cpp
@@ -31,6 +32,7 @@ set(CLI_CORE_HEADERS
     src/CLIMetaCommands.h
     src/CLIOptionParser.h
     src/CLIProjectCommands.h
+    src/CLIReflectionCommands.h
     src/CLISceneCommands.h
     src/CLIScriptCommands.h
     src/CLIValidationCommands.h

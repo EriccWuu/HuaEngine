@@ -9,6 +9,7 @@
 #include "CLIMetaCommands.h"
 #include "CLIOptionParser.h"
 #include "CLIProjectCommands.h"
+#include "CLIReflectionCommands.h"
 #include "CLISceneCommands.h"
 #include "CLIScriptCommands.h"
 #include "CLIValidationCommands.h"
@@ -65,6 +66,8 @@ namespace HE::CLI {
 			return RunAssetCommand(*match.Command, options, context);
 		case CLICommandDomain::Script:
 			return RunScriptCommand(*match.Command, options, context);
+		case CLICommandDomain::Reflection:
+			return RunReflectionCommand(*match.Command, options, context);
 		case CLICommandDomain::Validation:
 			return RunValidationCommand(*match.Command, options, context);
 		}

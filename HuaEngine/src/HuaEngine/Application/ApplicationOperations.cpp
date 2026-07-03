@@ -561,6 +561,21 @@ namespace HE {
 		return result;
 	}
 
+	ResultEnvelope ApplicationOperations::ScanReflection(const ReflectionToolRequest& request) const
+	{
+		return m_Services->ReflectionTools().Scan(request);
+	}
+
+	ResultEnvelope ApplicationOperations::GenerateReflection(const ReflectionToolRequest& request) const
+	{
+		return m_Services->ReflectionTools().Generate(request);
+	}
+
+	ResultEnvelope ApplicationOperations::ValidateReflection(const ReflectionToolRequest& request) const
+	{
+		return m_Services->ReflectionTools().Validate(request);
+	}
+
 	void ApplicationOperations::RegisterDefaultOperations()
 	{
 		m_Registry.Register({ "project.initialize", OperationDomain::Project, "Initialize a HuaEngine project root" });
@@ -599,5 +614,8 @@ namespace HE {
 		m_Registry.Register({ "rendering.render_scene_viewport", OperationDomain::Rendering, "Render a scene viewport through the application layer" });
 
 		m_Registry.Register({ "validation.validate", OperationDomain::Validation, "Run aggregate validation across project, scene, asset, and script domains" });
+		m_Registry.Register({ "reflection.scan", OperationDomain::Validation, "Scan source reflection markers into a manifest" });
+		m_Registry.Register({ "reflection.generate", OperationDomain::Validation, "Generate C++ reflection metadata from source markers" });
+		m_Registry.Register({ "reflection.validate", OperationDomain::Validation, "Validate source reflection markers without writing generated files" });
 	}
 }

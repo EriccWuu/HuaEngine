@@ -9,6 +9,7 @@
 #include "HuaEngine/Core/Core.h"
 #include "HuaEngine/Core/ResultEnvelope.h"
 #include "HuaEngine/Asset/AssetRegistry.h"
+#include "HuaEngine/Reflection/ReflectionToolService.h"
 
 namespace HE {
 	class Application;
@@ -179,6 +180,9 @@ namespace HE {
 			Rendering::Camera& camera) const;
 
 		[[nodiscard]] ResultEnvelope Validate(const ApplicationValidationRequest& request, ValidationReport* outReport = nullptr) const;
+		[[nodiscard]] ResultEnvelope ScanReflection(const ReflectionToolRequest& request) const;
+		[[nodiscard]] ResultEnvelope GenerateReflection(const ReflectionToolRequest& request) const;
+		[[nodiscard]] ResultEnvelope ValidateReflection(const ReflectionToolRequest& request) const;
 
 	private:
 		friend class Application;

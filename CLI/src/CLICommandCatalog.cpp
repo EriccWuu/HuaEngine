@@ -178,6 +178,38 @@ namespace HE::CLI {
 			{ ValueOption("--path", "Project path or child path.") }
 		});
 
+		Register({
+			{ "reflection", "scan" },
+			CLICommandDomain::Reflection,
+			"reflection.scan",
+			"Scan source reflection markers into a manifest.",
+			"reflection scan --root <path> [--out <manifest>]",
+			{
+				ValueOption("--root", "Repository root path.", true),
+				ValueOption("--out", "Manifest output path.")
+			}
+		});
+		Register({
+			{ "reflection", "generate" },
+			CLICommandDomain::Reflection,
+			"reflection.generate",
+			"Generate C++ reflection metadata files.",
+			"reflection generate --root <path> --out-dir <path> [--out <manifest>]",
+			{
+				ValueOption("--root", "Repository root path.", true),
+				ValueOption("--out-dir", "Generated C++ output directory.", true),
+				ValueOption("--out", "Manifest output path.")
+			}
+		});
+		Register({
+			{ "reflection", "validate" },
+			CLICommandDomain::Reflection,
+			"reflection.validate",
+			"Validate source reflection markers.",
+			"reflection validate --root <path>",
+			{ ValueOption("--root", "Repository root path.", true) }
+		});
+
 		for (const auto* scriptCommand : { "status", "initialize", "update", "shutdown" }) {
 			Register({
 				{ "script", scriptCommand },
