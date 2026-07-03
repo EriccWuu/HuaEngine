@@ -8,14 +8,20 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
 set(CLI_CORE_SOURCES
     src/CLIApplication.cpp
+    src/CLICommandCatalog.cpp
+    src/CLICommandContext.cpp
     src/CLICommandRunner.cpp
     src/CLIJsonWriter.cpp
+    src/CLIOptionParser.cpp
 )
 
 set(CLI_CORE_HEADERS
     src/CLIApplication.h
+    src/CLICommandCatalog.h
+    src/CLICommandContext.h
     src/CLICommandRunner.h
     src/CLIJsonWriter.h
+    src/CLIOptionParser.h
 )
 
 add_library(HuaEngineCLICore STATIC
