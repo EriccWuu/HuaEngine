@@ -12,6 +12,26 @@ namespace HE {
         ImGui::Separator();
 
         if (ImGui::BeginTabBar("ConsoleTabs")) {
+            if (ImGui::BeginTabItem("Logs")) {
+                const auto& buffer = Log::GetLogSink()->GetBuffer();
+                ImGui::BeginChild("LogScroll", ImVec2(0, 0), false, ImGuiWindowFlags_HorizontalScrollbar);
+                const bool wasAtBottom = IsScrollNearBottom();
+
+                for (const auto& line : buffer) {
+                    ImVec4 color = LevelToColor(line.level);
+                    ImGui::PushStyleColor(ImGuiCol_Text, color);
+                    ImGui::TextUnformatted(line.message.c_str());
+                    ImGui::PopStyleColor();
+                }
+
+                if (m_AutoScroll && wasAtBottom) {
+                    ImGui::SetScrollHereY(1.0f);
+                }
+
+                ImGui::EndChild();
+                ImGui::EndTabItem();
+            }
+
             if (ImGui::BeginTabItem("Diagnostics")) {
                 ImGui::BeginChild("DiagnosticsScroll", ImVec2(0, 0), false, ImGuiWindowFlags_HorizontalScrollbar);
                 const bool wasAtBottom = IsScrollNearBottom();
@@ -52,26 +72,6 @@ namespace HE {
                 }
                 else {
                     ImGui::TextUnformatted("Workbench state is not connected.");
-                }
-
-                if (m_AutoScroll && wasAtBottom) {
-                    ImGui::SetScrollHereY(1.0f);
-                }
-
-                ImGui::EndChild();
-                ImGui::EndTabItem();
-            }
-
-            if (ImGui::BeginTabItem("Logs")) {
-                const auto& buffer = Log::GetLogSink()->GetBuffer();
-                ImGui::BeginChild("LogScroll", ImVec2(0, 0), false, ImGuiWindowFlags_HorizontalScrollbar);
-                const bool wasAtBottom = IsScrollNearBottom();
-
-                for (const auto& line : buffer) {
-                    ImVec4 color = LevelToColor(line.level);
-                    ImGui::PushStyleColor(ImGuiCol_Text, color);
-                    ImGui::TextUnformatted(line.message.c_str());
-                    ImGui::PopStyleColor();
                 }
 
                 if (m_AutoScroll && wasAtBottom) {
