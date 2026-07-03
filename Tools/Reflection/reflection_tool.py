@@ -538,26 +538,54 @@ def scan_root(root: Path) -> Dict[str, Any]:
 
 def add_generated_drift_diagnostics(root: Path, manifest: Dict[str, Any]) -> None:
     generated_dir = root.resolve() / "HuaEngine" / "src" / "HuaEngine" / "Generated"
-    generated_files = [
+    generated_reflection_dir = generated_dir / "Reflection"
+    baseline_generated_files = [
         generated_dir / "GeneratedReflection.h",
         generated_dir / "GeneratedReflection.cpp",
     ]
-    if not generated_dir.exists() and not any(path.exists() for path in generated_files):
+    if (
+        not generated_dir.exists()
+        and not generated_reflection_dir.exists()
+        and not any(path.exists() for path in baseline_generated_files)
+    ):
         return
 
     diagnostics = manifest.setdefault("diagnostics", [])
     with tempfile.TemporaryDirectory(prefix="hua_reflection_validate_") as temp_dir:
         expected_dir = Path(temp_dir)
-        write_generated_files(manifest, expected_dir)
+        expected_files = write_generated_files(manifest, expected_dir)
+        expected_relative_files = {
+            expected_file.relative_to(expected_dir) for expected_file in expected_files
+        }
+        actual_relative_files = {
+            Path("GeneratedReflection.h"),
+            Path("GeneratedReflection.cpp"),
+        }
+        if generated_reflection_dir.exists():
+            actual_relative_files.update(
+                Path("Reflection") / path.name
+                for path in generated_reflection_dir.glob("*.generated.h")
+            )
 
-        for generated_file in generated_files:
-            expected_file = expected_dir / generated_file.name
+        for relative_file in sorted(expected_relative_files | actual_relative_files):
+            generated_file = generated_dir / relative_file
+            expected_file = expected_dir / relative_file
             if not generated_file.exists():
                 diagnostics.append(
                     make_diagnostic(
                         "error",
                         "generated.drift",
                         f"Generated reflection file is missing: {normalize_path(generated_file)}",
+                    )
+                )
+                continue
+
+            if relative_file not in expected_relative_files:
+                diagnostics.append(
+                    make_diagnostic(
+                        "error",
+                        "generated.drift",
+                        f"Generated reflection file is obsolete: {normalize_path(generated_file)}",
                     )
                 )
                 continue
@@ -602,12 +630,18 @@ def macro_identifier(value: str) -> str:
     return re.sub(r"[^A-Za-z0-9]", "_", value).upper()
 
 
-def legacy_reflection_source_macro(source: str) -> str:
-    return f"HE_GENERATED_REFLECTION_SOURCE_{macro_identifier(source)}"
-
-
 def legacy_reflection_type_guard(qualified_name: str) -> str:
     return f"HE_GENERATED_REFLECTION_TYPE_{macro_identifier(qualified_name)}"
+
+
+def generated_source_header_path(source: str) -> Path:
+    normalized = source.replace("\\", "/")
+    prefix = "HuaEngine/src/"
+    if normalized.startswith(prefix):
+        normalized = normalized[len(prefix) :]
+    stem = Path(normalized).with_suffix("").as_posix()
+    filename = f"{re.sub(r'[^A-Za-z0-9]', '_', stem)}.generated.h"
+    return Path("Reflection") / filename
 
 
 def generated_include_for_source(source: str) -> str:
@@ -640,20 +674,20 @@ def write_legacy_reflection_specialization(
     lines.append(f"#endif // {type_guard}")
 
 
-def write_generated_files(manifest: Dict[str, Any], out_dir: Path) -> None:
+def write_generated_files(manifest: Dict[str, Any], out_dir: Path) -> List[Path]:
     out_dir.mkdir(parents=True, exist_ok=True)
     header_path = out_dir / "GeneratedReflection.h"
     source_path = out_dir / "GeneratedReflection.cpp"
+    source_header_dir = out_dir / "Reflection"
+    source_header_dir.mkdir(parents=True, exist_ok=True)
     manifest_types = manifest.get("types", [])
+    written_files = [header_path, source_path]
 
     header_lines = [
+        "#pragma once",
+        "",
         "#include <span>",
         "#include <string_view>",
-        "",
-        '#include "HuaEngine/Reflection/Reflection.h"',
-        "",
-        "#ifndef HE_GENERATED_REFLECTION_METADATA_DECLARED",
-        "#define HE_GENERATED_REFLECTION_METADATA_DECLARED",
         "",
         "namespace HE {",
         "class ComponentRegistry;",
@@ -681,22 +715,33 @@ def write_generated_files(manifest: Dict[str, Any], out_dir: Path) -> None:
         "",
         "} // namespace HE::Generated",
         "",
-        "#endif // HE_GENERATED_REFLECTION_METADATA_DECLARED",
-        "",
     ]
 
     types_by_source: Dict[str, List[Dict[str, Any]]] = {}
     for reflected_type in manifest.get("types", []):
         types_by_source.setdefault(reflected_type.get("source", ""), []).append(reflected_type)
 
+    expected_source_headers: List[Path] = []
     for source, reflected_types in sorted(types_by_source.items()):
-        source_macro = legacy_reflection_source_macro(source)
-        header_lines.append(f"#ifdef {source_macro}")
+        relative_source_header = generated_source_header_path(source)
+        source_header_path = out_dir / relative_source_header
+        expected_source_headers.append(source_header_path)
+
+        source_header_lines = [
+            "#pragma once",
+            "",
+            '#include "HuaEngine/Reflection/Reflection.h"',
+            "",
+        ]
         for reflected_type in reflected_types:
-            write_legacy_reflection_specialization(header_lines, reflected_type)
-            header_lines.append("")
-        header_lines.append(f"#endif // {source_macro}")
-        header_lines.append("")
+            write_legacy_reflection_specialization(source_header_lines, reflected_type)
+            source_header_lines.append("")
+        source_header_path.write_text("\n".join(source_header_lines), encoding="utf-8")
+        written_files.append(source_header_path)
+
+    for existing_source_header in source_header_dir.glob("*.generated.h"):
+        if existing_source_header not in expected_source_headers:
+            existing_source_header.unlink()
 
     header = "\n".join(header_lines)
 
@@ -799,6 +844,7 @@ def write_generated_files(manifest: Dict[str, Any], out_dir: Path) -> None:
 
     header_path.write_text(header, encoding="utf-8")
     source_path.write_text("\n".join(lines), encoding="utf-8")
+    return written_files
 
 
 def command_scan(args: argparse.Namespace) -> int:

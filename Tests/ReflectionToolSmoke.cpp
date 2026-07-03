@@ -221,6 +221,12 @@ namespace {
 		Expect(stream.good(), "Failed to write fixture file: " + path.string());
 	}
 
+	std::string ReadTextFile(const std::filesystem::path& path) {
+		std::ifstream stream(path, std::ios::binary);
+		Expect(stream.is_open(), "Failed to open text file: " + path.string());
+		return std::string(std::istreambuf_iterator<char>(stream), std::istreambuf_iterator<char>());
+	}
+
 	std::filesystem::path GetCurrentExecutablePath() {
 		std::wstring buffer(MAX_PATH, L'\0');
 		for (;;) {
@@ -430,6 +436,21 @@ int main() {
 	Expect(validateOutput.good(), "Failed to write reflection tool validate output file");
 
 	RunNegativeValidationSmoke(repositoryRoot, reflectionToolPath);
+
+	const auto generatedReflectionDirectory = repositoryRoot / "HuaEngine" / "src" / "HuaEngine" / "Generated";
+	const auto ecsGeneratedHeader = generatedReflectionDirectory / "Reflection" / "HuaEngine_ECS_Components.generated.h";
+	const auto renderingGeneratedHeader = generatedReflectionDirectory / "Reflection" / "Module_Rendering_RenderingComponent.generated.h";
+	Expect(std::filesystem::exists(ecsGeneratedHeader), "ECS per-source generated reflection header should exist");
+	Expect(std::filesystem::exists(renderingGeneratedHeader), "Rendering per-source generated reflection header should exist");
+	Expect(
+		ReadTextFile(repositoryRoot / "HuaEngine" / "src" / "HuaEngine" / "ECS" / "Components.h").find("HE_GENERATED_REFLECTION_SOURCE_") == std::string::npos,
+		"Components.h should include a per-source generated header without source macro wrappers");
+	Expect(
+		ReadTextFile(repositoryRoot / "HuaEngine" / "src" / "Module" / "Rendering" / "RenderingComponent.h").find("HE_GENERATED_REFLECTION_SOURCE_") == std::string::npos,
+		"RenderingComponent.h should include a per-source generated header without source macro wrappers");
+	Expect(
+		ReadTextFile(generatedReflectionDirectory / "GeneratedReflection.h").find("srefl_class(") == std::string::npos,
+		"GeneratedReflection.h should contain metadata declarations only; srefl_class blocks belong in per-source generated headers");
 
 	std::cout << "ReflectionToolSmoke passed" << std::endl;
 	return 0;

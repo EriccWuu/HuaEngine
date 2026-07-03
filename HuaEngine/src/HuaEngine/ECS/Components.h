@@ -93,6 +93,4 @@ namespace HE {
 	};
 }
 
-#define HE_GENERATED_REFLECTION_SOURCE_HUAENGINE_SRC_HUAENGINE_ECS_COMPONENTS_H
-#include "HuaEngine/Generated/GeneratedReflection.h"
-#undef HE_GENERATED_REFLECTION_SOURCE_HUAENGINE_SRC_HUAENGINE_ECS_COMPONENTS_H
+#include "HuaEngine/Generated/Reflection/HuaEngine_ECS_Components.generated.h"

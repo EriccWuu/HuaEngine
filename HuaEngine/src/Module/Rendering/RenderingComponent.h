@@ -104,6 +104,4 @@ namespace HE::Rendering {
 	};
 }
 
-#define HE_GENERATED_REFLECTION_SOURCE_HUAENGINE_SRC_MODULE_RENDERING_RENDERINGCOMPONENT_H
-#include "HuaEngine/Generated/GeneratedReflection.h"
-#undef HE_GENERATED_REFLECTION_SOURCE_HUAENGINE_SRC_MODULE_RENDERING_RENDERINGCOMPONENT_H
+#include "HuaEngine/Generated/Reflection/Module_Rendering_RenderingComponent.generated.h"
