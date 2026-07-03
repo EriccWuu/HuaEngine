@@ -191,6 +191,10 @@ def find_macro_calls(text: str, macro_name: str) -> Iterable[Tuple[int, int, str
         start = text.find(token, search_from)
         if start == -1:
             return
+        line_start = text.rfind("\n", 0, start) + 1
+        if text[line_start:start].lstrip().startswith("#"):
+            search_from = start + len(token)
+            continue
 
         open_paren = start + len(macro_name)
         index = open_paren + 1
