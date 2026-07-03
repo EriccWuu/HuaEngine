@@ -9,24 +9,30 @@
 #include "HuaEngine/Rendering/Material/Material.h"
 #include "HuaEngine/Rendering/Mesh/Mesh.h"
 #include "HuaEngine/Reflection/Reflection.h"
+#include "HuaEngine/Reflection/ReflectionMarkers.h"
 
 namespace HE::Rendering {
+	HE_REFLECT_COMPONENT(DisplayName="Camera", Category="Rendering")
 	struct CameraComponent : Component {
 		CameraComponent() = default;
 		CameraComponent(const Ref<HE::Rendering::Camera>& camera) 
 			: Camera(camera) {}
 
 		Ref<HE::Rendering::Camera> Camera;
+		HE_REFLECT_FIELD()
 		bool Primary = true;
+		HE_REFLECT_FIELD()
 		bool FixedAspectRatio = false;
 	};
 
 	// Material component
+	HE_REFLECT_COMPONENT(DisplayName="Material", Category="Rendering")
 	struct MaterialComponent : Component {
 		MaterialComponent() = default;
 		MaterialComponent(const Ref<HE::Rendering::MaterialInstance>& materialInstance)
 			: MaterialInstance(materialInstance) {}
 
+		HE_REFLECT_FIELD()
 		Ref<HE::Rendering::MaterialInstance> MaterialInstance;
 	};
 
@@ -40,6 +46,7 @@ namespace HE::Rendering {
 		Ref<HE::Rendering::Texture> Texture;
 	};
 
+	HE_REFLECT_COMPONENT(DisplayName="Mesh", Category="Rendering")
 	struct MeshComponent : Component {
 		MeshComponent() = default;
 		MeshComponent(const std::string& meshName)
@@ -47,6 +54,7 @@ namespace HE::Rendering {
 		MeshComponent(const Ref<VertexArray>& vertexArray)
 			: m_CachedVertexArray(vertexArray) {}
 
+		HE_REFLECT_FIELD()
 		std::string MeshAssetName;             // Mesh asset name (for serialization)
 		Ref<VertexArray> m_CachedVertexArray;  // Runtime cached VertexArray (not serialized)
 
@@ -96,21 +104,6 @@ namespace HE::Rendering {
 	};
 }
 
-srefl_class(HE::Rendering::CameraComponent,
-	fields(
-		field(Primary),
-		field(FixedAspectRatio)
-	)
-)
-
-srefl_class(HE::Rendering::MaterialComponent,
-	fields(
-		field(MaterialInstance)
-	)
-)
-
-srefl_class(HE::Rendering::MeshComponent,
-	fields(
-		field(MeshAssetName)
-	)
-)
+#define HE_GENERATED_REFLECTION_SOURCE_HUAENGINE_SRC_MODULE_RENDERING_RENDERINGCOMPONENT_H
+#include "HuaEngine/Generated/GeneratedReflection.h"
+#undef HE_GENERATED_REFLECTION_SOURCE_HUAENGINE_SRC_MODULE_RENDERING_RENDERINGCOMPONENT_H

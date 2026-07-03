@@ -12,11 +12,14 @@
 #include "glm/gtc/matrix_transform.hpp"
 
 #include "HuaEngine/Reflection/Reflection.h"
+#include "HuaEngine/Reflection/ReflectionMarkers.h"
 
 namespace HE {
 	struct Component {};
 
+	HE_REFLECT_COMPONENT(DisplayName="Name", Category="Core")
 	struct NameComponent : Component {
+		HE_REFLECT_FIELD()
 		std::string Name = "Entity";
 
 		NameComponent() = default;
@@ -24,9 +27,13 @@ namespace HE {
 			: Name(std::move(name)) {}
 	};
 
+	HE_REFLECT_COMPONENT(DisplayName="Transform", Category="Core")
 	struct TransformComponent : Component {
+		HE_REFLECT_FIELD()
 		glm::vec3 Position = {0.0f, 0.0f, 0.0f};
+		HE_REFLECT_FIELD()
 		glm::vec3 Rotation = {0.0f, 0.0f, 0.0f};
+		HE_REFLECT_FIELD()
 		glm::vec3 Scale = {1.0f, 1.0f, 1.0f};
 
 		TransformComponent() = default;
@@ -86,16 +93,6 @@ namespace HE {
 	};
 }
 
-srefl_class(NameComponent,
-	fields(
-		field(Name)
-	)
-)
-
-srefl_class(TransformComponent,
-	fields(
-		field(Position),
-		field(Rotation),
-		field(Scale)
-	)
-)
+#define HE_GENERATED_REFLECTION_SOURCE_HUAENGINE_SRC_HUAENGINE_ECS_COMPONENTS_H
+#include "HuaEngine/Generated/GeneratedReflection.h"
+#undef HE_GENERATED_REFLECTION_SOURCE_HUAENGINE_SRC_HUAENGINE_ECS_COMPONENTS_H

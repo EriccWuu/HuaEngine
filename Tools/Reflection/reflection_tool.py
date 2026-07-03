@@ -493,39 +493,95 @@ def cpp_string(value: str) -> str:
     return json.dumps(value)
 
 
+def macro_identifier(value: str) -> str:
+    return re.sub(r"[^A-Za-z0-9]", "_", value).upper()
+
+
+def legacy_reflection_source_macro(source: str) -> str:
+    return f"HE_GENERATED_REFLECTION_SOURCE_{macro_identifier(source)}"
+
+
+def legacy_reflection_type_guard(qualified_name: str) -> str:
+    return f"HE_GENERATED_REFLECTION_TYPE_{macro_identifier(qualified_name)}"
+
+
+def write_legacy_reflection_specialization(
+    lines: List[str],
+    reflected_type: Dict[str, Any],
+) -> None:
+    qualified_name = reflected_type.get("qualified_name", "")
+    type_guard = legacy_reflection_type_guard(qualified_name)
+    fields = reflected_type.get("fields", [])
+    lines.append(f"#ifndef {type_guard}")
+    lines.append(f"#define {type_guard}")
+    lines.append(f"srefl_class({qualified_name},")
+    if fields:
+        lines.append("    fields(")
+        for field_index, field in enumerate(fields):
+            suffix = "," if field_index + 1 < len(fields) else ""
+            lines.append(f"        field({field.get('name', '')}){suffix}")
+        lines.append("    )")
+    else:
+        lines.append("    fields()")
+    lines.append(")")
+    lines.append(f"#endif // {type_guard}")
+
+
 def write_generated_files(manifest: Dict[str, Any], out_dir: Path) -> None:
     out_dir.mkdir(parents=True, exist_ok=True)
     header_path = out_dir / "GeneratedReflection.h"
     source_path = out_dir / "GeneratedReflection.cpp"
 
-    header = """#pragma once
+    header_lines = [
+        "#include <cstddef>",
+        "",
+        '#include "HuaEngine/Reflection/Reflection.h"',
+        "",
+        "#ifndef HE_GENERATED_REFLECTION_METADATA_DECLARED",
+        "#define HE_GENERATED_REFLECTION_METADATA_DECLARED",
+        "",
+        "namespace HE::Reflection::Generated {",
+        "",
+        "struct GeneratedFieldInfo {",
+        "    const char* Name;",
+        "    const char* Type;",
+        "    const char* DisplayName;",
+        "    const char* Category;",
+        "};",
+        "",
+        "struct GeneratedTypeInfo {",
+        "    const char* Name;",
+        "    const char* QualifiedName;",
+        "    const char* DisplayName;",
+        "    const char* Category;",
+        "    const char* Source;",
+        "    const GeneratedFieldInfo* Fields;",
+        "    std::size_t FieldCount;",
+        "};",
+        "",
+        "const GeneratedTypeInfo* GetGeneratedReflectionTypes();",
+        "std::size_t GetGeneratedReflectionTypeCount();",
+        "",
+        "} // namespace HE::Reflection::Generated",
+        "",
+        "#endif // HE_GENERATED_REFLECTION_METADATA_DECLARED",
+        "",
+    ]
 
-#include <cstddef>
+    types_by_source: Dict[str, List[Dict[str, Any]]] = {}
+    for reflected_type in manifest.get("types", []):
+        types_by_source.setdefault(reflected_type.get("source", ""), []).append(reflected_type)
 
-namespace HE::Reflection::Generated {
+    for source, reflected_types in sorted(types_by_source.items()):
+        source_macro = legacy_reflection_source_macro(source)
+        header_lines.append(f"#ifdef {source_macro}")
+        for reflected_type in reflected_types:
+            write_legacy_reflection_specialization(header_lines, reflected_type)
+            header_lines.append("")
+        header_lines.append(f"#endif // {source_macro}")
+        header_lines.append("")
 
-struct GeneratedFieldInfo {
-    const char* Name;
-    const char* Type;
-    const char* DisplayName;
-    const char* Category;
-};
-
-struct GeneratedTypeInfo {
-    const char* Name;
-    const char* QualifiedName;
-    const char* DisplayName;
-    const char* Category;
-    const char* Source;
-    const GeneratedFieldInfo* Fields;
-    std::size_t FieldCount;
-};
-
-const GeneratedTypeInfo* GetGeneratedReflectionTypes();
-std::size_t GetGeneratedReflectionTypeCount();
-
-} // namespace HE::Reflection::Generated
-"""
+    header = "\n".join(header_lines)
 
     lines = [
         '#include "GeneratedReflection.h"',
