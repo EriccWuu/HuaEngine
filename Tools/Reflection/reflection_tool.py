@@ -18,6 +18,7 @@ SKIPPED_DIRS = {
     ".git",
     ".vs",
     ".workspace",
+    "Dependencies",
     "build",
     "out",
     "bin",
@@ -230,7 +231,9 @@ def find_macro_calls(text: str, macro_name: str) -> Iterable[Tuple[int, int, str
             return
 
 
-def find_type_declaration(text: str, offset: int, expected_name: str) -> Optional[Dict[str, Any]]:
+def find_type_declaration(
+    text: str, offset: int, expected_name: Optional[str] = None
+) -> Optional[Dict[str, Any]]:
     window = text[offset : offset + 4096]
     pattern = re.compile(
         r"\b(?P<kind>class|struct)\s+(?:[A-Za-z_]\w*::)*(?P<name>[A-Za-z_]\w*)\b[^;{]*\{",
@@ -247,10 +250,35 @@ def find_type_declaration(text: str, offset: int, expected_name: str) -> Optiona
         return {
             "kind": match.group("kind"),
             "name": declared_name,
+            "declaration_start": offset + match.start(),
             "body_start": brace_offset + 1,
             "body_end": end_brace,
         }
     return None
+
+
+def infer_namespace(text: str, offset: int) -> str:
+    pattern = re.compile(
+        r"\bnamespace\s+(?P<name>[A-Za-z_]\w*(?:::[A-Za-z_]\w*)*)?\s*\{",
+        re.MULTILINE,
+    )
+    active_namespaces: List[str] = []
+    for match in pattern.finditer(text, 0, offset):
+        namespace_name = match.group("name")
+        if not namespace_name:
+            continue
+        open_brace = match.end() - 1
+        close_brace = find_matching_brace(text, open_brace)
+        if close_brace is not None and close_brace > offset:
+            active_namespaces.extend(namespace_name.split("::"))
+    return "::".join(active_namespaces)
+
+
+def infer_qualified_name(text: str, declaration: Dict[str, Any]) -> str:
+    namespace_name = infer_namespace(text, declaration["declaration_start"])
+    if namespace_name:
+        return f"{namespace_name}::{declaration['name']}"
+    return f"HE::{declaration['name']}"
 
 
 def find_matching_brace(text: str, open_brace: int) -> Optional[int]:
@@ -370,33 +398,21 @@ def scan_file(root: Path, path: Path, diagnostics: List[Dict[str, Any]]) -> List
     for macro_start, macro_end, macro_args in find_macro_calls(text, "HE_REFLECT_COMPONENT"):
         line = line_for_offset(text, macro_start)
         args = split_top_level_arguments(macro_args)
-        if not args:
-            diagnostics.append(
-                make_diagnostic(
-                    "error",
-                    "component.missing_type",
-                    "HE_REFLECT_COMPONENT requires a type name as its first argument.",
-                    source,
-                    line,
-                )
-            )
-            continue
-
-        qualified_name = args[0].strip()
-        metadata = parse_metadata(args[1:])
-        declaration = find_type_declaration(text, macro_end, qualified_name)
+        metadata = parse_metadata(args)
+        declaration = find_type_declaration(text, macro_end)
         if declaration is None:
             diagnostics.append(
                 make_diagnostic(
                     "error",
                     "component.declaration_not_found",
-                    f"Could not find a class or struct declaration for '{qualified_name}' after HE_REFLECT_COMPONENT.",
+                    "Could not find a class or struct declaration after HE_REFLECT_COMPONENT.",
                     source,
                     line,
                 )
             )
             continue
 
+        qualified_name = infer_qualified_name(text, declaration)
         reflected_type: Dict[str, Any] = {
             "name": declaration["name"],
             "qualified_name": qualified_name,
