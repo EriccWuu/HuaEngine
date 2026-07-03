@@ -244,6 +244,17 @@ if(WIN32)
 endif()
 configure_smoke_target(ReflectionGeneratedSmoke)
 
+add_executable(ReflectionToolSmoke Tests/ReflectionToolSmoke.cpp)
+if(WIN32)
+    if(MSVC)
+        set_target_properties(ReflectionToolSmoke PROPERTIES
+            MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>"
+        )
+        target_compile_options(ReflectionToolSmoke PRIVATE /utf-8)
+    endif()
+endif()
+configure_smoke_target(ReflectionToolSmoke)
+
 add_executable(SerializationSmoke Tests/SerializationSmoke.cpp)
 target_include_directories(SerializationSmoke PRIVATE
     ${CMAKE_SOURCE_DIR}/HuaEngine/src
@@ -491,6 +502,19 @@ endif()
 configure_smoke_target(CLIContractSmoke)
 copy_cli_host_to_smoke(CLIContractSmoke)
 
+add_executable(CLIReflectionSmoke Tests/CLIReflectionSmoke.cpp)
+add_dependencies(CLIReflectionSmoke HuaEngineCLI)
+if(WIN32)
+    if(MSVC)
+        set_target_properties(CLIReflectionSmoke PROPERTIES
+            MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>"
+        )
+        target_compile_options(CLIReflectionSmoke PRIVATE /utf-8)
+    endif()
+endif()
+configure_smoke_target(CLIReflectionSmoke)
+copy_cli_host_to_smoke(CLIReflectionSmoke)
+
 add_executable(RenderingOperationsSmoke Tests/RenderingOperationsSmoke.cpp)
 target_include_directories(RenderingOperationsSmoke PRIVATE
     ${CMAKE_SOURCE_DIR}/HuaEngine/src
@@ -605,6 +629,7 @@ set_property(TARGET ECSSceneSerializationSmoke PROPERTY FOLDER "Tests")
 set_property(TARGET ECSBackendSmoke PROPERTY FOLDER "Tests")
 set_property(TARGET ReflectionSmoke PROPERTY FOLDER "Tests")
 set_property(TARGET ReflectionGeneratedSmoke PROPERTY FOLDER "Tests")
+set_property(TARGET ReflectionToolSmoke PROPERTY FOLDER "Tests")
 set_property(TARGET SerializationSmoke PROPERTY FOLDER "Tests")
 set_property(TARGET MaterialSerializationSmoke PROPERTY FOLDER "Tests")
 set_property(TARGET ProjectServiceSmoke PROPERTY FOLDER "Tests")
@@ -618,6 +643,7 @@ set_property(TARGET AgentHostAdapterSmoke PROPERTY FOLDER "Tests")
 set_property(TARGET CLIHostSmoke PROPERTY FOLDER "Tests")
 set_property(TARGET CLIWorkflowSmoke PROPERTY FOLDER "Tests")
 set_property(TARGET CLIContractSmoke PROPERTY FOLDER "Tests")
+set_property(TARGET CLIReflectionSmoke PROPERTY FOLDER "Tests")
 set_property(TARGET RenderingOperationsSmoke PROPERTY FOLDER "Tests")
 set_property(TARGET HostConsistencySmoke PROPERTY FOLDER "Tests")
 set_property(TARGET ProjectWorkbenchSmoke PROPERTY FOLDER "Tests")

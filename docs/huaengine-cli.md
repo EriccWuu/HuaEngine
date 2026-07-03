@@ -472,3 +472,79 @@ CLI 里有两张表，职责不同，不能混用：
 - 再用 GUI 做可视化验证
 
 这是当前仓库推荐的使用方式。
+
+## 12. Reflection 命令
+
+Reflection 命令用于把源码里的反射标记转换成机器可消费的 manifest，并在需要时生成 C++ 反射元数据文件。CLI 只负责参数解析、结果包装和调用正式 operation；具体扫描、生成和校验逻辑由 `ReflectionToolService` 封装 `Tools/Reflection/reflection_tool.py` 完成。
+
+当前命令会通过 `ApplicationOperations` 调用以下正式 operation：
+
+- `reflection scan` -> `reflection.scan`
+- `reflection generate` -> `reflection.generate`
+- `reflection validate` -> `reflection.validate`
+
+### 12.1 `reflection scan`
+
+```powershell
+<CLI> reflection scan --root D:/Workspace/HuaEngine
+<CLI> reflection scan --root D:/Workspace/HuaEngine --out D:/Workspace/HuaEngine/.workspace/reflection/reflection_manifest.json
+```
+
+参数：
+
+- `--root <path>`
+  - 必填，仓库根目录。
+  - `ReflectionToolService` 会在该目录下查找 `Tools/Reflection/reflection_tool.py`。
+- `--out <manifest>`
+  - 可选，manifest 输出路径。
+  - 未指定时默认写入 `<root>/.workspace/reflection/reflection_manifest.json`。
+
+作用：
+
+- 扫描源码中的 `HE_REFLECT_COMPONENT` 和 `HE_REFLECT_FIELD` 标记。
+- 写出 reflection manifest。
+- 返回 payload 中常用字段：`root`、`manifest`、`output_directory`、`reflected_type_count`、`tool_output`。
+
+### 12.2 `reflection generate`
+
+```powershell
+<CLI> reflection generate --root D:/Workspace/HuaEngine
+<CLI> reflection generate --root D:/Workspace/HuaEngine --out-dir D:/Workspace/HuaEngine/HuaEngine/src/HuaEngine/Generated
+<CLI> reflection generate --root D:/Workspace/HuaEngine --out D:/Workspace/HuaEngine/.workspace/reflection/reflection_manifest.json --out-dir D:/Workspace/HuaEngine/HuaEngine/src/HuaEngine/Generated
+```
+
+参数：
+
+- `--root <path>`
+  - 必填，仓库根目录。
+- `--out <manifest>`
+  - 可选，扫描阶段使用的 manifest 路径。
+  - 未指定时默认写入 `<root>/.workspace/reflection/reflection_manifest.json`。
+- `--out-dir <path>`
+  - 可选，生成的 C++ 文件输出目录。
+  - 未指定时默认写入 `<root>/HuaEngine/src/HuaEngine/Generated`。
+
+作用：
+
+- 先执行 scan，得到最新 manifest。
+- 再调用 Python 工具的 generate 子命令生成 `GeneratedReflection.h` 和 `GeneratedReflection.cpp`。
+- 如果 scan 阶段发现 error diagnostic，生成流程会失败并返回 failure。
+
+### 12.3 `reflection validate`
+
+```powershell
+<CLI> reflection validate --root D:/Workspace/HuaEngine
+```
+
+参数：
+
+- `--root <path>`
+  - 必填，仓库根目录。
+
+作用：
+
+- 扫描源码并把校验 JSON 放入 `payload.tool_output`。
+- 不写生成文件。
+- 适合在 smoke、CI 或提交前检查反射标记是否仍能被工具解析。
+
+脚本消费时建议同时检查进程退出码、`result.status` 和 `payload.reflected_type_count`。当前 smoke 期望仓库内可反射类型数量为 `5`。
