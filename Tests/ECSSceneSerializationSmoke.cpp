@@ -29,7 +29,7 @@ int main() {
 	transform.Scale = { 2.0f, 3.0f, 4.0f };
 
 	const auto uuid = entity.GetUuid();
-	const std::filesystem::path path = "ecs_scene_serialization_smoke.scene";
+	const std::filesystem::path path = std::filesystem::temp_directory_path() / "HuaEngineECSSceneSerializationSmoke.scene";
 	const bool saved = HE::Serialization::SaveScene(scene, path.string());
 	Require(saved, "Expected scene save to succeed");
 
@@ -58,6 +58,7 @@ int main() {
 	Require(loadedTransform.Rotation == glm::vec3(10.0f, 20.0f, 30.0f), "Expected Rotation to round-trip");
 	Require(loadedTransform.Scale == glm::vec3(2.0f, 3.0f, 4.0f), "Expected Scale to round-trip");
 
-	std::filesystem::remove(path);
+	std::error_code removeError;
+	std::filesystem::remove(path, removeError);
 	return 0;
 }
