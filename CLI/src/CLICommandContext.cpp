@@ -89,7 +89,7 @@ namespace HE::CLI {
 		}
 
 		if (context.has_value()) {
-			return ResolveProjectRelativePath(scenePath, context->GetSceneRootPath());
+			return ResolveProjectRelativePath(scenePath, context->GetAssetRootPath());
 		}
 
 		return NormalizePath(workingDirectory / scenePath);

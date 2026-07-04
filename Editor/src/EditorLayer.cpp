@@ -526,7 +526,7 @@ namespace HE {
             return;
         }
 
-        const auto sceneRoot = m_ProjectSession.Context.GetSceneRootPath();
+        const auto sceneRoot = m_ProjectSession.Context.GetAssetRootPath();
         const auto defaultOpenPath = !m_SceneDocument.ScenePath.empty() ? m_SceneDocument.ScenePath : sceneRoot;
         const auto defaultSaveAsPath = !m_SceneDocument.ScenePath.empty()
             ? m_SceneDocument.ScenePath
@@ -548,7 +548,7 @@ namespace HE {
             return NormalizePath(scenePath);
         }
 
-        return NormalizePath(m_ProjectSession.Context.GetSceneRootPath() / scenePath);
+        return NormalizePath(m_ProjectSession.Context.GetAssetRootPath() / scenePath);
     }
 
     void EditorLayer::PersistCurrentProjectSession() {
@@ -860,7 +860,7 @@ namespace HE {
         }
 
         auto& operations = Application::GetInstance().GetOperations();
-        const auto scenePath = m_ProjectSession.Context.GetSceneRootPath() / "editor_workbench.scene";
+        const auto scenePath = m_ProjectSession.Context.GetAssetRootPath() / "editor_workbench.scene";
         const auto packagedScenePath = ResourcePaths::ResolveEngineResourcePath("SandboxScene.scene");
 
         auto tryLoadScene = [&](const std::filesystem::path& path, bool persistToWorkbench) -> bool {
@@ -1062,7 +1062,7 @@ namespace HE {
             return SaveActiveSceneDocumentAs(m_SceneDocument.ScenePath);
         }
 
-        const auto defaultPath = m_ProjectSession.Context.GetSceneRootPath() / MakeSceneFileName(m_SceneDocument.DisplayName);
+        const auto defaultPath = m_ProjectSession.Context.GetAssetRootPath() / MakeSceneFileName(m_SceneDocument.DisplayName);
         return SaveActiveSceneDocumentAs(defaultPath);
     }
 

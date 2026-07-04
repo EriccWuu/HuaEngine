@@ -87,7 +87,7 @@ int main() {
 	document.MarkDirty();
 	Require(document.Dirty, "Expected a new document to be markable as dirty");
 
-	const auto scenePath = context.GetSceneRootPath() / "workbench_scene.scene";
+	const auto scenePath = context.GetAssetRootPath() / "workbench_scene.scene";
 	auto saveScene = operations.SaveScene(*scene, scenePath);
 	Require(saveScene.Succeeded(), "Expected scene.save to succeed for the initial document");
 	document.MarkSaved(scenePath);

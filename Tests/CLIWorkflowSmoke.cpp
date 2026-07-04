@@ -186,7 +186,7 @@ int main() {
 	std::filesystem::create_directories(tempRoot, errorCode);
 	Expect(!errorCode, "Failed to prepare temporary workflow directory");
 
-	const std::filesystem::path scenePath = tempRoot / "Scenes" / "workflowscene.scene";
+	const std::filesystem::path scenePath = tempRoot / "Assets" / "workflowscene.scene";
 	const std::filesystem::path meshPath = tempRoot / "Assets" / "primitives" / "quad.mesh";
 	const std::filesystem::path projectMarker = tempRoot / ".huaengine" / "project.json";
 	const std::filesystem::path assetManifest = tempRoot / ".huaengine" / "assets.json";
@@ -372,7 +372,9 @@ int main() {
 		}
 	}
 
-	const auto nestedProjectDirectory = tempRoot / "Scenes" / "Nested";
+	Expect(!std::filesystem::exists(tempRoot / "Scenes"), "workflow should not create a standalone Scenes directory");
+
+	const auto nestedProjectDirectory = tempRoot / "Assets" / "Nested";
 	std::filesystem::create_directories(nestedProjectDirectory, errorCode);
 	Expect(!errorCode, "Failed to create nested project smoke directory");
 

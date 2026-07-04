@@ -178,7 +178,7 @@ int main() {
 	Require(resolveContext.Succeeded(), "Expected project.resolve_context to succeed");
 
 	HE::Ref<HE::Scene> scene;
-	auto loadScene = application.GetOperations().LoadScene(context.GetSceneRootPath() / "consistency.scene", scene);
+	auto loadScene = application.GetOperations().LoadScene(context.GetAssetRootPath() / "consistency.scene", scene);
 	Require(loadScene.Succeeded() && scene, "Expected scene.load to succeed");
 
 	HE::ValidationReport validationReport;

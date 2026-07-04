@@ -13,7 +13,6 @@ namespace HE {
 		std::string Name = "UntitledProject";
 		uint32_t SchemaVersion = 1;
 		std::string AssetDirectory = "Assets";
-		std::string SceneDirectory = "Scenes";
 	};
 
 	struct ProjectContext {
@@ -24,7 +23,6 @@ namespace HE {
 		[[nodiscard]] bool IsLoaded() const;
 		[[nodiscard]] std::filesystem::path GetMetadataDirectoryPath() const;
 		[[nodiscard]] std::filesystem::path GetAssetRootPath() const;
-		[[nodiscard]] std::filesystem::path GetSceneRootPath() const;
 		[[nodiscard]] std::string GetTargetId() const;
 	};
 
@@ -33,7 +31,6 @@ namespace HE {
 		bool MetadataDirectoryExists = false;
 		bool ProjectFileExists = false;
 		bool AssetDirectoryExists = false;
-		bool SceneDirectoryExists = false;
 
 		[[nodiscard]] bool IsOperational() const;
 		[[nodiscard]] bool HasIssues() const;
@@ -44,8 +41,7 @@ srefl_class(HE::ProjectDescriptor,
 	fields(
 		field(Name),
 		field(SchemaVersion),
-		field(AssetDirectory),
-		field(SceneDirectory)
+		field(AssetDirectory)
 	)
 )
 
@@ -60,7 +56,6 @@ namespace HE::Serialization {
 			backend.Serialize("name", descriptor.Name);
 			backend.Serialize("schema_version", descriptor.SchemaVersion);
 			backend.Serialize("asset_directory", descriptor.AssetDirectory);
-			backend.Serialize("scene_directory", descriptor.SceneDirectory);
 
 			if (!name.empty()) {
 				backend.EndObject();
@@ -80,7 +75,6 @@ namespace HE::Serialization {
 			success &= DeserializeValue(backend, "name", descriptor.Name);
 			success &= DeserializeValue(backend, "schema_version", descriptor.SchemaVersion);
 			success &= DeserializeValue(backend, "asset_directory", descriptor.AssetDirectory);
-			success &= DeserializeValue(backend, "scene_directory", descriptor.SceneDirectory);
 
 			if (!name.empty()) {
 				backend.EndObject();

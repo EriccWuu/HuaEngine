@@ -41,10 +41,6 @@ namespace HE {
 		return RootPath / Descriptor.AssetDirectory;
 	}
 
-	std::filesystem::path ProjectContext::GetSceneRootPath() const {
-		return RootPath / Descriptor.SceneDirectory;
-	}
-
 	std::string ProjectContext::GetTargetId() const {
 		if (RootPath.empty()) {
 			return {};
@@ -54,7 +50,7 @@ namespace HE {
 	}
 
 	bool ProjectStatusReport::IsOperational() const {
-		return RootExists && MetadataDirectoryExists && ProjectFileExists && AssetDirectoryExists && SceneDirectoryExists;
+		return RootExists && MetadataDirectoryExists && ProjectFileExists && AssetDirectoryExists;
 	}
 
 	bool ProjectStatusReport::HasIssues() const {
@@ -145,14 +141,6 @@ namespace HE {
 			return result;
 		}
 
-		auto sceneRoot = normalizedRoot / descriptor.SceneDirectory;
-		std::filesystem::create_directories(sceneRoot, errorCode);
-		if (errorCode) {
-			auto result = ResultEnvelope::Failure("project.initialize", targetId, "Failed to create scene directory");
-			result.AddDetail({ DiagnosticSeverity::Error, "project.scenes.create_failed", errorCode.message(), sceneRoot.generic_string() });
-			return result;
-		}
-
 		ProjectContext context;
 		context.RootPath = normalizedRoot;
 		context.ProjectFilePath = projectFilePath;
@@ -167,7 +155,6 @@ namespace HE {
 		result.SetPayloadValue("project_name", context.Descriptor.Name);
 		result.SetPayloadValue("project_file", context.ProjectFilePath.generic_string());
 		result.SetPayloadValue("asset_root", context.GetAssetRootPath().generic_string());
-		result.SetPayloadValue("scene_root", context.GetSceneRootPath().generic_string());
 		return result;
 	}
 
@@ -206,7 +193,6 @@ namespace HE {
 				result.SetPayloadValue("project_name", outContext.Descriptor.Name);
 				result.SetPayloadValue("project_file", outContext.ProjectFilePath.generic_string());
 				result.SetPayloadValue("asset_root", outContext.GetAssetRootPath().generic_string());
-				result.SetPayloadValue("scene_root", outContext.GetSceneRootPath().generic_string());
 				return result;
 			}
 
@@ -242,7 +228,6 @@ namespace HE {
 		report.MetadataDirectoryExists = std::filesystem::is_directory(context.GetMetadataDirectoryPath(), errorCode);
 		report.ProjectFileExists = std::filesystem::is_regular_file(context.ProjectFilePath, errorCode);
 		report.AssetDirectoryExists = std::filesystem::is_directory(context.GetAssetRootPath(), errorCode);
-		report.SceneDirectoryExists = std::filesystem::is_directory(context.GetSceneRootPath(), errorCode);
 
 		if (outReport) {
 			*outReport = report;
@@ -258,7 +243,6 @@ namespace HE {
 		result.SetPayloadValue("metadata_directory_exists", report.MetadataDirectoryExists ? "true" : "false");
 		result.SetPayloadValue("project_file_exists", report.ProjectFileExists ? "true" : "false");
 		result.SetPayloadValue("asset_directory_exists", report.AssetDirectoryExists ? "true" : "false");
-		result.SetPayloadValue("scene_directory_exists", report.SceneDirectoryExists ? "true" : "false");
 
 		if (!report.RootExists) {
 			result.AddDetail({ DiagnosticSeverity::Error, "project.root.invalid", "Project root is missing or is not a directory", context.RootPath.generic_string() });
@@ -271,9 +255,6 @@ namespace HE {
 		}
 		if (!report.AssetDirectoryExists) {
 			result.AddDetail({ DiagnosticSeverity::Warning, "project.assets.invalid", "Asset directory is missing or is not a directory", context.GetAssetRootPath().generic_string() });
-		}
-		if (!report.SceneDirectoryExists) {
-			result.AddDetail({ DiagnosticSeverity::Warning, "project.scenes.invalid", "Scene directory is missing or is not a directory", context.GetSceneRootPath().generic_string() });
 		}
 
 		return result;

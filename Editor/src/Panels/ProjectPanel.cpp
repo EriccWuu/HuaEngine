@@ -58,7 +58,6 @@ namespace HE {
 		}
 
 		DrawDirectorySection("Assets", m_ProjectRoot / "Assets");
-		DrawDirectorySection("Scenes", m_ProjectRoot / "Scenes");
 
 		ImGui::End();
 	}

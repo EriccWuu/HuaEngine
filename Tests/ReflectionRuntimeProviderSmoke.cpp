@@ -73,22 +73,21 @@ namespace {
 		Require(descriptor.Name == "ProjectDescriptor", "Expected ProjectDescriptor runtime name to stay stable");
 		Require(descriptor.QualifiedName == "HE::ProjectDescriptor", "Expected ProjectDescriptor runtime qualified name to stay stable");
 		Require(descriptor.Kind == "struct", "Expected ProjectDescriptor runtime kind to stay stable");
-		Require(descriptor.Fields.size() == 4, "Expected ProjectDescriptor runtime fields");
+		Require(descriptor.Fields.size() == 3, "Expected ProjectDescriptor runtime fields");
 		Require(descriptor.Fields[0].Name == "Name", "Expected ProjectDescriptor Name field");
 		Require(descriptor.Fields[1].Name == "SchemaVersion", "Expected ProjectDescriptor SchemaVersion field");
 		Require(descriptor.Fields[2].Name == "AssetDirectory", "Expected ProjectDescriptor AssetDirectory field");
-		Require(descriptor.Fields[3].Name == "SceneDirectory", "Expected ProjectDescriptor SceneDirectory field");
 
 		HE::ProjectDescriptor source;
 		source.Name = "RuntimeProject";
 		source.SchemaVersion = 7;
 		source.AssetDirectory = "RuntimeAssets";
-		source.SceneDirectory = "RuntimeScenes";
 
 		HE::Serialization::JsonSerializationBackend writeBackend;
 		HE::Refl::SerializeRuntimeObject(descriptor, writeBackend, std::string(descriptor.Name), &source);
 		const std::string json = writeBackend.SaveToString();
 		Require(json.find("\"SchemaVersion\"") != std::string::npos, "Expected ProjectDescriptor runtime serializer to emit SchemaVersion");
+		Require(json.find("\"SceneDirectory\"") == std::string::npos, "Expected ProjectDescriptor runtime serializer to omit SceneDirectory");
 
 		HE::ProjectDescriptor loaded;
 		HE::Serialization::JsonSerializationBackend readBackend;
@@ -99,7 +98,6 @@ namespace {
 		Require(loaded.Name == "RuntimeProject", "Expected ProjectDescriptor Name to round-trip");
 		Require(loaded.SchemaVersion == 7, "Expected ProjectDescriptor SchemaVersion to round-trip");
 		Require(loaded.AssetDirectory == "RuntimeAssets", "Expected ProjectDescriptor AssetDirectory to round-trip");
-		Require(loaded.SceneDirectory == "RuntimeScenes", "Expected ProjectDescriptor SceneDirectory to round-trip");
 	}
 }
 

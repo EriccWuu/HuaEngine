@@ -137,7 +137,7 @@ namespace HE {
 				return { std::move(createResult) };
 			}
 
-			const auto outputPath = context.GetSceneRootPath() / GetArgument(request.Arguments, "output").value_or(*sceneName + ".scene");
+			const auto outputPath = context.GetAssetRootPath() / GetArgument(request.Arguments, "output").value_or(*sceneName + ".scene");
 			auto saveResult = m_Operations->SaveScene(*scene, outputPath);
 			if (!saveResult.Succeeded()) {
 				return { std::move(saveResult) };
@@ -191,7 +191,7 @@ namespace HE {
 
 			Ref<Scene> scene;
 			if (const auto sceneArgument = GetArgument(request.Arguments, "scene"); sceneArgument.has_value() && !sceneArgument->empty()) {
-				auto loadResult = m_Operations->LoadScene(context.GetSceneRootPath() / *sceneArgument, scene);
+				auto loadResult = m_Operations->LoadScene(context.GetAssetRootPath() / *sceneArgument, scene);
 				if (!loadResult.Succeeded()) {
 					return { std::move(loadResult) };
 				}
@@ -202,7 +202,7 @@ namespace HE {
 			auto result = m_Operations->Validate(validationRequest);
 			result.SetPayloadValue("project_root", context.RootPath.generic_string());
 			if (scene) {
-				result.SetPayloadValue("scene_path", (context.GetSceneRootPath() / *GetArgument(request.Arguments, "scene")).generic_string());
+				result.SetPayloadValue("scene_path", (context.GetAssetRootPath() / *GetArgument(request.Arguments, "scene")).generic_string());
 			}
 			return { std::move(result) };
 		}

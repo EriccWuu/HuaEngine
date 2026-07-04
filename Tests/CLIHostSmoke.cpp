@@ -79,7 +79,8 @@ int main() {
 
 	auto sceneResponse = runner.Run({ "scene", "create", "--project", tempRoot.string(), "--name", "SmokeScene" }, tempRoot);
 	Expect(sceneResponse.Result.Succeeded(), "scene create should succeed");
-	Expect(std::filesystem::exists(tempRoot / "Scenes" / "smokescene.scene"), "scene create should persist the scene file");
+	Expect(std::filesystem::exists(tempRoot / "Assets" / "smokescene.scene"), "scene create should persist the scene file in Assets");
+	Expect(!std::filesystem::exists(tempRoot / "Scenes"), "project workflow should not create a standalone Scenes directory");
 
 	auto assetResponse = runner.Run({
 		"asset", "register-default-mesh",
