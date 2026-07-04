@@ -1,5 +1,15 @@
 # srefl legacy 使用审计
 
+## P3 更新：runtime facade 与静态反射 provider 状态
+
+- 组件主路径已经统一到 `HE::Refl` runtime facade：`ComponentRegistry` 只关联 `RuntimeTypeDescriptor`，场景序列化和 `Serializer<T>` 的组件分支都调用 `SerializeRuntimeObject` / `DeserializeRuntimeObject`。
+- 普通组件的 generated type-level `Serialize_HE__*` / `Deserialize_HE__*` 函数已经删除；组件字段改为生成 `RuntimeFieldDescriptor` 的 offset/size/flags/accessor/field operation。
+- `RuntimeFieldDescriptor` 已具备 offset、size、flags、const/mutable accessor、field serialize/deserialize callback，支持通用 runtime object traversal。
+- `GetRuntimeTypes()` 已通过 provider 聚合缓存返回 generated runtime descriptors，不再在对外实现里直接裸返回 generated 数组。
+- 静态反射未删除，而是作为内部 metadata 来源保留：`MakeStaticRuntimeTypeDescriptor<T>()` 可以把已有 `srefl_class` 字段适配成 runtime descriptor。
+- `ProjectDescriptor` 已通过 `ReflectionRuntimeProviderSmoke` 覆盖静态反射到 runtime descriptor 的适配和 generic runtime serialize/deserialize；其现有手写 `Serializer<ProjectDescriptor>` 暂时保留，避免改变项目文件 snake_case schema。
+- 剩余迁移候选仍包括 `MeshData` 系列、README 编码/内容清理，以及 `SerializationCore.h` 中非组件 `Refl::reflect<T>()` legacy fallback 的边界收敛。
+
 ## 结论
 
 组件序列化路径已经统一到 `HE::Refl` runtime descriptor facade：组件注册、组件序列化和组件反序列化优先走运行时 descriptor，不再依赖 `srefl_class` 生成静态反射信息。当前 `srefl_class` 仍然存在，但它已经不是组件序列化路径的必要依赖。
