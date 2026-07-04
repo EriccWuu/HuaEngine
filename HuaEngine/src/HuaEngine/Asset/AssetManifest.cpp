@@ -8,6 +8,7 @@
 #include <random>
 #include <sstream>
 #include <system_error>
+#include <unordered_set>
 #include <variant>
 
 namespace {
@@ -653,6 +654,8 @@ namespace HE {
 		}
 
 		AssetManifest loaded;
+		std::unordered_set<AssetGuid> seenGuids;
+		std::unordered_set<std::string> seenAssetIds;
 		for (size_t index = 0; index < assets->size(); ++index) {
 			const auto* recordObject = AsObject((*assets)[index]);
 			if (!recordObject) {
@@ -682,6 +685,12 @@ namespace HE {
 
 			if (!ValidateRecord(record, error)) {
 				return MakeManifestLoadFailure(manifestPath, "Asset manifest record failed validation", "asset.manifest.record_invalid", error);
+			}
+			if (!seenGuids.insert(record.Guid).second) {
+				return MakeManifestLoadFailure(manifestPath, "Asset manifest contains a duplicate GUID", "asset.manifest.guid_duplicate", record.Guid);
+			}
+			if (!seenAssetIds.insert(record.AssetId).second) {
+				return MakeManifestLoadFailure(manifestPath, "Asset manifest contains a duplicate asset id", "asset.manifest.asset_id_duplicate", record.AssetId);
 			}
 			if (!loaded.Upsert(std::move(record))) {
 				return MakeManifestLoadFailure(manifestPath, "Asset manifest contains duplicate or conflicting records", "asset.manifest.record_conflict", std::to_string(index));

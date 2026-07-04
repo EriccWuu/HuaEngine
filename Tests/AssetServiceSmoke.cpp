@@ -173,6 +173,18 @@ int main() {
 		"{\n"
 		"  \"version\": 1,\n"
 		"  \"assets\": [\n"
+		"    { \"guid\": \"same-key\", \"asset_id\": \"Meshes/Same.mesh\", \"kind\": \"mesh\", \"source\": \"file\", \"relative_path\": \"Meshes/Same.mesh\", \"builtin_name\": \"first\", \"import_state\": \"registered\" },\n"
+		"    { \"guid\": \"same-key\", \"asset_id\": \"Meshes/Same.mesh\", \"kind\": \"material\", \"source\": \"builtin\", \"relative_path\": \"\", \"builtin_name\": \"second\", \"import_state\": \"builtin\" }\n"
+		"  ]\n"
+		"}\n");
+	Require(HE::LoadAssetManifest(projectContext, badManifest).Failed(), "Expected exact duplicate manifest record keys with different metadata to fail load");
+	Require(HE::LoadOrCreateAssetManifest(projectContext, badManifest).Failed(), "Expected exact duplicate manifest record keys to fail init without overwrite");
+	Require(ReadFileText(manifestPath).find("same-key") != std::string::npos, "Expected exact duplicate manifest file to remain on disk after failed init");
+
+	WriteFileText(manifestPath,
+		"{\n"
+		"  \"version\": 1,\n"
+		"  \"assets\": [\n"
 		"    { \"guid\": \"bad-enum\", \"asset_id\": \"Meshes/A.mesh\", \"kind\": \"invalid\", \"source\": \"file\", \"relative_path\": \"Meshes/A.mesh\", \"builtin_name\": \"\", \"import_state\": \"registered\" }\n"
 		"  ]\n"
 		"}\n");
