@@ -11,7 +11,7 @@
 
 这与 P3 后的反射主路径不一致。组件序列化、组件注册和 runtime metadata 已经统一到 `RuntimeTypeDescriptor` / `RuntimeFieldDescriptor`，但 Editor Inspector 仍依赖手写组件 editor 注册和静态反射字段遍历。
 
-本设计目标是把 Inspector 主链路迁移到 runtime reflection facade。override 接口保留为未来扩展点，但现有已支持组件在本阶段必须全部迁移到 generic runtime field editor，不再依赖手写 component editor。
+本设计目标是把 Inspector 主链路迁移到 runtime reflection facade。旧 `ComponentEditorRegistry` / `REGISTER_COMPONENT_EDITOR` 注册逻辑必须移除；override 只保留为新的 runtime override 接口扩展点。现有已支持组件在本阶段必须全部迁移到 generic runtime field editor，不再依赖手写 component editor。
 
 ## 目标
 
@@ -19,7 +19,7 @@
 2. Inspector 字段显示和编辑走 `RuntimeTypeDescriptor` / `RuntimeFieldDescriptor`。
 3. `TransformComponent` 的 `Position` / `Rotation` / `Scale` 通过 runtime field editor 可编辑。
 4. `CameraComponent` 的 `bool` 字段通过 runtime field editor 可编辑。
-5. Override 接口保留，但现有组件不注册 override；全部通过 generic runtime field editor 显示。
+5. 旧手写组件注册逻辑移除；新的 override 接口保留，但现有组件不注册 override，全部通过 generic runtime field editor 显示。
 6. Add Component 来源改为 `ComponentRegistry::GetAll()`。
 7. Remove Component 在现有 command/enum 能力范围内保持行为不回归；runtime-only 组件短期可以禁用 remove。
 
@@ -27,8 +27,8 @@
 
 - 不在本阶段实现完整复杂类型编辑器。
 - 不在本阶段重写 Material inspector 的专用 UI。
-- 不在本阶段彻底删除 override registry 接口。
-- 不在本阶段保留现有组件的手写 editor 注册。
+- 不在本阶段为复杂组件实现专用 override UI。
+- 不在本阶段保留旧 `ComponentEditorRegistry` / `REGISTER_COMPONENT_EDITOR` 注册逻辑。
 - 不在本阶段把 add/remove command system 完全改成 runtime component operation。
 - 不在本阶段改变 scene serialization 格式。
 
@@ -45,18 +45,26 @@ Selection
   -> RuntimeFieldEditor
 ```
 
-`ComponentEditorRegistry` 降级为 override registry，但本阶段不为现有组件注册 override：
+旧 `ComponentEditorRegistry` / `REGISTER_COMPONENT_EDITOR` 注册逻辑删除，不再参与 Inspector 显示。新增一个轻量 runtime override 接口，按 runtime type identity 查找未来的专用 editor，但本阶段不为现有组件注册 override：
 
 ```text
 Runtime component found
-  -> has explicit future editor override?
+  -> has explicit future runtime override?
       -> use override editor
       -> else use generic runtime field editor
 ```
 
-命名上可以选择保留 `ComponentEditorRegistry`，但语义应调整为“override registry”。如果改名成本较高，可以先保留类名并在接口命名上体现 override，例如 `FindOverride()` / `DrawOverride()`。
+推荐新接口命名为 `RuntimeComponentEditorOverrideRegistry`，至少提供：
 
-现有 `REGISTER_COMPONENT_EDITOR(...)` 注册应从 Inspector 主路径中移除。`TransformComponent`、`CameraComponent`、`RendererComponent`、`MeshComponent`、`MaterialComponent` 都必须通过 runtime descriptor + generic runtime field editor 绘制。复杂字段不允许回退到旧静态反射 editor；只能显示通用 unsupported/disabled UI，直到后续显式新增 override。
+```cpp
+using RuntimeComponentEditorOverride =
+    std::function<bool(const Refl::RuntimeTypeDescriptor&, void*)>;
+
+void RegisterOverride(std::string_view qualifiedName, RuntimeComponentEditorOverride editor);
+const RuntimeComponentEditorOverride* FindOverride(std::string_view qualifiedName) const;
+```
+
+该接口只作为未来扩展点存在，当前实现中不迁移任何旧 `REGISTER_COMPONENT_EDITOR(...)` 注册。`TransformComponent`、`CameraComponent`、`RendererComponent`、`MeshComponent`、`MaterialComponent` 都必须通过 runtime descriptor + generic runtime field editor 绘制。复杂字段不允许回退到旧静态反射 editor；只能显示通用 unsupported/disabled UI，直到后续显式新增 override。
 
 ## 组件显示流程
 
@@ -72,7 +80,7 @@ Runtime component found
    - 再为空时使用 `RuntimeTypeDescriptor::Name` / `ComponentMetadata::TypeName`。
 6. header 展开后：
    - 默认调用 generic runtime inspector。
-   - 仅当未来显式注册 override 时才调用 override。
+   - 仅当未来显式注册 runtime override 时才调用 override。
    - 当前现有组件不得依赖 override 才能显示。
 
 ### 多选实体
@@ -161,7 +169,7 @@ Inspector 需要访问一个核心组件 registry。
 - runtime descriptor 缺失：显示 header + disabled text。
 - field accessor 缺失：显示 disabled field。
 - unsupported type：显示 disabled type text。
-- editor override 抛异常不是当前 C++ 代码风格，本阶段不加异常边界。
+- runtime editor override 抛异常不是当前 C++ 代码风格，本阶段不加异常边界。
 - 当前组件若包含 unsupported 字段，必须在 generic runtime inspector 中显示 disabled/只读状态，而不是回退到旧 editor。
 
 ## 测试策略
@@ -183,8 +191,8 @@ Inspector 需要访问一个核心组件 registry。
 
 3. 回归搜索
    - Inspector 主路径不再调用 `Refl::reflect<T>()`。
-   - `ComponentEditor.h` 可以保留旧实现，但不应被 Inspector 主路径直接使用。
-   - `REGISTER_COMPONENT_EDITOR(TransformComponent)` 等现有组件注册不应再决定 Inspector 是否显示组件。
+   - `ComponentEditorRegistry.h` / `ComponentEditor.h` 的旧注册和静态反射 editor 逻辑应删除，或至少不再被编译进 Inspector 主路径。
+   - `REGISTER_COMPONENT_EDITOR(TransformComponent)` 等现有组件注册应被移除。
 
 手动验证：
 
@@ -200,7 +208,7 @@ Inspector 需要访问一个核心组件 registry。
 - 当前 `RuntimeFieldDescriptor::Type` 是字符串，字段 editor 分派依赖字符串匹配。短期可接受，后续应升级为 runtime type enum/type id。
 - runtime-only add/remove 仍受 Editor command enum 限制。显示来源统一后，可能出现“能看到但不能加/删”的组件，需要明确 disabled 状态。
 - `std::string` 输入需要 buffer 管理，不能直接把 `std::string::data()` 作为长期可写 buffer。
-- `MaterialComponent` 等复杂类型本阶段显示 generic 降级 UI；体验不如专用 inspector 是可接受风险，后续再通过显式 override 增强。
+- `MaterialComponent` 等复杂类型本阶段显示 generic 降级 UI；体验不如专用 inspector 是可接受风险，后续再通过新的 runtime override 接口增强。
 
 ## 验收标准
 
@@ -209,9 +217,9 @@ Inspector 需要访问一个核心组件 registry。
 - `TransformComponent` 的 `Position` / `Rotation` / `Scale` 可编辑。
 - `CameraComponent` 的 `Primary` / `FixedAspectRatio` 可编辑。
 - Inspector 主路径不再调用 `Refl::reflect<T>()`。
-- Override registry 接口保留，但现有组件不依赖 override 显示。
+- 新 runtime override registry 接口保留，但现有组件不依赖 override 显示。
 - 当前已有 Inspector 组件全部迁移到 generic runtime field editor。
-- `REGISTER_COMPONENT_EDITOR(TransformComponent)` 等旧注册移除或不再影响主显示路径。
+- 旧 `ComponentEditorRegistry` / `REGISTER_COMPONENT_EDITOR` 注册逻辑移除。
 - Add Component 窗口使用 `ComponentRegistry::GetAll()` 作为候选来源。
 - 现有 remove 行为对已支持组件不回归。
 - Unsupported 字段类型不会崩溃，显示明确 disabled 文案。
