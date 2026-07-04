@@ -3,19 +3,20 @@
 #include <functional>
 
 #include "HuaEngine/Core/Core.h"
+#include "HuaEngine/ECS/ComponentRegistry.h"
 #include "HuaEngine/Scene/Scene.h"
 #include "Workbench/EditorWorkbenchState.h"
 #include "Interaction/EditorSceneCommands.h"
+#include "Panels/RuntimeInspector.h"
 #include "imgui.h"
 #include "glm/glm.hpp"
-#include "ComponentEditorRegistry.h"
 
 namespace HE {
     class EditorInteractionHost;
 
 	class InspectorPanel {
 	public:
-		InspectorPanel() = default;
+		InspectorPanel();
 		~InspectorPanel() = default;
 
 		bool OnGuiRender();
@@ -35,6 +36,8 @@ namespace HE {
         EditorInteractionHost* m_InteractionHost = nullptr;
         std::function<void(EditorInspectableComponent)> m_AddComponentCallback;
         std::function<void(EditorInspectableComponent)> m_RemoveComponentCallback;
+        ComponentRegistry m_ComponentRegistry;
+        Editor::RuntimeComponentEditorOverrideRegistry m_RuntimeOverrides;
         bool m_ShowAddComponentWindow = false;
 	};
 }

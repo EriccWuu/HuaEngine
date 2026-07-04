@@ -69,6 +69,50 @@ int main() {
 		HE::Editor::GetRuntimeFieldEditKind(*materialInstance) == HE::Editor::RuntimeFieldEditKind::Unsupported,
 		"Expected MaterialInstance to use unsupported runtime editor");
 
+	Require(
+		HE::Editor::GetRuntimeComponentDisplayName(*transform->RuntimeType) == "Transform",
+		"Expected Transform display name from runtime metadata");
+	Require(
+		HE::Editor::GetRuntimeComponentDisplayName(*camera->RuntimeType) == "Camera",
+		"Expected Camera display name from runtime metadata");
+	Require(
+		registry.FindByName("NameComponent") != nullptr,
+		"Expected Add Component candidate source to include runtime-registered NameComponent");
+	Require(
+		registry.FindByName("RendererComponent") == nullptr,
+		"Expected deprecated RendererComponent to stay out of generated runtime metadata");
+
+	std::filesystem::path repositoryRoot = std::filesystem::current_path();
+	while (!repositoryRoot.empty() && !std::filesystem::exists(repositoryRoot / "CMakeLists.txt")) {
+		repositoryRoot = repositoryRoot.parent_path();
+	}
+	Require(!repositoryRoot.empty(), "Expected to locate repository root");
+
+	const std::filesystem::path inspectorPath = repositoryRoot / "Editor" / "src" / "Panels" / "InspectorPanel.cpp";
+	std::ifstream inspectorStream(inspectorPath);
+	Require(inspectorStream.good(), "Expected InspectorPanel.cpp to be readable");
+	std::stringstream inspectorBuffer;
+	inspectorBuffer << inspectorStream.rdbuf();
+	const std::string inspectorSource = inspectorBuffer.str();
+	Require(
+		inspectorSource.find("ComponentEditorRegistry") == std::string::npos,
+		"Expected InspectorPanel not to use legacy ComponentEditorRegistry");
+	Require(
+		inspectorSource.find("Refl::reflect") == std::string::npos,
+		"Expected InspectorPanel not to use static reflection field traversal");
+	Require(
+		inspectorSource.find("ListComponentTypes") != std::string::npos,
+		"Expected InspectorPanel to enumerate entity runtime component types");
+	Require(
+		inspectorSource.find("GetAll()") != std::string::npos,
+		"Expected Add Component candidates to come from ComponentRegistry::GetAll()");
+	Require(
+		!std::filesystem::exists(repositoryRoot / "Editor" / "src" / "ComponentEditorRegistry.h"),
+		"Expected legacy ComponentEditorRegistry.h to be removed");
+	Require(
+		!std::filesystem::exists(repositoryRoot / "Editor" / "src" / "ComponentEditor.h"),
+		"Expected legacy ComponentEditor.h to be removed");
+
 	std::cout << "EditorInspectorRuntimeSmoke passed" << std::endl;
 	return 0;
 }

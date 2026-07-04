@@ -1,8 +1,6 @@
 #include "RuntimeInspector.h"
 
 #include <algorithm>
-#include <array>
-#include <cstring>
 #include <initializer_list>
 #include <utility>
 
@@ -11,6 +9,17 @@
 
 namespace HE::Editor {
 	namespace {
+		int ResizeStringInputCallback(ImGuiInputTextCallbackData* data) {
+			if (data->EventFlag != ImGuiInputTextFlags_CallbackResize) {
+				return 0;
+			}
+
+			auto* text = static_cast<std::string*>(data->UserData);
+			text->resize(static_cast<size_t>(data->BufTextLen));
+			data->Buf = text->data();
+			return 0;
+		}
+
 		bool IsAnyOf(std::string_view value, std::initializer_list<std::string_view> candidates) {
 			for (std::string_view candidate : candidates) {
 				if (value == candidate) {
@@ -152,13 +161,13 @@ namespace HE::Editor {
 				break;
 			case RuntimeFieldEditKind::String: {
 				auto& text = *static_cast<std::string*>(value);
-				std::array<char, 256> buffer{};
-				const size_t copyLength = std::min(text.size(), buffer.size() - 1);
-				std::memcpy(buffer.data(), text.data(), copyLength);
-				if (ImGui::InputText(label, buffer.data(), buffer.size())) {
-					text = buffer.data();
-					changed = true;
-				}
+				changed = ImGui::InputText(
+					label,
+					text.data(),
+					text.capacity() + 1,
+					ImGuiInputTextFlags_CallbackResize,
+					&ResizeStringInputCallback,
+					&text);
 				break;
 			}
 			case RuntimeFieldEditKind::Float2:

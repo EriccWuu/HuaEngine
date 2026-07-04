@@ -1,7 +1,8 @@
 #include "enginepch.h"
 #include "InspectorPanel.h"
 
-#include <typeindex>
+#include <string>
+#include <string_view>
 
 #include "Interaction/EditorInteractionHost.h"
 #include "Selection.h"
@@ -9,18 +10,31 @@
 
 namespace HE {
     namespace {
-        const EditorInspectableComponentDescriptor* FindInspectableComponentByType(std::type_index type) {
-            if (type == std::type_index(typeid(Rendering::CameraComponent))) {
+        const EditorInspectableComponentDescriptor* FindInspectableComponentByRuntimeType(std::string_view qualifiedName) {
+            if (qualifiedName == "HE::Rendering::CameraComponent") {
                 return FindEditorInspectableComponent("component.camera");
             }
-            if (type == std::type_index(typeid(Rendering::MeshComponent))) {
+            if (qualifiedName == "HE::Rendering::MeshComponent") {
                 return FindEditorInspectableComponent("component.mesh");
             }
-            if (type == std::type_index(typeid(Rendering::MaterialComponent))) {
+            if (qualifiedName == "HE::Rendering::MaterialComponent") {
                 return FindEditorInspectableComponent("component.material");
             }
 
             return nullptr;
+        }
+
+        std::string GetComponentHeaderLabel(const ComponentMetadata& metadata) {
+            if (metadata.RuntimeType != nullptr) {
+                const std::string displayName = Editor::GetRuntimeComponentDisplayName(*metadata.RuntimeType);
+                if (!displayName.empty()) {
+                    return displayName;
+                }
+            }
+            if (!metadata.DisplayName.empty()) {
+                return metadata.DisplayName;
+            }
+            return metadata.TypeName;
         }
 
         void DrawContextMenuEntries(EditorInteractionHost* host, std::string_view contextId) {
@@ -48,6 +62,10 @@ namespace HE {
                 }
             }
         }
+    }
+
+    InspectorPanel::InspectorPanel() {
+        RegisterCoreComponents(m_ComponentRegistry);
     }
 
 	bool InspectorPanel::OnGuiRender() {
@@ -126,31 +144,53 @@ namespace HE {
                 }
                 ImGui::EndPopup();
             }
-			changed |= ComponentEditorRegistry::Instance().DrawComponents(
-                world,
-                selection.GetId(),
-                {
-                    .RequestRemove = [this](std::type_index type) {
-                        if (const auto* descriptor = FindInspectableComponentByType(type)) {
+            for (const ComponentTypeId typeId : selection.ListComponentTypes()) {
+                const ComponentMetadata* metadata = m_ComponentRegistry.FindByTypeId(typeId);
+                if (metadata == nullptr) {
+                    const std::string fallbackLabel = "Unknown Component " + std::to_string(typeId);
+                    if (ImGui::TreeNodeEx(fallbackLabel.c_str(), ImGuiTreeNodeFlags_DefaultOpen)) {
+                        ImGui::TextDisabled("Runtime metadata is not registered for this component.");
+                        ImGui::TreePop();
+                    }
+                    continue;
+                }
+
+                void* component = selection.TryGetComponentByType(typeId);
+                if (component == nullptr) {
+                    continue;
+                }
+
+                const std::string headerLabel = GetComponentHeaderLabel(*metadata);
+                ImGui::PushID(static_cast<int>(typeId));
+                const bool open = ImGui::TreeNodeEx(headerLabel.c_str(), ImGuiTreeNodeFlags_DefaultOpen);
+
+                if (metadata->RuntimeType != nullptr) {
+                    if (ImGui::BeginPopupContextItem("ComponentContextMenu")) {
+                        const auto* descriptor = FindInspectableComponentByRuntimeType(metadata->RuntimeType->QualifiedName);
+                        const bool canRemove = descriptor != nullptr && CanRemoveInspectableComponent(descriptor->Type, selection);
+                        if (ImGui::MenuItem("Remove Component", nullptr, false, canRemove)) {
                             if (m_RemoveComponentCallback) {
                                 m_RemoveComponentCallback(descriptor->Type);
                             }
                         }
-                    },
-                    .CanRemove = [this](std::type_index type) {
-                        if (!Selection::HasSingleSelection()) {
-                            return false;
+                        if (!canRemove && ImGui::IsItemHovered(ImGuiHoveredFlags_AllowWhenDisabled)) {
+                            ImGui::SetTooltip("Runtime remove command is not available for this component.");
                         }
-
-                        const auto* descriptor = FindInspectableComponentByType(type);
-                        if (!m_InteractionHost || !m_InteractionHost->GetSceneDocument() || !m_InteractionHost->GetSceneDocument()->SceneRef) {
-                            return false;
-                        }
-
-                        auto entity = Selection::ResolvePrimarySelection(m_InteractionHost->GetSceneDocument()->SceneRef->GetWorld());
-                        return descriptor != nullptr && CanRemoveInspectableComponent(descriptor->Type, entity);
+                        ImGui::EndPopup();
                     }
-                });
+                }
+
+                if (open) {
+                    if (metadata->RuntimeType == nullptr) {
+                        ImGui::TextDisabled("Runtime descriptor is not available.");
+                    }
+                    else {
+                        changed |= Editor::DrawRuntimeComponentInspector(*metadata->RuntimeType, component, m_RuntimeOverrides);
+                    }
+                    ImGui::TreePop();
+                }
+                ImGui::PopID();
+            }
             DrawAddComponentWindow();
 		}
 		else {
@@ -205,12 +245,17 @@ namespace HE {
             ImGui::End();
             return;
         }
-        for (const auto& descriptor : GetEditorInspectableComponents()) {
-            const bool alreadyHas = EntityHasInspectableComponent(descriptor.Type, selection);
-            if (ImGui::Selectable(descriptor.DisplayName.c_str(), false, 0, ImVec2(0.0f, 0.0f)) && !alreadyHas) {
-                if (m_AddComponentCallback) {
-                    m_AddComponentCallback(descriptor.Type);
-                }
+        for (const ComponentMetadata& metadata : m_ComponentRegistry.GetAll()) {
+            const bool alreadyHas = selection.TryGetComponentByType(metadata.TypeId) != nullptr;
+            const std::string displayName = GetComponentHeaderLabel(metadata);
+            const auto* descriptor = metadata.RuntimeType != nullptr
+                ? FindInspectableComponentByRuntimeType(metadata.RuntimeType->QualifiedName)
+                : nullptr;
+            const bool canAdd = !alreadyHas && descriptor != nullptr && m_AddComponentCallback;
+            const ImGuiSelectableFlags flags = canAdd ? 0 : ImGuiSelectableFlags_Disabled;
+
+            if (ImGui::Selectable(displayName.c_str(), false, flags, ImVec2(0.0f, 0.0f)) && canAdd) {
+                m_AddComponentCallback(descriptor->Type);
                 m_ShowAddComponentWindow = false;
             }
 
@@ -218,9 +263,18 @@ namespace HE {
                 ImGui::SameLine();
                 ImGui::TextDisabled("(Already Added)");
             }
+            else if (descriptor == nullptr) {
+                ImGui::SameLine();
+                ImGui::TextDisabled("(Runtime command unavailable)");
+            }
 
-            if (alreadyHas && ImGui::IsItemHovered(ImGuiHoveredFlags_AllowWhenDisabled)) {
-                ImGui::SetTooltip("%s already exists on the selected entity.", descriptor.DisplayName.c_str());
+            if (ImGui::IsItemHovered(ImGuiHoveredFlags_AllowWhenDisabled)) {
+                if (alreadyHas) {
+                    ImGui::SetTooltip("%s already exists on the selected entity.", displayName.c_str());
+                }
+                else if (descriptor == nullptr) {
+                    ImGui::SetTooltip("Runtime add command is not available for this component.");
+                }
             }
         }
 
