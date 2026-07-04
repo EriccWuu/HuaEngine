@@ -9,6 +9,8 @@ namespace HE {
 
 	inline constexpr ComponentTypeId InvalidComponentTypeId = 0;
 
+	struct Component {};
+
 	namespace Detail {
 		inline ComponentTypeId NextComponentTypeId() {
 			static std::atomic<ComponentTypeId> nextTypeId{InvalidComponentTypeId + 1};

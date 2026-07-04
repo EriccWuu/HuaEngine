@@ -1,5 +1,6 @@
 #pragma once
 
+#include <cstddef>
 #include <span>
 #include <string>
 #include <string_view>
@@ -38,6 +39,7 @@ struct RuntimeTypeDescriptor {
     std::string_view DisplayName;
     std::string_view Category;
     ComponentTypeId TypeId;
+    size_t Size;
     std::span<const RuntimeFieldDescriptor> Fields;
     void* (*ConstructDefault)();
     void (*Destroy)(void*);

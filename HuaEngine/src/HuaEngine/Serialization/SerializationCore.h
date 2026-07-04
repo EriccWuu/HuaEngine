@@ -236,6 +236,14 @@ namespace HE::Serialization {
                 SerializeValue(backend, name, obj);
             }
             else {
+                if constexpr (std::is_base_of_v<Component, std::remove_cv_t<T>>) {
+                    if (const Refl::RuntimeTypeDescriptor* descriptor = Refl::FindRuntimeType(ComponentTypeIdOf<T>());
+                        descriptor != nullptr && descriptor->Serialize != nullptr) {
+                        descriptor->Serialize(backend, name, &obj);
+                        return;
+                    }
+                }
+
                 // Always create object wrapper for complex types
                 // For named fields: "name": { ... }
                 // For array elements (empty name): { ... }
@@ -258,6 +266,13 @@ namespace HE::Serialization {
                 return DeserializeValue(backend, name, obj);
             }
             else {
+                if constexpr (std::is_base_of_v<Component, std::remove_cv_t<T>>) {
+                    if (const Refl::RuntimeTypeDescriptor* descriptor = Refl::FindRuntimeType(ComponentTypeIdOf<T>());
+                        descriptor != nullptr && descriptor->Deserialize != nullptr) {
+                        return descriptor->Deserialize(backend, name, &obj);
+                    }
+                }
+
                 // Always enter object wrapper for complex types
                 if (!name.empty() && !backend.HasField(name)) {
                     return false;

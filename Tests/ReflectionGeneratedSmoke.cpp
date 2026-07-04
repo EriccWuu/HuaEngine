@@ -5,8 +5,10 @@
 #include <string_view>
 
 #include "HuaEngine/ECS/ComponentRegistry.h"
+#include "HuaEngine/ECS/Components.h"
 #include "HuaEngine/Generated/GeneratedReflection.h"
 #include "HuaEngine/Reflection/Reflection.h"
+#include "HuaEngine/Serialization/Serialization.h"
 
 namespace {
 	void Require(bool condition, const std::string& message) {
@@ -72,6 +74,30 @@ int main() {
 	for (const std::string_view name : expectedNames) {
 		Require(registry.FindByName(name) != nullptr, "Expected registered component: " + std::string(name));
 	}
+
+	const HE::ComponentMetadata* transformMetadata = registry.FindByName("TransformComponent");
+	Require(transformMetadata != nullptr, "Expected TransformComponent metadata to be registered");
+	Require(transformMetadata->Size == sizeof(HE::TransformComponent), "Expected TransformComponent metadata size to match component size");
+
+	HE::TransformComponent sourceTransform;
+	sourceTransform.Position = { 1.0f, 2.0f, 3.0f };
+	sourceTransform.Rotation = { 4.0f, 5.0f, 6.0f };
+	sourceTransform.Scale = { 7.0f, 8.0f, 9.0f };
+
+	HE::Serialization::JsonSerializationBackend writeBackend;
+	transformMetadata->Serialize(writeBackend, transformMetadata->TypeName, &sourceTransform);
+	const std::string transformJson = writeBackend.SaveToString();
+	Require(transformJson.find("\"Position\"") != std::string::npos, "Expected metadata serialization to emit Position");
+	Require(transformJson.find("\"Rotation\"") != std::string::npos, "Expected metadata serialization to emit Rotation");
+	Require(transformJson.find("\"Scale\"") != std::string::npos, "Expected metadata serialization to emit Scale");
+
+	HE::TransformComponent loadedTransform;
+	HE::Serialization::JsonSerializationBackend readBackend;
+	readBackend.LoadFromString(transformJson);
+	Require(transformMetadata->Deserialize(readBackend, transformMetadata->TypeName, &loadedTransform), "Expected metadata deserialization to succeed");
+	Require(loadedTransform.Position == sourceTransform.Position, "Expected metadata deserialization to round-trip Position");
+	Require(loadedTransform.Rotation == sourceTransform.Rotation, "Expected metadata deserialization to round-trip Rotation");
+	Require(loadedTransform.Scale == sourceTransform.Scale, "Expected metadata deserialization to round-trip Scale");
 
 	std::cout << "ReflectionGeneratedSmoke passed" << std::endl;
 	return 0;

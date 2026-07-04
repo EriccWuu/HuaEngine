@@ -14,6 +14,10 @@
 #include "HuaEngine/Serialization/SerializationCore.h"
 
 namespace HE {
+	namespace Refl {
+		struct RuntimeTypeDescriptor;
+	}
+
 	struct ComponentRegistration {
 		std::string TypeName;
 		std::string DisplayName;
@@ -80,6 +84,8 @@ namespace HE {
 			m_Metadata.emplace_back(std::move(metadata));
 			return true;
 		}
+
+		bool Register(const Refl::RuntimeTypeDescriptor& descriptor);
 
 		template<typename T>
 		[[nodiscard]] const ComponentMetadata* FindByType() const {

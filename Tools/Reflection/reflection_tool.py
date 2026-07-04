@@ -637,20 +637,6 @@ def cpp_identifier(value: str) -> str:
     return identifier
 
 
-def legacy_reflection_type_guard(qualified_name: str) -> str:
-    return f"HE_GENERATED_REFLECTION_TYPE_{macro_identifier(qualified_name)}"
-
-
-def generated_source_header_path(source: str) -> Path:
-    normalized = source.replace("\\", "/")
-    prefix = "HuaEngine/src/"
-    if normalized.startswith(prefix):
-        normalized = normalized[len(prefix) :]
-    stem = Path(normalized).with_suffix("").as_posix()
-    filename = f"{re.sub(r'[^A-Za-z0-9]', '_', stem)}.generated.h"
-    return Path("Reflection") / filename
-
-
 def generated_include_for_source(source: str) -> str:
     normalized = source.replace("\\", "/")
     prefix = "HuaEngine/src/"
@@ -659,39 +645,12 @@ def generated_include_for_source(source: str) -> str:
     return normalized
 
 
-def write_legacy_reflection_specialization(
-    lines: List[str],
-    reflected_type: Dict[str, Any],
-) -> None:
-    qualified_name = reflected_type.get("qualified_name", "")
-    type_guard = legacy_reflection_type_guard(qualified_name)
-    fields = reflected_type.get("fields", [])
-    lines.append(f"#ifndef {type_guard}")
-    lines.append(f"#define {type_guard}")
-    lines.append(f"srefl_class({qualified_name},")
-    if fields:
-        lines.append("    fields(")
-        for field_index, field in enumerate(fields):
-            suffix = "," if field_index + 1 < len(fields) else ""
-            lines.append(f"        field({field.get('name', '')}){suffix}")
-        lines.append("    )")
-    else:
-        lines.append("    fields()")
-    lines.append(")")
-    lines.append(f"#endif // {type_guard}")
-
-
 def write_generated_files(manifest: Dict[str, Any], out_dir: Path) -> List[Path]:
     out_dir.mkdir(parents=True, exist_ok=True)
     header_path = out_dir / "GeneratedReflection.h"
     source_path = out_dir / "GeneratedReflection.cpp"
-    source_header_dir = out_dir / "Reflection"
     manifest_types = manifest.get("types", [])
     written_files = [header_path, source_path]
-
-    if source_header_dir.exists():
-        for existing_source_header in source_header_dir.glob("*.generated.h"):
-            existing_source_header.unlink()
 
     header_lines = [
         "#pragma once",
@@ -864,6 +823,7 @@ def write_generated_files(manifest: Dict[str, Any], out_dir: Path) -> List[Path]
             identifier = cpp_identifier(qualified_name)
             if reflected_type.get("kind", "") == "component":
                 type_id = f"ComponentTypeIdOf<{qualified_name}>()"
+                size = f"sizeof({qualified_name})"
                 construct = f"&ConstructDefault_{identifier}"
                 destroy = f"&Destroy_{identifier}"
                 copy = f"&Copy_{identifier}"
@@ -872,6 +832,7 @@ def write_generated_files(manifest: Dict[str, Any], out_dir: Path) -> List[Path]
                 add_copy_to_world = f"&AddCopyToWorld_{identifier}"
             else:
                 type_id = "InvalidComponentTypeId"
+                size = "0"
                 construct = "nullptr"
                 destroy = "nullptr"
                 copy = "nullptr"
@@ -888,6 +849,7 @@ def write_generated_files(manifest: Dict[str, Any], out_dir: Path) -> List[Path]
                         cpp_string(reflected_type.get("display_name", "")),
                         cpp_string(reflected_type.get("category", "")),
                         type_id,
+                        size,
                         field_span,
                         construct,
                         destroy,
@@ -945,14 +907,11 @@ def write_generated_files(manifest: Dict[str, Any], out_dir: Path) -> List[Path]
     lines.append("}")
     lines.append("")
     lines.append("void RegisterGeneratedComponents(ComponentRegistry& registry) {")
-    for reflected_type in manifest_types:
-        if reflected_type.get("kind", "") != "component":
-            continue
-        lines.append(f"    registry.Register<{reflected_type.get('qualified_name', '')}>({{")
-        lines.append(f"        .TypeName = {cpp_string(reflected_type.get('name', ''))},")
-        lines.append(f"        .DisplayName = {cpp_string(reflected_type.get('display_name', ''))},")
-        lines.append(f"        .Category = {cpp_string(reflected_type.get('category', ''))}")
-        lines.append("    });")
+    lines.append("    for (const Refl::RuntimeTypeDescriptor& type : Refl::GetRuntimeTypes()) {")
+    lines.append("        if (type.Kind == \"component\") {")
+    lines.append("            registry.Register(type);")
+    lines.append("        }")
+    lines.append("    }")
     lines.append("}")
     lines.append("")
     lines.append("} // namespace HE::Generated")

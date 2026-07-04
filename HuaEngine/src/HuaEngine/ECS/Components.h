@@ -15,8 +15,6 @@
 #include "HuaEngine/Reflection/ReflectionMarkers.h"
 
 namespace HE {
-	struct Component {};
-
 	HE_REFLECT_COMPONENT(DisplayName="Name", Category="Core")
 	struct NameComponent : Component {
 		HE_REFLECT_FIELD()
