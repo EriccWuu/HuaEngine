@@ -61,6 +61,7 @@ int main() {
 	Require(
 		HE::Refl::GetRuntimeFieldValueKind(*meshAsset) == HE::Refl::RuntimeFieldValueKind::AssetRef,
 		"Expected Mesh to use AssetRef runtime editor");
+	Require(HE::Editor::IsRuntimeFieldEditable(*meshAsset), "Expected Mesh asset ref to be runtime editable");
 	Require(FindField(mesh->RuntimeType->Fields, "MeshAssetName") == nullptr, "Expected MeshAssetName field to be removed");
 
 	const HE::ComponentMetadata* material = registry.FindByType<HE::Rendering::MaterialComponent>();
@@ -70,6 +71,7 @@ int main() {
 	Require(
 		HE::Refl::GetRuntimeFieldValueKind(*materialAsset) == HE::Refl::RuntimeFieldValueKind::AssetRef,
 		"Expected Material to use AssetRef runtime field kind");
+	Require(HE::Editor::IsRuntimeFieldEditable(*materialAsset), "Expected Material asset ref to be runtime editable");
 	const auto* overrides = FindField(material->RuntimeType->Fields, "Overrides");
 	Require(overrides != nullptr, "Expected MaterialComponent Overrides field");
 	Require(
@@ -109,6 +111,18 @@ int main() {
 	std::stringstream inspectorBuffer;
 	inspectorBuffer << inspectorStream.rdbuf();
 	const std::string inspectorSource = inspectorBuffer.str();
+	const std::filesystem::path runtimeInspectorPath = repositoryRoot / "Editor" / "src" / "Panels" / "RuntimeInspector.cpp";
+	std::ifstream runtimeInspectorStream(runtimeInspectorPath);
+	Require(runtimeInspectorStream.good(), "Expected RuntimeInspector.cpp to be readable");
+	std::stringstream runtimeInspectorBuffer;
+	runtimeInspectorBuffer << runtimeInspectorStream.rdbuf();
+	const std::string runtimeInspectorSource = runtimeInspectorBuffer.str();
+	Require(
+		runtimeInspectorSource.find("DrawRuntimeAssetRefField") != std::string::npos,
+		"Expected RuntimeInspector to draw typed asset refs explicitly");
+	Require(
+		runtimeInspectorSource.find("case Refl::RuntimeFieldValueKind::AssetRef") != std::string::npos,
+		"Expected RuntimeInspector AssetRef switch case");
 	Require(
 		inspectorSource.find("ComponentEditorRegistry") == std::string::npos,
 		"Expected InspectorPanel not to use legacy ComponentEditorRegistry");

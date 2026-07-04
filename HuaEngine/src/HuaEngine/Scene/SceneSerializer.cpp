@@ -1,15 +1,46 @@
 #include "enginepch.h"
 #include "SceneSerializer.h"
 
+#include "HuaEngine/Asset/AssetManifest.h"
 #include "HuaEngine/Asset/AssetTypes.h"
 #include "HuaEngine/ECS/ComponentRegistry.h"
+#include "HuaEngine/Project/ProjectService.h"
 #include "Module/Rendering/RenderingComponent.h"
 
+#include <filesystem>
+#include <vector>
+
 namespace {
+	thread_local std::vector<std::filesystem::path> s_SceneSerializationPathStack;
+
 	HE::ComponentRegistry CreateSceneComponentRegistry() {
 		HE::ComponentRegistry registry;
 		HE::RegisterCoreComponents(registry);
 		return registry;
+	}
+
+	HE::AssetGuid ResolveManifestMeshGuid(const std::string& meshAssetName) {
+		if (s_SceneSerializationPathStack.empty() || meshAssetName.empty()) {
+			return {};
+		}
+
+		HE::ProjectContext context;
+		HE::ProjectService projectService;
+		if (!projectService.ResolveProjectContext(s_SceneSerializationPathStack.back(), context).Succeeded()) {
+			return {};
+		}
+
+		HE::AssetManifest manifest;
+		if (!HE::LoadAssetManifest(context, manifest).Succeeded()) {
+			return {};
+		}
+
+		const HE::AssetManifestRecord* record = manifest.FindByAssetId(meshAssetName);
+		if (record == nullptr || record->Kind != HE::AssetKind::Mesh) {
+			return {};
+		}
+
+		return record->Guid;
 	}
 
 	HE::AssetGuid ResolveLegacyMeshGuid(const std::string& meshAssetName) {
@@ -23,53 +54,21 @@ namespace {
 			return HE::BuiltinAssetGuids::SphereMesh;
 		}
 
+		if (auto manifestGuid = ResolveManifestMeshGuid(meshAssetName); !manifestGuid.empty()) {
+			return manifestGuid;
+		}
+
 		HE_CORE_WARN("Scene migration could not map legacy MeshAssetName '{}'", meshAssetName);
 		return {};
 	}
 
-	bool DeserializeLegacyVec4Override(
+	bool DeserializeLegacyMaterialOverride(
 		HE::Serialization::SerializationBackend& backend,
 		const std::string& parameterName,
 		HE::Rendering::MaterialOverrideSet& overrides) {
-		std::string type;
-		if (!backend.Deserialize("value_type", type)) {
-			(void)backend.Deserialize("type", type);
-		}
-
-		if (type != "Vec4" && type != "vec4") {
-			return true;
-		}
-
-		glm::vec4 value(0.0f);
-		bool success = false;
-		if (backend.HasField("value") && backend.GetFieldType("value") == HE::Serialization::SerializationType::Object) {
-			backend.BeginObject("value");
-			success = backend.Deserialize("x", value.x);
-			success &= backend.Deserialize("y", value.y);
-			success &= backend.Deserialize("z", value.z);
-			success &= backend.Deserialize("w", value.w);
-			backend.EndObject();
-		}
-		else if (backend.HasField("value") && backend.GetFieldType("value") == HE::Serialization::SerializationType::Array &&
-			backend.GetArraySize("value") == 4) {
-			backend.BeginArray("value");
-			backend.BeginArrayElement(0);
-			success = backend.Deserialize("", value.x);
-			backend.EndArrayElement();
-			backend.BeginArrayElement(1);
-			success &= backend.Deserialize("", value.y);
-			backend.EndArrayElement();
-			backend.BeginArrayElement(2);
-			success &= backend.Deserialize("", value.z);
-			backend.EndArrayElement();
-			backend.BeginArrayElement(3);
-			success &= backend.Deserialize("", value.w);
-			backend.EndArrayElement();
-			backend.EndArray();
-		}
-
-		if (success) {
-			overrides.Parameters[parameterName] = value;
+		HE::Rendering::MaterialParameterValue value;
+		if (HE::Serialization::MaterialOverrideSerialization::DeserializeMaterialParameterValue(backend, value)) {
+			overrides.Parameters[parameterName] = std::move(value);
 			return true;
 		}
 
@@ -90,11 +89,11 @@ namespace {
 		}
 	}
 
-	void MigrateLegacyMaterialComponent(
+	bool MigrateLegacyMaterialComponent(
 		HE::Serialization::SerializationBackend& backend,
 		HE::Rendering::MaterialComponent& component) {
 		if (!backend.HasField("MaterialInstance")) {
-			return;
+			return true;
 		}
 
 		if (!component.Material.Reference.IsValid()) {
@@ -103,41 +102,45 @@ namespace {
 
 		if (backend.GetFieldType("MaterialInstance") != HE::Serialization::SerializationType::Object) {
 			HE_CORE_WARN("Scene migration found legacy MaterialInstance with unsupported shape");
-			return;
+			return false;
 		}
 
+		bool success = true;
 		backend.BeginObject("MaterialInstance");
 		if (backend.HasField("parameter_overrides") &&
 			backend.GetFieldType("parameter_overrides") == HE::Serialization::SerializationType::Object) {
 			backend.BeginObject("parameter_overrides");
 			backend.ForEachField([&](const std::string& parameterName) {
-				(void)DeserializeLegacyVec4Override(backend, parameterName, component.Overrides);
+				success &= DeserializeLegacyMaterialOverride(backend, parameterName, component.Overrides);
 			});
 			backend.EndObject();
 		}
 		backend.EndObject();
+		return success;
 	}
 
-	void MigrateLegacyComponent(
+	bool MigrateLegacyComponent(
 		HE::Serialization::SerializationBackend& backend,
 		const std::string& componentName,
 		void* component) {
 		if (componentName != "MeshComponent" && componentName != "MaterialComponent") {
-			return;
+			return true;
 		}
 		if (!backend.HasField(componentName) ||
 			backend.GetFieldType(componentName) != HE::Serialization::SerializationType::Object) {
-			return;
+			return true;
 		}
 
 		backend.BeginObject(componentName);
+		bool success = true;
 		if (componentName == "MeshComponent") {
 			MigrateLegacyMeshComponent(backend, *static_cast<HE::Rendering::MeshComponent*>(component));
 		}
 		else {
-			MigrateLegacyMaterialComponent(backend, *static_cast<HE::Rendering::MaterialComponent*>(component));
+			success = MigrateLegacyMaterialComponent(backend, *static_cast<HE::Rendering::MaterialComponent*>(component));
 		}
 		backend.EndObject();
+		return success;
 	}
 
 	void SerializeEntity(
@@ -205,8 +208,12 @@ namespace {
 					componentName,
 					component);
 				if (componentSuccess) {
-					MigrateLegacyComponent(backend, componentName, component);
-					metadata->AddCopyToWorld(scene.GetWorld(), entity.GetId(), component);
+					if (MigrateLegacyComponent(backend, componentName, component)) {
+						metadata->AddCopyToWorld(scene.GetWorld(), entity.GetId(), component);
+					}
+					else {
+						success = false;
+					}
 				}
 				else {
 					success = false;
@@ -227,6 +234,18 @@ namespace {
 }
 
 namespace HE::Serialization {
+	namespace Detail {
+		void PushSceneSerializationPath(const std::filesystem::path& path) {
+			s_SceneSerializationPathStack.push_back(path);
+		}
+
+		void PopSceneSerializationPath() {
+			if (!s_SceneSerializationPathStack.empty()) {
+				s_SceneSerializationPathStack.pop_back();
+			}
+		}
+	}
+
 	void Serializer<Scene>::Serialize(SerializationBackend& backend, const std::string& name, const Scene& scene) {
 		if (!name.empty()) {
 			backend.BeginObject(name);

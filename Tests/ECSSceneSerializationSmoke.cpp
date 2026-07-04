@@ -1,5 +1,7 @@
 #include "HuaEngine/ECS/Components.h"
+#include "HuaEngine/Asset/AssetManifest.h"
 #include "HuaEngine/Asset/AssetTypes.h"
+#include "HuaEngine/Project/ProjectService.h"
 #include "HuaEngine/Scene/Scene.h"
 #include "HuaEngine/Scene/SceneSerializer.h"
 #include "Module/Rendering/RenderingComponent.h"
@@ -22,6 +24,7 @@ namespace {
 
 int main() {
 	HE::Serialization::InitializeSerialization();
+	std::error_code removeError;
 
 	HE::Scene scene("Serialized ECS Scene");
 	auto entity = scene.GetWorld().CreateEntity("Camera");
@@ -149,9 +152,64 @@ int main() {
 	Require(migratedText.find("MaterialInstance") == std::string::npos, "Expected migrated save to omit MaterialInstance");
 	Require(migratedText.find("builtin-mesh-cube") != std::string::npos, "Expected migrated save to contain cube GUID");
 
-	std::error_code removeError;
+	const auto projectRoot = std::filesystem::temp_directory_path() / "HuaEngineECSSceneSerializationSmokeProject";
+	std::filesystem::remove_all(projectRoot, removeError);
+	HE::ProjectService projectService;
+	HE::ProjectContext projectContext;
+	Require(projectService.InitializeProject(projectRoot, &projectContext, "SceneMigrationProject").Succeeded(), "Expected project init for scene migration");
+	HE::AssetManifest manifest;
+	Require(HE::LoadOrCreateAssetManifest(projectContext, manifest).Succeeded(), "Expected project manifest init for scene migration");
+	HE::AssetManifestRecord customMeshRecord;
+	customMeshRecord.Guid = "custom-mesh-guid-smokequad";
+	customMeshRecord.AssetId = "Meshes/SmokeQuad.mesh";
+	customMeshRecord.Kind = HE::AssetKind::Mesh;
+	customMeshRecord.Source = HE::AssetSource::File;
+	customMeshRecord.RelativePath = "Meshes/SmokeQuad.mesh";
+	customMeshRecord.ImportState = HE::AssetImportState::Registered;
+	Require(manifest.Upsert(customMeshRecord), "Expected custom mesh manifest upsert");
+	Require(HE::SaveAssetManifest(projectContext, manifest).Succeeded(), "Expected custom mesh manifest save");
+
+	const auto legacyCustomPath = projectContext.GetSceneRootPath() / "LegacyCustomMesh.scene";
+	std::ofstream legacyCustomFile(legacyCustomPath, std::ios::trunc);
+	Require(legacyCustomFile.is_open(), "Expected custom legacy scene file to be writable");
+	legacyCustomFile << R"({
+  "entities": [
+    {
+      "components": {
+        "MeshComponent": {
+          "MeshAssetName": "Meshes/SmokeQuad.mesh"
+        }
+      },
+      "name": "Legacy Custom Mesh",
+      "uuid": "00000000000000000000000000000089"
+    }
+  ],
+  "name": "Legacy Custom Mesh Scene",
+  "version": 3
+})";
+	legacyCustomFile.close();
+
+	HE::Scene legacyCustomLoaded;
+	Require(HE::Serialization::LoadScene(legacyCustomPath.string(), legacyCustomLoaded), "Expected custom legacy mesh scene to load");
+	auto legacyCustomEntity = legacyCustomLoaded.GetWorld().GetEntity(HE::EntityUuid::FromString("00000000000000000000000000000089"));
+	Require(legacyCustomEntity.IsValid(), "Expected custom legacy mesh entity to load");
+	Require(legacyCustomEntity.HasComponent<HE::Rendering::MeshComponent>(), "Expected custom legacy mesh component");
+	const auto& legacyCustomMesh = legacyCustomEntity.GetComponent<HE::Rendering::MeshComponent>();
+	Require(legacyCustomMesh.Mesh.Reference.Guid == customMeshRecord.Guid, "Expected legacy custom mesh asset id to migrate through manifest GUID lookup");
+
+	const auto migratedCustomPath = projectContext.GetSceneRootPath() / "MigratedCustomMesh.scene";
+	Require(HE::Serialization::SaveScene(legacyCustomLoaded, migratedCustomPath.string()), "Expected migrated custom mesh scene save");
+	const std::string migratedCustomText = [&]() {
+		std::ifstream migratedCustomFile(migratedCustomPath);
+		Require(migratedCustomFile.is_open(), "Expected migrated custom scene file to be readable");
+		return std::string((std::istreambuf_iterator<char>(migratedCustomFile)), std::istreambuf_iterator<char>());
+	}();
+	Require(migratedCustomText.find("MeshAssetName") == std::string::npos, "Expected custom migrated save to omit MeshAssetName");
+	Require(migratedCustomText.find(customMeshRecord.Guid) != std::string::npos, "Expected custom migrated save to preserve manifest GUID");
+
 	std::filesystem::remove(path, removeError);
 	std::filesystem::remove(legacyPath, removeError);
 	std::filesystem::remove(migratedPath, removeError);
+	std::filesystem::remove_all(projectRoot, removeError);
 	return 0;
 }

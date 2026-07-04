@@ -6,6 +6,7 @@
 #include <sstream>
 #include <string>
 #include <stdexcept>
+#include <variant>
 
 #include "HuaEngine/ECS/Components.h"
 #include "HuaEngine/Asset/AssetTypes.h"
@@ -170,6 +171,42 @@ namespace {
 		Require(
 			material.BlendMode == HE::Rendering::MaterialBlendMode::Masked,
 			"Expected failed enum deserialization not to overwrite existing enum value");
+	}
+
+	void VerifyMaterialOverrideSetBasicTypesRoundTripAndRejectsUnknownTypes() {
+		HE::Rendering::MaterialOverrideSet overrides;
+		overrides.Parameters["u_Roughness"] = 0.75f;
+		overrides.Parameters["u_Tint"] = glm::vec3(0.1f, 0.2f, 0.3f);
+
+		const std::string json = HE::Serialization::ToJson(overrides);
+		Require(json.find("\"u_Roughness\"") != std::string::npos, "Expected float material override to serialize");
+		Require(json.find("\"float\"") != std::string::npos, "Expected float material override type");
+		Require(json.find("\"u_Tint\"") != std::string::npos, "Expected vec3 material override to serialize");
+		Require(json.find("\"vec3\"") != std::string::npos, "Expected vec3 material override type");
+
+		HE::Rendering::MaterialOverrideSet loaded;
+		Require(HE::Serialization::FromJson(json, loaded), "Expected material overrides to deserialize");
+		Require(std::holds_alternative<float>(loaded.Parameters.at("u_Roughness")), "Expected u_Roughness to deserialize as float");
+		Require(std::get<float>(loaded.Parameters.at("u_Roughness")) == 0.75f, "Expected float override value to round-trip");
+		Require(std::holds_alternative<glm::vec3>(loaded.Parameters.at("u_Tint")), "Expected u_Tint to deserialize as vec3");
+		Require(std::get<glm::vec3>(loaded.Parameters.at("u_Tint")) == glm::vec3(0.1f, 0.2f, 0.3f), "Expected vec3 override value to round-trip");
+
+		HE::Serialization::JsonSerializationBackend backend;
+		backend.LoadFromString(R"({
+  "Overrides": {
+    "parameters": {
+      "u_Unsupported": {
+        "type": "texture2d",
+        "value": "Texture.png"
+      }
+    }
+  },
+  "Sibling": true
+})");
+		HE::Rendering::MaterialOverrideSet rejected;
+		Require(!HE::Serialization::DeserializeValue(backend, "Overrides", rejected), "Expected unknown material override type to fail");
+		Require(backend.HasField("Sibling"), "Expected failed override deserialize to restore backend scope");
+		Require(rejected.Parameters.empty(), "Expected failed override deserialize not to keep unsupported value");
 	}
 
 	void VerifyMissingReflectedFieldsKeepDefaults() {
@@ -354,6 +391,10 @@ namespace {
                   "z": 0.3,
                   "w": 1.0
                 }
+              },
+              "u_Roughness": {
+                "value_type": "Float",
+                "value": 0.65
               }
             }
           }
@@ -392,6 +433,8 @@ namespace {
 		const auto& material = legacyEntity.GetComponent<HE::Rendering::MaterialComponent>();
 		Require(material.Material.Reference.Guid == HE::BuiltinAssetGuids::DefaultMaterial, "Expected legacy material to migrate to default material GUID");
 		Require(material.Overrides.Parameters.find("u_BaseColor") != material.Overrides.Parameters.end(), "Expected legacy material override to migrate");
+		Require(material.Overrides.Parameters.find("u_Roughness") != material.Overrides.Parameters.end(), "Expected legacy float material override to migrate");
+		Require(std::get<float>(material.Overrides.Parameters.at("u_Roughness")) == 0.65f, "Expected legacy float material override value to migrate");
 
 		const auto migratedScenePath = MakePolicyPath("HuaEngineSerializationPolicyMigratedMaterialComponent.scene");
 		Require(HE::Serialization::SaveScene(legacyLoaded, migratedScenePath.string()), "Expected migrated material scene to save");
@@ -518,6 +561,7 @@ int main() {
 		VerifyUnknownFieldsAreIgnored();
 		VerifyRefNullRoundTrip();
 		VerifyRefNonNullRoundTrip();
+		VerifyMaterialOverrideSetBasicTypesRoundTripAndRejectsUnknownTypes();
 		VerifyRuntimeComponentDeserializeFailureDoesNotPartiallyMutate();
 		VerifyUnknownEnumStringFailsWithoutMutation();
 		VerifyUnknownSceneComponentIsSkipped();

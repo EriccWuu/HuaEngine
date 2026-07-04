@@ -25,19 +25,19 @@
       "kind": "component",
       "declaration_kind": "struct",
       "source": "HuaEngine/src/Module/Rendering/RenderingComponent.h",
-      "line": 26,
+      "line": 27,
       "fields": [
         {
           "name": "Primary",
           "type": "bool",
           "source": "HuaEngine/src/Module/Rendering/RenderingComponent.h",
-          "line": 34
+          "line": 35
         },
         {
           "name": "FixedAspectRatio",
           "type": "bool",
           "source": "HuaEngine/src/Module/Rendering/RenderingComponent.h",
-          "line": 36
+          "line": 37
         }
       ],
       "display_name": "Camera",
@@ -49,25 +49,25 @@
       "kind": "component",
       "declaration_kind": "struct",
       "source": "HuaEngine/src/Module/Rendering/RenderingComponent.h",
-      "line": 53,
+      "line": 62,
       "fields": [
         {
           "name": "Material",
           "type": "MaterialAssetRef",
           "source": "HuaEngine/src/Module/Rendering/RenderingComponent.h",
-          "line": 59
+          "line": 68
         },
         {
           "name": "Overrides",
           "type": "MaterialOverrideSet",
           "source": "HuaEngine/src/Module/Rendering/RenderingComponent.h",
-          "line": 61
+          "line": 70
         },
         {
           "name": "BlendMode",
           "type": "MaterialBlendMode",
           "source": "HuaEngine/src/Module/Rendering/RenderingComponent.h",
-          "line": 63
+          "line": 72
         }
       ],
       "display_name": "Material",
@@ -79,13 +79,13 @@
       "kind": "component",
       "declaration_kind": "struct",
       "source": "HuaEngine/src/Module/Rendering/RenderingComponent.h",
-      "line": 77,
+      "line": 86,
       "fields": [
         {
           "name": "Mesh",
           "type": "MeshAssetRef",
           "source": "HuaEngine/src/Module/Rendering/RenderingComponent.h",
-          "line": 83
+          "line": 92
         }
       ],
       "display_name": "Mesh",
@@ -128,7 +128,7 @@
       "qualified_name": "HE::Rendering::MaterialBlendMode",
       "underlying_type": "int",
       "source": "HuaEngine/src/Module/Rendering/RenderingComponent.h",
-      "line": 19,
+      "line": 20,
       "values": [
         {
           "name": "Opaque",

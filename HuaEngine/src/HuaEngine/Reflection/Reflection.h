@@ -212,16 +212,18 @@ inline bool IsRuntimeFieldReadOnly(const RuntimeFieldDescriptor& field) {
 }
 
 inline bool IsRuntimeFieldEditable(const RuntimeFieldDescriptor& field) {
-    if (!HasRuntimeFieldFlag(field.Flags, RuntimeFieldFlags::Editable) ||
-        IsRuntimeFieldReadOnly(field) ||
-        field.GetMutable == nullptr) {
+    if (IsRuntimeFieldReadOnly(field) || field.GetMutable == nullptr) {
         return false;
     }
 
     const RuntimeFieldValueKind kind = GetRuntimeFieldValueKind(field);
-    return kind != RuntimeFieldValueKind::Unsupported &&
-           kind != RuntimeFieldValueKind::Object &&
-           kind != RuntimeFieldValueKind::AssetRef;
+    if (kind == RuntimeFieldValueKind::AssetRef) {
+        return IsRuntimeFieldSerializable(field);
+    }
+
+    return HasRuntimeFieldFlag(field.Flags, RuntimeFieldFlags::Editable) &&
+           kind != RuntimeFieldValueKind::Unsupported &&
+           kind != RuntimeFieldValueKind::Object;
 }
 
 inline const void* GetRuntimeFieldConst(const RuntimeFieldDescriptor& field, const void* object) {

@@ -1,10 +1,13 @@
 #include "RuntimeInspector.h"
 
 #include <algorithm>
+#include <array>
+#include <cstring>
 #include <utility>
 
 #include "glm/glm.hpp"
 #include "imgui.h"
+#include "HuaEngine/Asset/AssetTypes.h"
 
 namespace HE::Editor {
 	namespace {
@@ -82,6 +85,39 @@ namespace HE::Editor {
 					}
 				}
 				ImGui::EndCombo();
+			}
+			return changed;
+		}
+
+		AssetGuid* GetAssetRefGuid(const Refl::RuntimeFieldDescriptor& field, void* value) {
+			if (field.Type == "MeshAssetRef") {
+				return &static_cast<MeshAssetRef*>(value)->Reference.Guid;
+			}
+			if (field.Type == "MaterialAssetRef") {
+				return &static_cast<MaterialAssetRef*>(value)->Reference.Guid;
+			}
+			if (field.Type == "TextureAssetRef") {
+				return &static_cast<TextureAssetRef*>(value)->Reference.Guid;
+			}
+			return nullptr;
+		}
+
+		bool DrawRuntimeAssetRefField(const Refl::RuntimeFieldDescriptor& field, void* value, const char* label) {
+			AssetGuid* guid = GetAssetRefGuid(field, value);
+			if (guid == nullptr) {
+				ImGui::TextDisabled("%s: unsupported asset ref %.*s", label, static_cast<int>(field.Type.size()), field.Type.data());
+				return false;
+			}
+
+			std::array<char, 256> editedGuid{};
+			const size_t copyLength = std::min(guid->size(), editedGuid.size() - 1);
+			std::memcpy(editedGuid.data(), guid->data(), copyLength);
+			const bool changed = ImGui::InputText(
+				label,
+				editedGuid.data(),
+				editedGuid.size());
+			if (changed) {
+				*guid = editedGuid.data();
 			}
 			return changed;
 		}
@@ -170,9 +206,11 @@ namespace HE::Editor {
 			case Refl::RuntimeFieldValueKind::Enum:
 				changed = DrawRuntimeEnumField(field, component, label);
 				break;
+			case Refl::RuntimeFieldValueKind::AssetRef:
+				changed = DrawRuntimeAssetRefField(field, value, label);
+				break;
 			case Refl::RuntimeFieldValueKind::Unsupported:
 			case Refl::RuntimeFieldValueKind::Object:
-			case Refl::RuntimeFieldValueKind::AssetRef:
 			default:
 				ImGui::TextDisabled("%s: unsupported %.*s", label, static_cast<int>(field.Type.size()), field.Type.data());
 				break;

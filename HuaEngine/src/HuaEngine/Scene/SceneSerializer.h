@@ -5,7 +5,13 @@
 #include "HuaEngine/Serialization/Serialization.h"
 #include "HuaEngine/Serialization/SerializationManager.h"
 
+#include <filesystem>
+
 namespace HE::Serialization {
+	namespace Detail {
+		void PushSceneSerializationPath(const std::filesystem::path& path);
+		void PopSceneSerializationPath();
+	}
 
     // Scene serialization template
     template<>
@@ -20,7 +26,10 @@ namespace HE::Serialization {
     }
 
     inline bool LoadScene(const std::string& filename, Scene& scene, SerializationFormat format = SerializationFormat::JSON) {
-        return DESERIALIZE_FROM_FILE(filename, scene, format);
+        Detail::PushSceneSerializationPath(filename);
+        const bool result = DESERIALIZE_FROM_FILE(filename, scene, format);
+        Detail::PopSceneSerializationPath();
+        return result;
     }
 
     // Pointer convenience functions (for compatibility)
