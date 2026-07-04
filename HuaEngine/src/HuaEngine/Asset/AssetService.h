@@ -5,6 +5,9 @@
 #include "AssetRegistry.h"
 #include "HuaEngine/Core/ResultEnvelope.h"
 #include "HuaEngine/Project/ProjectContext.h"
+#include "HuaEngine/Rendering/Material/Material.h"
+#include "HuaEngine/Rendering/Mesh/MeshCore.h"
+#include "HuaEngine/Rendering/Texture.h"
 
 namespace HE {
 	struct AssetValidationReport {

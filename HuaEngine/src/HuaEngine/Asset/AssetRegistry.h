@@ -1,78 +1,29 @@
 #pragma once
 
-#include <cstdint>
 #include <filesystem>
 #include <string>
 #include <string_view>
 #include <unordered_map>
 
-#include "HuaEngine/Core/Core.h"
-#include "HuaEngine/Rendering/Material/Material.h"
-#include "HuaEngine/Rendering/Mesh/MeshCore.h"
-#include "HuaEngine/Rendering/Texture.h"
+#include "AssetTypes.h"
 
 namespace HE {
-	enum class AssetKind {
-		Unknown,
-		Mesh,
-		Material,
-		Texture2D
-	};
-
-	enum class BuiltinMeshPrimitive {
-		Quad,
-		Cube,
-		Sphere
-	};
-
-	using AssetHandle = uint64_t;
-
 	struct AssetRecord {
 		AssetHandle Handle = 0;
+		AssetGuid Guid;
 		AssetKind Kind = AssetKind::Unknown;
+		AssetSource Source = AssetSource::Unknown;
 		std::string AssetId;
 		std::filesystem::path RelativePath;
 		std::filesystem::path AbsolutePath;
+		std::string BuiltinName;
+		AssetImportState ImportState = AssetImportState::Unknown;
 		bool ExistsOnDisk = false;
-		Ref<Rendering::Mesh> Mesh;
-		Ref<Rendering::Material> Material;
-		Ref<Rendering::Texture2D> Texture;
-
-		[[nodiscard]] bool HasRuntimeValue() const {
-			return static_cast<bool>(Mesh) || static_cast<bool>(Material) || static_cast<bool>(Texture);
-		}
 
 		[[nodiscard]] bool IsOperational() const {
-			return !AssetId.empty() && (ExistsOnDisk || HasRuntimeValue());
+			return !Guid.empty() && !AssetId.empty() && Kind != AssetKind::Unknown && Source != AssetSource::Unknown;
 		}
 	};
-
-	inline constexpr std::string_view ToString(AssetKind kind) {
-		switch (kind) {
-		case AssetKind::Mesh:
-			return "mesh";
-		case AssetKind::Material:
-			return "material";
-		case AssetKind::Texture2D:
-			return "texture2d";
-		case AssetKind::Unknown:
-		default:
-			return "unknown";
-		}
-	}
-
-	inline constexpr std::string_view ToString(BuiltinMeshPrimitive primitive) {
-		switch (primitive) {
-		case BuiltinMeshPrimitive::Quad:
-			return "quad";
-		case BuiltinMeshPrimitive::Cube:
-			return "cube";
-		case BuiltinMeshPrimitive::Sphere:
-			return "sphere";
-		}
-
-		return "unknown";
-	}
 
 	class AssetRegistry {
 	public:
@@ -82,21 +33,37 @@ namespace HE {
 			}
 
 			AssetHandle handle = record.Handle;
-			const auto existingHandleIt = m_AssetIds.find(record.AssetId);
-			if (existingHandleIt != m_AssetIds.end()) {
-				handle = existingHandleIt->second;
+			const auto existingAssetIdIt = m_AssetIds.find(record.AssetId);
+			if (existingAssetIdIt != m_AssetIds.end()) {
+				handle = existingAssetIdIt->second;
 			}
-			else if (handle == 0) {
+			else if (!record.Guid.empty()) {
+				const auto existingGuidIt = m_Guids.find(record.Guid);
+				if (existingGuidIt != m_Guids.end()) {
+					handle = existingGuidIt->second;
+				}
+			}
+
+			if (handle == 0) {
 				handle = m_NextHandle++;
 			}
 
 			auto existingRecordIt = m_Assets.find(handle);
-			if (existingRecordIt != m_Assets.end() && existingRecordIt->second.AssetId != record.AssetId) {
+			if (existingRecordIt != m_Assets.end()) {
 				m_AssetIds.erase(existingRecordIt->second.AssetId);
+				if (!existingRecordIt->second.Guid.empty()) {
+					m_Guids.erase(existingRecordIt->second.Guid);
+				}
 			}
 
 			record.Handle = handle;
+			if (handle >= m_NextHandle) {
+				m_NextHandle = handle + 1;
+			}
 			m_AssetIds[record.AssetId] = handle;
+			if (!record.Guid.empty()) {
+				m_Guids[record.Guid] = handle;
+			}
 			m_Assets[handle] = std::move(record);
 			return handle;
 		}
@@ -107,6 +74,10 @@ namespace HE {
 
 		[[nodiscard]] bool Contains(std::string_view assetId) const {
 			return m_AssetIds.find(std::string(assetId)) != m_AssetIds.end();
+		}
+
+		[[nodiscard]] bool ContainsGuid(const AssetGuid& guid) const {
+			return m_Guids.find(guid) != m_Guids.end();
 		}
 
 		[[nodiscard]] const AssetRecord* Find(AssetHandle handle) const {
@@ -137,6 +108,24 @@ namespace HE {
 			return FindMutable(assetIdIt->second);
 		}
 
+		[[nodiscard]] const AssetRecord* FindByGuid(const AssetGuid& guid) const {
+			const auto guidIt = m_Guids.find(guid);
+			if (guidIt == m_Guids.end()) {
+				return nullptr;
+			}
+
+			return Find(guidIt->second);
+		}
+
+		[[nodiscard]] AssetRecord* FindMutableByGuid(const AssetGuid& guid) {
+			const auto guidIt = m_Guids.find(guid);
+			if (guidIt == m_Guids.end()) {
+				return nullptr;
+			}
+
+			return FindMutable(guidIt->second);
+		}
+
 		[[nodiscard]] size_t GetAssetCount() const {
 			return m_Assets.size();
 		}
@@ -153,5 +142,6 @@ namespace HE {
 		AssetHandle m_NextHandle = 1;
 		std::unordered_map<AssetHandle, AssetRecord> m_Assets;
 		std::unordered_map<std::string, AssetHandle> m_AssetIds;
+		std::unordered_map<AssetGuid, AssetHandle> m_Guids;
 	};
 }

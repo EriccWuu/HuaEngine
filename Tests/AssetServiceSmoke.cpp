@@ -5,6 +5,7 @@
 #include <string>
 
 #include "HuaEngine.h"
+#include "HuaEngine/Asset/AssetManifest.h"
 #include "HuaEngine/Asset/AssetService.h"
 #include "HuaEngine/Project/ProjectService.h"
 
@@ -68,6 +69,15 @@ int main() {
 	texturePlaceholder << "placeholder texture payload";
 	texturePlaceholder.close();
 
+	const auto manifestPath = projectContext.RootPath / ".hua" / "assets.json";
+	HE::AssetManifest manifest;
+	auto initManifestResult = HE::LoadOrCreateAssetManifest(projectContext, manifest);
+	Require(initManifestResult.Succeeded(), "Expected asset manifest to initialize");
+	Require(std::filesystem::is_regular_file(manifestPath), "Expected .hua/assets.json to be created");
+	Require(manifest.FindByGuid(HE::BuiltinAssetGuids::QuadMesh) != nullptr, "Expected builtin quad mesh GUID");
+	Require(manifest.FindByGuid(HE::BuiltinAssetGuids::FallbackMaterial) != nullptr, "Expected builtin fallback material GUID");
+	Require(manifest.FindByAssetId("builtin/mesh/quad") != nullptr, "Expected builtin quad asset id lookup");
+
 	HE::AssetService assetService;
 
 	HE::AssetHandle meshHandle = 0;
@@ -85,6 +95,12 @@ int main() {
 	auto stableRegisterResult = assetService.RegisterMeshAsset(projectContext, "Meshes/SmokeQuad.mesh", loadedMesh, &stableMeshHandle);
 	Require(stableRegisterResult.Succeeded(), "Expected repeated mesh registration to succeed");
 	Require(stableMeshHandle == meshHandle, "Expected repeated mesh registration to preserve the original asset handle");
+
+	HE::AssetRecord quadRecord;
+	Require(assetService.ResolveAsset("Meshes/SmokeQuad.mesh", quadRecord).Succeeded(), "Expected asset record lookup by id");
+	Require(!quadRecord.Guid.empty(), "Expected asset record to have stable guid");
+	Require(quadRecord.Handle != 0, "Expected runtime handle to remain available");
+	Require(quadRecord.Kind == HE::AssetKind::Mesh, "Expected mesh asset kind");
 
 	HE::AssetHandle materialHandle = 0;
 	auto loadMaterialResult = assetService.LoadMaterialAsset(projectContext, "Materials/SmokeMaterial.mat", &materialHandle);

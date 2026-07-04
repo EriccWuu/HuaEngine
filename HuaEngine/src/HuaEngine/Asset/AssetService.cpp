@@ -107,11 +107,24 @@ namespace {
 		std::string summary) {
 		auto result = HE::ResultEnvelope::Success(std::move(operation), record.AssetId, std::move(summary));
 		result.SetPayloadValue("asset_handle", HandleToString(record.Handle));
+		result.SetPayloadValue("asset_guid", record.Guid);
 		result.SetPayloadValue("asset_id", record.AssetId);
 		result.SetPayloadValue("asset_kind", std::string(HE::ToString(record.Kind)));
+		result.SetPayloadValue("asset_source", std::string(HE::ToString(record.Source)));
+		result.SetPayloadValue("import_state", std::string(HE::ToString(record.ImportState)));
 		result.SetPayloadValue("asset_path", record.AbsolutePath.generic_string());
 		result.SetPayloadValue("exists_on_disk", record.ExistsOnDisk ? "true" : "false");
 		return result;
+	}
+
+	HE::AssetGuid GetExistingGuidOrGenerate(const HE::AssetRegistry& registry, std::string_view assetId) {
+		if (const auto* existing = registry.Find(assetId)) {
+			if (!existing->Guid.empty()) {
+				return existing->Guid;
+			}
+		}
+
+		return HE::GenerateAssetGuid();
 	}
 
 	HE::ResultEnvelope MakeResolveFailure(std::string operation, std::string target, std::string summary) {
@@ -207,12 +220,14 @@ namespace HE {
 		Rendering::MeshManager::Instance().RegisterMesh(normalizedPath.AssetId, mesh);
 
 		AssetRecord record;
+		record.Guid = GetExistingGuidOrGenerate(m_Registry, normalizedPath.AssetId);
 		record.Kind = AssetKind::Mesh;
+		record.Source = AssetSource::File;
 		record.AssetId = normalizedPath.AssetId;
 		record.RelativePath = normalizedPath.RelativePath;
 		record.AbsolutePath = normalizedPath.AbsolutePath;
 		record.ExistsOnDisk = normalizedPath.ExistsOnDisk;
-		record.Mesh = mesh;
+		record.ImportState = AssetImportState::Registered;
 
 		const auto handle = m_Registry.Upsert(std::move(record));
 		if (outHandle) {
@@ -274,12 +289,14 @@ namespace HE {
 		}
 
 		AssetRecord record;
+		record.Guid = GetExistingGuidOrGenerate(m_Registry, normalizedPath.AssetId);
 		record.Kind = AssetKind::Material;
+		record.Source = AssetSource::File;
 		record.AssetId = normalizedPath.AssetId;
 		record.RelativePath = normalizedPath.RelativePath;
 		record.AbsolutePath = normalizedPath.AbsolutePath;
 		record.ExistsOnDisk = normalizedPath.ExistsOnDisk;
-		record.Material = material;
+		record.ImportState = AssetImportState::Registered;
 
 		const auto handle = m_Registry.Upsert(std::move(record));
 		if (outHandle) {
@@ -330,15 +347,17 @@ namespace HE {
 		}
 
 		AssetRecord record;
+		record.Guid = GetExistingGuidOrGenerate(m_Registry, normalizedPath.AssetId);
 		record.Kind = AssetKind::Texture2D;
+		record.Source = AssetSource::File;
 		record.AssetId = normalizedPath.AssetId;
 		record.RelativePath = normalizedPath.RelativePath;
 		record.AbsolutePath = normalizedPath.AbsolutePath;
 		std::error_code errorCode;
 		record.ExistsOnDisk = std::filesystem::is_regular_file(normalizedPath.AbsolutePath, errorCode);
-		record.Texture = texture;
+		record.ImportState = record.ExistsOnDisk ? AssetImportState::Registered : AssetImportState::Missing;
 
-		if (!record.IsOperational()) {
+		if (!record.ExistsOnDisk && !texture) {
 			auto result = ResultEnvelope::ManualIntervention("asset.register_texture", normalizedPath.AssetId, "Texture asset is unresolved");
 			result.SetPayloadValue("asset_id", normalizedPath.AssetId);
 			result.SetPayloadValue("asset_kind", std::string(ToString(AssetKind::Texture2D)));
@@ -395,13 +414,14 @@ namespace HE {
 			return result;
 		}
 
-		if (!record->Mesh) {
+		auto mesh = Rendering::MeshManager::Instance().GetMesh(record->AssetId);
+		if (!mesh) {
 			auto result = ResultEnvelope::ManualIntervention("asset.resolve_mesh", HandleToString(handle), "Mesh asset is registered but has no runtime mesh payload");
 			result.AddDetail({ DiagnosticSeverity::Warning, "asset.mesh.unloaded", "Mesh asset must be loaded or registered with a runtime mesh before use", record->AssetId });
 			return result;
 		}
 
-		outMesh = record->Mesh;
+		outMesh = mesh;
 		auto result = ResultEnvelope::Success("asset.resolve_mesh", HandleToString(handle), "Mesh asset resolved");
 		result.SetPayloadValue("asset_id", record->AssetId);
 		return result;
@@ -419,13 +439,14 @@ namespace HE {
 			return result;
 		}
 
-		if (!record->Material) {
+		auto material = Rendering::MaterialLibrary::Instance().GetMaterial(record->AssetId);
+		if (!material) {
 			auto result = ResultEnvelope::ManualIntervention("asset.resolve_material", HandleToString(handle), "Material asset is registered but has no runtime material payload");
 			result.AddDetail({ DiagnosticSeverity::Warning, "asset.material.unloaded", "Material asset must be loaded or registered with a runtime material before use", record->AssetId });
 			return result;
 		}
 
-		outMaterial = record->Material;
+		outMaterial = material;
 		auto result = ResultEnvelope::Success("asset.resolve_material", HandleToString(handle), "Material asset resolved");
 		result.SetPayloadValue("asset_id", record->AssetId);
 		return result;
@@ -443,15 +464,9 @@ namespace HE {
 			return result;
 		}
 
-		if (!record->Texture) {
-			auto result = ResultEnvelope::ManualIntervention("asset.resolve_texture", HandleToString(handle), "Texture asset has no runtime texture payload");
-			result.AddDetail({ DiagnosticSeverity::Warning, "asset.texture.unloaded", "Texture asset currently only has metadata or a source path", record->AssetId });
-			return result;
-		}
-
-		outTexture = record->Texture;
-		auto result = ResultEnvelope::Success("asset.resolve_texture", HandleToString(handle), "Texture asset resolved");
-		result.SetPayloadValue("asset_id", record->AssetId);
+		outTexture = nullptr;
+		auto result = ResultEnvelope::ManualIntervention("asset.resolve_texture", HandleToString(handle), "Texture asset has no runtime texture payload");
+		result.AddDetail({ DiagnosticSeverity::Warning, "asset.texture.unloaded", "Texture asset currently only has metadata or a source path", record->AssetId });
 		return result;
 	}
 
@@ -483,19 +498,19 @@ namespace HE {
 			switch (record.Kind) {
 			case AssetKind::Mesh:
 				++report.MeshAssets;
-				if (!record.Mesh) {
+				if (!Rendering::MeshManager::Instance().GetMesh(record.AssetId)) {
 					++report.MeshAssetsMissingRuntimePayload;
 				}
 				break;
 			case AssetKind::Material:
 				++report.MaterialAssets;
-				if (!record.Material) {
+				if (!Rendering::MaterialLibrary::Instance().GetMaterial(record.AssetId)) {
 					++report.MaterialAssetsMissingRuntimePayload;
 				}
 				break;
 			case AssetKind::Texture2D:
 				++report.TextureAssets;
-				if (!record.Texture && record.ExistsOnDisk) {
+				if (record.ExistsOnDisk) {
 					++report.SourceOnlyTextureAssets;
 				}
 				break;

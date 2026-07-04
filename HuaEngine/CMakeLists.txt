@@ -13,6 +13,13 @@ file(GLOB_RECURSE HUAENGINE_SOURCES CONFIGURE_DEPENDS
     "src/*.h"
 )
 
+list(APPEND HUAENGINE_SOURCES
+    "${CMAKE_CURRENT_SOURCE_DIR}/src/HuaEngine/Asset/AssetTypes.h"
+    "${CMAKE_CURRENT_SOURCE_DIR}/src/HuaEngine/Asset/AssetManifest.h"
+    "${CMAKE_CURRENT_SOURCE_DIR}/src/HuaEngine/Asset/AssetManifest.cpp"
+)
+list(REMOVE_DUPLICATES HUAENGINE_SOURCES)
+
 # Collect STB Image files
 file(GLOB STB_IMAGE_SOURCES
     "${STB_IMAGE_INCLUDE_DIR}/*.cpp"
