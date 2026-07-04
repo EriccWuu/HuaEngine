@@ -55,6 +55,7 @@ namespace {
 		if (backend.HasField("components")) {
 			backend.BeginObject("components");
 			const auto componentNames = backend.GetObjectKeys();
+			bool success = true;
 			for (const auto& componentName : componentNames) {
 				const auto* metadata = componentRegistry.FindByName(componentName);
 				if (metadata == nullptr || metadata->ConstructDefault == nullptr ||
@@ -63,13 +64,26 @@ namespace {
 				}
 
 				void* component = metadata->ConstructDefault();
-				const bool success = metadata->Deserialize(backend, componentName, component);
-				if (success) {
+				if (component == nullptr) {
+					success = false;
+					continue;
+				}
+
+				const bool componentSuccess = metadata->Deserialize(backend, componentName, component);
+				if (componentSuccess) {
 					metadata->AddCopyToWorld(scene.GetWorld(), entity.GetId(), component);
+				}
+				else {
+					success = false;
 				}
 				metadata->Destroy(component);
 			}
 			backend.EndObject();
+
+			if (!success) {
+				backend.EndObject();
+				return false;
+			}
 		}
 
 		backend.EndObject();

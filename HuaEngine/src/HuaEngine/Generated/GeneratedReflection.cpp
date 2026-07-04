@@ -70,7 +70,13 @@ static bool Deserialize_HE__NameComponent(
     bool success = true;
     backend.BeginObject(name);
     if (backend.HasField("Name")) {
-        success &= Serialization::DeserializeValue(backend, "Name", component.Name);
+        auto fieldValue = component.Name;
+        if (Serialization::DeserializeValue(backend, "Name", fieldValue)) {
+            component.Name = fieldValue;
+        }
+        else {
+            success = false;
+        }
     }
     backend.EndObject();
     return success;
@@ -111,10 +117,22 @@ static bool Deserialize_HE__Rendering__CameraComponent(
     bool success = true;
     backend.BeginObject(name);
     if (backend.HasField("Primary")) {
-        success &= Serialization::DeserializeValue(backend, "Primary", component.Primary);
+        auto fieldValue = component.Primary;
+        if (Serialization::DeserializeValue(backend, "Primary", fieldValue)) {
+            component.Primary = fieldValue;
+        }
+        else {
+            success = false;
+        }
     }
     if (backend.HasField("FixedAspectRatio")) {
-        success &= Serialization::DeserializeValue(backend, "FixedAspectRatio", component.FixedAspectRatio);
+        auto fieldValue = component.FixedAspectRatio;
+        if (Serialization::DeserializeValue(backend, "FixedAspectRatio", fieldValue)) {
+            component.FixedAspectRatio = fieldValue;
+        }
+        else {
+            success = false;
+        }
     }
     backend.EndObject();
     return success;
@@ -154,7 +172,13 @@ static bool Deserialize_HE__Rendering__MaterialComponent(
     bool success = true;
     backend.BeginObject(name);
     if (backend.HasField("MaterialInstance")) {
-        success &= Serialization::DeserializeValue(backend, "MaterialInstance", component.MaterialInstance);
+        auto fieldValue = component.MaterialInstance;
+        if (Serialization::DeserializeValue(backend, "MaterialInstance", fieldValue)) {
+            component.MaterialInstance = fieldValue;
+        }
+        else {
+            success = false;
+        }
     }
     backend.EndObject();
     return success;
@@ -194,7 +218,13 @@ static bool Deserialize_HE__Rendering__MeshComponent(
     bool success = true;
     backend.BeginObject(name);
     if (backend.HasField("MeshAssetName")) {
-        success &= Serialization::DeserializeValue(backend, "MeshAssetName", component.MeshAssetName);
+        auto fieldValue = component.MeshAssetName;
+        if (Serialization::DeserializeValue(backend, "MeshAssetName", fieldValue)) {
+            component.MeshAssetName = fieldValue;
+        }
+        else {
+            success = false;
+        }
     }
     backend.EndObject();
     return success;
@@ -236,13 +266,31 @@ static bool Deserialize_HE__TransformComponent(
     bool success = true;
     backend.BeginObject(name);
     if (backend.HasField("Position")) {
-        success &= Serialization::DeserializeValue(backend, "Position", component.Position);
+        auto fieldValue = component.Position;
+        if (Serialization::DeserializeValue(backend, "Position", fieldValue)) {
+            component.Position = fieldValue;
+        }
+        else {
+            success = false;
+        }
     }
     if (backend.HasField("Rotation")) {
-        success &= Serialization::DeserializeValue(backend, "Rotation", component.Rotation);
+        auto fieldValue = component.Rotation;
+        if (Serialization::DeserializeValue(backend, "Rotation", fieldValue)) {
+            component.Rotation = fieldValue;
+        }
+        else {
+            success = false;
+        }
     }
     if (backend.HasField("Scale")) {
-        success &= Serialization::DeserializeValue(backend, "Scale", component.Scale);
+        auto fieldValue = component.Scale;
+        if (Serialization::DeserializeValue(backend, "Scale", fieldValue)) {
+            component.Scale = fieldValue;
+        }
+        else {
+            success = false;
+        }
     }
     backend.EndObject();
     return success;

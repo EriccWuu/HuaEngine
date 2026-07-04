@@ -800,9 +800,13 @@ def write_generated_files(manifest: Dict[str, Any], out_dir: Path) -> List[Path]
             field_name = field.get("name", "")
             field_literal = cpp_string(field_name)
             lines.append(f"    if (backend.HasField({field_literal})) {{")
-            lines.append(
-                f"        success &= Serialization::DeserializeValue(backend, {field_literal}, component.{field_name});"
-            )
+            lines.append(f"        auto fieldValue = component.{field_name};")
+            lines.append(f"        if (Serialization::DeserializeValue(backend, {field_literal}, fieldValue)) {{")
+            lines.append(f"            component.{field_name} = fieldValue;")
+            lines.append("        }")
+            lines.append("        else {")
+            lines.append("            success = false;")
+            lines.append("        }")
             lines.append("    }")
         lines.append("    backend.EndObject();")
         lines.append("    return success;")

@@ -1,9 +1,11 @@
-#include <cstdlib>
+#include <chrono>
+#include <cstdint>
 #include <filesystem>
 #include <fstream>
 #include <iostream>
 #include <sstream>
 #include <string>
+#include <stdexcept>
 
 #include "HuaEngine/ECS/Components.h"
 #include "HuaEngine/Scene/Scene.h"
@@ -49,15 +51,48 @@ srefl_class(HE::PolicyReflectedComponent,
 )
 
 namespace {
+	std::filesystem::path g_TempDirectory;
+
 	void Require(bool condition, const std::string& message) {
 		if (!condition) {
-			std::cerr << "[SerializationPolicySmoke] " << message << std::endl;
-			std::exit(1);
+			throw std::runtime_error(message);
 		}
 	}
 
+	std::filesystem::path CreateUniqueTempDirectory() {
+		const auto tempRoot = std::filesystem::temp_directory_path();
+		const auto timestamp = std::chrono::steady_clock::now().time_since_epoch().count();
+		const auto addressSalt = reinterpret_cast<std::uintptr_t>(&tempRoot);
+
+		for (uint32_t attempt = 0; attempt < 32; ++attempt) {
+			const auto candidate = tempRoot / (
+				"HuaEngineSerializationPolicySmoke_" +
+				std::to_string(timestamp) + "_" +
+				std::to_string(addressSalt) + "_" +
+				std::to_string(attempt));
+
+			std::error_code errorCode;
+			if (std::filesystem::create_directory(candidate, errorCode)) {
+				return candidate;
+			}
+		}
+
+		throw std::runtime_error("Expected unique test temp directory to be creatable");
+	}
+
+	void CleanupTempDirectory() {
+		if (g_TempDirectory.empty()) {
+			return;
+		}
+
+		std::error_code errorCode;
+		std::filesystem::remove_all(g_TempDirectory, errorCode);
+		g_TempDirectory.clear();
+	}
+
 	std::filesystem::path MakePolicyPath(const std::string& filename) {
-		return std::filesystem::temp_directory_path() / filename;
+		Require(!g_TempDirectory.empty(), "Expected test temp directory to be initialized");
+		return g_TempDirectory / filename;
 	}
 
 	void WriteTextFile(const std::filesystem::path& path, const std::string& content) {
@@ -77,6 +112,44 @@ namespace {
 	void RemoveFile(const std::filesystem::path& path) {
 		std::error_code errorCode;
 		std::filesystem::remove(path, errorCode);
+	}
+
+	void VerifyTransformRuntimeDeserializeRejectsPositionWithoutMutation(
+		const std::string& json,
+		const std::string& message) {
+		const HE::Refl::RuntimeTypeDescriptor* transformDescriptor = HE::Refl::FindRuntimeType("HE::TransformComponent");
+		Require(transformDescriptor != nullptr, "Expected TransformComponent runtime descriptor");
+		Require(transformDescriptor->Deserialize != nullptr, "Expected TransformComponent runtime deserializer");
+
+		const glm::vec3 sentinelPosition = { 9.0f, 9.0f, 9.0f };
+		HE::TransformComponent target;
+		target.Position = sentinelPosition;
+
+		HE::Serialization::JsonSerializationBackend backend;
+		backend.LoadFromString(json);
+		Require(!transformDescriptor->Deserialize(backend, std::string(transformDescriptor->Name), &target), message);
+		Require(target.Position == sentinelPosition, "Expected failed runtime Position deserialize to keep original value");
+	}
+
+	void VerifyRuntimeComponentDeserializeFailureDoesNotPartiallyMutate() {
+		VerifyTransformRuntimeDeserializeRejectsPositionWithoutMutation(R"({
+  "TransformComponent": {
+    "Position": {
+      "x": 1.0,
+      "y": 2.0
+    }
+  }
+})", "Expected runtime TransformComponent deserialize to fail when Position.z is missing");
+
+		VerifyTransformRuntimeDeserializeRejectsPositionWithoutMutation(R"({
+  "TransformComponent": {
+    "Position": {
+      "x": 1.0,
+      "y": 2.0,
+      "z": "bad"
+    }
+  }
+})", "Expected runtime TransformComponent deserialize to fail when Position.z has the wrong type");
 	}
 
 	void VerifyMissingReflectedFieldsKeepDefaults() {
@@ -184,6 +257,44 @@ namespace {
 		RemoveFile(scenePath);
 	}
 
+	void VerifyKnownSceneComponentInvalidFieldFailsLoad() {
+		const auto scenePath = MakePolicyPath("HuaEngineSerializationPolicyInvalidKnownComponent.scene");
+		WriteTextFile(scenePath, R"({
+  "entities": [
+    {
+      "components": {
+        "TransformComponent": {
+          "Position": {
+            "x": 7.0,
+            "y": 8.0,
+            "z": "bad"
+          },
+          "Rotation": {
+            "x": 11.0,
+            "y": 12.0,
+            "z": 13.0
+          },
+          "Scale": {
+            "x": 1.0,
+            "y": 1.0,
+            "z": 1.0
+          }
+        }
+      },
+      "name": "Invalid Known Component Entity",
+      "uuid": "00000000000000000000000000000044"
+    }
+  ],
+  "name": "Invalid Known Component Policy",
+  "version": 3
+})");
+
+		HE::Scene loaded;
+		Require(!HE::Serialization::LoadScene(scenePath.string(), loaded), "Expected scene load to fail when a known component field is invalid");
+
+		RemoveFile(scenePath);
+	}
+
 	void VerifyMissingSceneComponentFieldKeepsDefault() {
 		const auto scenePath = MakePolicyPath("HuaEngineSerializationPolicyMissingComponentField.scene");
 		const std::string uuid = "00000000000000000000000000000043";
@@ -247,17 +358,29 @@ namespace {
 }
 
 int main() {
-	HE::Log::Init({ .EnableConsoleOutput = false });
-	HE::Serialization::InitializeSerialization();
+	try {
+		g_TempDirectory = CreateUniqueTempDirectory();
 
-	VerifyMissingReflectedFieldsKeepDefaults();
-	VerifyUnknownFieldsAreIgnored();
-	VerifyRefNullRoundTrip();
-	VerifyRefNonNullRoundTrip();
-	VerifyUnknownSceneComponentIsSkipped();
-	VerifyMissingSceneComponentFieldKeepsDefault();
-	VerifySceneOutputStability();
+		HE::Log::Init({ .EnableConsoleOutput = false });
+		HE::Serialization::InitializeSerialization();
 
-	std::cout << "SerializationPolicySmoke passed" << std::endl;
-	return 0;
+		VerifyMissingReflectedFieldsKeepDefaults();
+		VerifyUnknownFieldsAreIgnored();
+		VerifyRefNullRoundTrip();
+		VerifyRefNonNullRoundTrip();
+		VerifyRuntimeComponentDeserializeFailureDoesNotPartiallyMutate();
+		VerifyUnknownSceneComponentIsSkipped();
+		VerifyKnownSceneComponentInvalidFieldFailsLoad();
+		VerifyMissingSceneComponentFieldKeepsDefault();
+		VerifySceneOutputStability();
+
+		CleanupTempDirectory();
+		std::cout << "SerializationPolicySmoke passed" << std::endl;
+		return 0;
+	}
+	catch (const std::exception& exception) {
+		std::cerr << "[SerializationPolicySmoke] " << exception.what() << std::endl;
+		CleanupTempDirectory();
+		return 1;
+	}
 }
