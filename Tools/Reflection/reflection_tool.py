@@ -645,8 +645,24 @@ def generated_include_for_source(source: str) -> str:
     return normalized
 
 
+def cleanup_obsolete_per_source_headers(out_dir: Path) -> None:
+    reflection_dir = out_dir / "Reflection"
+    if not reflection_dir.exists():
+        return
+
+    for path in reflection_dir.glob("*.generated.h"):
+        if path.is_file():
+            path.unlink()
+
+    try:
+        reflection_dir.rmdir()
+    except OSError:
+        pass
+
+
 def write_generated_files(manifest: Dict[str, Any], out_dir: Path) -> List[Path]:
     out_dir.mkdir(parents=True, exist_ok=True)
+    cleanup_obsolete_per_source_headers(out_dir)
     header_path = out_dir / "GeneratedReflection.h"
     source_path = out_dir / "GeneratedReflection.cpp"
     manifest_types = manifest.get("types", [])
