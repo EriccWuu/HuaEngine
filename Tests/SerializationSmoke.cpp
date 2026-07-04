@@ -68,6 +68,11 @@ int main() {
 	Require(loadedPlayer.Inventory.size() == 3, "Expected player inventory to round-trip");
 	Require(loadedPlayer.Transform.Position == glm::vec3(1.0f, 2.0f, 3.0f), "Expected nested transform to round-trip");
 
+	const std::string bomPlayerJson = std::string("\xEF\xBB\xBF") + playerJson;
+	HE::SmokePlayerComponent loadedBomPlayer;
+	Require(HE::Serialization::FromJson(bomPlayerJson, loadedBomPlayer), "Expected JSON with UTF-8 BOM to deserialize");
+	Require(loadedBomPlayer.Name == "Hero", "Expected BOM JSON player name to round-trip");
+
 	const std::string playerYamlFromHelper = HE::Serialization::ToYaml(player);
 	Require(playerYamlFromHelper.find("Name: Hero") != std::string::npos, "Expected reflected player YAML helper to emit YAML mapping style");
 	Require(playerYamlFromHelper.find("\"Name\"") == std::string::npos, "Expected reflected player YAML helper not to emit JSON object syntax");

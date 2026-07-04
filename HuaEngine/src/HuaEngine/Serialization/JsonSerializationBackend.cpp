@@ -7,6 +7,11 @@
 #include <cctype>
 
 namespace HE::Serialization {
+    namespace {
+        unsigned char ToCTypeChar(char value) {
+            return static_cast<unsigned char>(value);
+        }
+    }
 
     JsonSerializationBackend::JsonSerializationBackend() {
         Reset();
@@ -592,13 +597,19 @@ namespace HE::Serialization {
 
     // Simple JSON parser - basic implementation
     void JsonSerializationBackend::SkipWhitespace(const std::string& json, size_t& pos) const {
-        while (pos < json.length() && std::isspace(json[pos])) {
+        while (pos < json.length() && std::isspace(ToCTypeChar(json[pos])) != 0) {
             ++pos;
         }
     }
 
     std::shared_ptr<JsonNode> JsonSerializationBackend::ParseJson(const std::string& json) {
         size_t pos = 0;
+        if (json.size() >= 3 &&
+            ToCTypeChar(json[0]) == 0xEF &&
+            ToCTypeChar(json[1]) == 0xBB &&
+            ToCTypeChar(json[2]) == 0xBF) {
+            pos = 3;
+        }
         SkipWhitespace(json, pos);
         
         if (pos >= json.length()) {
@@ -790,12 +801,12 @@ namespace HE::Serialization {
         } else if (json.substr(pos, 4) == "null") {
             pos += 4;
             return std::string(""); // Use empty string for null
-        } else if (std::isdigit(json[pos]) || json[pos] == '-') {
+        } else if (std::isdigit(ToCTypeChar(json[pos])) != 0 || json[pos] == '-') {
             // Parse number
             size_t start = pos;
             if (json[pos] == '-') ++pos;
             
-            while (pos < json.length() && std::isdigit(json[pos])) {
+            while (pos < json.length() && std::isdigit(ToCTypeChar(json[pos])) != 0) {
                 ++pos;
             }
             
@@ -803,7 +814,7 @@ namespace HE::Serialization {
             if (pos < json.length() && json[pos] == '.') {
                 isFloat = true;
                 ++pos;
-                while (pos < json.length() && std::isdigit(json[pos])) {
+                while (pos < json.length() && std::isdigit(ToCTypeChar(json[pos])) != 0) {
                     ++pos;
                 }
             }
