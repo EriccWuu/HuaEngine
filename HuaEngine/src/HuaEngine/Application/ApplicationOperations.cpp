@@ -444,6 +444,17 @@ namespace HE {
 			break;
 		case AssetKind::Texture2D:
 			result = m_Services->Assets().RegisterTextureAsset(context, assetId, nullptr, &handle);
+			if (result.Succeeded()) {
+				result.Status = OperationStatus::ManualInterventionRequired;
+				result.Summary = "Texture asset metadata imported as source-only; runtime texture loading is unsupported";
+				result.AddDetail({
+					DiagnosticSeverity::Warning,
+					"asset.texture.loader_unsupported",
+					"Texture source was registered in the manifest, but runtime texture loading is not supported in this phase",
+					std::string(assetId)
+				});
+				result.SetPayloadValue("source_only", "true");
+			}
 			break;
 		case AssetKind::Unknown:
 		default:
@@ -456,7 +467,7 @@ namespace HE {
 		result.SetPayloadValue("asset_kind", std::string(ToString(kind)));
 
 		AssetRecord record;
-		if (result.Succeeded() && m_Services->Assets().ResolveAsset(std::string(assetId), record).Succeeded()) {
+		if (result.Status != OperationStatus::Failure && m_Services->Assets().ResolveAsset(std::string(assetId), record).Succeeded()) {
 			result.SetPayloadValue("asset_guid", record.Guid);
 			if (outGuid) {
 				*outGuid = record.Guid;
@@ -475,7 +486,7 @@ namespace HE {
 	{
 		outRecords.clear();
 		if (!m_Services->Assets().IsManifestLoaded()) {
-			auto manifestResult = m_Services->Assets().LoadOrCreateManifest(context);
+			auto manifestResult = m_Services->Assets().LoadManifestReadOnly(context);
 			if (!manifestResult.Succeeded()) {
 				manifestResult.Operation = "asset.list";
 				return manifestResult;

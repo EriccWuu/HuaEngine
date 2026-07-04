@@ -1,4 +1,5 @@
 #include <filesystem>
+#include <fstream>
 #include <iostream>
 #include <string>
 #include <string_view>
@@ -151,6 +152,12 @@ namespace {
 		Expect(output.find(fragment) != std::string_view::npos, std::string(context) + ": missing fragment " + std::string(fragment));
 	}
 
+	std::string ReadFileText(const std::filesystem::path& path) {
+		std::ifstream stream(path, std::ios::in | std::ios::binary);
+		Expect(stream.good(), "Failed to open file for reading: " + path.generic_string());
+		return std::string((std::istreambuf_iterator<char>(stream)), std::istreambuf_iterator<char>());
+	}
+
 	std::filesystem::path GetCurrentExecutablePath() {
 		std::wstring buffer(MAX_PATH, L'\0');
 		for (;;) {
@@ -284,6 +291,10 @@ int main() {
 		}
 	};
 
+	std::filesystem::file_time_type manifestWriteTimeBeforeList{};
+	std::string manifestTextBeforeList;
+	bool manifestSnapshotReady = false;
+
 	for (const auto& step : workflow) {
 		const auto result = RunCLICommand(cliExecutable, step.Arguments, binaryDirectory);
 		Expect(result.ExitCode == 0, step.Name + " should exit with code 0\n" + result.Output);
@@ -294,6 +305,17 @@ int main() {
 
 		for (const auto& artifact : step.ExpectedArtifacts) {
 			Expect(std::filesystem::exists(artifact), step.Name + " should create artifact: " + artifact.generic_string());
+		}
+
+		if (step.Name == "asset manifest init") {
+			manifestWriteTimeBeforeList = std::filesystem::last_write_time(assetManifest);
+			manifestTextBeforeList = ReadFileText(assetManifest);
+			manifestSnapshotReady = true;
+		}
+		else if (step.Name == "asset list builtins") {
+			Expect(manifestSnapshotReady, "Manifest snapshot should be captured before asset list");
+			Expect(std::filesystem::last_write_time(assetManifest) == manifestWriteTimeBeforeList, "asset list should not rewrite manifest LastWriteTime");
+			Expect(ReadFileText(assetManifest) == manifestTextBeforeList, "asset list should not rewrite manifest content");
 		}
 	}
 

@@ -197,6 +197,31 @@ namespace HE {
 		return result;
 	}
 
+	ResultEnvelope AssetService::LoadManifestReadOnly(const ProjectContext& context) {
+		const auto manifestPath = GetAssetManifestPath(context);
+		std::error_code errorCode;
+		if (!std::filesystem::is_regular_file(manifestPath, errorCode)) {
+			auto result = ResultEnvelope::ManualIntervention("asset.manifest.load", manifestPath.generic_string(), "Asset manifest does not exist");
+			result.AddDetail({ DiagnosticSeverity::Warning, "asset.manifest.missing", "Run asset manifest init before listing project assets", manifestPath.generic_string() });
+			return result;
+		}
+
+		AssetManifest loadedManifest;
+		auto result = LoadAssetManifest(context, loadedManifest);
+		if (!result.Succeeded()) {
+			return result;
+		}
+
+		SeedBuiltinAssets(loadedManifest);
+		m_Registry = AssetRegistry();
+		m_RuntimeCache = AssetRuntimeCache();
+		m_Manifest = std::move(loadedManifest);
+		m_Manifest.ForEachRecord([&](const AssetManifestRecord& manifestRecord) {
+			(void)m_Registry.Upsert(MakeRegistryRecord(context, manifestRecord));
+		});
+		return ResultEnvelope::Success("asset.manifest.load", manifestPath.generic_string(), "Asset manifest loaded read-only");
+	}
+
 	ResultEnvelope AssetService::CreateBuiltinMeshAsset(
 		const ProjectContext& context,
 		std::string_view assetId,

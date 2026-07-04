@@ -40,6 +40,7 @@ namespace HE {
 	class ENGINE_API AssetService {
 	public:
 		[[nodiscard]] ResultEnvelope LoadOrCreateManifest(const ProjectContext& context);
+		[[nodiscard]] ResultEnvelope LoadManifestReadOnly(const ProjectContext& context);
 
 		[[nodiscard]] ResultEnvelope CreateBuiltinMeshAsset(
 			const ProjectContext& context,

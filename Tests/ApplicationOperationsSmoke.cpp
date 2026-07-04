@@ -1,6 +1,7 @@
 #include <cstdlib>
 #include <array>
 #include <filesystem>
+#include <fstream>
 #include <iostream>
 #include <string>
 #include <vector>
@@ -93,6 +94,21 @@ int main() {
 	Require(importMesh.Succeeded(), "Expected asset.import to succeed through ApplicationOperations");
 	Require(importMesh.Operation == "asset.import", "Expected asset.import result to preserve the stable operation id");
 	Require(!importedGuid.empty(), "Expected asset.import to return an asset guid");
+
+	const auto texturePath = projectContext.GetAssetRootPath() / "Textures" / "SourceOnly.texture2d";
+	std::filesystem::create_directories(texturePath.parent_path(), errorCode);
+	Require(!errorCode, "Expected texture source directory creation to succeed");
+	{
+		std::ofstream textureStream(texturePath, std::ios::out | std::ios::binary);
+		textureStream << "source-only texture placeholder";
+	}
+
+	HE::AssetGuid textureGuid;
+	auto importTexture = operations.ImportAsset(projectContext, "Textures/SourceOnly.texture2d", HE::AssetKind::Texture2D, &textureGuid);
+	Require(importTexture.RequiresManualIntervention(), "Expected texture asset.import to require manual intervention while loader is unsupported");
+	Require(importTexture.Operation == "asset.import", "Expected texture asset.import result to preserve the stable operation id");
+	Require(!textureGuid.empty(), "Expected source-only texture import to still return an asset guid");
+	Require(importTexture.Payload.find("source_only") != importTexture.Payload.end(), "Expected texture import to report source_only payload");
 
 	HE::AssetHandle meshHandle = 0;
 	auto registerMesh = operations.RegisterMeshAsset(projectContext, "Meshes/OperationsQuad.mesh", runtimeMesh, &meshHandle);
