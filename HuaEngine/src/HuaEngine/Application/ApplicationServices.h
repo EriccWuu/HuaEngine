@@ -1,6 +1,5 @@
 #pragma once
 
-#include "HuaEngine/Asset/AssetResolver.h"
 #include "HuaEngine/Asset/AssetService.h"
 #include "HuaEngine/Core/Core.h"
 #include "HuaEngine/Project/ProjectService.h"
@@ -12,8 +11,7 @@ namespace HE {
 	class ENGINE_API ApplicationServices {
 	public:
 		ApplicationServices()
-			: m_AssetResolver(m_AssetService),
-			m_ValidationService(m_ProjectService, m_SceneService) {}
+			: m_ValidationService(m_ProjectService, m_SceneService) {}
 
 		[[nodiscard]] ProjectService& Projects() { return m_ProjectService; }
 		[[nodiscard]] const ProjectService& Projects() const { return m_ProjectService; }
@@ -23,9 +21,6 @@ namespace HE {
 
 		[[nodiscard]] AssetService& Assets() { return m_AssetService; }
 		[[nodiscard]] const AssetService& Assets() const { return m_AssetService; }
-
-		[[nodiscard]] AssetResolver& AssetResolverService() { return m_AssetResolver; }
-		[[nodiscard]] const AssetResolver& AssetResolverService() const { return m_AssetResolver; }
 
 		[[nodiscard]] ValidationService& Validation() { return m_ValidationService; }
 		[[nodiscard]] const ValidationService& Validation() const { return m_ValidationService; }
@@ -37,7 +32,6 @@ namespace HE {
 		ProjectService m_ProjectService;
 		SceneService m_SceneService;
 		AssetService m_AssetService;
-		AssetResolver m_AssetResolver;
 		ValidationService m_ValidationService;
 		ReflectionToolService m_ReflectionToolService;
 	};

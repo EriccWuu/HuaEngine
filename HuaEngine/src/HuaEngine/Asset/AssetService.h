@@ -89,6 +89,7 @@ namespace HE {
 		[[nodiscard]] AssetManifest& GetManifest() { return m_Manifest; }
 		[[nodiscard]] AssetRuntimeCache& GetRuntimeCache() { return m_RuntimeCache; }
 		[[nodiscard]] const AssetRuntimeCache& GetRuntimeCache() const { return m_RuntimeCache; }
+		[[nodiscard]] bool IsManifestLoaded() const { return !m_Manifest.Empty(); }
 		[[nodiscard]] const AssetRecord* FindRecordByGuid(const AssetGuid& guid) const;
 
 	private:

@@ -13,6 +13,12 @@ namespace {
 		result.SetPayloadValue("actual_kind", std::string(HE::ToString(actual)));
 		return result;
 	}
+
+	HE::ResultEnvelope MakeManifestUnloadedResult(std::string operation, const HE::AssetGuid& guid) {
+		auto result = HE::ResultEnvelope::Failure(std::move(operation), guid, "Asset manifest is not loaded");
+		result.AddDetail({ HE::DiagnosticSeverity::Error, "asset.manifest.unloaded", "Call AssetService::LoadOrCreateManifest with a project context before resolving assets", guid });
+		return result;
+	}
 }
 
 namespace HE {
@@ -28,6 +34,10 @@ namespace HE {
 		if (auto cached = m_Service->GetRuntimeCache().FindMesh(guid)) {
 			outMesh = cached;
 			return ResultEnvelope::Success("asset.resolve_mesh", guid, "Mesh asset resolved from runtime cache");
+		}
+
+		if (!m_Service->IsManifestLoaded()) {
+			return MakeManifestUnloadedResult("asset.resolve_mesh", guid);
 		}
 
 		const auto* record = m_Service->FindRecordByGuid(guid);
@@ -74,6 +84,10 @@ namespace HE {
 		if (auto cached = m_Service->GetRuntimeCache().FindMaterial(guid)) {
 			outMaterial = cached;
 			return ResultEnvelope::Success("asset.resolve_material", guid, "Material asset resolved from runtime cache");
+		}
+
+		if (!m_Service->IsManifestLoaded()) {
+			return MakeManifestUnloadedResult("asset.resolve_material", guid);
 		}
 
 		const auto* record = m_Service->FindRecordByGuid(guid);
@@ -125,6 +139,10 @@ namespace HE {
 			return ResultEnvelope::Success("asset.resolve_texture", guid, "Texture asset resolved from runtime cache");
 		}
 
+		if (!m_Service->IsManifestLoaded()) {
+			return MakeManifestUnloadedResult("asset.resolve_texture", guid);
+		}
+
 		const auto* record = m_Service->FindRecordByGuid(guid);
 		if (!record) {
 			return ResultEnvelope::Failure("asset.resolve_texture", guid, "Texture asset metadata was not found");
@@ -133,8 +151,19 @@ namespace HE {
 			return MakeKindMismatchResult("asset.resolve_texture", guid, AssetKind::Texture2D, record->Kind);
 		}
 
-		auto result = ResultEnvelope::ManualIntervention("asset.resolve_texture", guid, "Texture asset has no runtime texture payload");
-		result.AddDetail({ DiagnosticSeverity::Warning, "asset.texture.source_only", "Texture resolver currently requires a runtime cache entry; source-only texture loading is not enabled in this path", record->AssetId });
+		if (record->Source == AssetSource::File) {
+			auto result = ResultEnvelope::ManualIntervention("asset.resolve_texture", guid, "Texture file loader is not supported by AssetResolver");
+			result.AddDetail({ DiagnosticSeverity::Warning, "asset.texture.loader_unsupported", "Texture metadata was found, but source=file loading is not enabled in this resolver path", record->AssetId });
+			return result;
+		}
+		if (record->Source == AssetSource::Builtin) {
+			auto result = ResultEnvelope::ManualIntervention("asset.resolve_texture", guid, "Builtin texture loading is not supported by AssetResolver");
+			result.AddDetail({ DiagnosticSeverity::Warning, "asset.texture.builtin_unsupported", "Texture metadata was found, but source=builtin has no runtime factory in this resolver path", record->AssetId });
+			return result;
+		}
+
+		auto result = ResultEnvelope::ManualIntervention("asset.resolve_texture", guid, "Texture asset source is unsupported");
+		result.AddDetail({ DiagnosticSeverity::Warning, "asset.texture.source_unsupported", "Texture metadata was found, but its source type cannot create a runtime texture", record->AssetId });
 		return result;
 	}
 
@@ -159,8 +188,8 @@ namespace HE {
 			return library.GetDefaultMaterial();
 		}
 		if (record.BuiltinName == "fallback") {
-			if (auto existing = library.GetMaterial(record.AssetId)) {
-				return existing;
+			if (library.HasMaterial(record.AssetId)) {
+				return library.GetMaterial(record.AssetId);
 			}
 
 			auto fallback = Rendering::Material::Create(record.AssetId, Rendering::MaterialType::Unlit);

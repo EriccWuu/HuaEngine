@@ -8,6 +8,7 @@
 #include "HuaEngine/Asset/AssetManifest.h"
 #include "HuaEngine/Asset/AssetResolver.h"
 #include "HuaEngine/Asset/AssetService.h"
+#include "HuaEngine/Application/ApplicationServices.h"
 #include "HuaEngine/Project/ProjectService.h"
 
 namespace {
@@ -215,6 +216,13 @@ int main() {
 	auto fallbackMaterialResult = resolver.ResolveMaterial(HE::BuiltinAssetGuids::FallbackMaterial, fallbackMaterial);
 	Require(fallbackMaterialResult.Succeeded(), "Expected fallback material resolve to succeed");
 	Require(static_cast<bool>(fallbackMaterial), "Expected fallback material runtime object");
+	Require(HE::Rendering::MaterialLibrary::Instance().HasMaterial("builtin/material/fallback"), "Expected fallback material to be registered under its builtin asset id");
+
+	HE::Ref<HE::Rendering::Material> defaultMaterial;
+	auto defaultMaterialResult = resolver.ResolveMaterial(HE::BuiltinAssetGuids::DefaultMaterial, defaultMaterial);
+	Require(defaultMaterialResult.Succeeded(), "Expected default material resolve to succeed");
+	Require(static_cast<bool>(defaultMaterial), "Expected default material runtime object");
+	Require(defaultMaterial != fallbackMaterial, "Expected fallback material to be distinct from default material");
 
 	HE::AssetHandle meshHandle = 0;
 	auto loadMeshResult = assetService.LoadMeshAsset(projectContext, "Meshes/SmokeQuad.mesh", &meshHandle);
@@ -270,6 +278,28 @@ int main() {
 	HE::Ref<HE::Texture2D> unresolvedTexture;
 	auto resolveTextureResult = assetService.ResolveTextureAsset(textureHandle, unresolvedTexture);
 	Require(resolveTextureResult.RequiresManualIntervention(), "Expected metadata-only texture registration to require manual intervention for runtime resolve");
+	Require(!resolveTextureResult.Details.empty(), "Expected source-only texture resolve to include diagnostics");
+	Require(resolveTextureResult.Details.front().Code == "asset.texture.loader_unsupported", "Expected source-only texture resolve to report unsupported loader");
+
+	assetService.GetRuntimeCache().StoreTexture(textureRecord.Guid, HE::CreateRef<FakeTexture2D>());
+	HE::Ref<HE::Texture2D> cachedTexture;
+	auto cachedTextureResult = resolver.ResolveTexture(textureRecord.Guid, cachedTexture);
+	Require(cachedTextureResult.Succeeded(), "Expected runtime cached texture resolve to succeed");
+	Require(static_cast<bool>(cachedTexture), "Expected cached texture runtime object");
+
+	HE::AssetRecord builtinTextureRecord;
+	builtinTextureRecord.Guid = "builtin-texture-unsupported";
+	builtinTextureRecord.AssetId = "builtin/texture/unsupported";
+	builtinTextureRecord.Kind = HE::AssetKind::Texture2D;
+	builtinTextureRecord.Source = HE::AssetSource::Builtin;
+	builtinTextureRecord.BuiltinName = "unsupported";
+	builtinTextureRecord.ImportState = HE::AssetImportState::Builtin;
+	Require(assetService.GetAssetRegistry().Upsert(builtinTextureRecord) != 0, "Expected builtin texture metadata seed to succeed");
+	HE::Ref<HE::Texture2D> unsupportedBuiltinTexture;
+	auto unsupportedBuiltinTextureResult = resolver.ResolveTexture(builtinTextureRecord.Guid, unsupportedBuiltinTexture);
+	Require(unsupportedBuiltinTextureResult.RequiresManualIntervention(), "Expected unsupported builtin texture resolve to require manual intervention");
+	Require(!unsupportedBuiltinTextureResult.Details.empty(), "Expected unsupported builtin texture resolve to include diagnostics");
+	Require(unsupportedBuiltinTextureResult.Details.front().Code == "asset.texture.builtin_unsupported", "Expected unsupported builtin texture diagnostic code");
 
 	auto missingTextureResult = assetService.RegisterTextureAsset(projectContext, "Textures/MissingTexture.txt");
 	Require(missingTextureResult.RequiresManualIntervention(), "Expected missing texture source file to require manual intervention");
@@ -283,7 +313,18 @@ int main() {
 	auto missingAssetResult = assetService.ResolveAsset(static_cast<HE::AssetHandle>(9999), missingRecord);
 	Require(missingAssetResult.Failed(), "Expected resolving an unknown asset handle to fail");
 
-	Require(assetService.GetAssetRegistry().GetAssetCount() == 9, "Expected registry to contain builtin and file asset records");
+	WriteFileText(manifestPath, originalManifestText);
+	auto reloadManifestResult = assetService.LoadOrCreateManifest(projectContext);
+	Require(reloadManifestResult.Succeeded(), "Expected asset service manifest reload to succeed");
+	HE::Ref<HE::Rendering::Mesh> staleMesh;
+	Require(resolver.ResolveMesh(quadRecord.Guid, staleMesh).Failed(), "Expected manifest reload to remove stale mesh metadata and runtime cache");
+	Require(assetService.GetAssetRegistry().GetAssetCount() == 6, "Expected registry reload to contain only manifest builtin records");
+
+	HE::ApplicationServices applicationServices;
+	Require(applicationServices.Assets().LoadOrCreateManifest(projectContext).Succeeded(), "Expected application asset service to load manifest before local resolver construction");
+	HE::AssetResolver applicationResolver(applicationServices.Assets());
+	HE::Ref<HE::Rendering::Mesh> applicationBuiltinQuad;
+	Require(applicationResolver.ResolveMesh(HE::BuiltinAssetGuids::QuadMesh, applicationBuiltinQuad).Succeeded(), "Expected local application resolver to use loaded manifest metadata");
 
 	std::filesystem::remove_all(smokeRoot, errorCode);
 	Require(!errorCode, "Expected asset smoke temporary directory cleanup to succeed");

@@ -188,6 +188,8 @@ namespace HE {
 			return result;
 		}
 
+		m_Registry = AssetRegistry();
+		m_RuntimeCache = AssetRuntimeCache();
 		m_Manifest = std::move(loadedManifest);
 		m_Manifest.ForEachRecord([&](const AssetManifestRecord& manifestRecord) {
 			(void)m_Registry.Upsert(MakeRegistryRecord(context, manifestRecord));
@@ -266,8 +268,6 @@ namespace HE {
 			}
 		}
 
-		Rendering::MeshManager::Instance().RegisterMesh(normalizedPath.AssetId, mesh);
-
 		AssetManifestRecord manifestRecord;
 		manifestRecord.Guid = GetExistingGuidOrGenerate(m_Registry, m_Manifest, normalizedPath.AssetId);
 		manifestRecord.Kind = AssetKind::Mesh;
@@ -292,6 +292,7 @@ namespace HE {
 			return ResultEnvelope::Failure("asset.register_mesh", normalizedPath.AssetId, "Mesh registry record conflicts with an existing asset");
 		}
 		m_RuntimeCache.StoreMesh(manifestRecord.Guid, mesh);
+		Rendering::MeshManager::Instance().RegisterMesh(normalizedPath.AssetId, mesh);
 		if (outHandle) {
 			*outHandle = handle;
 		}
@@ -353,11 +354,6 @@ namespace HE {
 			}
 		}
 
-		Rendering::MaterialLibrary::Instance().RegisterMaterial(normalizedPath.AssetId, material);
-		if (!material->GetName().empty() && material->GetName() != normalizedPath.AssetId) {
-			Rendering::MaterialLibrary::Instance().RegisterMaterial(material->GetName(), material);
-		}
-
 		AssetManifestRecord manifestRecord;
 		manifestRecord.Guid = GetExistingGuidOrGenerate(m_Registry, m_Manifest, normalizedPath.AssetId);
 		manifestRecord.Kind = AssetKind::Material;
@@ -382,6 +378,10 @@ namespace HE {
 			return ResultEnvelope::Failure("asset.register_material", normalizedPath.AssetId, "Material registry record conflicts with an existing asset");
 		}
 		m_RuntimeCache.StoreMaterial(manifestRecord.Guid, material);
+		Rendering::MaterialLibrary::Instance().RegisterMaterial(normalizedPath.AssetId, material);
+		if (!material->GetName().empty() && material->GetName() != normalizedPath.AssetId) {
+			Rendering::MaterialLibrary::Instance().RegisterMaterial(material->GetName(), material);
+		}
 		if (outHandle) {
 			*outHandle = handle;
 		}
