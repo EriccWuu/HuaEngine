@@ -1,10 +1,13 @@
 #include <cstdlib>
 #include <filesystem>
 #include <iostream>
+#include <algorithm>
 #include <string>
 
 #include "HuaEngine.h"
 #include "HuaEngine/Core/ResourcePaths.h"
+#include "HuaEngine/Rendering/RenderPipeline/RenderTypes.h"
+#include "Module/Rendering/RenderSystem.h"
 
 namespace {
 	void Require(bool condition, const std::string& message) {
@@ -83,6 +86,14 @@ namespace {
 
 		return false;
 	}
+
+	bool HasDiagnostic(
+		const std::vector<HE::Rendering::RenderDiagnostic>& diagnostics,
+		HE::Rendering::RenderDiagnosticCode code) {
+		return std::any_of(diagnostics.begin(), diagnostics.end(), [code](const auto& diagnostic) {
+			return diagnostic.Code == code;
+		});
+	}
 }
 
 int main() {
@@ -128,6 +139,12 @@ int main() {
 
 	auto renderViewport = operations.RenderSceneViewport(*scene, camera);
 	Require(renderViewport.Succeeded(), "Expected rendering.render_scene_viewport to succeed");
+	auto initialRenderSystem = scene->FindSystem<HE::RenderSystem>();
+	Require(static_cast<bool>(initialRenderSystem), "Expected render system to remain attached after viewport render");
+	const auto& initialRenderResult = initialRenderSystem->GetLastRenderResult();
+	Require(initialRenderResult.Succeeded, "Expected render result to succeed with fallback resources");
+	Require(initialRenderResult.Stats.SkippedItems == 0, "Expected fallback resources to avoid skipping render item");
+	Require(HasDiagnostic(initialRenderResult.Diagnostics, HE::Rendering::RenderDiagnosticCode::FallbackResourceUsed), "Expected fallback diagnostic");
 	Require(renderViewport.Operation == "rendering.render_scene_viewport", "Expected render operation id to stay stable");
 	Require(renderViewport.Payload.contains("render_items"), "Expected rendering.render_scene_viewport to report extracted render item count");
 	Require(renderViewport.Payload.contains("submitted_items"), "Expected rendering.render_scene_viewport to report submitted item count");
@@ -137,12 +154,12 @@ int main() {
 	Require(renderViewport.Payload.contains("visible_items"), "Expected rendering.render_scene_viewport to report visible item count");
 	Require(renderViewport.Payload.contains("diagnostics"), "Expected rendering.render_scene_viewport to report diagnostic count");
 	Require(renderViewport.Payload.at("render_items") == "1", "Expected invalid renderable component triple to count as an extracted render item");
-	Require(renderViewport.Payload.at("submitted_items") == "0", "Expected invalid renderable resources to be skipped before submission");
-	Require(renderViewport.Payload.at("skipped_items") == "1", "Expected invalid renderable resources to increment skipped item count");
-	Require(renderViewport.Payload.at("draw_calls") == "0", "Expected invalid renderable resources to issue no draw calls");
+	Require(renderViewport.Payload.at("submitted_items") == "1", "Expected invalid renderable resources to submit with fallback resources");
+	Require(renderViewport.Payload.at("skipped_items") == "0", "Expected invalid renderable resources to avoid skipped item count");
+	Require(renderViewport.Payload.at("draw_calls") == "1", "Expected invalid renderable resources to issue a fallback draw call");
 	Require(renderViewport.Payload.at("pass_count") == "1", "Expected invalid renderable resources to execute one render pass");
 	Require(renderViewport.Payload.at("visible_items") == "1", "Expected invalid renderable resources to count one visible item");
-	Require(renderViewport.Payload.at("diagnostics") == "1", "Expected invalid renderable resources to emit one diagnostic");
+	Require(renderViewport.Payload.at("diagnostics") == "2", "Expected invalid renderable resources to emit mesh and material fallback diagnostics");
 
 	PrepareSandboxAssets();
 
@@ -172,12 +189,12 @@ int main() {
 	Require(renderAssetRefScene.Payload.contains("visible_items"), "Expected typed asset-ref scene render to report visible item count");
 	Require(renderAssetRefScene.Payload.contains("diagnostics"), "Expected typed asset-ref scene render to report diagnostic count");
 	Require(renderAssetRefScene.Payload.at("render_items") == "1", "Expected typed asset-ref scene render to extract one render item");
-	Require(renderAssetRefScene.Payload.at("submitted_items") == "0", "Expected typed asset-ref scene render to avoid submission until the formal asset resolver path is integrated");
-	Require(renderAssetRefScene.Payload.at("skipped_items") == "1", "Expected typed asset-ref scene render to skip the item through the current minimal adapter");
-	Require(renderAssetRefScene.Payload.at("draw_calls") == "0", "Expected typed asset-ref scene render to issue no draw calls through the current minimal adapter");
+	Require(renderAssetRefScene.Payload.at("submitted_items") == "1", "Expected typed asset-ref scene render to submit through the asset resolver path");
+	Require(renderAssetRefScene.Payload.at("skipped_items") == "0", "Expected typed asset-ref scene render to avoid skipping through the asset resolver path");
+	Require(renderAssetRefScene.Payload.at("draw_calls") == "1", "Expected typed asset-ref scene render to issue one draw call through the asset resolver path");
 	Require(renderAssetRefScene.Payload.at("pass_count") == "1", "Expected typed asset-ref scene render to execute one render pass");
 	Require(renderAssetRefScene.Payload.at("visible_items") == "1", "Expected typed asset-ref scene render to count one visible item");
-	Require(renderAssetRefScene.Payload.at("diagnostics") == "1", "Expected typed asset-ref scene render to emit one resolver diagnostic");
+	Require(renderAssetRefScene.Payload.at("diagnostics") == "0", "Expected typed asset-ref scene render to emit no resolver diagnostics");
 
 	HE::Ref<HE::Scene> loadedScene;
 	const auto scenePath = HE::ResourcePaths::ResolveEngineResourcePath("SandboxScene.scene");
@@ -197,12 +214,12 @@ int main() {
 	Require(renderLoadedScene.Payload.contains("visible_items"), "Expected loaded sandbox scene render to report visible item count");
 	Require(renderLoadedScene.Payload.contains("diagnostics"), "Expected loaded sandbox scene render to report diagnostic count");
 	Require(renderLoadedScene.Payload.at("render_items") == "4", "Expected loaded sandbox scene render to extract four render items");
-	Require(renderLoadedScene.Payload.at("submitted_items") == "0", "Expected loaded sandbox scene render to avoid submission until the formal asset resolver path is integrated");
-	Require(renderLoadedScene.Payload.at("skipped_items") == "4", "Expected loaded sandbox scene render to skip all render items through the current minimal adapter");
-	Require(renderLoadedScene.Payload.at("draw_calls") == "0", "Expected loaded sandbox scene render to issue no draw calls through the current minimal adapter");
+	Require(renderLoadedScene.Payload.at("submitted_items") == "4", "Expected loaded sandbox scene render to submit all render items through the asset resolver path");
+	Require(renderLoadedScene.Payload.at("skipped_items") == "0", "Expected loaded sandbox scene render to avoid skipping render items through the asset resolver path");
+	Require(renderLoadedScene.Payload.at("draw_calls") == "4", "Expected loaded sandbox scene render to issue draw calls through the asset resolver path");
 	Require(renderLoadedScene.Payload.at("pass_count") == "1", "Expected loaded sandbox scene render to execute one render pass");
 	Require(renderLoadedScene.Payload.at("visible_items") == "4", "Expected loaded sandbox scene render to count four visible items");
-	Require(renderLoadedScene.Payload.at("diagnostics") == "4", "Expected loaded sandbox scene render to emit resolver diagnostics for skipped render items");
+	Require(renderLoadedScene.Payload.at("diagnostics") == "1", "Expected loaded sandbox scene render to emit one fallback diagnostic for the unmigrated custom mesh");
 
 	std::cout << "RenderingOperationsSmoke passed" << std::endl;
 	return 0;

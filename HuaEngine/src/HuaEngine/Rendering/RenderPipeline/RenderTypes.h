@@ -37,7 +37,8 @@ namespace HE::Rendering {
 		MissingVertexArray,
 		MissingMaterialInstance,
 		MissingBaseMaterial,
-		MissingShader
+		MissingShader,
+		FallbackResourceUsed
 	};
 
 	struct RenderDiagnostic {
@@ -59,6 +60,7 @@ namespace HE::Rendering {
 		uint32_t DrawCalls = 0;
 		uint32_t VisibleItems = 0;
 		uint32_t PassCount = 0;
+		uint32_t FallbackItems = 0;
 	};
 
 	struct RenderPassContext {

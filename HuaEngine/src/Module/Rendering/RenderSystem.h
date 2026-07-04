@@ -9,6 +9,8 @@
 #include "HuaEngine/Rendering/FrameBuffer.h"
 
 namespace HE {
+	class AssetResolver;
+
 	class RenderSystem : public System {
 	public:
 		explicit RenderSystem(Ref<Scene> scene);
@@ -20,6 +22,7 @@ namespace HE {
 		[[nodiscard]] const Rendering::RenderResult& GetLastRenderResult() const { return m_LastRenderResult; }
 		void SetCamera(Ref<Rendering::Camera>& camera) { m_Camera = camera; };
 		void SetFrameBuffer(Ref<Rendering::FrameBuffer>& framebuffer) { m_Framebuffer = framebuffer; }
+		void SetAssetResolver(AssetResolver* resolver) { m_ResourceResolver.SetAssetResolver(resolver); }
 
 	private:
 		Ref<Scene> m_Scene;

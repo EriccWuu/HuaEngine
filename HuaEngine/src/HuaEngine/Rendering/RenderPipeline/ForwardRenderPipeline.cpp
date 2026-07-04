@@ -15,7 +15,7 @@ namespace HE::Rendering {
 
 		for (const auto& item : *context.RenderItems) {
 			ResolvedRenderItem resolvedItem;
-			if (!context.ResourceResolver->Resolve(item, resolvedItem, *context.Diagnostics)) {
+			if (!context.ResourceResolver->Resolve(item, resolvedItem, *context.Stats, *context.Diagnostics)) {
 				++context.Stats->SkippedItems;
 				continue;
 			}

@@ -544,6 +544,7 @@ namespace HE {
 
 		auto framebufferBinding = framebuffer;
 		renderSystem->SetFrameBuffer(framebufferBinding);
+		renderSystem->SetAssetResolver(&m_Services->GetAssetResolver());
 
 		auto result = ResultEnvelope::Success("rendering.attach_scene_viewport", scene->GetName(), "Scene viewport renderer attached");
 		result.SetPayloadValue("scene_name", scene->GetName());
@@ -578,6 +579,7 @@ namespace HE {
 		result.SetPayloadValue("draw_calls", std::to_string(renderResult.Stats.DrawCalls));
 		result.SetPayloadValue("pass_count", std::to_string(renderResult.Stats.PassCount));
 		result.SetPayloadValue("visible_items", std::to_string(renderResult.Stats.VisibleItems));
+		result.SetPayloadValue("fallback_items", std::to_string(renderResult.Stats.FallbackItems));
 		result.SetPayloadValue("diagnostics", std::to_string(renderResult.Diagnostics.size()));
 		return result;
 	}

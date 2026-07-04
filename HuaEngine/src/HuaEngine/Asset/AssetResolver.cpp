@@ -3,6 +3,7 @@
 
 #include "AssetService.h"
 #include "HuaEngine/Rendering/Material/MaterialLibrary.h"
+#include "HuaEngine/Rendering/Shader/Shader.h"
 #include "HuaEngine/Serialization/Serialization.h"
 
 namespace {
@@ -25,6 +26,80 @@ namespace {
 		result.AddDetail({ HE::DiagnosticSeverity::Warning, "asset.source.unsupported", "Asset metadata source cannot create this runtime type", std::string(HE::ToString(source)) });
 		return result;
 	}
+
+	HE::AssetManifestRecord MakeBuiltinRecord(const HE::AssetGuid& guid) {
+		auto makeRecord = [&](std::string assetId, HE::AssetKind kind, std::string builtinName) {
+			HE::AssetManifestRecord record;
+			record.Guid = guid;
+			record.AssetId = std::move(assetId);
+			record.Kind = kind;
+			record.Source = HE::AssetSource::Builtin;
+			record.BuiltinName = std::move(builtinName);
+			record.ImportState = HE::AssetImportState::Builtin;
+			return record;
+		};
+
+		if (guid == HE::BuiltinAssetGuids::QuadMesh) {
+			return makeRecord("builtin/mesh/quad", HE::AssetKind::Mesh, "quad");
+		}
+		if (guid == HE::BuiltinAssetGuids::CubeMesh) {
+			return makeRecord("builtin/mesh/cube", HE::AssetKind::Mesh, "cube");
+		}
+		if (guid == HE::BuiltinAssetGuids::SphereMesh) {
+			return makeRecord("builtin/mesh/sphere", HE::AssetKind::Mesh, "sphere");
+		}
+		if (guid == HE::BuiltinAssetGuids::FallbackMesh) {
+			return makeRecord("builtin/mesh/fallback", HE::AssetKind::Mesh, "fallback");
+		}
+		if (guid == HE::BuiltinAssetGuids::DefaultMaterial) {
+			return makeRecord("builtin/material/default", HE::AssetKind::Material, "default");
+		}
+		if (guid == HE::BuiltinAssetGuids::FallbackMaterial) {
+			return makeRecord("builtin/material/fallback", HE::AssetKind::Material, "fallback");
+		}
+		return {};
+	}
+
+	bool IsBuiltinGuid(const HE::AssetGuid& guid) {
+		return !MakeBuiltinRecord(guid).Guid.empty();
+	}
+
+	HE::Ref<HE::Rendering::Material> CreateShaderBackedUnlitMaterial(const std::string& name, const glm::vec4& color) {
+		auto& library = HE::Rendering::MaterialLibrary::Instance();
+		if (library.HasMaterial(name)) {
+			return library.GetMaterial(name);
+		}
+
+		auto material = HE::Rendering::Material::Create(name, HE::Rendering::MaterialType::Custom);
+		if (!material) {
+			return nullptr;
+		}
+
+		const std::string vertexSource = R"(
+#version 330 core
+layout(location = 0) in vec3 a_Position;
+layout(location = 1) in vec2 a_TexCoord;
+uniform mat4 u_ViewProjection;
+uniform mat4 u_Transform;
+void main() {
+	gl_Position = u_ViewProjection * u_Transform * vec4(a_Position, 1.0);
+}
+)";
+
+		const std::string fragmentSource = R"(
+#version 330 core
+out vec4 FragColor;
+uniform vec4 u_Color;
+void main() {
+	FragColor = u_Color;
+}
+)";
+
+		material->SetShader(HE::Rendering::Shader::Create(vertexSource, fragmentSource));
+		material->AddParameter(HE::Rendering::MaterialParameter("u_Color", HE::Rendering::MaterialParameterType::Vec4, color));
+		library.RegisterMaterial(name, material);
+		return material;
+	}
 }
 
 namespace HE {
@@ -37,12 +112,34 @@ namespace HE {
 			return ResultEnvelope::Failure("asset.resolve_mesh", {}, "Mesh asset guid is empty");
 		}
 
+		if (auto cached = m_Service->GetRuntimeCache().FindMesh(guid)) {
+			outMesh = cached;
+			return ResultEnvelope::Success("asset.resolve_mesh", guid, "Mesh asset resolved from runtime cache");
+		}
+
+		if (!m_Service->IsManifestLoaded() && IsBuiltinGuid(guid)) {
+			auto mesh = CreateBuiltinMesh(MakeBuiltinRecord(guid));
+			if (mesh) {
+				m_Service->GetRuntimeCache().StoreMesh(guid, mesh);
+				outMesh = mesh;
+				return ResultEnvelope::Success("asset.resolve_mesh", guid, "Builtin mesh asset resolved");
+			}
+		}
+
 		if (!m_Service->IsManifestLoaded()) {
 			return MakeManifestUnloadedResult("asset.resolve_mesh", guid);
 		}
 
 		const auto* record = m_Service->FindRecordByGuid(guid);
 		if (!record) {
+			if (IsBuiltinGuid(guid)) {
+				auto mesh = CreateBuiltinMesh(MakeBuiltinRecord(guid));
+				if (mesh) {
+					m_Service->GetRuntimeCache().StoreMesh(guid, mesh);
+					outMesh = mesh;
+					return ResultEnvelope::Success("asset.resolve_mesh", guid, "Builtin mesh asset resolved");
+				}
+			}
 			return ResultEnvelope::Failure("asset.resolve_mesh", guid, "Mesh asset metadata was not found");
 		}
 		if (record->Kind != AssetKind::Mesh) {
@@ -50,11 +147,6 @@ namespace HE {
 		}
 		if (record->Source != AssetSource::Builtin && record->Source != AssetSource::File) {
 			return MakeUnsupportedSourceResult("asset.resolve_mesh", guid, record->Source);
-		}
-
-		if (auto cached = m_Service->GetRuntimeCache().FindMesh(guid)) {
-			outMesh = cached;
-			return ResultEnvelope::Success("asset.resolve_mesh", guid, "Mesh asset resolved from runtime cache");
 		}
 
 		Ref<Rendering::Mesh> mesh = nullptr;
@@ -90,12 +182,34 @@ namespace HE {
 			return ResultEnvelope::Failure("asset.resolve_material", {}, "Material asset guid is empty");
 		}
 
+		if (auto cached = m_Service->GetRuntimeCache().FindMaterial(guid)) {
+			outMaterial = cached;
+			return ResultEnvelope::Success("asset.resolve_material", guid, "Material asset resolved from runtime cache");
+		}
+
+		if (!m_Service->IsManifestLoaded() && IsBuiltinGuid(guid)) {
+			auto material = CreateBuiltinMaterial(MakeBuiltinRecord(guid));
+			if (material) {
+				m_Service->GetRuntimeCache().StoreMaterial(guid, material);
+				outMaterial = material;
+				return ResultEnvelope::Success("asset.resolve_material", guid, "Builtin material asset resolved");
+			}
+		}
+
 		if (!m_Service->IsManifestLoaded()) {
 			return MakeManifestUnloadedResult("asset.resolve_material", guid);
 		}
 
 		const auto* record = m_Service->FindRecordByGuid(guid);
 		if (!record) {
+			if (IsBuiltinGuid(guid)) {
+				auto material = CreateBuiltinMaterial(MakeBuiltinRecord(guid));
+				if (material) {
+					m_Service->GetRuntimeCache().StoreMaterial(guid, material);
+					outMaterial = material;
+					return ResultEnvelope::Success("asset.resolve_material", guid, "Builtin material asset resolved");
+				}
+			}
 			return ResultEnvelope::Failure("asset.resolve_material", guid, "Material asset metadata was not found");
 		}
 		if (record->Kind != AssetKind::Material) {
@@ -103,11 +217,6 @@ namespace HE {
 		}
 		if (record->Source != AssetSource::Builtin && record->Source != AssetSource::File) {
 			return MakeUnsupportedSourceResult("asset.resolve_material", guid, record->Source);
-		}
-
-		if (auto cached = m_Service->GetRuntimeCache().FindMaterial(guid)) {
-			outMaterial = cached;
-			return ResultEnvelope::Success("asset.resolve_material", guid, "Material asset resolved from runtime cache");
 		}
 
 		Ref<Rendering::Material> material = nullptr;
@@ -196,22 +305,11 @@ namespace HE {
 	}
 
 	Ref<Rendering::Material> AssetResolver::CreateBuiltinMaterial(const AssetManifestRecord& record) const {
-		auto& library = Rendering::MaterialLibrary::Instance();
-		library.CreateDefaultMaterials();
-
 		if (record.BuiltinName == "default") {
-			return library.GetDefaultMaterial();
+			return CreateShaderBackedUnlitMaterial(record.AssetId, glm::vec4(1.0f, 1.0f, 1.0f, 1.0f));
 		}
 		if (record.BuiltinName == "fallback") {
-			if (library.HasMaterial(record.AssetId)) {
-				return library.GetMaterial(record.AssetId);
-			}
-
-			auto fallback = Rendering::Material::Create(record.AssetId, Rendering::MaterialType::Unlit);
-			if (fallback) {
-				library.RegisterMaterial(record.AssetId, fallback);
-			}
-			return fallback;
+			return CreateShaderBackedUnlitMaterial(record.AssetId, glm::vec4(1.0f, 0.0f, 1.0f, 1.0f));
 		}
 		return nullptr;
 	}
