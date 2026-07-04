@@ -252,6 +252,17 @@ int main() {
 	Require(resolver.ResolveMesh(quadRecord.Guid, resolvedByGuidB).Succeeded(), "Expected second mesh resolve by guid");
 	Require(resolvedByGuidA == resolvedByGuidB, "Expected resolver to reuse runtime cache");
 
+	HE::AssetRecord staleKindRecord = quadRecord;
+	staleKindRecord.Kind = HE::AssetKind::Material;
+	staleKindRecord.Source = HE::AssetSource::Builtin;
+	staleKindRecord.BuiltinName = "default";
+	staleKindRecord.ImportState = HE::AssetImportState::Builtin;
+	Require(assetService.GetAssetRegistry().Upsert(staleKindRecord) == quadRecord.Handle, "Expected stale kind metadata update to preserve handle");
+	HE::Ref<HE::Rendering::Mesh> staleKindMesh;
+	auto staleKindMeshResult = resolver.ResolveMesh(quadRecord.Guid, staleKindMesh);
+	Require(staleKindMeshResult.Failed(), "Expected cached mesh resolve to fail when metadata kind changes");
+	Require(!staleKindMesh, "Expected stale kind mismatch to avoid returning cached mesh");
+
 	HE::AssetHandle materialHandle = 0;
 	auto loadMaterialResult = assetService.LoadMaterialAsset(projectContext, "Materials/SmokeMaterial.mat", &materialHandle);
 	Require(loadMaterialResult.Succeeded(), "Expected asset.load_material to succeed");

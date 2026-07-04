@@ -19,6 +19,12 @@ namespace {
 		result.AddDetail({ HE::DiagnosticSeverity::Error, "asset.manifest.unloaded", "Call AssetService::LoadOrCreateManifest with a project context before resolving assets", guid });
 		return result;
 	}
+
+	HE::ResultEnvelope MakeUnsupportedSourceResult(std::string operation, const HE::AssetGuid& guid, HE::AssetSource source) {
+		auto result = HE::ResultEnvelope::ManualIntervention(std::move(operation), guid, "Asset source is not supported by this resolver");
+		result.AddDetail({ HE::DiagnosticSeverity::Warning, "asset.source.unsupported", "Asset metadata source cannot create this runtime type", std::string(HE::ToString(source)) });
+		return result;
+	}
 }
 
 namespace HE {
@@ -31,11 +37,6 @@ namespace HE {
 			return ResultEnvelope::Failure("asset.resolve_mesh", {}, "Mesh asset guid is empty");
 		}
 
-		if (auto cached = m_Service->GetRuntimeCache().FindMesh(guid)) {
-			outMesh = cached;
-			return ResultEnvelope::Success("asset.resolve_mesh", guid, "Mesh asset resolved from runtime cache");
-		}
-
 		if (!m_Service->IsManifestLoaded()) {
 			return MakeManifestUnloadedResult("asset.resolve_mesh", guid);
 		}
@@ -46,6 +47,14 @@ namespace HE {
 		}
 		if (record->Kind != AssetKind::Mesh) {
 			return MakeKindMismatchResult("asset.resolve_mesh", guid, AssetKind::Mesh, record->Kind);
+		}
+		if (record->Source != AssetSource::Builtin && record->Source != AssetSource::File) {
+			return MakeUnsupportedSourceResult("asset.resolve_mesh", guid, record->Source);
+		}
+
+		if (auto cached = m_Service->GetRuntimeCache().FindMesh(guid)) {
+			outMesh = cached;
+			return ResultEnvelope::Success("asset.resolve_mesh", guid, "Mesh asset resolved from runtime cache");
 		}
 
 		Ref<Rendering::Mesh> mesh = nullptr;
@@ -81,11 +90,6 @@ namespace HE {
 			return ResultEnvelope::Failure("asset.resolve_material", {}, "Material asset guid is empty");
 		}
 
-		if (auto cached = m_Service->GetRuntimeCache().FindMaterial(guid)) {
-			outMaterial = cached;
-			return ResultEnvelope::Success("asset.resolve_material", guid, "Material asset resolved from runtime cache");
-		}
-
 		if (!m_Service->IsManifestLoaded()) {
 			return MakeManifestUnloadedResult("asset.resolve_material", guid);
 		}
@@ -96,6 +100,14 @@ namespace HE {
 		}
 		if (record->Kind != AssetKind::Material) {
 			return MakeKindMismatchResult("asset.resolve_material", guid, AssetKind::Material, record->Kind);
+		}
+		if (record->Source != AssetSource::Builtin && record->Source != AssetSource::File) {
+			return MakeUnsupportedSourceResult("asset.resolve_material", guid, record->Source);
+		}
+
+		if (auto cached = m_Service->GetRuntimeCache().FindMaterial(guid)) {
+			outMaterial = cached;
+			return ResultEnvelope::Success("asset.resolve_material", guid, "Material asset resolved from runtime cache");
 		}
 
 		Ref<Rendering::Material> material = nullptr;
@@ -134,11 +146,6 @@ namespace HE {
 			return ResultEnvelope::Failure("asset.resolve_texture", {}, "Texture asset guid is empty");
 		}
 
-		if (auto cached = m_Service->GetRuntimeCache().FindTexture(guid)) {
-			outTexture = cached;
-			return ResultEnvelope::Success("asset.resolve_texture", guid, "Texture asset resolved from runtime cache");
-		}
-
 		if (!m_Service->IsManifestLoaded()) {
 			return MakeManifestUnloadedResult("asset.resolve_texture", guid);
 		}
@@ -149,6 +156,14 @@ namespace HE {
 		}
 		if (record->Kind != AssetKind::Texture2D) {
 			return MakeKindMismatchResult("asset.resolve_texture", guid, AssetKind::Texture2D, record->Kind);
+		}
+		if (record->Source != AssetSource::Builtin && record->Source != AssetSource::File) {
+			return MakeUnsupportedSourceResult("asset.resolve_texture", guid, record->Source);
+		}
+
+		if (auto cached = m_Service->GetRuntimeCache().FindTexture(guid)) {
+			outTexture = cached;
+			return ResultEnvelope::Success("asset.resolve_texture", guid, "Texture asset resolved from runtime cache");
 		}
 
 		if (record->Source == AssetSource::File) {
