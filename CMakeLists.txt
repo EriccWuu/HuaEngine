@@ -653,6 +653,30 @@ if(WIN32)
 endif()
 configure_smoke_target(EditorInteractionSmoke)
 
+add_executable(EditorInspectorRuntimeSmoke
+    Tests/EditorInspectorRuntimeSmoke.cpp
+    Editor/src/Panels/RuntimeInspector.cpp
+)
+target_include_directories(EditorInspectorRuntimeSmoke PRIVATE
+    ${CMAKE_SOURCE_DIR}/Editor/src
+    ${CMAKE_SOURCE_DIR}/HuaEngine/src
+    ${SPDLOG_INCLUDE_DIR}
+    ${GLM_INCLUDE_DIR}
+    ${IMGUI_INCLUDE_DIR}
+    ${STB_IMAGE_INCLUDE_DIR}
+)
+target_link_libraries(EditorInspectorRuntimeSmoke PRIVATE HuaEngine ImGui)
+if(WIN32)
+    target_compile_definitions(EditorInspectorRuntimeSmoke PRIVATE GLFW_INCLUDE_NONE)
+    if(MSVC)
+        set_target_properties(EditorInspectorRuntimeSmoke PROPERTIES
+            MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>"
+        )
+        target_compile_options(EditorInspectorRuntimeSmoke PRIVATE /utf-8)
+    endif()
+endif()
+configure_smoke_target(EditorInspectorRuntimeSmoke)
+
 # Set ProjectHub as the startup project for Visual Studio
 set_property(DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR} PROPERTY VS_STARTUP_PROJECT ProjectHub)
 
@@ -690,3 +714,4 @@ set_property(TARGET RenderingOperationsSmoke PROPERTY FOLDER "Tests")
 set_property(TARGET HostConsistencySmoke PROPERTY FOLDER "Tests")
 set_property(TARGET ProjectWorkbenchSmoke PROPERTY FOLDER "Tests")
 set_property(TARGET EditorInteractionSmoke PROPERTY FOLDER "Tests")
+set_property(TARGET EditorInspectorRuntimeSmoke PROPERTY FOLDER "Tests")
