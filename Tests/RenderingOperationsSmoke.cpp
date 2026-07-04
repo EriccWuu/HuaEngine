@@ -94,6 +94,14 @@ namespace {
 			return diagnostic.Code == code;
 		});
 	}
+
+	uint32_t CountDiagnostics(
+		const std::vector<HE::Rendering::RenderDiagnostic>& diagnostics,
+		HE::Rendering::RenderDiagnosticCode code) {
+		return static_cast<uint32_t>(std::count_if(diagnostics.begin(), diagnostics.end(), [code](const auto& diagnostic) {
+			return diagnostic.Code == code;
+		}));
+	}
 }
 
 int main() {
@@ -144,7 +152,9 @@ int main() {
 	const auto& initialRenderResult = initialRenderSystem->GetLastRenderResult();
 	Require(initialRenderResult.Succeeded, "Expected render result to succeed with fallback resources");
 	Require(initialRenderResult.Stats.SkippedItems == 0, "Expected fallback resources to avoid skipping render item");
+	Require(initialRenderResult.Stats.FallbackItems == 1, "Expected one render item with fallback resources even when mesh and material both fall back");
 	Require(HasDiagnostic(initialRenderResult.Diagnostics, HE::Rendering::RenderDiagnosticCode::FallbackResourceUsed), "Expected fallback diagnostic");
+	Require(CountDiagnostics(initialRenderResult.Diagnostics, HE::Rendering::RenderDiagnosticCode::FallbackResourceUsed) >= 2, "Expected separate fallback diagnostics for missing mesh and material");
 	Require(renderViewport.Operation == "rendering.render_scene_viewport", "Expected render operation id to stay stable");
 	Require(renderViewport.Payload.contains("render_items"), "Expected rendering.render_scene_viewport to report extracted render item count");
 	Require(renderViewport.Payload.contains("submitted_items"), "Expected rendering.render_scene_viewport to report submitted item count");
@@ -152,6 +162,7 @@ int main() {
 	Require(renderViewport.Payload.contains("draw_calls"), "Expected rendering.render_scene_viewport to report draw call count");
 	Require(renderViewport.Payload.contains("pass_count"), "Expected rendering.render_scene_viewport to report render pass count");
 	Require(renderViewport.Payload.contains("visible_items"), "Expected rendering.render_scene_viewport to report visible item count");
+	Require(renderViewport.Payload.contains("fallback_items"), "Expected rendering.render_scene_viewport to report fallback item count");
 	Require(renderViewport.Payload.contains("diagnostics"), "Expected rendering.render_scene_viewport to report diagnostic count");
 	Require(renderViewport.Payload.at("render_items") == "1", "Expected invalid renderable component triple to count as an extracted render item");
 	Require(renderViewport.Payload.at("submitted_items") == "1", "Expected invalid renderable resources to submit with fallback resources");
@@ -159,6 +170,7 @@ int main() {
 	Require(renderViewport.Payload.at("draw_calls") == "1", "Expected invalid renderable resources to issue a fallback draw call");
 	Require(renderViewport.Payload.at("pass_count") == "1", "Expected invalid renderable resources to execute one render pass");
 	Require(renderViewport.Payload.at("visible_items") == "1", "Expected invalid renderable resources to count one visible item");
+	Require(renderViewport.Payload.at("fallback_items") == "1", "Expected invalid renderable resources to count one fallback item");
 	Require(renderViewport.Payload.at("diagnostics") == "2", "Expected invalid renderable resources to emit mesh and material fallback diagnostics");
 
 	PrepareSandboxAssets();

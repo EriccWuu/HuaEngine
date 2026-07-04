@@ -49,6 +49,7 @@ namespace HE::Rendering {
 		}
 
 		Ref<Mesh> mesh = nullptr;
+		bool usedFallback = false;
 		const AssetGuid requestedMeshGuid = item.Mesh.Reference.Guid;
 		auto meshResult = m_AssetResolver->ResolveMesh(requestedMeshGuid, mesh);
 		if (!meshResult.Succeeded() || !mesh || !mesh->GetVertexArray()) {
@@ -64,7 +65,7 @@ namespace HE::Rendering {
 			}
 
 			mesh = fallbackMesh;
-			++stats.FallbackItems;
+			usedFallback = true;
 			AddFallbackDiagnostic(diagnostics, item.SourceEntity, requestedMeshGuid, BuiltinAssetGuids::FallbackMesh);
 		}
 
@@ -84,7 +85,7 @@ namespace HE::Rendering {
 			}
 
 			baseMaterial = fallbackMaterial;
-			++stats.FallbackItems;
+			usedFallback = true;
 			AddFallbackDiagnostic(diagnostics, item.SourceEntity, requestedMaterialGuid, BuiltinAssetGuids::FallbackMaterial);
 		}
 
@@ -100,6 +101,10 @@ namespace HE::Rendering {
 
 		for (const auto& [parameterName, value] : item.MaterialOverrides.Parameters) {
 			materialInstance->SetParameter(parameterName, value);
+		}
+
+		if (usedFallback) {
+			++stats.FallbackItems;
 		}
 
 		outResolvedItem.VertexArrayRef = mesh->GetVertexArray();
