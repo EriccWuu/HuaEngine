@@ -9,6 +9,7 @@
 #include "HuaEngine/Generated/GeneratedReflection.h"
 #include "HuaEngine/Reflection/Reflection.h"
 #include "HuaEngine/Serialization/Serialization.h"
+#include "Module/Rendering/RenderingComponent.h"
 
 namespace {
 	void Require(bool condition, const std::string& message) {
@@ -68,6 +69,11 @@ int main() {
 	Require(positionField->GetMutable != nullptr, "Expected Position mutable accessor");
 	Require(positionField->Serialize != nullptr, "Expected Position runtime field serializer");
 	Require(positionField->Deserialize != nullptr, "Expected Position runtime field deserializer");
+	Require(
+		HE::Refl::GetRuntimeFieldValueKind(*positionField) == HE::Refl::RuntimeFieldValueKind::Float3,
+		"Expected Position to be classified as Float3");
+	Require(HE::Refl::IsRuntimeFieldSerializable(*positionField), "Expected Position to be serializable through helper");
+	Require(HE::Refl::IsRuntimeFieldEditable(*positionField), "Expected Position to be editable through helper");
 
 	const HE::Generated::ReflectedTypeInfo* mesh = HE::Generated::FindReflectedType("HE::Rendering::MeshComponent");
 	Require(mesh != nullptr, "Expected to find HE::Rendering::MeshComponent");
@@ -114,6 +120,66 @@ int main() {
 	Require(loadedTransform.Position == sourceTransform.Position, "Expected metadata deserialization to round-trip Position");
 	Require(loadedTransform.Rotation == sourceTransform.Rotation, "Expected metadata deserialization to round-trip Rotation");
 	Require(loadedTransform.Scale == sourceTransform.Scale, "Expected metadata deserialization to round-trip Scale");
+
+	glm::vec3 readPosition{};
+	Require(
+		HE::Refl::GetRuntimeFieldValue(*positionField, &sourceTransform, readPosition),
+		"Expected generic runtime get to read Position");
+	Require(readPosition == sourceTransform.Position, "Expected generic runtime get to preserve Position value");
+
+	glm::vec3 updatedPosition{ 10.0f, 11.0f, 12.0f };
+	Require(
+		HE::Refl::SetRuntimeFieldValue(*positionField, &loadedTransform, updatedPosition),
+		"Expected generic runtime set to write Position");
+	Require(loadedTransform.Position == updatedPosition, "Expected generic runtime set to update Position");
+
+	const auto* blendModeEnum = HE::Refl::FindRuntimeEnum("HE::Rendering::MaterialBlendMode");
+	Require(blendModeEnum != nullptr, "Expected MaterialBlendMode runtime enum");
+	Require(blendModeEnum->Values.size() == 3, "Expected three MaterialBlendMode values");
+	Require(
+		HE::Refl::FindRuntimeEnumValueByName(*blendModeEnum, "Transparent") != nullptr,
+		"Expected Transparent enum value");
+	Require(
+		HE::Refl::FindRuntimeEnumValueByValue(*blendModeEnum, static_cast<int64_t>(HE::Rendering::MaterialBlendMode::Masked)) != nullptr,
+		"Expected Masked enum value by integer value");
+
+	const HE::Generated::ReflectedEnumInfo* generatedBlendMode =
+		HE::Generated::FindReflectedEnum("HE::Rendering::MaterialBlendMode");
+	Require(generatedBlendMode != nullptr, "Expected generated MaterialBlendMode enum info");
+
+	const auto* materialRuntime = HE::Refl::FindRuntimeType("HE::Rendering::MaterialComponent");
+	Require(materialRuntime != nullptr, "Expected MaterialComponent runtime descriptor");
+	const HE::Refl::RuntimeFieldDescriptor* blendModeField = FindRuntimeField(materialRuntime->Fields, "BlendMode");
+	Require(blendModeField != nullptr, "Expected MaterialComponent BlendMode field");
+	Require(blendModeField->EnumType == blendModeEnum, "Expected BlendMode field to reference enum metadata");
+	Require(
+		HE::Refl::GetRuntimeFieldValueKind(*blendModeField) == HE::Refl::RuntimeFieldValueKind::Enum,
+		"Expected BlendMode to be classified as enum");
+
+	HE::Rendering::MaterialComponent materialComponent;
+	Require(
+		HE::Refl::SetRuntimeEnumFieldValueByName(*blendModeField, &materialComponent, "Transparent"),
+		"Expected generic enum set by name to succeed");
+	int64_t enumRuntimeValue = 0;
+	Require(
+		HE::Refl::GetRuntimeEnumFieldValue(*blendModeField, &materialComponent, enumRuntimeValue),
+		"Expected generic enum get to succeed");
+	Require(
+		enumRuntimeValue == static_cast<int64_t>(HE::Rendering::MaterialBlendMode::Transparent),
+		"Expected enum runtime value to match Transparent");
+
+	HE::Serialization::JsonSerializationBackend materialWriteBackend;
+	HE::Refl::SerializeRuntimeObject(*materialRuntime, materialWriteBackend, "MaterialComponent", &materialComponent);
+	const std::string materialJson = materialWriteBackend.SaveToString();
+	Require(materialJson.find("\"BlendMode\": \"Transparent\"") != std::string::npos, "Expected enum to serialize as string name");
+
+	HE::Rendering::MaterialComponent loadedMaterial;
+	HE::Serialization::JsonSerializationBackend materialReadBackend;
+	materialReadBackend.LoadFromString(materialJson);
+	Require(
+		HE::Refl::DeserializeRuntimeObject(*materialRuntime, materialReadBackend, "MaterialComponent", &loadedMaterial),
+		"Expected enum string deserialization to succeed");
+	Require(loadedMaterial.BlendMode == HE::Rendering::MaterialBlendMode::Transparent, "Expected enum round-trip");
 
 	std::cout << "ReflectionGeneratedSmoke passed" << std::endl;
 	return 0;

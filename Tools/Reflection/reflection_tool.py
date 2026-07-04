@@ -258,6 +258,28 @@ def find_type_declaration(
     return None
 
 
+def find_enum_declaration(text: str, offset: int) -> Optional[Dict[str, Any]]:
+    window = text[offset : offset + 4096]
+    pattern = re.compile(
+        r"\benum\s+(?:class\s+)?(?P<name>[A-Za-z_]\w*)\b(?:\s*:\s*(?P<underlying>[A-Za-z_:]\w*(?:\s+[A-Za-z_:]\w*)?))?\s*\{",
+        re.MULTILINE,
+    )
+    match = pattern.search(window)
+    if not match:
+        return None
+    brace_offset = offset + match.end() - 1
+    end_brace = find_matching_brace(text, brace_offset)
+    if end_brace is None:
+        return None
+    return {
+        "name": match.group("name"),
+        "underlying_type": (match.group("underlying") or "int").strip(),
+        "declaration_start": offset + match.start(),
+        "body_start": brace_offset + 1,
+        "body_end": end_brace,
+    }
+
+
 def infer_namespace(text: str, offset: int) -> str:
     pattern = re.compile(
         r"\bnamespace\s+(?P<name>[A-Za-z_]\w*(?:::[A-Za-z_]\w*)*)?\s*\{",
@@ -380,6 +402,64 @@ def collect_fields(
     return fields
 
 
+def parse_enum_value_expression(expression: str) -> Optional[int]:
+    value = expression.strip()
+    if re.fullmatch(r"-?\d+", value):
+        return int(value, 10)
+    if re.fullmatch(r"0[xX][0-9A-Fa-f]+", value):
+        return int(value, 16)
+    return None
+
+
+def collect_enum_values(
+    text: str,
+    enum_decl: Dict[str, Any],
+    source: str,
+    diagnostics: List[Dict[str, Any]],
+) -> List[Dict[str, Any]]:
+    body = text[enum_decl["body_start"] : enum_decl["body_end"]]
+    values: List[Dict[str, Any]] = []
+    next_value = 0
+    for raw_entry in split_top_level_arguments(body):
+        entry = raw_entry.strip()
+        if not entry:
+            continue
+        if "=" in entry:
+            name, expression = entry.split("=", 1)
+            parsed_value = parse_enum_value_expression(expression)
+            if parsed_value is None:
+                diagnostics.append(
+                    make_diagnostic(
+                        "error",
+                        "enum.value_unsupported_expression",
+                        "HE_REFLECT_ENUM only supports implicit, decimal, hex, and negative integer values.",
+                        source,
+                        line_for_offset(text, enum_decl["body_start"] + body.find(raw_entry)),
+                    )
+                )
+                continue
+            next_value = parsed_value
+        else:
+            name = entry
+
+        enum_name = name.strip()
+        if not re.fullmatch(r"[A-Za-z_]\w*", enum_name):
+            diagnostics.append(
+                make_diagnostic(
+                    "error",
+                    "enum.value_unparsed",
+                    "Could not parse enum value name.",
+                    source,
+                    line_for_offset(text, enum_decl["body_start"] + body.find(raw_entry)),
+                )
+            )
+            continue
+
+        values.append({"name": enum_name, "value": next_value, "display_name": ""})
+        next_value += 1
+    return values
+
+
 def iter_source_files(root: Path) -> Iterable[Path]:
     for current_root, dirnames, filenames in os.walk(root):
         dirnames[:] = [name for name in dirnames if name not in SKIPPED_DIRS]
@@ -390,11 +470,41 @@ def iter_source_files(root: Path) -> Iterable[Path]:
                 yield path
 
 
-def scan_file(root: Path, path: Path, diagnostics: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+def scan_file(root: Path, path: Path, diagnostics: List[Dict[str, Any]]) -> Dict[str, List[Dict[str, Any]]]:
     source = normalize_path(path.relative_to(root))
     raw_text = read_text(path)
     text = strip_comments_preserve_lines(raw_text)
     types: List[Dict[str, Any]] = []
+    enums: List[Dict[str, Any]] = []
+
+    for macro_start, macro_end, macro_args in find_macro_calls(text, "HE_REFLECT_ENUM"):
+        line = line_for_offset(text, macro_start)
+        args = split_top_level_arguments(macro_args)
+        metadata = parse_metadata(args)
+        declaration = find_enum_declaration(text, macro_end)
+        if declaration is None:
+            diagnostics.append(
+                make_diagnostic(
+                    "error",
+                    "enum.declaration_not_found",
+                    "Could not find an enum declaration after HE_REFLECT_ENUM.",
+                    source,
+                    line,
+                )
+            )
+            continue
+
+        qualified_name = infer_qualified_name(text, declaration)
+        reflected_enum: Dict[str, Any] = {
+            "name": declaration["name"],
+            "qualified_name": qualified_name,
+            "underlying_type": declaration["underlying_type"],
+            "source": source,
+            "line": line,
+            "values": collect_enum_values(text, declaration, source, diagnostics),
+        }
+        reflected_enum.update(metadata)
+        enums.append(reflected_enum)
 
     for macro_start, macro_end, macro_args in find_macro_calls(text, "HE_REFLECT_COMPONENT"):
         line = line_for_offset(text, macro_start)
@@ -432,12 +542,13 @@ def scan_file(root: Path, path: Path, diagnostics: List[Dict[str, Any]]) -> List
         reflected_type.update(metadata)
         types.append(reflected_type)
 
-    return types
+    return {"types": types, "enums": enums}
 
 
 def validate_reflected_types(manifest: Dict[str, Any]) -> None:
     diagnostics = manifest.setdefault("diagnostics", [])
     seen_qualified_names: Dict[str, Dict[str, Any]] = {}
+    seen_enum_names: Dict[str, Dict[str, Any]] = {}
 
     for reflected_type in manifest.get("types", []):
         source = reflected_type.get("source")
@@ -500,10 +611,51 @@ def validate_reflected_types(manifest: Dict[str, Any]) -> None:
             else:
                 seen_qualified_names[qualified_name] = reflected_type
 
+    for reflected_enum in manifest.get("enums", []):
+        source = reflected_enum.get("source")
+        line = reflected_enum.get("line")
+        qualified_name = reflected_enum.get("qualified_name", "")
+
+        if not reflected_enum.get("values"):
+            diagnostics.append(
+                make_diagnostic(
+                    "error",
+                    "enum.no_values",
+                    "HE_REFLECT_ENUM enum must declare at least one value.",
+                    source,
+                    line,
+                )
+            )
+
+        if qualified_name:
+            previous = seen_enum_names.get(qualified_name)
+            if previous is not None:
+                diagnostics.append(
+                    make_diagnostic(
+                        "error",
+                        "enum.duplicate_qualified_name",
+                        f"Duplicate reflected enum qualified_name: {qualified_name}",
+                        source,
+                        line,
+                    )
+                )
+                diagnostics.append(
+                    make_diagnostic(
+                        "error",
+                        "enum.duplicate_qualified_name",
+                        f"Duplicate reflected enum qualified_name first seen here: {qualified_name}",
+                        previous.get("source"),
+                        previous.get("line"),
+                    )
+                )
+            else:
+                seen_enum_names[qualified_name] = reflected_enum
+
 
 def scan_root(root: Path) -> Dict[str, Any]:
     diagnostics: List[Dict[str, Any]] = []
     types: List[Dict[str, Any]] = []
+    enums: List[Dict[str, Any]] = []
     resolved_root = root.resolve()
 
     if not resolved_root.exists():
@@ -524,12 +676,16 @@ def scan_root(root: Path) -> Dict[str, Any]:
         )
     else:
         for path in sorted(iter_source_files(resolved_root)):
-            types.extend(scan_file(resolved_root, path, diagnostics))
+            scanned = scan_file(resolved_root, path, diagnostics)
+            types.extend(scanned["types"])
+            enums.extend(scanned["enums"])
 
     types.sort(key=lambda item: (item["qualified_name"], item["source"], item["line"]))
+    enums.sort(key=lambda item: (item["qualified_name"], item["source"], item["line"]))
     manifest = {
         "schema_version": SCHEMA_VERSION,
         "types": types,
+        "enums": enums,
         "diagnostics": diagnostics,
     }
     validate_reflected_types(manifest)
@@ -645,6 +801,38 @@ def generated_include_for_source(source: str) -> str:
     return normalized
 
 
+def is_editable_runtime_field_type(field_type: str, is_enum: bool) -> bool:
+    if is_enum:
+        return True
+    return field_type in {
+        "bool",
+        "int",
+        "int8_t",
+        "int16_t",
+        "int32_t",
+        "int64_t",
+        "long",
+        "long long",
+        "unsigned int",
+        "uint8_t",
+        "uint16_t",
+        "uint32_t",
+        "uint64_t",
+        "unsigned long",
+        "unsigned long long",
+        "float",
+        "double",
+        "std::string",
+        "glm::vec2",
+        "glm::vec3",
+        "glm::vec4",
+    }
+
+
+def enum_storage_size_expression(field_type: str) -> str:
+    return f"sizeof({field_type})"
+
+
 def cleanup_obsolete_per_source_headers(out_dir: Path) -> None:
     reflection_dir = out_dir / "Reflection"
     if not reflection_dir.exists():
@@ -666,11 +854,28 @@ def write_generated_files(manifest: Dict[str, Any], out_dir: Path) -> List[Path]
     header_path = out_dir / "GeneratedReflection.h"
     source_path = out_dir / "GeneratedReflection.cpp"
     manifest_types = manifest.get("types", [])
+    manifest_enums = manifest.get("enums", [])
+    enum_by_qualified_name = {enum.get("qualified_name", ""): enum for enum in manifest_enums}
+    enum_by_short_name = {enum.get("name", ""): enum for enum in manifest_enums}
+    enum_index_by_qualified_name = {
+        enum.get("qualified_name", ""): index for index, enum in enumerate(manifest_enums)
+    }
     written_files = [header_path, source_path]
+
+    def resolve_enum_for_field(field_type: str) -> Optional[Dict[str, Any]]:
+        return enum_by_qualified_name.get(field_type) or enum_by_short_name.get(field_type.split("::")[-1])
+
+    def enum_pointer_for_field(field_type: str) -> str:
+        reflected_enum = resolve_enum_for_field(field_type)
+        if reflected_enum is None:
+            return "nullptr"
+        enum_index = enum_index_by_qualified_name[reflected_enum.get("qualified_name", "")]
+        return f"&RuntimeEnums[{enum_index}]"
 
     header_lines = [
         "#pragma once",
         "",
+        "#include <cstdint>",
         "#include <span>",
         "#include <string_view>",
         "",
@@ -694,8 +899,23 @@ def write_generated_files(manifest: Dict[str, Any], out_dir: Path) -> List[Path]
         "    std::span<const ReflectedFieldInfo> Fields;",
         "};",
         "",
+        "struct ReflectedEnumValueInfo {",
+        "    std::string_view Name;",
+        "    int64_t Value;",
+        "    std::string_view DisplayName;",
+        "};",
+        "",
+        "struct ReflectedEnumInfo {",
+        "    std::string_view Name;",
+        "    std::string_view QualifiedName;",
+        "    std::string_view UnderlyingType;",
+        "    std::span<const ReflectedEnumValueInfo> Values;",
+        "};",
+        "",
         "std::span<const ReflectedTypeInfo> GetReflectedTypes();",
         "const ReflectedTypeInfo* FindReflectedType(std::string_view qualifiedName);",
+        "std::span<const ReflectedEnumInfo> GetReflectedEnums();",
+        "const ReflectedEnumInfo* FindReflectedEnum(std::string_view qualifiedName);",
         "void RegisterGeneratedComponents(ComponentRegistry& registry);",
         "",
         "} // namespace HE::Generated",
@@ -709,6 +929,11 @@ def write_generated_files(manifest: Dict[str, Any], out_dir: Path) -> List[Path]
             generated_include_for_source(reflected_type.get("source", ""))
             for reflected_type in manifest_types
             if reflected_type.get("source", "")
+        }
+        | {
+            generated_include_for_source(reflected_enum.get("source", ""))
+            for reflected_enum in manifest_enums
+            if reflected_enum.get("source", "")
         }
     )
 
@@ -734,6 +959,87 @@ def write_generated_files(manifest: Dict[str, Any], out_dir: Path) -> List[Path]
             "",
         ]
     )
+
+    for enum_index, reflected_enum in enumerate(manifest_enums):
+        values = reflected_enum.get("values", [])
+        if values:
+            lines.append(f"static constexpr Refl::RuntimeEnumValueDescriptor RuntimeEnum{enum_index}Values[] = {{")
+            for value in values:
+                lines.append(
+                    "    {"
+                    + ", ".join(
+                        [
+                            cpp_string(value.get("name", "")),
+                            str(value.get("value", 0)),
+                            cpp_string(value.get("display_name", "")),
+                        ]
+                    )
+                    + "},"
+                )
+            lines.append("};")
+            lines.append("")
+            lines.append(f"static constexpr ReflectedEnumValueInfo ReflectedEnum{enum_index}Values[] = {{")
+            for value in values:
+                lines.append(
+                    "    {"
+                    + ", ".join(
+                        [
+                            cpp_string(value.get("name", "")),
+                            str(value.get("value", 0)),
+                            cpp_string(value.get("display_name", "")),
+                        ]
+                    )
+                    + "},"
+                )
+            lines.append("};")
+            lines.append("")
+
+    if manifest_enums:
+        lines.append("static constexpr Refl::RuntimeEnumDescriptor RuntimeEnums[] = {")
+        for enum_index, reflected_enum in enumerate(manifest_enums):
+            value_count = len(reflected_enum.get("values", []))
+            value_span = (
+                f"std::span<const Refl::RuntimeEnumValueDescriptor>{{RuntimeEnum{enum_index}Values}}"
+                if value_count
+                else "std::span<const Refl::RuntimeEnumValueDescriptor>{}"
+            )
+            lines.append(
+                "    {"
+                + ", ".join(
+                    [
+                        cpp_string(reflected_enum.get("name", "")),
+                        cpp_string(reflected_enum.get("qualified_name", "")),
+                        cpp_string(reflected_enum.get("underlying_type", "")),
+                        value_span,
+                    ]
+                )
+                + "},"
+            )
+        lines.append("};")
+        lines.append("")
+
+        lines.append("static constexpr ReflectedEnumInfo ReflectedEnums[] = {")
+        for enum_index, reflected_enum in enumerate(manifest_enums):
+            value_count = len(reflected_enum.get("values", []))
+            value_span = (
+                f"std::span<const ReflectedEnumValueInfo>{{ReflectedEnum{enum_index}Values}}"
+                if value_count
+                else "std::span<const ReflectedEnumValueInfo>{}"
+            )
+            lines.append(
+                "    {"
+                + ", ".join(
+                    [
+                        cpp_string(reflected_enum.get("name", "")),
+                        cpp_string(reflected_enum.get("qualified_name", "")),
+                        cpp_string(reflected_enum.get("underlying_type", "")),
+                        value_span,
+                    ]
+                )
+                + "},"
+            )
+        lines.append("};")
+        lines.append("")
 
     for type_index, reflected_type in enumerate(manifest_types):
         fields = reflected_type.get("fields", [])
@@ -778,7 +1084,9 @@ def write_generated_files(manifest: Dict[str, Any], out_dir: Path) -> List[Path]
         lines.append("")
         for field in fields:
             field_name = field.get("name", "")
+            field_type = field.get("type", "")
             field_identifier = f"{identifier}_{cpp_identifier(field_name)}"
+            enum_pointer = enum_pointer_for_field(field_type)
             lines.append(f"static const void* GetConst_{field_identifier}(const void* object) {{")
             lines.append(f"    return &static_cast<const {qualified_name}*>(object)->{field_name};")
             lines.append("}")
@@ -792,7 +1100,13 @@ def write_generated_files(manifest: Dict[str, Any], out_dir: Path) -> List[Path]
             lines.append("    const std::string& name,")
             lines.append("    const void* object) {")
             lines.append(f"    const auto& component = *static_cast<const {qualified_name}*>(object);")
-            lines.append(f"    Serialization::SerializeValue(backend, name, component.{field_name});")
+            if enum_pointer != "nullptr":
+                lines.append(f"    const auto enumValue = static_cast<int64_t>(component.{field_name});")
+                lines.append(f"    if (const auto* value = Refl::FindRuntimeEnumValueByValue(*{enum_pointer}, enumValue)) {{")
+                lines.append("        backend.Serialize(name, std::string(value->Name));")
+                lines.append("    }")
+            else:
+                lines.append(f"    Serialization::SerializeValue(backend, name, component.{field_name});")
             lines.append("}")
             lines.append("")
             lines.append(f"static bool Deserialize_{field_identifier}(")
@@ -800,12 +1114,25 @@ def write_generated_files(manifest: Dict[str, Any], out_dir: Path) -> List[Path]
             lines.append("    const std::string& name,")
             lines.append("    void* object) {")
             lines.append(f"    auto& component = *static_cast<{qualified_name}*>(object);")
-            lines.append(f"    auto fieldValue = component.{field_name};")
-            lines.append("    if (!Serialization::DeserializeValue(backend, name, fieldValue)) {")
-            lines.append("        return false;")
-            lines.append("    }")
-            lines.append(f"    component.{field_name} = fieldValue;")
-            lines.append("    return true;")
+            if enum_pointer != "nullptr":
+                enum_type_name = resolve_enum_for_field(field_type).get("qualified_name", field_type)
+                lines.append("    std::string enumName;")
+                lines.append("    if (!backend.Deserialize(name, enumName)) {")
+                lines.append("        return false;")
+                lines.append("    }")
+                lines.append(f"    const auto* value = Refl::FindRuntimeEnumValueByName(*{enum_pointer}, enumName);")
+                lines.append("    if (value == nullptr) {")
+                lines.append("        return false;")
+                lines.append("    }")
+                lines.append(f"    component.{field_name} = static_cast<{enum_type_name}>(value->Value);")
+                lines.append("    return true;")
+            else:
+                lines.append(f"    auto fieldValue = component.{field_name};")
+                lines.append("    if (!Serialization::DeserializeValue(backend, name, fieldValue)) {")
+                lines.append("        return false;")
+                lines.append("    }")
+                lines.append(f"    component.{field_name} = fieldValue;")
+                lines.append("    return true;")
             lines.append("}")
             lines.append("")
     for type_index, reflected_type in enumerate(manifest_types):
@@ -817,11 +1144,15 @@ def write_generated_files(manifest: Dict[str, Any], out_dir: Path) -> List[Path]
             lines.append(f"static constexpr Refl::RuntimeFieldDescriptor RuntimeType{type_index}Fields[] = {{")
             for field in fields:
                 field_name = field.get("name", "")
+                field_type = field.get("type", "")
                 field_identifier = f"{identifier}_{cpp_identifier(field_name)}"
+                enum_pointer = enum_pointer_for_field(field_type)
                 if is_component:
                     offset = f"offsetof({qualified_name}, {field_name})"
                     size = f"sizeof(static_cast<{qualified_name}*>(nullptr)->{field_name})"
                     flags = "Refl::RuntimeFieldFlags::Serializable | Refl::RuntimeFieldFlags::ComponentField"
+                    if is_editable_runtime_field_type(field_type, enum_pointer != "nullptr"):
+                        flags += " | Refl::RuntimeFieldFlags::Editable"
                     get_const = f"&GetConst_{field_identifier}"
                     get_mutable = f"&GetMutable_{field_identifier}"
                     serialize_field = f"&Serialize_{field_identifier}"
@@ -834,6 +1165,7 @@ def write_generated_files(manifest: Dict[str, Any], out_dir: Path) -> List[Path]
                     get_mutable = "nullptr"
                     serialize_field = "nullptr"
                     deserialize_field = "nullptr"
+                    enum_pointer = "nullptr"
                 lines.append(
                     "    {"
                     + ", ".join(
@@ -849,6 +1181,7 @@ def write_generated_files(manifest: Dict[str, Any], out_dir: Path) -> List[Path]
                             get_mutable,
                             serialize_field,
                             deserialize_field,
+                            enum_pointer,
                         ]
                     )
                     + "},"
@@ -952,6 +1285,23 @@ def write_generated_files(manifest: Dict[str, Any], out_dir: Path) -> List[Path]
     lines.append("    return nullptr;")
     lines.append("}")
     lines.append("")
+    lines.append("std::span<const ReflectedEnumInfo> GetReflectedEnums() {")
+    if manifest_enums:
+        lines.append("    return ReflectedEnums;")
+    else:
+        lines.append("    return {};")
+    lines.append("}")
+    lines.append("")
+    lines.append("const ReflectedEnumInfo* FindReflectedEnum(std::string_view qualifiedName) {")
+    lines.append("    for (const ReflectedEnumInfo& enumType : GetReflectedEnums()) {")
+    lines.append("        if (enumType.QualifiedName == qualifiedName) {")
+    lines.append("            return &enumType;")
+    lines.append("        }")
+    lines.append("    }")
+    lines.append("")
+    lines.append("    return nullptr;")
+    lines.append("}")
+    lines.append("")
     lines.append("void RegisterGeneratedComponents(ComponentRegistry& registry) {")
     lines.append("    for (const Refl::RuntimeTypeDescriptor& type : Refl::GetRuntimeTypes()) {")
     lines.append("        if (type.Kind == \"component\") {")
@@ -1017,6 +1367,45 @@ def write_generated_files(manifest: Dict[str, Any], out_dir: Path) -> List[Path]
     lines.append("        }")
     lines.append("    }")
     lines.append("")
+    lines.append("    return nullptr;")
+    lines.append("}")
+    lines.append("")
+    lines.append("std::span<const RuntimeEnumDescriptor> GetRuntimeEnums() {")
+    if manifest_enums:
+        lines.append("    return Generated::RuntimeEnums;")
+    else:
+        lines.append("    return {};")
+    lines.append("}")
+    lines.append("")
+    lines.append("const RuntimeEnumDescriptor* FindRuntimeEnum(std::string_view qualifiedName) {")
+    lines.append("    for (const RuntimeEnumDescriptor& enumType : GetRuntimeEnums()) {")
+    lines.append("        if (enumType.QualifiedName == qualifiedName) {")
+    lines.append("            return &enumType;")
+    lines.append("        }")
+    lines.append("    }")
+    lines.append("")
+    lines.append("    return nullptr;")
+    lines.append("}")
+    lines.append("")
+    lines.append("const RuntimeEnumValueDescriptor* FindRuntimeEnumValueByName(")
+    lines.append("    const RuntimeEnumDescriptor& enumType,")
+    lines.append("    std::string_view name) {")
+    lines.append("    for (const RuntimeEnumValueDescriptor& value : enumType.Values) {")
+    lines.append("        if (value.Name == name) {")
+    lines.append("            return &value;")
+    lines.append("        }")
+    lines.append("    }")
+    lines.append("    return nullptr;")
+    lines.append("}")
+    lines.append("")
+    lines.append("const RuntimeEnumValueDescriptor* FindRuntimeEnumValueByValue(")
+    lines.append("    const RuntimeEnumDescriptor& enumType,")
+    lines.append("    int64_t value) {")
+    lines.append("    for (const RuntimeEnumValueDescriptor& enumValue : enumType.Values) {")
+    lines.append("        if (enumValue.Value == value) {")
+    lines.append("            return &enumValue;")
+    lines.append("        }")
+    lines.append("    }")
     lines.append("    return nullptr;")
     lines.append("}")
     lines.append("")

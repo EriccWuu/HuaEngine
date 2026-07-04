@@ -393,6 +393,45 @@ namespace {
 			duplicateRoot);
 		ExpectCommandFailedWith(duplicateResult, "duplicate type fixture", "component.duplicate_qualified_name");
 
+		const auto enumRoot = workspaceRoot / "enum_positive";
+		std::filesystem::remove_all(enumRoot, errorCode);
+		Expect(!errorCode, "Failed to clean enum positive fixture");
+		WriteTextFile(
+			enumRoot / "HuaEngine" / "src" / "Fixture" / "EnumComponent.h",
+			"namespace HE {\n"
+			"HE_REFLECT_" "ENUM()\n"
+			"enum class FixtureMode {\n"
+			"    A,\n"
+			"    B = 4,\n"
+			"    C,\n"
+			"    D = -1,\n"
+			"    E = 0x10\n"
+			"};\n"
+			"HE_REFLECT_" "COMPONENT(DisplayName=\"Enum Component\", Category=\"Fixture\")\n"
+			"struct EnumComponent {\n"
+			"    HE_REFLECT_" "FIELD()\n"
+			"    FixtureMode Mode = FixtureMode::A;\n"
+			"};\n"
+			"}\n");
+		const auto enumResult = RunCommand(
+			{ "python", reflectionToolPath.string(), "validate", "--root", enumRoot.string() },
+			enumRoot);
+		ExpectCommandSucceeded(enumResult, "enum positive fixture");
+		Expect(enumResult.Output.find("\"enums\"") != std::string::npos, "enum positive fixture should include enums in manifest");
+		Expect(enumResult.Output.find("\"FixtureMode\"") != std::string::npos, "enum positive fixture should include FixtureMode metadata");
+
+		ValidateNegativeFixture(
+			reflectionToolPath,
+			workspaceRoot,
+			"enum_complex_expression",
+			"namespace HE {\n"
+			"HE_REFLECT_" "ENUM()\n"
+			"enum class BadFlags {\n"
+			"    A = 1 << 0\n"
+			"};\n"
+			"}\n",
+			"enum.value_unsupported_expression");
+
 		ValidateGeneratedDriftFixture(reflectionToolPath, workspaceRoot);
 	}
 

@@ -42,15 +42,16 @@ int main() {
 	const auto* position = FindField(transform->RuntimeType->Fields, "Position");
 	Require(position != nullptr, "Expected TransformComponent Position field");
 	Require(
-		HE::Editor::GetRuntimeFieldEditKind(*position) == HE::Editor::RuntimeFieldEditKind::Float3,
+		HE::Refl::GetRuntimeFieldValueKind(*position) == HE::Refl::RuntimeFieldValueKind::Float3,
 		"Expected Position to use Float3 runtime editor");
+	Require(HE::Editor::IsRuntimeFieldEditable(*position), "Expected Position to be runtime editable");
 
 	const HE::ComponentMetadata* camera = registry.FindByType<HE::Rendering::CameraComponent>();
 	Require(camera != nullptr, "Expected CameraComponent metadata");
 	const auto* primary = FindField(camera->RuntimeType->Fields, "Primary");
 	Require(primary != nullptr, "Expected CameraComponent Primary field");
 	Require(
-		HE::Editor::GetRuntimeFieldEditKind(*primary) == HE::Editor::RuntimeFieldEditKind::Bool,
+		HE::Refl::GetRuntimeFieldValueKind(*primary) == HE::Refl::RuntimeFieldValueKind::Bool,
 		"Expected CameraComponent Primary to use Bool runtime editor");
 
 	const HE::ComponentMetadata* mesh = registry.FindByType<HE::Rendering::MeshComponent>();
@@ -58,7 +59,7 @@ int main() {
 	const auto* meshAssetName = FindField(mesh->RuntimeType->Fields, "MeshAssetName");
 	Require(meshAssetName != nullptr, "Expected MeshComponent MeshAssetName field");
 	Require(
-		HE::Editor::GetRuntimeFieldEditKind(*meshAssetName) == HE::Editor::RuntimeFieldEditKind::String,
+		HE::Refl::GetRuntimeFieldValueKind(*meshAssetName) == HE::Refl::RuntimeFieldValueKind::String,
 		"Expected MeshAssetName to use String runtime editor");
 
 	const HE::ComponentMetadata* material = registry.FindByType<HE::Rendering::MaterialComponent>();
@@ -66,8 +67,16 @@ int main() {
 	const auto* materialInstance = FindField(material->RuntimeType->Fields, "MaterialInstance");
 	Require(materialInstance != nullptr, "Expected MaterialComponent MaterialInstance field");
 	Require(
-		HE::Editor::GetRuntimeFieldEditKind(*materialInstance) == HE::Editor::RuntimeFieldEditKind::Unsupported,
-		"Expected MaterialInstance to use unsupported runtime editor");
+		HE::Refl::GetRuntimeFieldValueKind(*materialInstance) == HE::Refl::RuntimeFieldValueKind::AssetRef,
+		"Expected MaterialInstance to use AssetRef runtime field kind");
+	Require(!HE::Editor::IsRuntimeFieldEditable(*materialInstance), "Expected MaterialInstance not to be runtime editable");
+	const auto* blendMode = FindField(material->RuntimeType->Fields, "BlendMode");
+	Require(blendMode != nullptr, "Expected MaterialComponent BlendMode field");
+	Require(
+		HE::Refl::GetRuntimeFieldValueKind(*blendMode) == HE::Refl::RuntimeFieldValueKind::Enum,
+		"Expected BlendMode to use Enum runtime field kind");
+	Require(HE::Editor::IsRuntimeFieldEditable(*blendMode), "Expected BlendMode to be runtime editable");
+	Require(blendMode->EnumType != nullptr, "Expected BlendMode enum metadata");
 
 	Require(
 		HE::Editor::GetRuntimeComponentDisplayName(*transform->RuntimeType) == "Transform",

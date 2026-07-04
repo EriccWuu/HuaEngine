@@ -14,6 +14,26 @@
 
 namespace HE::Generated {
 
+static constexpr Refl::RuntimeEnumValueDescriptor RuntimeEnum0Values[] = {
+    {"Opaque", 0, ""},
+    {"Masked", 1, ""},
+    {"Transparent", 2, ""},
+};
+
+static constexpr ReflectedEnumValueInfo ReflectedEnum0Values[] = {
+    {"Opaque", 0, ""},
+    {"Masked", 1, ""},
+    {"Transparent", 2, ""},
+};
+
+static constexpr Refl::RuntimeEnumDescriptor RuntimeEnums[] = {
+    {"MaterialBlendMode", "HE::Rendering::MaterialBlendMode", "int", std::span<const Refl::RuntimeEnumValueDescriptor>{RuntimeEnum0Values}},
+};
+
+static constexpr ReflectedEnumInfo ReflectedEnums[] = {
+    {"MaterialBlendMode", "HE::Rendering::MaterialBlendMode", "int", std::span<const ReflectedEnumValueInfo>{ReflectedEnum0Values}},
+};
+
 static constexpr ReflectedFieldInfo Type0Fields[] = {
     {"Name", "std::string"},
 };
@@ -25,6 +45,7 @@ static constexpr ReflectedFieldInfo Type1Fields[] = {
 
 static constexpr ReflectedFieldInfo Type2Fields[] = {
     {"MaterialInstance", "Ref<HE::Rendering::MaterialInstance>"},
+    {"BlendMode", "MaterialBlendMode"},
 };
 
 static constexpr ReflectedFieldInfo Type3Fields[] = {
@@ -201,6 +222,42 @@ static bool Deserialize_HE__Rendering__MaterialComponent_MaterialInstance(
     return true;
 }
 
+static const void* GetConst_HE__Rendering__MaterialComponent_BlendMode(const void* object) {
+    return &static_cast<const HE::Rendering::MaterialComponent*>(object)->BlendMode;
+}
+
+static void* GetMutable_HE__Rendering__MaterialComponent_BlendMode(void* object) {
+    return &static_cast<HE::Rendering::MaterialComponent*>(object)->BlendMode;
+}
+
+static void Serialize_HE__Rendering__MaterialComponent_BlendMode(
+    Serialization::SerializationBackend& backend,
+    const std::string& name,
+    const void* object) {
+    const auto& component = *static_cast<const HE::Rendering::MaterialComponent*>(object);
+    const auto enumValue = static_cast<int64_t>(component.BlendMode);
+    if (const auto* value = Refl::FindRuntimeEnumValueByValue(*&RuntimeEnums[0], enumValue)) {
+        backend.Serialize(name, std::string(value->Name));
+    }
+}
+
+static bool Deserialize_HE__Rendering__MaterialComponent_BlendMode(
+    Serialization::SerializationBackend& backend,
+    const std::string& name,
+    void* object) {
+    auto& component = *static_cast<HE::Rendering::MaterialComponent*>(object);
+    std::string enumName;
+    if (!backend.Deserialize(name, enumName)) {
+        return false;
+    }
+    const auto* value = Refl::FindRuntimeEnumValueByName(*&RuntimeEnums[0], enumName);
+    if (value == nullptr) {
+        return false;
+    }
+    component.BlendMode = static_cast<HE::Rendering::MaterialBlendMode>(value->Value);
+    return true;
+}
+
 static void* ConstructDefault_HE__Rendering__MeshComponent() {
     return new HE::Rendering::MeshComponent();
 }
@@ -350,26 +407,27 @@ static bool Deserialize_HE__TransformComponent_Scale(
 }
 
 static constexpr Refl::RuntimeFieldDescriptor RuntimeType0Fields[] = {
-    {"Name", "std::string", "", "", offsetof(HE::NameComponent, Name), sizeof(static_cast<HE::NameComponent*>(nullptr)->Name), Refl::RuntimeFieldFlags::Serializable | Refl::RuntimeFieldFlags::ComponentField, &GetConst_HE__NameComponent_Name, &GetMutable_HE__NameComponent_Name, &Serialize_HE__NameComponent_Name, &Deserialize_HE__NameComponent_Name},
+    {"Name", "std::string", "", "", offsetof(HE::NameComponent, Name), sizeof(static_cast<HE::NameComponent*>(nullptr)->Name), Refl::RuntimeFieldFlags::Serializable | Refl::RuntimeFieldFlags::ComponentField | Refl::RuntimeFieldFlags::Editable, &GetConst_HE__NameComponent_Name, &GetMutable_HE__NameComponent_Name, &Serialize_HE__NameComponent_Name, &Deserialize_HE__NameComponent_Name, nullptr},
 };
 
 static constexpr Refl::RuntimeFieldDescriptor RuntimeType1Fields[] = {
-    {"Primary", "bool", "", "", offsetof(HE::Rendering::CameraComponent, Primary), sizeof(static_cast<HE::Rendering::CameraComponent*>(nullptr)->Primary), Refl::RuntimeFieldFlags::Serializable | Refl::RuntimeFieldFlags::ComponentField, &GetConst_HE__Rendering__CameraComponent_Primary, &GetMutable_HE__Rendering__CameraComponent_Primary, &Serialize_HE__Rendering__CameraComponent_Primary, &Deserialize_HE__Rendering__CameraComponent_Primary},
-    {"FixedAspectRatio", "bool", "", "", offsetof(HE::Rendering::CameraComponent, FixedAspectRatio), sizeof(static_cast<HE::Rendering::CameraComponent*>(nullptr)->FixedAspectRatio), Refl::RuntimeFieldFlags::Serializable | Refl::RuntimeFieldFlags::ComponentField, &GetConst_HE__Rendering__CameraComponent_FixedAspectRatio, &GetMutable_HE__Rendering__CameraComponent_FixedAspectRatio, &Serialize_HE__Rendering__CameraComponent_FixedAspectRatio, &Deserialize_HE__Rendering__CameraComponent_FixedAspectRatio},
+    {"Primary", "bool", "", "", offsetof(HE::Rendering::CameraComponent, Primary), sizeof(static_cast<HE::Rendering::CameraComponent*>(nullptr)->Primary), Refl::RuntimeFieldFlags::Serializable | Refl::RuntimeFieldFlags::ComponentField | Refl::RuntimeFieldFlags::Editable, &GetConst_HE__Rendering__CameraComponent_Primary, &GetMutable_HE__Rendering__CameraComponent_Primary, &Serialize_HE__Rendering__CameraComponent_Primary, &Deserialize_HE__Rendering__CameraComponent_Primary, nullptr},
+    {"FixedAspectRatio", "bool", "", "", offsetof(HE::Rendering::CameraComponent, FixedAspectRatio), sizeof(static_cast<HE::Rendering::CameraComponent*>(nullptr)->FixedAspectRatio), Refl::RuntimeFieldFlags::Serializable | Refl::RuntimeFieldFlags::ComponentField | Refl::RuntimeFieldFlags::Editable, &GetConst_HE__Rendering__CameraComponent_FixedAspectRatio, &GetMutable_HE__Rendering__CameraComponent_FixedAspectRatio, &Serialize_HE__Rendering__CameraComponent_FixedAspectRatio, &Deserialize_HE__Rendering__CameraComponent_FixedAspectRatio, nullptr},
 };
 
 static constexpr Refl::RuntimeFieldDescriptor RuntimeType2Fields[] = {
-    {"MaterialInstance", "Ref<HE::Rendering::MaterialInstance>", "", "", offsetof(HE::Rendering::MaterialComponent, MaterialInstance), sizeof(static_cast<HE::Rendering::MaterialComponent*>(nullptr)->MaterialInstance), Refl::RuntimeFieldFlags::Serializable | Refl::RuntimeFieldFlags::ComponentField, &GetConst_HE__Rendering__MaterialComponent_MaterialInstance, &GetMutable_HE__Rendering__MaterialComponent_MaterialInstance, &Serialize_HE__Rendering__MaterialComponent_MaterialInstance, &Deserialize_HE__Rendering__MaterialComponent_MaterialInstance},
+    {"MaterialInstance", "Ref<HE::Rendering::MaterialInstance>", "", "", offsetof(HE::Rendering::MaterialComponent, MaterialInstance), sizeof(static_cast<HE::Rendering::MaterialComponent*>(nullptr)->MaterialInstance), Refl::RuntimeFieldFlags::Serializable | Refl::RuntimeFieldFlags::ComponentField, &GetConst_HE__Rendering__MaterialComponent_MaterialInstance, &GetMutable_HE__Rendering__MaterialComponent_MaterialInstance, &Serialize_HE__Rendering__MaterialComponent_MaterialInstance, &Deserialize_HE__Rendering__MaterialComponent_MaterialInstance, nullptr},
+    {"BlendMode", "MaterialBlendMode", "", "", offsetof(HE::Rendering::MaterialComponent, BlendMode), sizeof(static_cast<HE::Rendering::MaterialComponent*>(nullptr)->BlendMode), Refl::RuntimeFieldFlags::Serializable | Refl::RuntimeFieldFlags::ComponentField | Refl::RuntimeFieldFlags::Editable, &GetConst_HE__Rendering__MaterialComponent_BlendMode, &GetMutable_HE__Rendering__MaterialComponent_BlendMode, &Serialize_HE__Rendering__MaterialComponent_BlendMode, &Deserialize_HE__Rendering__MaterialComponent_BlendMode, &RuntimeEnums[0]},
 };
 
 static constexpr Refl::RuntimeFieldDescriptor RuntimeType3Fields[] = {
-    {"MeshAssetName", "std::string", "", "", offsetof(HE::Rendering::MeshComponent, MeshAssetName), sizeof(static_cast<HE::Rendering::MeshComponent*>(nullptr)->MeshAssetName), Refl::RuntimeFieldFlags::Serializable | Refl::RuntimeFieldFlags::ComponentField, &GetConst_HE__Rendering__MeshComponent_MeshAssetName, &GetMutable_HE__Rendering__MeshComponent_MeshAssetName, &Serialize_HE__Rendering__MeshComponent_MeshAssetName, &Deserialize_HE__Rendering__MeshComponent_MeshAssetName},
+    {"MeshAssetName", "std::string", "", "", offsetof(HE::Rendering::MeshComponent, MeshAssetName), sizeof(static_cast<HE::Rendering::MeshComponent*>(nullptr)->MeshAssetName), Refl::RuntimeFieldFlags::Serializable | Refl::RuntimeFieldFlags::ComponentField | Refl::RuntimeFieldFlags::Editable, &GetConst_HE__Rendering__MeshComponent_MeshAssetName, &GetMutable_HE__Rendering__MeshComponent_MeshAssetName, &Serialize_HE__Rendering__MeshComponent_MeshAssetName, &Deserialize_HE__Rendering__MeshComponent_MeshAssetName, nullptr},
 };
 
 static constexpr Refl::RuntimeFieldDescriptor RuntimeType4Fields[] = {
-    {"Position", "glm::vec3", "", "", offsetof(HE::TransformComponent, Position), sizeof(static_cast<HE::TransformComponent*>(nullptr)->Position), Refl::RuntimeFieldFlags::Serializable | Refl::RuntimeFieldFlags::ComponentField, &GetConst_HE__TransformComponent_Position, &GetMutable_HE__TransformComponent_Position, &Serialize_HE__TransformComponent_Position, &Deserialize_HE__TransformComponent_Position},
-    {"Rotation", "glm::vec3", "", "", offsetof(HE::TransformComponent, Rotation), sizeof(static_cast<HE::TransformComponent*>(nullptr)->Rotation), Refl::RuntimeFieldFlags::Serializable | Refl::RuntimeFieldFlags::ComponentField, &GetConst_HE__TransformComponent_Rotation, &GetMutable_HE__TransformComponent_Rotation, &Serialize_HE__TransformComponent_Rotation, &Deserialize_HE__TransformComponent_Rotation},
-    {"Scale", "glm::vec3", "", "", offsetof(HE::TransformComponent, Scale), sizeof(static_cast<HE::TransformComponent*>(nullptr)->Scale), Refl::RuntimeFieldFlags::Serializable | Refl::RuntimeFieldFlags::ComponentField, &GetConst_HE__TransformComponent_Scale, &GetMutable_HE__TransformComponent_Scale, &Serialize_HE__TransformComponent_Scale, &Deserialize_HE__TransformComponent_Scale},
+    {"Position", "glm::vec3", "", "", offsetof(HE::TransformComponent, Position), sizeof(static_cast<HE::TransformComponent*>(nullptr)->Position), Refl::RuntimeFieldFlags::Serializable | Refl::RuntimeFieldFlags::ComponentField | Refl::RuntimeFieldFlags::Editable, &GetConst_HE__TransformComponent_Position, &GetMutable_HE__TransformComponent_Position, &Serialize_HE__TransformComponent_Position, &Deserialize_HE__TransformComponent_Position, nullptr},
+    {"Rotation", "glm::vec3", "", "", offsetof(HE::TransformComponent, Rotation), sizeof(static_cast<HE::TransformComponent*>(nullptr)->Rotation), Refl::RuntimeFieldFlags::Serializable | Refl::RuntimeFieldFlags::ComponentField | Refl::RuntimeFieldFlags::Editable, &GetConst_HE__TransformComponent_Rotation, &GetMutable_HE__TransformComponent_Rotation, &Serialize_HE__TransformComponent_Rotation, &Deserialize_HE__TransformComponent_Rotation, nullptr},
+    {"Scale", "glm::vec3", "", "", offsetof(HE::TransformComponent, Scale), sizeof(static_cast<HE::TransformComponent*>(nullptr)->Scale), Refl::RuntimeFieldFlags::Serializable | Refl::RuntimeFieldFlags::ComponentField | Refl::RuntimeFieldFlags::Editable, &GetConst_HE__TransformComponent_Scale, &GetMutable_HE__TransformComponent_Scale, &Serialize_HE__TransformComponent_Scale, &Deserialize_HE__TransformComponent_Scale, nullptr},
 };
 
 static const Refl::RuntimeTypeDescriptor RuntimeTypes[] = {
@@ -396,6 +454,20 @@ const ReflectedTypeInfo* FindReflectedType(std::string_view qualifiedName) {
     for (const ReflectedTypeInfo& type : GetReflectedTypes()) {
         if (type.QualifiedName == qualifiedName) {
             return &type;
+        }
+    }
+
+    return nullptr;
+}
+
+std::span<const ReflectedEnumInfo> GetReflectedEnums() {
+    return ReflectedEnums;
+}
+
+const ReflectedEnumInfo* FindReflectedEnum(std::string_view qualifiedName) {
+    for (const ReflectedEnumInfo& enumType : GetReflectedEnums()) {
+        if (enumType.QualifiedName == qualifiedName) {
+            return &enumType;
         }
     }
 
@@ -464,6 +536,42 @@ const RuntimeTypeDescriptor* FindRuntimeType(ComponentTypeId typeId) {
         }
     }
 
+    return nullptr;
+}
+
+std::span<const RuntimeEnumDescriptor> GetRuntimeEnums() {
+    return Generated::RuntimeEnums;
+}
+
+const RuntimeEnumDescriptor* FindRuntimeEnum(std::string_view qualifiedName) {
+    for (const RuntimeEnumDescriptor& enumType : GetRuntimeEnums()) {
+        if (enumType.QualifiedName == qualifiedName) {
+            return &enumType;
+        }
+    }
+
+    return nullptr;
+}
+
+const RuntimeEnumValueDescriptor* FindRuntimeEnumValueByName(
+    const RuntimeEnumDescriptor& enumType,
+    std::string_view name) {
+    for (const RuntimeEnumValueDescriptor& value : enumType.Values) {
+        if (value.Name == name) {
+            return &value;
+        }
+    }
+    return nullptr;
+}
+
+const RuntimeEnumValueDescriptor* FindRuntimeEnumValueByValue(
+    const RuntimeEnumDescriptor& enumType,
+    int64_t value) {
+    for (const RuntimeEnumValueDescriptor& enumValue : enumType.Values) {
+        if (enumValue.Value == value) {
+            return &enumValue;
+        }
+    }
     return nullptr;
 }
 

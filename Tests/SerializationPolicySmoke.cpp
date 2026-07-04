@@ -11,6 +11,7 @@
 #include "HuaEngine/Scene/Scene.h"
 #include "HuaEngine/Scene/SceneSerializer.h"
 #include "HuaEngine/Serialization/Serialization.h"
+#include "Module/Rendering/RenderingComponent.h"
 
 namespace HE {
 	struct PolicyRefPayload {
@@ -151,6 +152,23 @@ namespace {
     }
   }
 })", "Expected runtime TransformComponent deserialize to fail when Position.z has the wrong type");
+	}
+
+	void VerifyUnknownEnumStringFailsWithoutMutation() {
+		const auto* materialDescriptor = HE::Refl::FindRuntimeType("HE::Rendering::MaterialComponent");
+		Require(materialDescriptor != nullptr, "Expected MaterialComponent runtime descriptor");
+
+		HE::Rendering::MaterialComponent material;
+		material.BlendMode = HE::Rendering::MaterialBlendMode::Masked;
+
+		HE::Serialization::JsonSerializationBackend backend;
+		backend.LoadFromString("{\"MaterialComponent\":{\"BlendMode\":\"DoesNotExist\"}}");
+		Require(
+			!HE::Refl::DeserializeRuntimeObject(*materialDescriptor, backend, "MaterialComponent", &material),
+			"Expected unknown enum string to fail deserialization");
+		Require(
+			material.BlendMode == HE::Rendering::MaterialBlendMode::Masked,
+			"Expected failed enum deserialization not to overwrite existing enum value");
 	}
 
 	void VerifyMissingReflectedFieldsKeepDefaults() {
@@ -488,6 +506,7 @@ int main() {
 		VerifyRefNullRoundTrip();
 		VerifyRefNonNullRoundTrip();
 		VerifyRuntimeComponentDeserializeFailureDoesNotPartiallyMutate();
+		VerifyUnknownEnumStringFailsWithoutMutation();
 		VerifyUnknownSceneComponentIsSkipped();
 		VerifyKnownSceneComponentInvalidFieldFailsLoad();
 		VerifyKnownSceneComponentNonObjectFailsLoad();

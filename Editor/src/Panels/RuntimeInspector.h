@@ -8,19 +8,6 @@
 #include "HuaEngine/Reflection/Reflection.h"
 
 namespace HE::Editor {
-	enum class RuntimeFieldEditKind {
-		Unsupported,
-		Bool,
-		Int,
-		UInt,
-		Float,
-		Double,
-		String,
-		Float2,
-		Float3,
-		Float4,
-	};
-
 	using RuntimeComponentEditorOverride =
 		std::function<bool(const Refl::RuntimeTypeDescriptor&, void*)>;
 
@@ -33,7 +20,6 @@ namespace HE::Editor {
 		std::unordered_map<std::string, RuntimeComponentEditorOverride> m_Overrides;
 	};
 
-	[[nodiscard]] RuntimeFieldEditKind GetRuntimeFieldEditKind(const Refl::RuntimeFieldDescriptor& field);
 	[[nodiscard]] bool IsRuntimeFieldEditable(const Refl::RuntimeFieldDescriptor& field);
 	[[nodiscard]] std::string GetRuntimeComponentDisplayName(const Refl::RuntimeTypeDescriptor& type);
 

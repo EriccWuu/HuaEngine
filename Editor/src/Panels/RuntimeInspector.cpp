@@ -1,7 +1,6 @@
 #include "RuntimeInspector.h"
 
 #include <algorithm>
-#include <initializer_list>
 #include <utility>
 
 #include "glm/glm.hpp"
@@ -18,15 +17,6 @@ namespace HE::Editor {
 			text->resize(static_cast<size_t>(data->BufTextLen));
 			data->Buf = text->data();
 			return 0;
-		}
-
-		bool IsAnyOf(std::string_view value, std::initializer_list<std::string_view> candidates) {
-			for (std::string_view candidate : candidates) {
-				if (value == candidate) {
-					return true;
-				}
-			}
-			return false;
 		}
 
 		const char* FieldLabel(const Refl::RuntimeFieldDescriptor& field) {
@@ -60,6 +50,41 @@ namespace HE::Editor {
 					return ImGuiDataType_U32;
 			}
 		}
+
+		bool DrawRuntimeEnumField(const Refl::RuntimeFieldDescriptor& field, void* component, const char* label) {
+			if (field.EnumType == nullptr) {
+				ImGui::TextDisabled("%s: enum metadata unavailable", label);
+				return false;
+			}
+
+			int64_t currentValue = 0;
+			if (!Refl::GetRuntimeEnumFieldValue(field, component, currentValue)) {
+				ImGui::TextDisabled("%s: enum value unavailable", label);
+				return false;
+			}
+
+			const Refl::RuntimeEnumValueDescriptor* current =
+				Refl::FindRuntimeEnumValueByValue(*field.EnumType, currentValue);
+			const char* preview = current != nullptr
+				? (current->DisplayName.empty() ? current->Name.data() : current->DisplayName.data())
+				: "<unknown>";
+
+			bool changed = false;
+			if (ImGui::BeginCombo(label, preview)) {
+				for (const Refl::RuntimeEnumValueDescriptor& value : field.EnumType->Values) {
+					const bool selected = value.Value == currentValue;
+					const char* itemLabel = value.DisplayName.empty() ? value.Name.data() : value.DisplayName.data();
+					if (ImGui::Selectable(itemLabel, selected)) {
+						changed = Refl::SetRuntimeEnumFieldValue(field, component, value.Value);
+					}
+					if (selected) {
+						ImGui::SetItemDefaultFocus();
+					}
+				}
+				ImGui::EndCombo();
+			}
+			return changed;
+		}
 	}
 
 	void RuntimeComponentEditorOverrideRegistry::RegisterOverride(
@@ -77,45 +102,8 @@ namespace HE::Editor {
 		return iterator != m_Overrides.end() ? &iterator->second : nullptr;
 	}
 
-	RuntimeFieldEditKind GetRuntimeFieldEditKind(const Refl::RuntimeFieldDescriptor& field) {
-		if (!Refl::HasRuntimeFieldFlag(field.Flags, Refl::RuntimeFieldFlags::Serializable) ||
-			field.GetMutable == nullptr) {
-			return RuntimeFieldEditKind::Unsupported;
-		}
-
-		if (field.Type == "bool") {
-			return RuntimeFieldEditKind::Bool;
-		}
-		if (IsAnyOf(field.Type, { "int", "int8_t", "int16_t", "int32_t", "int64_t" })) {
-			return RuntimeFieldEditKind::Int;
-		}
-		if (IsAnyOf(field.Type, { "unsigned int", "uint8_t", "uint16_t", "uint32_t", "uint64_t" })) {
-			return RuntimeFieldEditKind::UInt;
-		}
-		if (field.Type == "float") {
-			return RuntimeFieldEditKind::Float;
-		}
-		if (field.Type == "double") {
-			return RuntimeFieldEditKind::Double;
-		}
-		if (field.Type == "std::string") {
-			return RuntimeFieldEditKind::String;
-		}
-		if (field.Type == "glm::vec2") {
-			return RuntimeFieldEditKind::Float2;
-		}
-		if (field.Type == "glm::vec3") {
-			return RuntimeFieldEditKind::Float3;
-		}
-		if (field.Type == "glm::vec4") {
-			return RuntimeFieldEditKind::Float4;
-		}
-
-		return RuntimeFieldEditKind::Unsupported;
-	}
-
 	bool IsRuntimeFieldEditable(const Refl::RuntimeFieldDescriptor& field) {
-		return GetRuntimeFieldEditKind(field) != RuntimeFieldEditKind::Unsupported;
+		return Refl::IsRuntimeFieldEditable(field);
 	}
 
 	std::string GetRuntimeComponentDisplayName(const Refl::RuntimeTypeDescriptor& type) {
@@ -143,23 +131,23 @@ namespace HE::Editor {
 		ImGui::PushID(field.Name.data());
 		bool changed = false;
 		const char* label = FieldLabel(field);
-		switch (GetRuntimeFieldEditKind(field)) {
-			case RuntimeFieldEditKind::Bool:
+		switch (Refl::GetRuntimeFieldValueKind(field)) {
+			case Refl::RuntimeFieldValueKind::Bool:
 				changed = ImGui::Checkbox(label, static_cast<bool*>(value));
 				break;
-			case RuntimeFieldEditKind::Int:
+			case Refl::RuntimeFieldValueKind::SignedInteger:
 				changed = ImGui::DragScalar(label, ScalarTypeForSignedField(field), value, 1.0f);
 				break;
-			case RuntimeFieldEditKind::UInt:
+			case Refl::RuntimeFieldValueKind::UnsignedInteger:
 				changed = ImGui::DragScalar(label, ScalarTypeForUnsignedField(field), value, 1.0f);
 				break;
-			case RuntimeFieldEditKind::Float:
+			case Refl::RuntimeFieldValueKind::Float:
 				changed = ImGui::DragFloat(label, static_cast<float*>(value), 0.1f);
 				break;
-			case RuntimeFieldEditKind::Double:
+			case Refl::RuntimeFieldValueKind::Double:
 				changed = ImGui::DragScalar(label, ImGuiDataType_Double, value, 0.1f);
 				break;
-			case RuntimeFieldEditKind::String: {
+			case Refl::RuntimeFieldValueKind::String: {
 				auto& text = *static_cast<std::string*>(value);
 				changed = ImGui::InputText(
 					label,
@@ -170,16 +158,21 @@ namespace HE::Editor {
 					&text);
 				break;
 			}
-			case RuntimeFieldEditKind::Float2:
+			case Refl::RuntimeFieldValueKind::Float2:
 				changed = ImGui::DragFloat2(label, static_cast<float*>(value), 0.1f);
 				break;
-			case RuntimeFieldEditKind::Float3:
+			case Refl::RuntimeFieldValueKind::Float3:
 				changed = ImGui::DragFloat3(label, static_cast<float*>(value), 0.1f);
 				break;
-			case RuntimeFieldEditKind::Float4:
+			case Refl::RuntimeFieldValueKind::Float4:
 				changed = ImGui::DragFloat4(label, static_cast<float*>(value), 0.1f);
 				break;
-			case RuntimeFieldEditKind::Unsupported:
+			case Refl::RuntimeFieldValueKind::Enum:
+				changed = DrawRuntimeEnumField(field, component, label);
+				break;
+			case Refl::RuntimeFieldValueKind::Unsupported:
+			case Refl::RuntimeFieldValueKind::Object:
+			case Refl::RuntimeFieldValueKind::AssetRef:
 			default:
 				ImGui::TextDisabled("%s: unsupported %.*s", label, static_cast<int>(field.Type.size()), field.Type.data());
 				break;

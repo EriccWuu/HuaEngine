@@ -189,10 +189,12 @@ namespace {
 		std::string_view output,
 		std::string_view operation,
 		std::string_view reflectedTypeCount,
+		std::string_view reflectedEnumCount,
 		std::string_view context) {
 		ExpectContains(output, "\"operation\":\"" + std::string(operation) + "\"", context);
 		ExpectContains(output, "\"status\":\"success\"", context);
 		ExpectContains(output, "\"reflected_type_count\":\"" + std::string(reflectedTypeCount) + "\"", context);
+		ExpectContains(output, "\"reflected_enum_count\":\"" + std::string(reflectedEnumCount) + "\"", context);
 	}
 
 	std::filesystem::path GetCurrentExecutablePath() {
@@ -241,7 +243,7 @@ namespace {
 			workingDirectory);
 
 		Expect(result.ExitCode == 0, std::string(command) + " should exit with code 0\n" + result.Output);
-		ExpectResultEnvelope(result.Output, operation, "5", command);
+		ExpectResultEnvelope(result.Output, operation, "5", "1", command);
 	}
 
 	void ExpectReflectionResult(
@@ -250,11 +252,12 @@ namespace {
 		const std::vector<std::string>& arguments,
 		std::string_view operation,
 		std::string_view reflectedTypeCount,
+		std::string_view reflectedEnumCount,
 		std::string_view context) {
 		const auto result = RunCLICommand(cliExecutable, arguments, workingDirectory);
 
 		Expect(result.ExitCode == 0, std::string(context) + " should exit with code 0\n" + result.Output);
-		ExpectResultEnvelope(result.Output, operation, reflectedTypeCount, context);
+		ExpectResultEnvelope(result.Output, operation, reflectedTypeCount, reflectedEnumCount, context);
 	}
 
 	void RunShellSafePathSmoke(
@@ -287,6 +290,7 @@ namespace {
 			{ "reflection", "scan", "--root", fixtureRoot.string() },
 			"reflection.scan",
 			"1",
+			"0",
 			"reflection scan with shell-safe root");
 		ExpectReflectionResult(
 			cliExecutable,
@@ -294,6 +298,7 @@ namespace {
 			{ "reflection", "generate", "--root", fixtureRoot.string(), "--out-dir", generatedDirectory.string() },
 			"reflection.generate",
 			"1",
+			"0",
 			"reflection generate with shell-safe root");
 		ExpectReflectionResult(
 			cliExecutable,
@@ -301,6 +306,7 @@ namespace {
 			{ "reflection", "validate", "--root", fixtureRoot.string() },
 			"reflection.validate",
 			"1",
+			"0",
 			"reflection validate with shell-safe root");
 	}
 }

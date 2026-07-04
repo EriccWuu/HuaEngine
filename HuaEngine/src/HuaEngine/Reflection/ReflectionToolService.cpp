@@ -57,6 +57,65 @@ namespace {
 		return count;
 	}
 
+	std::string_view FindJsonArraySection(std::string_view text, std::string_view name) {
+		const std::string key = "\"" + std::string(name) + "\"";
+		const size_t keyPosition = text.find(key);
+		if (keyPosition == std::string_view::npos) {
+			return {};
+		}
+
+		const size_t arrayBegin = text.find('[', keyPosition + key.size());
+		if (arrayBegin == std::string_view::npos) {
+			return {};
+		}
+
+		bool inString = false;
+		bool escaped = false;
+		size_t depth = 0;
+		for (size_t index = arrayBegin; index < text.size(); ++index) {
+			const char character = text[index];
+			if (inString) {
+				if (escaped) {
+					escaped = false;
+				}
+				else if (character == '\\') {
+					escaped = true;
+				}
+				else if (character == '"') {
+					inString = false;
+				}
+				continue;
+			}
+
+			if (character == '"') {
+				inString = true;
+				continue;
+			}
+			if (character == '[') {
+				++depth;
+				continue;
+			}
+			if (character == ']') {
+				--depth;
+				if (depth == 0) {
+					return text.substr(arrayBegin, index - arrayBegin + 1);
+				}
+			}
+		}
+
+		return {};
+	}
+
+	size_t CountQualifiedNamesInSection(std::string_view text, std::string_view name) {
+		const std::string_view section = FindJsonArraySection(text, name);
+		return section.empty() ? 0 : CountQualifiedNames(section);
+	}
+
+	struct ReflectionPayloadCounts {
+		size_t ReflectedTypes = 0;
+		size_t ReflectedEnums = 0;
+	};
+
 	struct ToolExecutionResult {
 		int ExitCode = -1;
 		std::string Output;
@@ -390,11 +449,12 @@ namespace {
 		HE::ResultEnvelope& result,
 		const HE::ReflectionToolRequest& request,
 		std::string toolOutput,
-		size_t reflectedTypeCount) {
+		ReflectionPayloadCounts counts) {
 		result.SetPayloadValue("root", request.RootPath.generic_string());
 		result.SetPayloadValue("manifest", request.ManifestPath.generic_string());
 		result.SetPayloadValue("tool_output", std::move(toolOutput));
-		result.SetPayloadValue("reflected_type_count", std::to_string(reflectedTypeCount));
+		result.SetPayloadValue("reflected_type_count", std::to_string(counts.ReflectedTypes));
+		result.SetPayloadValue("reflected_enum_count", std::to_string(counts.ReflectedEnums));
 		if (!request.OutputDirectory.empty()) {
 			result.SetPayloadValue("output_directory", request.OutputDirectory.generic_string());
 		}
@@ -419,13 +479,15 @@ namespace {
 
 		const auto execution = RunToolCommand(arguments);
 		const std::string manifestText = countFromManifest ? ReadFileText(request.ManifestPath) : std::string();
-		const size_t reflectedTypeCount = countFromManifest
-			? CountQualifiedNames(manifestText)
-			: CountQualifiedNames(execution.Output);
+		const std::string_view countSource = countFromManifest ? std::string_view(manifestText) : std::string_view(execution.Output);
+		const ReflectionPayloadCounts counts{
+			CountQualifiedNamesInSection(countSource, "types"),
+			CountQualifiedNamesInSection(countSource, "enums")
+		};
 
 		if (execution.ExitCode != 0) {
 			auto result = HE::ResultEnvelope::Failure(std::move(operation), request.RootPath.generic_string(), "Reflection tool command failed");
-			AddCommonPayload(result, request, execution.Output, reflectedTypeCount);
+			AddCommonPayload(result, request, execution.Output, counts);
 			result.AddDetail({
 				HE::DiagnosticSeverity::Error,
 				"reflection.tool.exit_code",
@@ -436,7 +498,7 @@ namespace {
 		}
 
 		auto result = HE::ResultEnvelope::Success(std::move(operation), request.RootPath.generic_string(), std::move(summary));
-		AddCommonPayload(result, request, execution.Output, reflectedTypeCount);
+		AddCommonPayload(result, request, execution.Output, counts);
 		return result;
 	}
 }

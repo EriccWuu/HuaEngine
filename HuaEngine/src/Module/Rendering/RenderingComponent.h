@@ -12,6 +12,13 @@
 #include "HuaEngine/Reflection/ReflectionMarkers.h"
 
 namespace HE::Rendering {
+	HE_REFLECT_ENUM(DisplayName="Material Blend Mode")
+	enum class MaterialBlendMode {
+		Opaque,
+		Masked,
+		Transparent
+	};
+
 	HE_REFLECT_COMPONENT(DisplayName="Camera", Category="Rendering")
 	struct CameraComponent : Component {
 		CameraComponent() = default;
@@ -34,6 +41,8 @@ namespace HE::Rendering {
 
 		HE_REFLECT_FIELD()
 		Ref<HE::Rendering::MaterialInstance> MaterialInstance;
+		HE_REFLECT_FIELD()
+		MaterialBlendMode BlendMode = MaterialBlendMode::Opaque;
 	};
 
 	// Legacy RendererComponent for backward compatibility (deprecated)

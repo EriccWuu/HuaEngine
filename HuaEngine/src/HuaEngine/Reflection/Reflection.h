@@ -2,6 +2,8 @@
 
 #include <cstddef>
 #include <cstdint>
+#include <cstring>
+#include <initializer_list>
 #include <span>
 #include <string>
 #include <string_view>
@@ -35,6 +37,35 @@ namespace Refl {
 // --------------------------------------------------------------------------------
 //                              Runtime descriptors
 // --------------------------------------------------------------------------------
+
+enum class RuntimeFieldValueKind {
+    Unsupported,
+    Bool,
+    SignedInteger,
+    UnsignedInteger,
+    Float,
+    Double,
+    String,
+    Float2,
+    Float3,
+    Float4,
+    Enum,
+    Object,
+    AssetRef,
+};
+
+struct RuntimeEnumValueDescriptor {
+    std::string_view Name;
+    int64_t Value;
+    std::string_view DisplayName;
+};
+
+struct RuntimeEnumDescriptor {
+    std::string_view Name;
+    std::string_view QualifiedName;
+    std::string_view UnderlyingType;
+    std::span<const RuntimeEnumValueDescriptor> Values;
+};
 
 enum class RuntimeFieldFlags : uint32_t {
     None = 0,
@@ -70,6 +101,7 @@ struct RuntimeFieldDescriptor {
     void* (*GetMutable)(void*);
     void (*Serialize)(Serialization::SerializationBackend&, const std::string&, const void*);
     bool (*Deserialize)(Serialization::SerializationBackend&, const std::string&, void*);
+    const RuntimeEnumDescriptor* EnumType;
 };
 
 struct RuntimeTypeDescriptor {
@@ -92,6 +124,14 @@ struct RuntimeTypeDescriptor {
 std::span<const RuntimeTypeDescriptor> GetRuntimeTypes();
 const RuntimeTypeDescriptor* FindRuntimeType(std::string_view qualifiedName);
 const RuntimeTypeDescriptor* FindRuntimeType(ComponentTypeId typeId);
+std::span<const RuntimeEnumDescriptor> GetRuntimeEnums();
+const RuntimeEnumDescriptor* FindRuntimeEnum(std::string_view qualifiedName);
+const RuntimeEnumValueDescriptor* FindRuntimeEnumValueByName(
+    const RuntimeEnumDescriptor& enumType,
+    std::string_view name);
+const RuntimeEnumValueDescriptor* FindRuntimeEnumValueByValue(
+    const RuntimeEnumDescriptor& enumType,
+    int64_t value);
 void SerializeRuntimeObject(
     const RuntimeTypeDescriptor& type,
     Serialization::SerializationBackend& backend,
@@ -102,6 +142,218 @@ bool DeserializeRuntimeObject(
     Serialization::SerializationBackend& backend,
     const std::string& name,
     void* object);
+RuntimeFieldValueKind GetRuntimeFieldValueKind(const RuntimeFieldDescriptor& field);
+bool IsRuntimeFieldSerializable(const RuntimeFieldDescriptor& field);
+bool IsRuntimeFieldEditable(const RuntimeFieldDescriptor& field);
+bool IsRuntimeFieldReadOnly(const RuntimeFieldDescriptor& field);
+const void* GetRuntimeFieldConst(const RuntimeFieldDescriptor& field, const void* object);
+void* GetRuntimeFieldMutable(const RuntimeFieldDescriptor& field, void* object);
+bool CopyRuntimeFieldValue(const RuntimeFieldDescriptor& field, const void* sourceObject, void* targetObject);
+bool GetRuntimeEnumFieldValue(const RuntimeFieldDescriptor& field, const void* object, int64_t& outValue);
+bool SetRuntimeEnumFieldValue(const RuntimeFieldDescriptor& field, void* object, int64_t value);
+bool SetRuntimeEnumFieldValueByName(const RuntimeFieldDescriptor& field, void* object, std::string_view valueName);
+
+inline bool IsAnyRuntimeTypeName(std::string_view value, std::initializer_list<std::string_view> candidates) {
+    for (std::string_view candidate : candidates) {
+        if (value == candidate) {
+            return true;
+        }
+    }
+    return false;
+}
+
+inline RuntimeFieldValueKind GetRuntimeFieldValueKind(const RuntimeFieldDescriptor& field) {
+    if (field.EnumType != nullptr) {
+        return RuntimeFieldValueKind::Enum;
+    }
+    if (field.Type == "bool") {
+        return RuntimeFieldValueKind::Bool;
+    }
+    if (IsAnyRuntimeTypeName(field.Type, { "int", "int8_t", "int16_t", "int32_t", "int64_t", "long", "long long" })) {
+        return RuntimeFieldValueKind::SignedInteger;
+    }
+    if (IsAnyRuntimeTypeName(field.Type, { "unsigned int", "uint8_t", "uint16_t", "uint32_t", "uint64_t", "unsigned long", "unsigned long long" })) {
+        return RuntimeFieldValueKind::UnsignedInteger;
+    }
+    if (field.Type == "float") {
+        return RuntimeFieldValueKind::Float;
+    }
+    if (field.Type == "double") {
+        return RuntimeFieldValueKind::Double;
+    }
+    if (field.Type == "std::string") {
+        return RuntimeFieldValueKind::String;
+    }
+    if (field.Type == "glm::vec2") {
+        return RuntimeFieldValueKind::Float2;
+    }
+    if (field.Type == "glm::vec3") {
+        return RuntimeFieldValueKind::Float3;
+    }
+    if (field.Type == "glm::vec4") {
+        return RuntimeFieldValueKind::Float4;
+    }
+    if (field.Type.rfind("Ref<", 0) == 0) {
+        return RuntimeFieldValueKind::AssetRef;
+    }
+    return RuntimeFieldValueKind::Unsupported;
+}
+
+inline bool IsRuntimeFieldSerializable(const RuntimeFieldDescriptor& field) {
+    return HasRuntimeFieldFlag(field.Flags, RuntimeFieldFlags::Serializable);
+}
+
+inline bool IsRuntimeFieldReadOnly(const RuntimeFieldDescriptor& field) {
+    return HasRuntimeFieldFlag(field.Flags, RuntimeFieldFlags::ReadOnly);
+}
+
+inline bool IsRuntimeFieldEditable(const RuntimeFieldDescriptor& field) {
+    if (!HasRuntimeFieldFlag(field.Flags, RuntimeFieldFlags::Editable) ||
+        IsRuntimeFieldReadOnly(field) ||
+        field.GetMutable == nullptr) {
+        return false;
+    }
+
+    const RuntimeFieldValueKind kind = GetRuntimeFieldValueKind(field);
+    return kind != RuntimeFieldValueKind::Unsupported &&
+           kind != RuntimeFieldValueKind::Object &&
+           kind != RuntimeFieldValueKind::AssetRef;
+}
+
+inline const void* GetRuntimeFieldConst(const RuntimeFieldDescriptor& field, const void* object) {
+    return object != nullptr && field.GetConst != nullptr ? field.GetConst(object) : nullptr;
+}
+
+inline void* GetRuntimeFieldMutable(const RuntimeFieldDescriptor& field, void* object) {
+    return object != nullptr && field.GetMutable != nullptr ? field.GetMutable(object) : nullptr;
+}
+
+inline bool CopyRuntimeFieldValue(const RuntimeFieldDescriptor& field, const void* sourceObject, void* targetObject) {
+    const void* source = GetRuntimeFieldConst(field, sourceObject);
+    void* target = GetRuntimeFieldMutable(field, targetObject);
+    if (source == nullptr || target == nullptr || field.Size == 0 || !IsRuntimeFieldEditable(field)) {
+        return false;
+    }
+
+    if (GetRuntimeFieldValueKind(field) == RuntimeFieldValueKind::String) {
+        *static_cast<std::string*>(target) = *static_cast<const std::string*>(source);
+        return true;
+    }
+
+    std::memcpy(target, source, field.Size);
+    return true;
+}
+
+inline bool GetRuntimeEnumFieldValue(const RuntimeFieldDescriptor& field, const void* object, int64_t& outValue) {
+    if (field.EnumType == nullptr) {
+        return false;
+    }
+    const void* value = GetRuntimeFieldConst(field, object);
+    if (value == nullptr) {
+        return false;
+    }
+    switch (field.Size) {
+        case sizeof(int8_t): {
+            int8_t storage = 0;
+            std::memcpy(&storage, value, sizeof(storage));
+            outValue = storage;
+            return true;
+        }
+        case sizeof(int16_t): {
+            int16_t storage = 0;
+            std::memcpy(&storage, value, sizeof(storage));
+            outValue = storage;
+            return true;
+        }
+        case sizeof(int32_t): {
+            int32_t storage = 0;
+            std::memcpy(&storage, value, sizeof(storage));
+            outValue = storage;
+            return true;
+        }
+        case sizeof(int64_t): {
+            int64_t storage = 0;
+            std::memcpy(&storage, value, sizeof(storage));
+            outValue = storage;
+            return true;
+        }
+        default:
+            return false;
+    }
+}
+
+inline bool SetRuntimeEnumFieldValue(const RuntimeFieldDescriptor& field, void* object, int64_t value) {
+    if (field.EnumType == nullptr || !IsRuntimeFieldEditable(field) ||
+        FindRuntimeEnumValueByValue(*field.EnumType, value) == nullptr) {
+        return false;
+    }
+    void* target = GetRuntimeFieldMutable(field, object);
+    if (target == nullptr) {
+        return false;
+    }
+    switch (field.Size) {
+        case sizeof(int8_t): {
+            const int8_t storage = static_cast<int8_t>(value);
+            std::memcpy(target, &storage, sizeof(storage));
+            return true;
+        }
+        case sizeof(int16_t): {
+            const int16_t storage = static_cast<int16_t>(value);
+            std::memcpy(target, &storage, sizeof(storage));
+            return true;
+        }
+        case sizeof(int32_t): {
+            const int32_t storage = static_cast<int32_t>(value);
+            std::memcpy(target, &storage, sizeof(storage));
+            return true;
+        }
+        case sizeof(int64_t): {
+            const int64_t storage = static_cast<int64_t>(value);
+            std::memcpy(target, &storage, sizeof(storage));
+            return true;
+        }
+        default:
+            return false;
+    }
+}
+
+inline bool SetRuntimeEnumFieldValueByName(const RuntimeFieldDescriptor& field, void* object, std::string_view valueName) {
+    if (field.EnumType == nullptr) {
+        return false;
+    }
+    const RuntimeEnumValueDescriptor* value = FindRuntimeEnumValueByName(*field.EnumType, valueName);
+    return value != nullptr && SetRuntimeEnumFieldValue(field, object, value->Value);
+}
+
+template<typename T>
+bool GetRuntimeFieldValue(const RuntimeFieldDescriptor& field, const void* object, T& outValue) {
+    if (field.Size != sizeof(T)) {
+        return false;
+    }
+
+    const void* value = GetRuntimeFieldConst(field, object);
+    if (value == nullptr) {
+        return false;
+    }
+
+    outValue = *static_cast<const T*>(value);
+    return true;
+}
+
+template<typename T>
+bool SetRuntimeFieldValue(const RuntimeFieldDescriptor& field, void* object, const T& value) {
+    if (field.Size != sizeof(T) || !IsRuntimeFieldEditable(field)) {
+        return false;
+    }
+
+    void* target = GetRuntimeFieldMutable(field, object);
+    if (target == nullptr) {
+        return false;
+    }
+
+    *static_cast<T*>(target) = value;
+    return true;
+}
 
 template <typename T>
 struct type_info;
@@ -165,6 +417,7 @@ namespace Detail {
             &GetStaticRuntimeFieldMutable<T, Index>,
             &SerializeStaticRuntimeField<T, Index>,
             &DeserializeStaticRuntimeField<T, Index>,
+            nullptr,
         };
     }
 
