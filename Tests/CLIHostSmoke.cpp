@@ -82,19 +82,11 @@ int main() {
 	Expect(assetResponse.Result.Succeeded(), "asset register-default-mesh should succeed");
 	Expect(std::filesystem::exists(tempRoot / "Assets" / "primitives" / "quad.mesh"), "default mesh registration should persist the mesh asset");
 
-	auto scriptResponse = runner.Run({
-		"script", "status",
-		"--project", tempRoot.string(),
-		"--scene", "smokescene.scene"
-	}, tempRoot);
-	Expect(scriptResponse.Result.Succeeded(), "script status should succeed for a scene without bindings");
-
 	auto validationResponse = runner.Run({
 		"validation", "run",
 		"--path", tempRoot.string(),
 		"--scene", "smokescene.scene",
-		"--include-assets",
-		"--include-scripts"
+		"--include-assets"
 	}, tempRoot);
 	Expect(validationResponse.Result.Succeeded(), "validation run should succeed for the smoke workflow");
 

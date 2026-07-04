@@ -13,7 +13,6 @@ namespace HE {
 		Project,
 		Scene,
 		Asset,
-		Script,
 		Rendering,
 		Validation
 	};
@@ -46,8 +45,6 @@ namespace HE {
 			return "scene";
 		case OperationDomain::Asset:
 			return "asset";
-		case OperationDomain::Script:
-			return "script";
 		case OperationDomain::Rendering:
 			return "rendering";
 		case OperationDomain::Validation:

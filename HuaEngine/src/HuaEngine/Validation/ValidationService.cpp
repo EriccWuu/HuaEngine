@@ -13,9 +13,6 @@ namespace {
 		if (request.SceneTarget && !request.SceneTarget->GetName().empty()) {
 			return request.SceneTarget->GetName();
 		}
-		if (request.ScriptScene && !request.ScriptScene->GetName().empty()) {
-			return request.ScriptScene->GetName();
-		}
 
 		return "<validation-scope>";
 	}
@@ -67,7 +64,7 @@ namespace {
 		ValidationReport report;
 		HE_CORE_ASSERT(m_ProjectService, "ValidationService requires a valid ProjectService");
 		HE_CORE_ASSERT(m_SceneService, "ValidationService requires a valid SceneService");
-		if (!request.Project && !request.SceneTarget && !request.Assets && !request.Scripts) {
+		if (!request.Project && !request.SceneTarget && !request.Assets) {
 			auto result = ResultEnvelope::Failure("validation.run", MakeValidationTarget(request), "Validation request is empty");
 			result.AddDetail({ DiagnosticSeverity::Error, "validation.request.empty", "Validation requires at least one domain target", {} });
 			if (outReport) {
@@ -100,18 +97,6 @@ namespace {
 			AccumulateStatus(report, report.AssetResult);
 		}
 
-		if (request.Scripts) {
-			report.IncludesScripts = true;
-			if (!request.ScriptScene) {
-				report.ScriptResult = ResultEnvelope::Failure("script.status", MakeValidationTarget(request), "Script validation requires a mutable scene");
-				report.ScriptResult.AddDetail({ DiagnosticSeverity::Error, "validation.scripts.scene_missing", "Script validation requires a Scene instance for script status checks", {} });
-			}
-			else {
-				report.ScriptResult = request.Scripts->CheckSceneScripts(*request.ScriptScene, &report.ScriptStatus);
-			}
-			AccumulateStatus(report, report.ScriptResult);
-		}
-
 		auto result = report.FailureCount > 0
 			? ResultEnvelope::Failure("validation.run", MakeValidationTarget(request), "Validation detected blocking failures")
 			: (report.ManualInterventionCount > 0
@@ -138,11 +123,6 @@ namespace {
 			result.SetPayloadValue("asset_status", std::string(ToString(report.AssetResult.Status)));
 			AppendChildDiagnostics(result, "asset", report.AssetResult);
 		}
-		if (report.IncludesScripts) {
-			result.SetPayloadValue("script_status", std::string(ToString(report.ScriptResult.Status)));
-			AppendChildDiagnostics(result, "script", report.ScriptResult);
-		}
-
 		if (outReport) {
 			*outReport = report;
 		}

@@ -13,10 +13,6 @@ namespace HE::CLI {
 			return { MakeUsageError(command, "Unknown command") };
 		}
 
-		if (options.HasFlag("--include-scripts") && !options.GetValue("--scene").has_value()) {
-			return { MakeUsageError("validation run with --include-scripts requires --scene") };
-		}
-
 		ProjectContext projectContext;
 		ResultEnvelope resolveResult;
 		if (!ResolveProjectContext(context.Operations, options.GetValue("--path"), context.WorkingDirectory, projectContext, resolveResult)) {
@@ -37,8 +33,6 @@ namespace HE::CLI {
 			}
 
 			request.SceneTarget = scene.get();
-			request.ScriptScene = options.HasFlag("--include-scripts") ? scene.get() : nullptr;
-			request.IncludeScripts = options.HasFlag("--include-scripts");
 		}
 
 		auto result = context.Operations.Validate(request);

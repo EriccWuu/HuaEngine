@@ -7,7 +7,6 @@
 #include "HuaEngine/Core/ResultEnvelope.h"
 #include "HuaEngine/Project/ProjectService.h"
 #include "HuaEngine/Scene/SceneService.h"
-#include "HuaEngine/Script/ScriptService.h"
 
 namespace HE {
 	class ProjectService;
@@ -17,8 +16,6 @@ namespace HE {
 		const ProjectContext* Project = nullptr;
 		const Scene* SceneTarget = nullptr;
 		const AssetService* Assets = nullptr;
-		Scene* ScriptScene = nullptr;
-		const ScriptService* Scripts = nullptr;
 	};
 
 	struct ValidationReport {
@@ -32,17 +29,14 @@ namespace HE {
 		bool IncludesProject = false;
 		bool IncludesScene = false;
 		bool IncludesAssets = false;
-		bool IncludesScripts = false;
 
 		ProjectStatusReport ProjectStatus;
 		SceneValidationReport SceneStatus;
 		AssetValidationReport AssetStatus;
-		ScriptStatusReport ScriptStatus;
 
 		ResultEnvelope ProjectResult;
 		ResultEnvelope SceneResult;
 		ResultEnvelope AssetResult;
-		ResultEnvelope ScriptResult;
 
 		[[nodiscard]] bool IsOperational() const {
 			return FailureCount == 0 && ManualInterventionCount == 0;

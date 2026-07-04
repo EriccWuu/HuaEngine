@@ -5,7 +5,6 @@
 #include "HuaEngine/Project/ProjectService.h"
 #include "HuaEngine/Reflection/ReflectionToolService.h"
 #include "HuaEngine/Scene/SceneService.h"
-#include "HuaEngine/Script/ScriptService.h"
 #include "HuaEngine/Validation/ValidationService.h"
 
 namespace HE {
@@ -23,9 +22,6 @@ namespace HE {
 		[[nodiscard]] AssetService& Assets() { return m_AssetService; }
 		[[nodiscard]] const AssetService& Assets() const { return m_AssetService; }
 
-		[[nodiscard]] ScriptService& Scripts() { return m_ScriptService; }
-		[[nodiscard]] const ScriptService& Scripts() const { return m_ScriptService; }
-
 		[[nodiscard]] ValidationService& Validation() { return m_ValidationService; }
 		[[nodiscard]] const ValidationService& Validation() const { return m_ValidationService; }
 
@@ -36,7 +32,6 @@ namespace HE {
 		ProjectService m_ProjectService;
 		SceneService m_SceneService;
 		AssetService m_AssetService;
-		ScriptService m_ScriptService;
 		ValidationService m_ValidationService;
 		ReflectionToolService m_ReflectionToolService;
 	};

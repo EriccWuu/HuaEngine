@@ -181,9 +181,7 @@ int main() {
 	HE::ApplicationValidationRequest validationRequest;
 	validationRequest.Project = &context;
 	validationRequest.SceneTarget = scene.get();
-	validationRequest.ScriptScene = scene.get();
 	validationRequest.IncludeAssets = true;
-	validationRequest.IncludeScripts = true;
 
 	auto guiFacingValidation = application.GetOperations().Validate(validationRequest, &validationReport);
 	Require(guiFacingValidation.Succeeded(), "Expected in-process validation to succeed");
@@ -198,8 +196,7 @@ int main() {
 			"validation", "run",
 			"--path", (smokeRoot / "Project").string(),
 			"--scene", "consistency.scene",
-			"--include-assets",
-			"--include-scripts"
+			"--include-assets"
 		},
 		GetCurrentExecutableDirectory());
 

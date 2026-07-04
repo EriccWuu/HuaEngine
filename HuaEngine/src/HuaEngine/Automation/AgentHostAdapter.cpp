@@ -178,29 +178,6 @@ namespace HE {
 			};
 		}
 
-		if (request.Operation == "script.status") {
-			const auto sceneArgument = GetArgument(request.Arguments, "scene");
-			if (!sceneArgument.has_value() || sceneArgument->empty()) {
-				return { MakeRequestFailure(request.Operation, "scene is required") };
-			}
-
-			ProjectContext context;
-			ResultEnvelope resolveError;
-			if (!ResolveProjectContext(*m_Operations, request.Arguments, request.WorkingDirectory, context, resolveError)) {
-				return { std::move(resolveError) };
-			}
-
-			Ref<Scene> scene;
-			auto loadResult = m_Operations->LoadScene(context.GetSceneRootPath() / *sceneArgument, scene);
-			if (!loadResult.Succeeded()) {
-				return { std::move(loadResult) };
-			}
-
-			auto result = m_Operations->CheckSceneScripts(*scene);
-			result.SetPayloadValue("scene_path", (context.GetSceneRootPath() / *sceneArgument).generic_string());
-			return { std::move(result) };
-		}
-
 		if (request.Operation == "validation.validate") {
 			ProjectContext context;
 			ResultEnvelope resolveError;
@@ -211,7 +188,6 @@ namespace HE {
 			ApplicationValidationRequest validationRequest;
 			validationRequest.Project = &context;
 			validationRequest.IncludeAssets = GetArgument(request.Arguments, "include_assets").value_or("false") == "true";
-			validationRequest.IncludeScripts = GetArgument(request.Arguments, "include_scripts").value_or("false") == "true";
 
 			Ref<Scene> scene;
 			if (const auto sceneArgument = GetArgument(request.Arguments, "scene"); sceneArgument.has_value() && !sceneArgument->empty()) {
@@ -221,7 +197,6 @@ namespace HE {
 				}
 
 				validationRequest.SceneTarget = scene.get();
-				validationRequest.ScriptScene = validationRequest.IncludeScripts ? scene.get() : nullptr;
 			}
 
 			auto result = m_Operations->Validate(validationRequest);

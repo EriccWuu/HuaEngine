@@ -21,7 +21,6 @@ namespace HE {
 	struct ProjectStatusReport;
 	struct SceneValidationReport;
 	struct AssetValidationReport;
-	struct ScriptStatusReport;
 	struct TransformComponent;
 	struct ValidationReport;
 
@@ -59,8 +58,6 @@ namespace HE {
 		const ProjectContext* Project = nullptr;
 		const Scene* SceneTarget = nullptr;
 		bool IncludeAssets = false;
-		Scene* ScriptScene = nullptr;
-		bool IncludeScripts = false;
 	};
 
 	class ENGINE_API ApplicationOperations {
@@ -164,13 +161,6 @@ namespace HE {
 		[[nodiscard]] ResultEnvelope ResolveMaterialAsset(AssetHandle handle, Ref<Rendering::Material>& outMaterial) const;
 		[[nodiscard]] ResultEnvelope ResolveTextureAsset(AssetHandle handle, Ref<Rendering::Texture2D>& outTexture) const;
 		[[nodiscard]] ResultEnvelope ValidateAssets(const ProjectContext& context, AssetValidationReport* outReport = nullptr) const;
-
-		[[nodiscard]] ResultEnvelope UnbindNativeScript(Entity entity) const;
-		[[nodiscard]] ResultEnvelope AttachScriptRuntime(Scene& scene) const;
-		[[nodiscard]] ResultEnvelope InitializeSceneScripts(Scene& scene, ScriptStatusReport* outReport = nullptr) const;
-		[[nodiscard]] ResultEnvelope UpdateSceneScripts(Scene& scene, ScriptStatusReport* outReport = nullptr) const;
-		[[nodiscard]] ResultEnvelope ShutdownSceneScripts(Scene& scene, ScriptStatusReport* outReport = nullptr) const;
-		[[nodiscard]] ResultEnvelope CheckSceneScripts(Scene& scene, ScriptStatusReport* outReport = nullptr) const;
 
 		[[nodiscard]] ResultEnvelope AttachSceneViewportRenderer(
 			const Ref<Scene>& scene,

@@ -39,7 +39,6 @@
 #include "HuaEngine/ECS/Components.h"
 #include "HuaEngine/ECS/Query.h"
 #include "HuaEngine/ECS/Scheduler.h"
-#include "HuaEngine/ECS/ScriptableEntity.h"
 #include "HuaEngine/ECS/System.h"
 #include "HuaEngine/ECS/World.h"
 #include "Module/Rendering/RenderingComponent.h"

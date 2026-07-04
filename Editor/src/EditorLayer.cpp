@@ -1164,9 +1164,7 @@ namespace HE {
         ApplicationValidationRequest request;
         request.Project = m_ProjectSession.IsLoaded() ? &m_ProjectSession.Context : nullptr;
         request.SceneTarget = m_SceneDocument.SceneRef.get();
-        request.ScriptScene = m_SceneDocument.SceneRef.get();
         request.IncludeAssets = m_ProjectSession.IsLoaded();
-        request.IncludeScripts = m_SceneDocument.SceneRef != nullptr;
 
         auto result = operations.Validate(request, &report);
         m_WorkbenchState.CaptureValidation(result, report, "editor.validation");

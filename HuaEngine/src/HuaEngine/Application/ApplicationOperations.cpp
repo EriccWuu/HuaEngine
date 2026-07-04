@@ -9,8 +9,6 @@
 #include "HuaEngine/Scene/SceneService.h"
 #include "HuaEngine/Asset/AssetService.h"
 #include "HuaEngine/Rendering/FrameBuffer.h"
-#include "HuaEngine/Script/ScriptService.h"
-#include "HuaEngine/Script/ScriptRuntimeSystem.h"
 #include "HuaEngine/Validation/ValidationService.h"
 #include "Module/Rendering/RenderSystem.h"
 #include "Module/Rendering/RenderingComponent.h"
@@ -451,40 +449,6 @@ namespace HE {
 		return m_Services->Assets().ValidateRegistry(context, outReport);
 	}
 
-	ResultEnvelope ApplicationOperations::UnbindNativeScript(Entity entity) const
-	{
-		return m_Services->Scripts().UnbindNativeScript(entity);
-	}
-
-	ResultEnvelope ApplicationOperations::AttachScriptRuntime(Scene& scene) const
-	{
-		scene.AddSystem(CreateRef<ScriptRuntimeSystem>(scene, m_Services->Scripts()));
-
-		auto result = ResultEnvelope::Success("script.attach_runtime", scene.GetName(), "Scene script runtime attached");
-		result.SetPayloadValue("scene_name", scene.GetName());
-		return result;
-	}
-
-	ResultEnvelope ApplicationOperations::InitializeSceneScripts(Scene& scene, ScriptStatusReport* outReport) const
-	{
-		return m_Services->Scripts().InitializeSceneScripts(scene, outReport);
-	}
-
-	ResultEnvelope ApplicationOperations::UpdateSceneScripts(Scene& scene, ScriptStatusReport* outReport) const
-	{
-		return m_Services->Scripts().UpdateSceneScripts(scene, outReport);
-	}
-
-	ResultEnvelope ApplicationOperations::ShutdownSceneScripts(Scene& scene, ScriptStatusReport* outReport) const
-	{
-		return m_Services->Scripts().ShutdownSceneScripts(scene, outReport);
-	}
-
-	ResultEnvelope ApplicationOperations::CheckSceneScripts(Scene& scene, ScriptStatusReport* outReport) const
-	{
-		return m_Services->Scripts().CheckSceneScripts(scene, outReport);
-	}
-
 	ResultEnvelope ApplicationOperations::AttachSceneViewportRenderer(
 		const Ref<Scene>& scene,
 		const Ref<Rendering::FrameBuffer>& framebuffer) const
@@ -554,8 +518,6 @@ namespace HE {
 		validationRequest.Project = request.Project;
 		validationRequest.SceneTarget = request.SceneTarget;
 		validationRequest.Assets = request.IncludeAssets ? &m_Services->Assets() : nullptr;
-		validationRequest.ScriptScene = request.ScriptScene;
-		validationRequest.Scripts = request.IncludeScripts ? &m_Services->Scripts() : nullptr;
 		auto result = m_Services->Validation().Validate(validationRequest, outReport);
 		result.Operation = "validation.validate";
 		return result;
@@ -603,17 +565,10 @@ namespace HE {
 		m_Registry.Register({ "asset.resolve", OperationDomain::Asset, "Resolve an asset record by handle or asset id" });
 		m_Registry.Register({ "asset.validate", OperationDomain::Asset, "Validate project asset registry health" });
 
-		m_Registry.Register({ "script.unbind", OperationDomain::Script, "Remove a native script binding from an entity" });
-		m_Registry.Register({ "script.attach_runtime", OperationDomain::Script, "Attach the script runtime system to a scene" });
-		m_Registry.Register({ "script.initialize", OperationDomain::Script, "Create script instances for a scene" });
-		m_Registry.Register({ "script.update", OperationDomain::Script, "Advance bound scripts for a scene" });
-		m_Registry.Register({ "script.shutdown", OperationDomain::Script, "Destroy active script instances for a scene" });
-		m_Registry.Register({ "script.status", OperationDomain::Script, "Inspect current script binding health" });
-
 		m_Registry.Register({ "rendering.attach_scene_viewport", OperationDomain::Rendering, "Attach or reuse a scene viewport renderer through the application layer" });
 		m_Registry.Register({ "rendering.render_scene_viewport", OperationDomain::Rendering, "Render a scene viewport through the application layer" });
 
-		m_Registry.Register({ "validation.validate", OperationDomain::Validation, "Run aggregate validation across project, scene, asset, and script domains" });
+		m_Registry.Register({ "validation.validate", OperationDomain::Validation, "Run aggregate validation across project, scene, and asset domains" });
 		m_Registry.Register({ "reflection.scan", OperationDomain::Validation, "Scan source reflection markers into a manifest" });
 		m_Registry.Register({ "reflection.generate", OperationDomain::Validation, "Generate C++ reflection metadata from source markers" });
 		m_Registry.Register({ "reflection.validate", OperationDomain::Validation, "Validate source reflection markers without writing generated files" });

@@ -74,23 +74,12 @@ int main() {
 	Require(sceneCreate.Result.Operation == "scene.create", "Expected adapter to preserve scene.create operation id");
 	Require(sceneCreate.Result.Payload.contains("scene_path"), "Expected scene.create to preserve scene_path payload");
 
-	auto scriptStatus = adapter.Invoke({
-		.Operation = "script.status",
-		.Arguments = {
-			{ "project_path", (smokeRoot / "Project").string() },
-			{ "scene", "agentscene.scene" }
-		},
-		.WorkingDirectory = smokeRoot
-	});
-	Require(scriptStatus.Result.Succeeded(), "Expected script.status to succeed");
-
 	auto validation = adapter.Invoke({
 		.Operation = "validation.validate",
 		.Arguments = {
 			{ "path", (smokeRoot / "Project").string() },
 			{ "scene", "agentscene.scene" },
-			{ "include_assets", "true" },
-			{ "include_scripts", "true" }
+			{ "include_assets", "true" }
 		},
 		.WorkingDirectory = smokeRoot
 	});

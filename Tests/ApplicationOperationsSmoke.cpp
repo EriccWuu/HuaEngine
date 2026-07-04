@@ -40,7 +40,6 @@ int main() {
 	Require(operations.Supports("scene.entity.create"), "Expected scene.entity.create to be published through the operation registry");
 	Require(operations.Supports("scene.component.add"), "Expected scene.component.add to be published through the operation registry");
 	Require(operations.Supports("asset.register_mesh"), "Expected asset.register_mesh to be published through the operation registry");
-	Require(operations.Supports("script.attach_runtime"), "Expected script.attach_runtime to be published through the operation registry");
 	Require(operations.Supports("validation.validate"), "Expected validation.validate to be published through the operation registry");
 	Require(!operations.Supports("project.missing"), "Expected unsupported operations to stay absent from the registry");
 
@@ -62,9 +61,6 @@ int main() {
 	Require(createScene.Succeeded(), "Expected scene.create to succeed through ApplicationOperations");
 	Require(static_cast<bool>(scene), "Expected scene.create to populate an in-memory scene");
 
-	auto attachRuntime = operations.AttachScriptRuntime(*scene);
-	Require(attachRuntime.Succeeded(), "Expected script.attach_runtime to succeed");
-
 	uint32_t entityId = 0;
 	auto createEntity = operations.CreateSceneEntity(*scene, "OperationsEntity", &entityId);
 	Require(createEntity.Succeeded(), "Expected scene.entity.create to succeed through ApplicationOperations");
@@ -74,9 +70,6 @@ int main() {
 	Require(addMesh.Succeeded(), "Expected scene.component.add to add MeshComponent through ApplicationOperations");
 	auto addMaterial = operations.AddSceneComponent(*scene, entityId, HE::SceneComponentKind::Material);
 	Require(addMaterial.Succeeded(), "Expected scene.component.add to add MaterialComponent through ApplicationOperations");
-
-	auto checkScripts = operations.CheckSceneScripts(*scene);
-	Require(checkScripts.Succeeded(), "Expected script.status to succeed through ApplicationOperations");
 
 	auto runtimeMesh = HE::Mesh::CreateQuad("OperationsQuad");
 	Require(static_cast<bool>(runtimeMesh), "Expected runtime mesh creation to succeed");
@@ -90,8 +83,6 @@ int main() {
 	validationRequest.Project = &projectContext;
 	validationRequest.SceneTarget = scene.get();
 	validationRequest.IncludeAssets = true;
-	validationRequest.ScriptScene = scene.get();
-	validationRequest.IncludeScripts = true;
 
 	auto validate = operations.Validate(validationRequest);
 	Require(validate.Succeeded(), "Expected validation.validate to succeed through ApplicationOperations");

@@ -238,18 +238,8 @@ int main() {
 			{ scenePath }
 		},
 		{
-			"script status",
-			{ "script", "status", "--project", tempRoot.string(), "--scene", "workflowscene.scene" },
-			{
-				"\"operation\":\"script.status\"",
-				"\"status\":\"success\"",
-				"\"scene_path\":\""
-			},
-			{}
-		},
-		{
 			"validation run",
-			{ "validation", "run", "--path", tempRoot.string(), "--scene", "workflowscene.scene", "--include-assets", "--include-scripts" },
+			{ "validation", "run", "--path", tempRoot.string(), "--scene", "workflowscene.scene", "--include-assets" },
 			{
 				"\"operation\":\"validation.validate\"",
 				"\"status\":\"success\"",

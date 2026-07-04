@@ -13,7 +13,6 @@ namespace HE::CLI {
 		Project,
 		Scene,
 		Asset,
-		Script,
 		Reflection,
 		Validation
 	};

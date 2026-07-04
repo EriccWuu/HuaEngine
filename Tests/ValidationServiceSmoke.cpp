@@ -7,8 +7,6 @@
 #include "HuaEngine/Asset/AssetService.h"
 #include "HuaEngine/Project/ProjectService.h"
 #include "HuaEngine/Scene/SceneService.h"
-#include "HuaEngine/Script/ScriptService.h"
-#include "HuaEngine/Script/ScriptRuntimeSystem.h"
 #include "HuaEngine/Validation/ValidationService.h"
 
 namespace {
@@ -24,9 +22,6 @@ namespace {
 		Require(it != result.Payload.end(), "Expected payload key '" + key + "' to exist");
 		Require(it->second == expectedValue, "Expected payload key '" + key + "' to equal '" + expectedValue + "'");
 	}
-
-	struct ValidationSmokeScript final : HE::ScriptableEntity {
-	};
 }
 
 int main() {
@@ -43,15 +38,11 @@ int main() {
 	Require(initializeProject.Succeeded(), "Expected project.initialize to succeed for validation smoke");
 
 	HE::Scene scene("ValidationScene");
-	HE::ScriptService scriptService;
-	scene.AddSystem(HE::CreateRef<HE::ScriptRuntimeSystem>(scene, scriptService));
 
 	auto primaryEntity = scene.GetWorld().CreateEntity("Validation Entity");
 	primaryEntity.AddComponent<HE::TransformComponent>();
 	primaryEntity.AddComponent<HE::MeshComponent>("ValidationMesh");
 	primaryEntity.AddComponent<HE::MaterialComponent>();
-	auto bindScriptResult = scriptService.BindNativeScript<ValidationSmokeScript>(primaryEntity, "ValidationSmokeScript");
-	Require(bindScriptResult.Succeeded(), "Expected script.bind to succeed for validation smoke");
 
 	HE::AssetService assetService;
 	HE::AssetHandle meshHandle = 0;
@@ -72,25 +63,19 @@ int main() {
 	validationRequest.Project = &projectContext;
 	validationRequest.SceneTarget = &scene;
 	validationRequest.Assets = &assetService;
-	validationRequest.ScriptScene = &scene;
-	validationRequest.Scripts = &scriptService;
 
 	HE::ValidationReport healthyReport;
 	auto healthyValidation = validationService.Validate(validationRequest, &healthyReport);
 	Require(healthyValidation.Succeeded(), "Expected healthy validation request to succeed");
-	Require(healthyReport.DomainCount == 4, "Expected validation report to cover four domains");
-	Require(healthyReport.SuccessCount == 4, "Expected all four domains to validate successfully");
+	Require(healthyReport.DomainCount == 3, "Expected validation report to cover three domains");
+	Require(healthyReport.SuccessCount == 3, "Expected all three domains to validate successfully");
 	Require(healthyReport.ManualInterventionCount == 0, "Expected no domains to require manual intervention on the healthy path");
 	Require(healthyReport.AssetStatus.TotalAssets == 2, "Expected asset validation to see two registered assets");
 	RequirePayloadValue(healthyValidation, "project_status", "success");
 	RequirePayloadValue(healthyValidation, "scene_status", "success");
 	RequirePayloadValue(healthyValidation, "asset_status", "success");
-	RequirePayloadValue(healthyValidation, "script_status", "success");
 	RequirePayloadValue(healthyValidation, "can_continue_automatically", "true");
 
-	auto invalidScriptEntity = scene.GetWorld().CreateEntity("Invalid Script Entity");
-	invalidScriptEntity.AddComponent<HE::TransformComponent>();
-	invalidScriptEntity.AddComponent<HE::NativeScriptComponent>();
 	primaryEntity.RemoveComponent<HE::TransformComponent>();
 
 	HE::AssetRecord invalidAssetRecord;
@@ -106,13 +91,11 @@ int main() {
 	auto degradedValidation = validationService.Validate(validationRequest, &degradedReport);
 	Require(degradedValidation.RequiresManualIntervention(), "Expected degraded validation request to require manual intervention");
 	Require(degradedReport.SuccessCount == 1, "Expected only the project domain to remain successful on the degraded path");
-	Require(degradedReport.ManualInterventionCount == 3, "Expected scene, asset, and script domains to require manual intervention");
+	Require(degradedReport.ManualInterventionCount == 2, "Expected scene and asset domains to require manual intervention");
 	Require(degradedReport.SceneStatus.EntitiesMissingTransform == 1, "Expected degraded scene validation to detect one missing transform");
 	Require(degradedReport.AssetStatus.UnknownKindAssets == 1, "Expected degraded asset validation to detect one unknown-kind asset");
-	Require(degradedReport.ScriptStatus.MissingBindingComponents == 1, "Expected degraded script validation to detect one missing binding");
 	RequirePayloadValue(degradedValidation, "scene_status", "manual_intervention_required");
 	RequirePayloadValue(degradedValidation, "asset_status", "manual_intervention_required");
-	RequirePayloadValue(degradedValidation, "script_status", "manual_intervention_required");
 	RequirePayloadValue(degradedValidation, "can_continue_automatically", "false");
 
 	HE::ValidationReport emptyReport;

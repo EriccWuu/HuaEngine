@@ -210,31 +210,16 @@ namespace HE::CLI {
 			{ ValueOption("--root", "Repository root path.", true) }
 		});
 
-		for (const auto* scriptCommand : { "status", "initialize", "update", "shutdown" }) {
-			Register({
-				{ "script", scriptCommand },
-				CLICommandDomain::Script,
-				std::string("script.") + scriptCommand,
-				std::string("Run script ") + scriptCommand + " for a scene.",
-				std::string("script ") + scriptCommand + " --scene <scene> [--project <path>]",
-				{
-					ValueOption("--project", "Project path or child path."),
-					ValueOption("--scene", "Scene path.", true)
-				}
-			});
-		}
-
 		Register({
 			{ "validation", "run" },
 			CLICommandDomain::Validation,
 			"validation.validate",
 			"Run aggregate validation.",
-			"validation run [--path <path>] [--scene <scene>] [--include-assets] [--include-scripts]",
+			"validation run [--path <path>] [--scene <scene>] [--include-assets]",
 			{
 				ValueOption("--path", "Project path or child path."),
 				ValueOption("--scene", "Scene path."),
-				FlagOption("--include-assets", "Include asset validation."),
-				FlagOption("--include-scripts", "Include script validation.")
+				FlagOption("--include-assets", "Include asset validation.")
 			}
 		});
 	}

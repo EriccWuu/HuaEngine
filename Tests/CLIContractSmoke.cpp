@@ -236,12 +236,6 @@ int main() {
 			1,
 			UsageFailureFragments("scene create requires --name")
 		},
-		{
-			"validation include scripts missing scene",
-			{ "validation", "run", "--path", tempRoot.string(), "--include-scripts" },
-			1,
-			UsageFailureFragments("validation run with --include-scripts requires --scene")
-		}
 	};
 
 	for (const auto& contractCase : failureCases) {

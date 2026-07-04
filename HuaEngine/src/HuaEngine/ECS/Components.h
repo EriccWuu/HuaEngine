@@ -1,9 +1,7 @@
 #pragma once
 
 #include <string>
-#include <string_view>
-#include <type_traits>
-#include <typeinfo>
+#include <utility>
 
 #include "glm/glm.hpp"
 
@@ -43,50 +41,6 @@ namespace HE {
 			return glm::translate(glm::mat4(1.0f), Position) *
 					rotation *
 					glm::scale(glm::mat4(1.0f), Scale);
-		}
-	};
-
-	class ScriptableEntity;
-
-	struct NativeScriptComponent : Component {
-		using InstantiateFunc = ScriptableEntity* (*)();
-		using DestroyFunc = void (*)(NativeScriptComponent*);
-
-		ScriptableEntity* Instance = nullptr;
-		InstantiateFunc InstanceFunc = nullptr;
-		DestroyFunc DestoryFunc = nullptr;
-		std::string ScriptName;
-		bool Enabled = true;
-		bool HasCreated = false;
-
-		template<typename T>
-		void Bind(std::string_view scriptName = {}) {
-			static_assert(std::is_base_of_v<ScriptableEntity, T>, "Native scripts must derive from ScriptableEntity");
-			ReleaseInstance();
-			InstanceFunc = []() -> ScriptableEntity* { return static_cast<T*>(new T()); };
-			DestoryFunc = [](NativeScriptComponent* ncs) { delete ncs->Instance; ncs->Instance = nullptr; };
-			ScriptName = scriptName.empty() ? typeid(T).name() : std::string(scriptName);
-			Enabled = true;
-			HasCreated = false;
-		}
-
-		[[nodiscard]] bool IsBound() const {
-			return InstanceFunc != nullptr && DestoryFunc != nullptr;
-		}
-
-		void ReleaseInstance() {
-			if (Instance && DestoryFunc) {
-				DestoryFunc(this);
-			}
-			else {
-				Instance = nullptr;
-			}
-
-			HasCreated = false;
-		}
-
-		void DestroyInstance() {
-			ReleaseInstance();
 		}
 	};
 }

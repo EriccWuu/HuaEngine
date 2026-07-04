@@ -6,7 +6,6 @@
 #include "HuaEngine.h"
 #include "HuaEngine/Validation/ValidationService.h"
 #include "HuaEngine/Application/ApplicationServices.h"
-#include "HuaEngine/Script/ScriptRuntimeSystem.h"
 
 namespace {
 	void Require(bool condition, const std::string& message) {
@@ -40,7 +39,6 @@ int main() {
 	Require(meshHandle != 0, "Expected ApplicationServices asset registration to assign a handle");
 
 	HE::Scene scene("ApplicationServicesScene");
-	scene.AddSyetem(HE::CreateRef<HE::ScriptRuntimeSystem>(scene, services.Scripts()));
 	auto entity = scene.GetWorld().CreateEntity();
 	entity.AddComponent<HE::MeshComponent>("ServicesQuad");
 	entity.AddComponent<HE::MaterialComponent>();
@@ -49,13 +47,11 @@ int main() {
 	request.Project = &projectContext;
 	request.SceneTarget = &scene;
 	request.Assets = &services.Assets();
-	request.ScriptScene = &scene;
-	request.Scripts = &services.Scripts();
 
 	HE::ValidationReport report;
 	auto validationResult = services.Validation().Validate(request, &report);
 	Require(validationResult.Succeeded(), "Expected ApplicationServices validation to succeed through the shared composition root");
-	Require(report.DomainCount == 4, "Expected ApplicationServices validation to cover four domains");
+	Require(report.DomainCount == 3, "Expected ApplicationServices validation to cover three domains");
 	Require(report.AssetStatus.TotalAssets == 1, "Expected ApplicationServices validation to observe the asset registered through the same service root");
 
 	std::filesystem::remove_all(smokeRoot, errorCode);
