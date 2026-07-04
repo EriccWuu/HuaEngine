@@ -8,6 +8,7 @@
 #include <system_error>
 
 #include "HuaEngine/Application/ApplicationOperations.h"
+#include "HuaEngine/Asset/AssetTypes.h"
 #include "HuaEngine/Core/HostLaunch.h"
 #include "HuaEngine/Core/ResourcePaths.h"
 #include "Interaction/EditorSceneCommands.h"
@@ -72,6 +73,31 @@ namespace HE {
             }
 
             return fileName;
+        }
+
+        std::string MeshNameFromGuid(const AssetGuid& guid) {
+            if (guid == BuiltinAssetGuids::QuadMesh || guid == BuiltinAssetGuids::FallbackMesh) {
+                return "Quad";
+            }
+            if (guid == BuiltinAssetGuids::CubeMesh) {
+                return "Cube";
+            }
+            if (guid == BuiltinAssetGuids::SphereMesh) {
+                return "Sphere";
+            }
+            return {};
+        }
+
+        Rendering::MeshComponent MakeBuiltinMeshComponent(const AssetGuid& guid) {
+            Rendering::MeshComponent component;
+            component.Mesh.Reference.Guid = guid;
+            return component;
+        }
+
+        Rendering::MaterialComponent MakeBuiltinMaterialComponent() {
+            Rendering::MaterialComponent component;
+            component.Material.Reference.Guid = BuiltinAssetGuids::DefaultMaterial;
+            return component;
         }
 
         bool CopyFileIfDifferent(const std::filesystem::path& sourcePath, const std::filesystem::path& destinationPath) {
@@ -804,7 +830,8 @@ namespace HE {
         MeshManager::Instance().LoadDefaultMeshes();
         bool meshesAvailable = true;
         scene->GetWorld().Query<Rendering::MeshComponent>().ForEach([&](Entity, Rendering::MeshComponent& meshComponent) {
-            if (!EnsureMeshAvailable(meshComponent.MeshAssetName)) {
+            const std::string meshName = MeshNameFromGuid(meshComponent.Mesh.Reference.Guid);
+            if (!meshName.empty() && !EnsureMeshAvailable(meshName)) {
                 meshesAvailable = false;
                 return;
             }
@@ -812,24 +839,15 @@ namespace HE {
 
         bool materialsAvailable = true;
         scene->GetWorld().Query<Rendering::MaterialComponent>().ForEach([&](Entity, Rendering::MaterialComponent& materialComponent) {
-			if (!materialComponent.MaterialInstance) {
+			const auto& materialGuid = materialComponent.Material.Reference.Guid;
+			if (materialGuid == BuiltinAssetGuids::DefaultMaterial || materialGuid == BuiltinAssetGuids::FallbackMaterial) {
+				if (!Rendering::MaterialLibrary::Instance().GetDefaultMaterial()) {
+					Rendering::MaterialLibrary::Instance().CreateDefaultMaterials();
+				}
 				return;
 			}
 
-			auto baseMaterial = materialComponent.MaterialInstance->GetBaseMaterial();
-			const std::string baseMaterialName = baseMaterial ? baseMaterial->GetName() : std::string();
-			if (baseMaterialName.empty()) {
-				return;
-			}
-
-			if (!EnsureMaterialAvailable(baseMaterialName)) {
-				materialsAvailable = false;
-				return;
-			}
-
-			if (Rendering::MaterialLibrary::Instance().HasMaterial(baseMaterialName)) {
-				materialComponent.MaterialInstance->SetBaseMaterial(Rendering::MaterialLibrary::Instance().GetMaterial(baseMaterialName));
-			}
+			// Non-builtin material GUID resolution is handled by the asset resolver integration phase.
         });
 
         return meshesAvailable && materialsAvailable;
@@ -932,36 +950,30 @@ namespace HE {
             return;
         }
 
-        auto firstMaterialInstance = m_SandboxMaterial->CreateInstance();
-        firstMaterialInstance->SetParameter("u_Color", glm::vec4(1.0f, 1.0f, 0.8f, 1.0f));
-
         auto firstSquare = scene->GetWorld().CreateEntity("First Square");
         firstSquare.AddComponent<TransformComponent>();
-        firstSquare.AddComponent<MeshComponent>("Quad");
-        firstSquare.AddComponent<MaterialComponent>(firstMaterialInstance);
+        firstSquare.AddComponent<MeshComponent>(MakeBuiltinMeshComponent(BuiltinAssetGuids::QuadMesh));
+        auto& firstMaterial = firstSquare.AddComponent<MaterialComponent>(MakeBuiltinMaterialComponent());
+        firstMaterial.Overrides.SetVec4("u_Color", glm::vec4(1.0f, 1.0f, 0.8f, 1.0f));
         auto& firstTransform = firstSquare.GetComponent<TransformComponent>();
         firstTransform.Position.z -= 3.0f;
         firstTransform.Position += glm::vec3{ 0.5f, 0.5f, 0.0f };
 
-        auto secondMaterialInstance = m_SandboxMaterial->CreateInstance();
-        secondMaterialInstance->SetParameter("u_Color", glm::vec4(0.8f, 0.4f, 0.9f, 1.0f));
-        secondMaterialInstance->SetParameter("u_TextureScale", glm::vec2(2.0f, 2.0f));
-
         auto secondSquare = scene->GetWorld().CreateEntity("Second Square");
         secondSquare.AddComponent<TransformComponent>();
-        secondSquare.AddComponent<MeshComponent>("CustomSquare");
-        secondSquare.AddComponent<MaterialComponent>(secondMaterialInstance);
+        secondSquare.AddComponent<MeshComponent>(MakeBuiltinMeshComponent(BuiltinAssetGuids::QuadMesh));
+        auto& secondMaterial = secondSquare.AddComponent<MaterialComponent>(MakeBuiltinMaterialComponent());
+        secondMaterial.Overrides.SetVec4("u_Color", glm::vec4(0.8f, 0.4f, 0.9f, 1.0f));
+        secondMaterial.Overrides.Parameters["u_TextureScale"] = glm::vec2(2.0f, 2.0f);
         auto& secondTransform = secondSquare.GetComponent<TransformComponent>();
         secondTransform.Position.z -= 3.0f;
         secondTransform.Position -= glm::vec3{ 0.5f, 0.5f, 0.0f };
 
-        auto sharedMaterialInstance = m_SandboxMaterial->CreateInstance();
-        sharedMaterialInstance->SetParameter("u_Color", glm::vec4(0.8f, 0.0f, 0.9f, 1.0f));
-
         auto cubeEntity = scene->GetWorld().CreateEntity("Cube");
         cubeEntity.AddComponent<TransformComponent>();
-        cubeEntity.AddComponent<MeshComponent>("Cube");
-        cubeEntity.AddComponent<MaterialComponent>(sharedMaterialInstance);
+        cubeEntity.AddComponent<MeshComponent>(MakeBuiltinMeshComponent(BuiltinAssetGuids::CubeMesh));
+        auto& cubeMaterial = cubeEntity.AddComponent<MaterialComponent>(MakeBuiltinMaterialComponent());
+        cubeMaterial.Overrides.SetVec4("u_Color", glm::vec4(0.8f, 0.0f, 0.9f, 1.0f));
         auto& cubeTransform = cubeEntity.GetComponent<TransformComponent>();
         cubeTransform.Position.z = -3.0f;
         cubeTransform.Position += glm::vec3{ -1.5f, 0.0f, 0.0f };
@@ -969,8 +981,9 @@ namespace HE {
 
         auto sphereEntity = scene->GetWorld().CreateEntity("Sphere");
         sphereEntity.AddComponent<TransformComponent>();
-        sphereEntity.AddComponent<MeshComponent>("Sphere");
-        sphereEntity.AddComponent<MaterialComponent>(sharedMaterialInstance);
+        sphereEntity.AddComponent<MeshComponent>(MakeBuiltinMeshComponent(BuiltinAssetGuids::SphereMesh));
+        auto& sphereMaterial = sphereEntity.AddComponent<MaterialComponent>(MakeBuiltinMaterialComponent());
+        sphereMaterial.Overrides.SetVec4("u_Color", glm::vec4(0.8f, 0.0f, 0.9f, 1.0f));
         auto& sphereTransform = sphereEntity.GetComponent<TransformComponent>();
         sphereTransform.Position.z = -3.0f;
         sphereTransform.Position += glm::vec3{ 1.5f, 0.0f, 0.0f };

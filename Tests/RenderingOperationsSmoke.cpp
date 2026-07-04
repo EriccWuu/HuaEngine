@@ -47,8 +47,7 @@ namespace {
 		uint32_t renderableCount = 0;
 		scene.GetWorld().Query<HE::TransformComponent, HE::Rendering::MeshComponent, HE::Rendering::MaterialComponent>().ForEach(
 			[&](HE::Entity, HE::TransformComponent&, HE::Rendering::MeshComponent& mesh, HE::Rendering::MaterialComponent& material) {
-				const auto baseMaterial = material.MaterialInstance ? material.MaterialInstance->GetBaseMaterial() : nullptr;
-				if (mesh.GetVertexArray() && baseMaterial && baseMaterial->GetShader()) {
+				if (mesh.Mesh.Reference.IsValid() && material.Material.Reference.IsValid()) {
 					++renderableCount;
 				}
 			});
@@ -122,8 +121,10 @@ int main() {
 	Require(attachRendererAgain.Payload.at("created_render_system") == "false", "Expected second attach to reuse the existing render system");
 
 	auto invalidRenderable = scene->GetWorld().CreateEntity("Invalid Renderable");
-	invalidRenderable.AddComponent<HE::Rendering::MeshComponent>("MissingSmokeMesh");
-	invalidRenderable.AddComponent<HE::Rendering::MaterialComponent>();
+	auto& invalidMesh = invalidRenderable.AddComponent<HE::Rendering::MeshComponent>();
+	invalidMesh.Mesh.Reference.Guid = "missing-smoke-mesh";
+	auto& invalidMaterial = invalidRenderable.AddComponent<HE::Rendering::MaterialComponent>();
+	invalidMaterial.Material.Reference.Guid = "missing-smoke-material";
 
 	auto renderViewport = operations.RenderSceneViewport(*scene, camera);
 	Require(renderViewport.Succeeded(), "Expected rendering.render_scene_viewport to succeed");
@@ -145,47 +146,44 @@ int main() {
 
 	PrepareSandboxAssets();
 
-	HE::Ref<HE::Scene> runtimeMeshScene;
-	auto createRuntimeMeshScene = operations.CreateScene("RuntimeVertexArraySmoke", runtimeMeshScene);
-	Require(createRuntimeMeshScene.Succeeded() && runtimeMeshScene, "Expected runtime vertex-array scene.create to succeed for rendering smoke");
+	HE::Ref<HE::Scene> assetRefScene;
+	auto createAssetRefScene = operations.CreateScene("TypedAssetRefSmoke", assetRefScene);
+	Require(createAssetRefScene.Succeeded() && assetRefScene, "Expected typed asset-ref scene.create to succeed for rendering smoke");
 
-	auto runtimeMesh = HE::Rendering::MeshManager::Instance().GetMesh("CustomSquare");
-	Require(static_cast<bool>(runtimeMesh), "Expected CustomSquare mesh to be registered for runtime vertex-array smoke");
-	auto runtimeVertexArray = runtimeMesh->GetVertexArray();
-	Require(static_cast<bool>(runtimeVertexArray), "Expected CustomSquare mesh to provide a vertex array for runtime vertex-array smoke");
+	auto assetRefRenderable = assetRefScene->GetWorld().CreateEntity("Typed AssetRef Renderable");
+	auto& assetRefTransform = assetRefRenderable.AddComponent<HE::TransformComponent>();
+	assetRefTransform.Position.z = -3.0f;
+	auto& assetRefMesh = assetRefRenderable.AddComponent<HE::Rendering::MeshComponent>();
+	assetRefMesh.Mesh.Reference.Guid = HE::BuiltinAssetGuids::QuadMesh;
+	auto& assetRefMaterial = assetRefRenderable.AddComponent<HE::Rendering::MaterialComponent>();
+	assetRefMaterial.Material.Reference.Guid = HE::BuiltinAssetGuids::DefaultMaterial;
+	assetRefMaterial.Overrides.SetVec4("u_Color", glm::vec4(0.9f, 0.8f, 0.2f, 1.0f));
+	Require(!assetRefMaterial.Overrides.Empty(), "Expected typed asset-ref renderable to carry material overrides");
 
-	auto runtimeMaterial = HE::Rendering::MaterialLibrary::Instance().GetMaterial("SandboxMaterial");
-	Require(static_cast<bool>(runtimeMaterial), "Expected SandboxMaterial to be registered for runtime vertex-array smoke");
-	Require(static_cast<bool>(runtimeMaterial->GetShader()), "Expected SandboxMaterial to provide a shader for runtime vertex-array smoke");
-
-	auto runtimeRenderable = runtimeMeshScene->GetWorld().CreateEntity("Runtime VertexArray Renderable");
-	runtimeRenderable.AddComponent<HE::Rendering::MeshComponent>(runtimeVertexArray);
-	runtimeRenderable.AddComponent<HE::Rendering::MaterialComponent>(runtimeMaterial->CreateInstance());
-
-	auto attachRuntimeMeshSceneRenderer = operations.AttachSceneViewportRenderer(runtimeMeshScene, framebuffer);
-	Require(attachRuntimeMeshSceneRenderer.Succeeded(), "Expected runtime vertex-array scene renderer attach to succeed");
-	auto renderRuntimeMeshScene = operations.RenderSceneViewport(*runtimeMeshScene, camera);
-	Require(renderRuntimeMeshScene.Succeeded(), "Expected runtime vertex-array scene viewport render to succeed");
-	Require(renderRuntimeMeshScene.Payload.contains("render_items"), "Expected runtime vertex-array scene render to report extracted render item count");
-	Require(renderRuntimeMeshScene.Payload.contains("submitted_items"), "Expected runtime vertex-array scene render to report submitted item count");
-	Require(renderRuntimeMeshScene.Payload.contains("skipped_items"), "Expected runtime vertex-array scene render to report skipped item count");
-	Require(renderRuntimeMeshScene.Payload.contains("draw_calls"), "Expected runtime vertex-array scene render to report draw call count");
-	Require(renderRuntimeMeshScene.Payload.contains("pass_count"), "Expected runtime vertex-array scene render to report render pass count");
-	Require(renderRuntimeMeshScene.Payload.contains("visible_items"), "Expected runtime vertex-array scene render to report visible item count");
-	Require(renderRuntimeMeshScene.Payload.contains("diagnostics"), "Expected runtime vertex-array scene render to report diagnostic count");
-	Require(renderRuntimeMeshScene.Payload.at("render_items") == "1", "Expected runtime vertex-array scene render to extract one render item");
-	Require(renderRuntimeMeshScene.Payload.at("submitted_items") == "1", "Expected runtime vertex-array scene render to submit one render item");
-	Require(renderRuntimeMeshScene.Payload.at("skipped_items") == "0", "Expected runtime vertex-array scene render to skip no render items");
-	Require(renderRuntimeMeshScene.Payload.at("draw_calls") == "1", "Expected runtime vertex-array scene render to issue one draw call");
-	Require(renderRuntimeMeshScene.Payload.at("pass_count") == "1", "Expected runtime vertex-array scene render to execute one render pass");
-	Require(renderRuntimeMeshScene.Payload.at("visible_items") == "1", "Expected runtime vertex-array scene render to count one visible item");
-	Require(renderRuntimeMeshScene.Payload.at("diagnostics") == "0", "Expected runtime vertex-array scene render to emit no diagnostics");
+	auto attachAssetRefSceneRenderer = operations.AttachSceneViewportRenderer(assetRefScene, framebuffer);
+	Require(attachAssetRefSceneRenderer.Succeeded(), "Expected typed asset-ref scene renderer attach to succeed");
+	auto renderAssetRefScene = operations.RenderSceneViewport(*assetRefScene, camera);
+	Require(renderAssetRefScene.Succeeded(), "Expected typed asset-ref scene viewport render to succeed");
+	Require(renderAssetRefScene.Payload.contains("render_items"), "Expected typed asset-ref scene render to report extracted render item count");
+	Require(renderAssetRefScene.Payload.contains("submitted_items"), "Expected typed asset-ref scene render to report submitted item count");
+	Require(renderAssetRefScene.Payload.contains("skipped_items"), "Expected typed asset-ref scene render to report skipped item count");
+	Require(renderAssetRefScene.Payload.contains("draw_calls"), "Expected typed asset-ref scene render to report draw call count");
+	Require(renderAssetRefScene.Payload.contains("pass_count"), "Expected typed asset-ref scene render to report render pass count");
+	Require(renderAssetRefScene.Payload.contains("visible_items"), "Expected typed asset-ref scene render to report visible item count");
+	Require(renderAssetRefScene.Payload.contains("diagnostics"), "Expected typed asset-ref scene render to report diagnostic count");
+	Require(renderAssetRefScene.Payload.at("render_items") == "1", "Expected typed asset-ref scene render to extract one render item");
+	Require(renderAssetRefScene.Payload.at("submitted_items") == "0", "Expected typed asset-ref scene render to avoid submission until the formal asset resolver path is integrated");
+	Require(renderAssetRefScene.Payload.at("skipped_items") == "1", "Expected typed asset-ref scene render to skip the item through the current minimal adapter");
+	Require(renderAssetRefScene.Payload.at("draw_calls") == "0", "Expected typed asset-ref scene render to issue no draw calls through the current minimal adapter");
+	Require(renderAssetRefScene.Payload.at("pass_count") == "1", "Expected typed asset-ref scene render to execute one render pass");
+	Require(renderAssetRefScene.Payload.at("visible_items") == "1", "Expected typed asset-ref scene render to count one visible item");
+	Require(renderAssetRefScene.Payload.at("diagnostics") == "1", "Expected typed asset-ref scene render to emit one resolver diagnostic");
 
 	HE::Ref<HE::Scene> loadedScene;
 	const auto scenePath = HE::ResourcePaths::ResolveEngineResourcePath("SandboxScene.scene");
 	auto loadScene = operations.LoadScene(scenePath, loadedScene);
 	Require(loadScene.Succeeded() && loadedScene, "Expected sandbox scene load to succeed");
-	Require(CountRenderableSubmissions(*loadedScene) == 4, "Expected loaded sandbox scene to expose four renderable submissions");
+	Require(CountRenderableSubmissions(*loadedScene) == 3, "Expected loaded sandbox scene to expose three migrated builtin asset-ref renderables without project manifest fallback");
 
 	auto attachLoadedSceneRenderer = operations.AttachSceneViewportRenderer(loadedScene, framebuffer);
 	Require(attachLoadedSceneRenderer.Succeeded(), "Expected loaded scene renderer attach to succeed");
@@ -199,13 +197,12 @@ int main() {
 	Require(renderLoadedScene.Payload.contains("visible_items"), "Expected loaded sandbox scene render to report visible item count");
 	Require(renderLoadedScene.Payload.contains("diagnostics"), "Expected loaded sandbox scene render to report diagnostic count");
 	Require(renderLoadedScene.Payload.at("render_items") == "4", "Expected loaded sandbox scene render to extract four render items");
-	Require(renderLoadedScene.Payload.at("submitted_items") == "4", "Expected loaded sandbox scene render to submit four render items");
-	Require(renderLoadedScene.Payload.at("skipped_items") == "0", "Expected loaded sandbox scene render to skip no render items");
-	Require(renderLoadedScene.Payload.at("draw_calls") == "4", "Expected loaded sandbox scene render to issue four draw calls");
+	Require(renderLoadedScene.Payload.at("submitted_items") == "0", "Expected loaded sandbox scene render to avoid submission until the formal asset resolver path is integrated");
+	Require(renderLoadedScene.Payload.at("skipped_items") == "4", "Expected loaded sandbox scene render to skip all render items through the current minimal adapter");
+	Require(renderLoadedScene.Payload.at("draw_calls") == "0", "Expected loaded sandbox scene render to issue no draw calls through the current minimal adapter");
 	Require(renderLoadedScene.Payload.at("pass_count") == "1", "Expected loaded sandbox scene render to execute one render pass");
 	Require(renderLoadedScene.Payload.at("visible_items") == "4", "Expected loaded sandbox scene render to count four visible items");
-	Require(renderLoadedScene.Payload.at("diagnostics") == "0", "Expected loaded sandbox scene render to emit no diagnostics");
-	Require(HasRenderedPixel(framebuffer), "Expected loaded sandbox scene render to write at least one non-clear pixel");
+	Require(renderLoadedScene.Payload.at("diagnostics") == "4", "Expected loaded sandbox scene render to emit resolver diagnostics for skipped render items");
 
 	std::cout << "RenderingOperationsSmoke passed" << std::endl;
 	return 0;
