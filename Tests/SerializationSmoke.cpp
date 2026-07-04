@@ -4,6 +4,7 @@
 #include <string>
 #include <vector>
 
+#include "HuaEngine/ECS/ComponentRegistry.h"
 #include "HuaEngine/ECS/Components.h"
 #include "HuaEngine/Scene/Scene.h"
 #include "HuaEngine/Scene/SceneSerializer.h"
@@ -61,6 +62,38 @@ int main() {
 	Require(loadedPlayer.Level == 10, "Expected player level to round-trip");
 	Require(loadedPlayer.Inventory.size() == 3, "Expected player inventory to round-trip");
 	Require(loadedPlayer.Transform.Position == glm::vec3(1.0f, 2.0f, 3.0f), "Expected nested transform to round-trip");
+
+	HE::ComponentRegistry registry;
+	HE::RegisterCoreComponents(registry);
+	const HE::ComponentMetadata* transformMetadata = registry.FindByName("TransformComponent");
+	Require(transformMetadata != nullptr, "Expected TransformComponent metadata to be registered");
+	Require(transformMetadata->Serialize != nullptr, "Expected TransformComponent metadata serializer");
+	Require(transformMetadata->Deserialize != nullptr, "Expected TransformComponent metadata deserializer");
+	Require(transformMetadata->ConstructDefault != nullptr, "Expected TransformComponent metadata default constructor");
+	Require(transformMetadata->Destroy != nullptr, "Expected TransformComponent metadata destroy function");
+	Require(transformMetadata->Copy != nullptr, "Expected TransformComponent metadata copy function");
+	Require(transformMetadata->AddCopyToWorld != nullptr, "Expected TransformComponent metadata world copy function");
+	Require(transformMetadata->Size == sizeof(HE::TransformComponent), "Expected TransformComponent metadata size to match component size");
+
+	HE::TransformComponent sourceTransform;
+	sourceTransform.Position = { 1.0f, 2.0f, 3.0f };
+	sourceTransform.Rotation = { 4.0f, 5.0f, 6.0f };
+	sourceTransform.Scale = { 7.0f, 8.0f, 9.0f };
+
+	HE::Serialization::JsonSerializationBackend transformWriteBackend;
+	transformMetadata->Serialize(transformWriteBackend, transformMetadata->TypeName, &sourceTransform);
+	const std::string transformMetadataJson = transformWriteBackend.SaveToString();
+	Require(transformMetadataJson.find("\"Position\"") != std::string::npos, "Expected metadata serialization to emit Position");
+	Require(transformMetadataJson.find("\"Rotation\"") != std::string::npos, "Expected metadata serialization to emit Rotation");
+	Require(transformMetadataJson.find("\"Scale\"") != std::string::npos, "Expected metadata serialization to emit Scale");
+
+	HE::TransformComponent loadedMetadataTransform;
+	HE::Serialization::JsonSerializationBackend transformReadBackend;
+	transformReadBackend.LoadFromString(transformMetadataJson);
+	Require(transformMetadata->Deserialize(transformReadBackend, transformMetadata->TypeName, &loadedMetadataTransform), "Expected metadata transform JSON to deserialize");
+	Require(loadedMetadataTransform.Position == sourceTransform.Position, "Expected metadata Position to round-trip");
+	Require(loadedMetadataTransform.Rotation == sourceTransform.Rotation, "Expected metadata Rotation to round-trip");
+	Require(loadedMetadataTransform.Scale == sourceTransform.Scale, "Expected metadata Scale to round-trip");
 
 	std::vector<HE::TransformComponent> transforms(3);
 	transforms[0].Position = { 1.0f, 0.0f, 0.0f };
