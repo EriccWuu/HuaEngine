@@ -78,6 +78,14 @@ add_subdirectory(Dependencies/glfw)
 add_subdirectory(Dependencies/glad)
 add_subdirectory(Dependencies/imgui)
 
+set(YAML_CPP_BUILD_TESTS OFF CACHE BOOL "" FORCE)
+set(YAML_CPP_BUILD_TOOLS OFF CACHE BOOL "" FORCE)
+set(YAML_CPP_INSTALL OFF CACHE BOOL "" FORCE)
+set(CMAKE_POLICY_VERSION_MINIMUM_PREVIOUS ${CMAKE_POLICY_VERSION_MINIMUM})
+set(CMAKE_POLICY_VERSION_MINIMUM 3.5)
+add_subdirectory(Dependencies/yaml-cpp)
+set(CMAKE_POLICY_VERSION_MINIMUM ${CMAKE_POLICY_VERSION_MINIMUM_PREVIOUS})
+
 # Add subdirectories for main projects
 add_subdirectory(HuaEngine)
 add_subdirectory(Editor)

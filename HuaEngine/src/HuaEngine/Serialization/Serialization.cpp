@@ -2,6 +2,7 @@
 #include "Serialization.h"
 #include "SerializationManager.h"
 #include "JsonSerializationBackend.h"
+#include "YamlSerializationBackend.h"
 
 namespace HE::Serialization {
 
@@ -15,13 +16,13 @@ namespace HE::Serialization {
             }
         );
 
-        // TODO: Register YAML backend when implemented
-        // SerializationManager::Instance().RegisterBackend(
-        //     SerializationFormat::YAML,
-        //     []() -> std::unique_ptr<SerializationBackend> {
-        //         return std::make_unique<YamlSerializationBackend>();
-        //     }
-        // );
+        // Register YAML backend
+        SerializationManager::Instance().RegisterBackend(
+            SerializationFormat::YAML,
+            []() -> std::unique_ptr<SerializationBackend> {
+                return std::make_unique<YamlSerializationBackend>();
+            }
+        );
 
         // TODO: Register Binary backend when implemented
         // SerializationManager::Instance().RegisterBackend(

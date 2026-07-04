@@ -598,7 +598,7 @@ namespace HE {
 	}
 
 	std::filesystem::path GetAssetManifestPath(const ProjectContext& context) {
-		return context.RootPath / ".hua" / "assets.json";
+		return context.RootPath / ".huaengine" / "assets.json";
 	}
 
 	void SeedBuiltinAssets(AssetManifest& manifest) {
@@ -643,7 +643,7 @@ namespace HE {
 		std::ifstream stream(manifestPath, std::ios::in | std::ios::binary);
 		if (!stream.good()) {
 			auto result = ResultEnvelope::Failure("asset.manifest.load", manifestPath.generic_string(), "Asset manifest file could not be opened");
-			result.AddDetail({ DiagnosticSeverity::Error, "asset.manifest.open_failed", "Failed to open .hua/assets.json for reading", manifestPath.generic_string() });
+			result.AddDetail({ DiagnosticSeverity::Error, "asset.manifest.open_failed", "Failed to open .huaengine/assets.json for reading", manifestPath.generic_string() });
 			return result;
 		}
 
@@ -739,7 +739,7 @@ namespace HE {
 		std::ofstream stream(manifestPath, std::ios::out | std::ios::binary | std::ios::trunc);
 		if (!stream.good()) {
 			auto result = ResultEnvelope::Failure("asset.manifest.save", manifestPath.generic_string(), "Asset manifest file could not be opened");
-			result.AddDetail({ DiagnosticSeverity::Error, "asset.manifest.open_failed", "Failed to open .hua/assets.json for writing", manifestPath.generic_string() });
+			result.AddDetail({ DiagnosticSeverity::Error, "asset.manifest.open_failed", "Failed to open .huaengine/assets.json for writing", manifestPath.generic_string() });
 			return result;
 		}
 

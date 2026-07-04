@@ -14,7 +14,7 @@ namespace HE::Rendering {
 
 		const glm::mat4& GetProjection() const { return m_ProjectionMat; }
 		const glm::mat4& GetView() const { return m_ViewMat; }
-		const glm::mat4& GetViewProjection() const { return m_ProjectionMat * m_ViewMat; }
+		glm::mat4 GetViewProjection() const { return m_ProjectionMat * m_ViewMat; }
 
 	protected:
 		glm::mat4 m_ProjectionMat = glm::mat4(1.0f);

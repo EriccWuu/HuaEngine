@@ -88,8 +88,8 @@ int main() {
 	Require(static_cast<bool>(runtimeMesh), "Expected runtime mesh creation to succeed");
 	Require(HE::Mesh::SaveToFile(*runtimeMesh, meshAssetPath.generic_string()), "Expected mesh asset file save to succeed");
 	const auto meshFileText = ReadFileText(meshAssetPath);
-	Require(meshFileText.find("\"name\"") != std::string::npos, "Expected mesh asset to persist a modern root name field");
-	Require(meshFileText.find("\"vertex_data\"") != std::string::npos, "Expected mesh asset to persist vertex_data");
+	Require(meshFileText.find("name:") != std::string::npos, "Expected mesh asset to persist a YAML root name field");
+	Require(meshFileText.find("vertex_data:") != std::string::npos, "Expected mesh asset to persist YAML vertex_data");
 	Require(meshFileText.find("\"VertexData\"") == std::string::npos, "Expected mesh asset to avoid legacy reflected field names");
 
 	const auto materialAssetPath = projectContext.GetAssetRootPath() / "Materials" / "SmokeMaterial.mat";
@@ -100,7 +100,7 @@ int main() {
 	Require(static_cast<bool>(runtimeMaterial), "Expected runtime material creation to succeed");
 	Require(HE::Serialization::SaveMaterial(*runtimeMaterial, materialAssetPath.generic_string()), "Expected material asset file save to succeed");
 	const auto materialFileText = ReadFileText(materialAssetPath);
-	Require(materialFileText.find("\"material_type\"") != std::string::npos, "Expected material asset to persist material_type");
+	Require(materialFileText.find("material_type:") != std::string::npos, "Expected material asset to persist YAML material_type");
 	Require(materialFileText.find("\"type\"") == std::string::npos, "Expected material asset to avoid generic type fields");
 
 	const auto textureAssetPath = projectContext.GetAssetRootPath() / "Textures" / "SmokeTexture.txt";
@@ -112,11 +112,11 @@ int main() {
 	texturePlaceholder << "placeholder texture payload";
 	texturePlaceholder.close();
 
-	const auto manifestPath = projectContext.RootPath / ".hua" / "assets.json";
+	const auto manifestPath = projectContext.RootPath / ".huaengine" / "assets.json";
 	HE::AssetManifest manifest;
 	auto initManifestResult = HE::LoadOrCreateAssetManifest(projectContext, manifest);
 	Require(initManifestResult.Succeeded(), "Expected asset manifest to initialize");
-	Require(std::filesystem::is_regular_file(manifestPath), "Expected .hua/assets.json to be created");
+	Require(std::filesystem::is_regular_file(manifestPath), "Expected .huaengine/assets.json to be created");
 	Require(manifest.FindByGuid(HE::BuiltinAssetGuids::QuadMesh) != nullptr, "Expected builtin quad mesh GUID");
 	Require(manifest.FindByGuid(HE::BuiltinAssetGuids::FallbackMaterial) != nullptr, "Expected builtin fallback material GUID");
 	Require(manifest.FindByAssetId("builtin/mesh/quad") != nullptr, "Expected builtin quad asset id lookup");

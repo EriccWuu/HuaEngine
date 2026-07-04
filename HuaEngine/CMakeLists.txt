@@ -79,6 +79,7 @@ target_link_libraries(HuaEngine
         glfw
         GLAD
         ImGui
+        yaml-cpp::yaml-cpp
 )
 
 # Platform specific linking

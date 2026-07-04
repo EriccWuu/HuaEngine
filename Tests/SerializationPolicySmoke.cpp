@@ -268,38 +268,28 @@ namespace {
 	void VerifyUnknownSceneComponentIsSkipped() {
 		const auto scenePath = MakePolicyPath("HuaEngineSerializationPolicyUnknownComponent.scene");
 		const std::string uuid = "00000000000000000000000000000042";
-		WriteTextFile(scenePath, R"({
-  "entities": [
-    {
-      "components": {
-        "FutureUnknownComponent": {
-          "Enabled": true
-        },
-        "TransformComponent": {
-          "Position": {
-            "x": 10.0,
-            "y": 20.0,
-            "z": 30.0
-          },
-          "Rotation": {
-            "x": 1.0,
-            "y": 2.0,
-            "z": 3.0
-          },
-          "Scale": {
-            "x": 4.0,
-            "y": 5.0,
-            "z": 6.0
-          }
-        }
-      },
-      "name": "Known Entity",
-      "uuid": "00000000000000000000000000000042"
-    }
-  ],
-  "name": "Unknown Component Policy",
-  "version": 3
-})");
+		WriteTextFile(scenePath, R"(entities:
+  - components:
+      FutureUnknownComponent:
+        Enabled: true
+      TransformComponent:
+        Position:
+          x: 10.0
+          y: 20.0
+          z: 30.0
+        Rotation:
+          x: 1.0
+          y: 2.0
+          z: 3.0
+        Scale:
+          x: 4.0
+          y: 5.0
+          z: 6.0
+    name: Known Entity
+    uuid: '00000000000000000000000000000042'
+name: Unknown Component Policy
+version: 3
+)");
 
 		HE::Scene loaded;
 		Require(HE::Serialization::LoadScene(scenePath.string(), loaded), "Expected scene with unknown component to load");
@@ -316,35 +306,26 @@ namespace {
 
 	void VerifyKnownSceneComponentInvalidFieldFailsLoad() {
 		const auto scenePath = MakePolicyPath("HuaEngineSerializationPolicyInvalidKnownComponent.scene");
-		WriteTextFile(scenePath, R"({
-  "entities": [
-    {
-      "components": {
-        "TransformComponent": {
-          "Position": {
-            "x": 7.0,
-            "y": 8.0,
-            "z": "bad"
-          },
-          "Rotation": {
-            "x": 11.0,
-            "y": 12.0,
-            "z": 13.0
-          },
-          "Scale": {
-            "x": 1.0,
-            "y": 1.0,
-            "z": 1.0
-          }
-        }
-      },
-      "name": "Invalid Known Component Entity",
-      "uuid": "00000000000000000000000000000044"
-    }
-  ],
-  "name": "Invalid Known Component Policy",
-  "version": 3
-})");
+		WriteTextFile(scenePath, R"(entities:
+  - components:
+      TransformComponent:
+        Position:
+          x: 7.0
+          y: 8.0
+          z: bad
+        Rotation:
+          x: 11.0
+          y: 12.0
+          z: 13.0
+        Scale:
+          x: 1.0
+          y: 1.0
+          z: 1.0
+    name: Invalid Known Component Entity
+    uuid: '00000000000000000000000000000044'
+name: Invalid Known Component Policy
+version: 3
+)");
 
 		HE::Scene loaded;
 		Require(!HE::Serialization::LoadScene(scenePath.string(), loaded), "Expected scene load to fail when a known component field is invalid");
@@ -354,19 +335,14 @@ namespace {
 
 	void VerifyKnownSceneComponentNonObjectFailsLoad() {
 		const auto scenePath = MakePolicyPath("HuaEngineSerializationPolicyKnownComponentNonObject.scene");
-		WriteTextFile(scenePath, R"({
-  "entities": [
-    {
-      "components": {
-        "TransformComponent": 123
-      },
-      "name": "Invalid Known Component Shape Entity",
-      "uuid": "00000000000000000000000000000046"
-    }
-  ],
-  "name": "Invalid Known Component Shape Policy",
-  "version": 3
-})");
+		WriteTextFile(scenePath, R"(entities:
+  - components:
+      TransformComponent: 123
+    name: Invalid Known Component Shape Entity
+    uuid: '00000000000000000000000000000046'
+name: Invalid Known Component Shape Policy
+version: 3
+)");
 
 		HE::Scene loaded;
 		Require(!HE::Serialization::LoadScene(scenePath.string(), loaded), "Expected scene load to fail when a known component payload is not an object");
@@ -374,147 +350,108 @@ namespace {
 		RemoveFile(scenePath);
 	}
 
-	void VerifyLegacyMaterialComponentMigratesWithoutPoisoningNextSceneLoad() {
-		const auto legacyScenePath = MakePolicyPath("HuaEngineSerializationPolicyLegacyMaterialComponent.scene");
-		WriteTextFile(legacyScenePath, R"({
-  "entities": [
-    {
-      "components": {
-        "MaterialComponent": {
-          "MaterialInstance": {
-            "parameter_overrides": {
-              "u_BaseColor": {
-                "value_type": "Vec4",
-                "value": {
-                  "x": 0.1,
-                  "y": 0.2,
-                  "z": 0.3,
-                  "w": 1.0
-                }
-              },
-              "u_Roughness": {
-                "value_type": "Float",
-                "value": 0.65
-              }
-            }
-          }
-        },
-        "TransformComponent": {
-          "Position": {
-            "x": 1.0,
-            "y": 2.0,
-            "z": 3.0
-          },
-          "Rotation": {
-            "x": 4.0,
-            "y": 5.0,
-            "z": 6.0
-          },
-          "Scale": {
-            "x": 1.0,
-            "y": 1.0,
-            "z": 1.0
-          }
-        }
-      },
-      "name": "Invalid Material Entity",
-      "uuid": "00000000000000000000000000000045"
-    }
-  ],
-  "name": "Invalid Material Component Policy",
-  "version": 3
-})");
+	void VerifyInvalidMaterialComponentDoesNotPoisonNextSceneLoad() {
+		const auto invalidScenePath = MakePolicyPath("HuaEngineSerializationPolicyInvalidMaterialComponent.scene");
+		WriteTextFile(invalidScenePath, R"(entities:
+  - components:
+      MaterialComponent:
+        BlendMode: Opaque
+        Material:
+          guid: builtin-material-default
+        Overrides:
+          parameters:
+            u_Unsupported:
+              type: texture2d
+              value: Texture.png
+      TransformComponent:
+        Position:
+          x: 1.0
+          y: 2.0
+          z: 3.0
+        Rotation:
+          x: 4.0
+          y: 5.0
+          z: 6.0
+        Scale:
+          x: 1.0
+          y: 1.0
+          z: 1.0
+    name: Invalid Material Entity
+    uuid: '00000000000000000000000000000045'
+name: Invalid Material Component Policy
+version: 3
+)");
 
-		HE::Scene legacyLoaded;
-		Require(HE::Serialization::LoadScene(legacyScenePath.string(), legacyLoaded), "Expected legacy MaterialInstance scene to load through migration");
-		HE::Entity legacyEntity = legacyLoaded.GetWorld().GetEntity(HE::EntityUuid::FromString("00000000000000000000000000000045"));
-		Require(legacyEntity.IsValid(), "Expected legacy material entity to load");
-		Require(legacyEntity.HasComponent<HE::Rendering::MaterialComponent>(), "Expected migrated material component");
-		const auto& material = legacyEntity.GetComponent<HE::Rendering::MaterialComponent>();
-		Require(material.Material.Reference.Guid == HE::BuiltinAssetGuids::DefaultMaterial, "Expected legacy material to migrate to default material GUID");
-		Require(material.Overrides.Parameters.find("u_BaseColor") != material.Overrides.Parameters.end(), "Expected legacy material override to migrate");
-		Require(material.Overrides.Parameters.find("u_Roughness") != material.Overrides.Parameters.end(), "Expected legacy float material override to migrate");
-		Require(std::get<float>(material.Overrides.Parameters.at("u_Roughness")) == 0.65f, "Expected legacy float material override value to migrate");
-
-		const auto migratedScenePath = MakePolicyPath("HuaEngineSerializationPolicyMigratedMaterialComponent.scene");
-		Require(HE::Serialization::SaveScene(legacyLoaded, migratedScenePath.string()), "Expected migrated material scene to save");
-		const std::string migratedText = ReadTextFile(migratedScenePath);
-		Require(migratedText.find("MaterialInstance") == std::string::npos, "Expected migrated material scene to omit legacy MaterialInstance");
-		Require(migratedText.find("builtin-material-default") != std::string::npos, "Expected migrated material scene to contain default material GUID");
+		HE::Scene invalidLoaded;
+		Require(!HE::Serialization::LoadScene(invalidScenePath.string(), invalidLoaded), "Expected invalid MaterialComponent scene load to fail");
 
 		const auto validScenePath = MakePolicyPath("HuaEngineSerializationPolicyValidAfterMaterialFailure.scene");
 		const std::string uuid = "00000000000000000000000000000046";
-		WriteTextFile(validScenePath, R"({
-  "entities": [
-    {
-      "components": {
-        "FutureUnknownComponent": {
-          "Enabled": true
-        },
-        "TransformComponent": {
-          "Position": {
-            "x": 10.0,
-            "y": 20.0,
-            "z": 30.0
-          },
-          "Rotation": {
-            "x": 1.0,
-            "y": 2.0,
-            "z": 3.0
-          },
-          "Scale": {
-            "x": 4.0,
-            "y": 5.0,
-            "z": 6.0
-          }
-        }
-      },
-      "name": "Valid After Failure Entity",
-      "uuid": "00000000000000000000000000000046"
-    }
-  ],
-  "name": "Valid After Material Failure Policy",
-  "version": 3
-})");
+		WriteTextFile(validScenePath, R"(entities:
+  - components:
+      MaterialComponent:
+        BlendMode: Transparent
+        Material:
+          guid: builtin-material-default
+        Overrides:
+          parameters:
+            u_Roughness:
+              type: float
+              value: 0.65
+      TransformComponent:
+        Position:
+          x: 10.0
+          y: 20.0
+          z: 30.0
+        Rotation:
+          x: 1.0
+          y: 2.0
+          z: 3.0
+        Scale:
+          x: 4.0
+          y: 5.0
+          z: 6.0
+    name: Valid After Failure Entity
+    uuid: '00000000000000000000000000000046'
+name: Valid After Material Failure Policy
+version: 3
+)");
 
 		HE::Scene validLoaded;
 		Require(HE::Serialization::LoadScene(validScenePath.string(), validLoaded), "Expected later independent scene load to succeed after invalid MaterialComponent rejection");
 		HE::Entity entity = validLoaded.GetWorld().GetEntity(HE::EntityUuid::FromString(uuid));
 		Require(entity.IsValid(), "Expected valid follow-up scene entity to load");
 		Require(entity.HasComponent<HE::TransformComponent>(), "Expected valid follow-up scene transform to load");
+		Require(entity.HasComponent<HE::Rendering::MaterialComponent>(), "Expected valid follow-up scene material to load");
+		const auto& material = entity.GetComponent<HE::Rendering::MaterialComponent>();
+		Require(material.Material.Reference.Guid == HE::BuiltinAssetGuids::DefaultMaterial, "Expected valid follow-up scene material GUID to load");
+		Require(material.BlendMode == HE::Rendering::MaterialBlendMode::Transparent, "Expected valid follow-up scene blend mode to load");
+		Require(material.Overrides.Parameters.find("u_Roughness") != material.Overrides.Parameters.end(), "Expected valid follow-up scene material override to load");
+		Require(std::get<float>(material.Overrides.Parameters.at("u_Roughness")) == 0.65f, "Expected valid follow-up scene material override value to load");
 
-		RemoveFile(legacyScenePath);
-		RemoveFile(migratedScenePath);
+		RemoveFile(invalidScenePath);
 		RemoveFile(validScenePath);
 	}
 
 	void VerifyMissingSceneComponentFieldKeepsDefault() {
 		const auto scenePath = MakePolicyPath("HuaEngineSerializationPolicyMissingComponentField.scene");
 		const std::string uuid = "00000000000000000000000000000043";
-		WriteTextFile(scenePath, R"({
-  "entities": [
-    {
-      "components": {
-        "TransformComponent": {
-          "Position": {
-            "x": 7.0,
-            "y": 8.0,
-            "z": 9.0
-          },
-          "Rotation": {
-            "x": 11.0,
-            "y": 12.0,
-            "z": 13.0
-          }
-        }
-      },
-      "name": "Missing Field Entity",
-      "uuid": "00000000000000000000000000000043"
-    }
-  ],
-  "name": "Missing Field Policy",
-  "version": 3
-})");
+		WriteTextFile(scenePath, R"(entities:
+  - components:
+      TransformComponent:
+        Position:
+          x: 7.0
+          y: 8.0
+          z: 9.0
+        Rotation:
+          x: 11.0
+          y: 12.0
+          z: 13.0
+    name: Missing Field Entity
+    uuid: '00000000000000000000000000000043'
+name: Missing Field Policy
+version: 3
+)");
 
 		HE::Scene loaded;
 		Require(HE::Serialization::LoadScene(scenePath.string(), loaded), "Expected scene with missing reflected component field to load");
@@ -567,7 +504,7 @@ int main() {
 		VerifyUnknownSceneComponentIsSkipped();
 		VerifyKnownSceneComponentInvalidFieldFailsLoad();
 		VerifyKnownSceneComponentNonObjectFailsLoad();
-		VerifyLegacyMaterialComponentMigratesWithoutPoisoningNextSceneLoad();
+		VerifyInvalidMaterialComponentDoesNotPoisonNextSceneLoad();
 		VerifyMissingSceneComponentFieldKeepsDefault();
 		VerifySceneOutputStability();
 

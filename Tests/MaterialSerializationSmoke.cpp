@@ -1,5 +1,6 @@
 #include <cstdlib>
 #include <filesystem>
+#include <fstream>
 #include <iostream>
 #include <string>
 
@@ -34,6 +35,13 @@ int main() {
 
 	const auto materialPath = MakeSmokePath("standard_material.material");
 	Require(HE::Serialization::SaveMaterial(*standardMaterial, materialPath.generic_string()), "Expected standard material save to succeed");
+	const std::string materialText = [&]() {
+		std::ifstream materialFile(materialPath);
+		Require(materialFile.is_open(), "Expected saved material file to be readable");
+		return std::string((std::istreambuf_iterator<char>(materialFile)), std::istreambuf_iterator<char>());
+	}();
+	Require(materialText.find("name: SmokeStandardMaterial") != std::string::npos, "Expected default material save to use YAML mapping style");
+	Require(materialText.find("\"name\"") == std::string::npos, "Expected default material save not to use JSON object syntax");
 
 	HE::Rendering::Material loadedMaterial;
 	Require(HE::Serialization::LoadMaterial(materialPath.generic_string(), loadedMaterial), "Expected standard material load to succeed");
@@ -49,6 +57,13 @@ int main() {
 
 	const auto instancePath = MakeSmokePath("standard_material_instance.material");
 	Require(HE::Serialization::SaveMaterialInstance(*materialInstance, instancePath.generic_string()), "Expected material instance save to succeed");
+	const std::string instanceText = [&]() {
+		std::ifstream instanceFile(instancePath);
+		Require(instanceFile.is_open(), "Expected saved material instance file to be readable");
+		return std::string((std::istreambuf_iterator<char>(instanceFile)), std::istreambuf_iterator<char>());
+	}();
+	Require(instanceText.find("base_material_name: SmokeStandardMaterial") != std::string::npos, "Expected default material instance save to use YAML mapping style");
+	Require(instanceText.find("\"base_material_name\"") == std::string::npos, "Expected default material instance save not to use JSON object syntax");
 
 	HE::Rendering::MaterialInstance loadedInstance;
 	Require(HE::Serialization::LoadMaterialInstance(instancePath.generic_string(), loadedInstance), "Expected material instance load to succeed");

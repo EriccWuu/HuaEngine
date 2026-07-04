@@ -71,7 +71,7 @@ int main() {
 
 	auto manifestResponse = runner.Run({ "asset", "manifest", "init", "--project", tempRoot.string() }, tempRoot);
 	Expect(manifestResponse.Result.Succeeded(), "asset manifest init should succeed");
-	Expect(std::filesystem::exists(tempRoot / ".hua" / "assets.json"), "asset manifest init should persist .hua/assets.json");
+	Expect(std::filesystem::exists(tempRoot / ".huaengine" / "assets.json"), "asset manifest init should persist .huaengine/assets.json");
 
 	auto listBuiltinsResponse = runner.Run({ "asset", "list", "--project", tempRoot.string() }, tempRoot);
 	Expect(listBuiltinsResponse.Result.Succeeded(), "asset list should succeed");

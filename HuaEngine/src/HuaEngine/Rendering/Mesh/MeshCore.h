@@ -38,10 +38,10 @@ namespace HE::Rendering {
         void UnloadFromGPU();
 
         // Load mesh data from file
-        static Ref<Mesh> LoadFromFile(const std::string& filepath, HE::Serialization::SerializationFormat format = HE::Serialization::SerializationFormat::JSON);
+        static Ref<Mesh> LoadFromFile(const std::string& filepath, HE::Serialization::SerializationFormat format = HE::Serialization::SerializationFormat::YAML);
 
         // Save mesh data to file
-        static bool SaveToFile(const Mesh& mesh, const std::string& filepath, HE::Serialization::SerializationFormat format = HE::Serialization::SerializationFormat::JSON);
+        static bool SaveToFile(const Mesh& mesh, const std::string& filepath, HE::Serialization::SerializationFormat format = HE::Serialization::SerializationFormat::YAML);
 
         // Create basic geometries
         static Ref<Mesh> CreateQuad(const std::string& name = "Quad");
@@ -98,11 +98,11 @@ namespace HE::Serialization {
     };
 
     // Convenience functions for Mesh serialization
-    inline bool SaveMesh(const Rendering::Mesh& mesh, const std::string& filename, SerializationFormat format = SerializationFormat::JSON) {
+    inline bool SaveMesh(const Rendering::Mesh& mesh, const std::string& filename, SerializationFormat format = SerializationFormat::YAML) {
         return SERIALIZE_TO_FILE(mesh, filename, format);
     }
 
-    inline bool LoadMesh(const std::string& filename, Rendering::Mesh& mesh, SerializationFormat format = SerializationFormat::JSON) {
+    inline bool LoadMesh(const std::string& filename, Rendering::Mesh& mesh, SerializationFormat format = SerializationFormat::YAML) {
         return DESERIALIZE_FROM_FILE(filename, mesh, format);
     }
 } // namespace HE::Serialization

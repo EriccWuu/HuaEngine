@@ -189,7 +189,7 @@ int main() {
 	const std::filesystem::path scenePath = tempRoot / "Scenes" / "workflowscene.scene";
 	const std::filesystem::path meshPath = tempRoot / "Assets" / "primitives" / "quad.mesh";
 	const std::filesystem::path projectMarker = tempRoot / ".huaengine" / "project.json";
-	const std::filesystem::path assetManifest = tempRoot / ".hua" / "assets.json";
+	const std::filesystem::path assetManifest = tempRoot / ".huaengine" / "assets.json";
 
 	const std::vector<SmokeStep> workflow = {
 		{

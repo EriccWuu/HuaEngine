@@ -2,6 +2,8 @@
 #include "OpenGLVertexArray.h"
 #include "glad/glad.h"
 
+#include <cstdint>
+
 namespace HE::Rendering {
 	static uint32_t GetOpenGLType(ShaderDataType dataType) {
 		switch (dataType) {
@@ -51,7 +53,7 @@ namespace HE::Rendering {
 				GetOpenGLType(element.Type),
 				element.Normalized ? GL_TRUE : GL_FALSE,
 				layout.GetStride(),
-				(const void*)element.Offset);
+				reinterpret_cast<const void*>(static_cast<std::uintptr_t>(element.Offset)));
 			++idx;
 		}
 
