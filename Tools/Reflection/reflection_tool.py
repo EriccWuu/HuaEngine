@@ -775,57 +775,79 @@ def write_generated_files(manifest: Dict[str, Any], out_dir: Path) -> List[Path]
         lines.append(f"    world.AddComponent<{qualified_name}>(entity, *static_cast<const {qualified_name}*>(object));")
         lines.append("}")
         lines.append("")
-        lines.append(f"static void Serialize_{identifier}(")
-        lines.append("    Serialization::SerializationBackend& backend,")
-        lines.append("    const std::string& name,")
-        lines.append("    const void* object) {")
-        lines.append(f"    const auto& component = *static_cast<const {qualified_name}*>(object);")
-        lines.append("    backend.BeginObject(name);")
         for field in fields:
             field_name = field.get("name", "")
-            lines.append(
-                f"    Serialization::SerializeValue(backend, {cpp_string(field_name)}, component.{field_name});"
-            )
-        lines.append("    backend.EndObject();")
-        lines.append("}")
-        lines.append("")
-        lines.append(f"static bool Deserialize_{identifier}(")
-        lines.append("    Serialization::SerializationBackend& backend,")
-        lines.append("    const std::string& name,")
-        lines.append("    void* object) {")
-        lines.append(f"    auto& component = *static_cast<{qualified_name}*>(object);")
-        lines.append("    bool success = true;")
-        lines.append("    backend.BeginObject(name);")
-        for field in fields:
-            field_name = field.get("name", "")
-            field_literal = cpp_string(field_name)
-            lines.append(f"    if (backend.HasField({field_literal})) {{")
-            lines.append(f"        auto fieldValue = component.{field_name};")
-            lines.append(f"        if (Serialization::DeserializeValue(backend, {field_literal}, fieldValue)) {{")
-            lines.append(f"            component.{field_name} = fieldValue;")
-            lines.append("        }")
-            lines.append("        else {")
-            lines.append("            success = false;")
-            lines.append("        }")
+            field_identifier = f"{identifier}_{cpp_identifier(field_name)}"
+            lines.append(f"static const void* GetConst_{field_identifier}(const void* object) {{")
+            lines.append(f"    return &static_cast<const {qualified_name}*>(object)->{field_name};")
+            lines.append("}")
+            lines.append("")
+            lines.append(f"static void* GetMutable_{field_identifier}(void* object) {{")
+            lines.append(f"    return &static_cast<{qualified_name}*>(object)->{field_name};")
+            lines.append("}")
+            lines.append("")
+            lines.append(f"static void Serialize_{field_identifier}(")
+            lines.append("    Serialization::SerializationBackend& backend,")
+            lines.append("    const std::string& name,")
+            lines.append("    const void* object) {")
+            lines.append(f"    const auto& component = *static_cast<const {qualified_name}*>(object);")
+            lines.append(f"    Serialization::SerializeValue(backend, name, component.{field_name});")
+            lines.append("}")
+            lines.append("")
+            lines.append(f"static bool Deserialize_{field_identifier}(")
+            lines.append("    Serialization::SerializationBackend& backend,")
+            lines.append("    const std::string& name,")
+            lines.append("    void* object) {")
+            lines.append(f"    auto& component = *static_cast<{qualified_name}*>(object);")
+            lines.append(f"    auto fieldValue = component.{field_name};")
+            lines.append("    if (!Serialization::DeserializeValue(backend, name, fieldValue)) {")
+            lines.append("        return false;")
             lines.append("    }")
-        lines.append("    backend.EndObject();")
-        lines.append("    return success;")
-        lines.append("}")
-        lines.append("")
-
+            lines.append(f"    component.{field_name} = fieldValue;")
+            lines.append("    return true;")
+            lines.append("}")
+            lines.append("")
     for type_index, reflected_type in enumerate(manifest_types):
         fields = reflected_type.get("fields", [])
         if fields:
+            qualified_name = reflected_type.get("qualified_name", "")
+            identifier = cpp_identifier(qualified_name)
+            is_component = reflected_type.get("kind", "") == "component"
             lines.append(f"static constexpr Refl::RuntimeFieldDescriptor RuntimeType{type_index}Fields[] = {{")
             for field in fields:
+                field_name = field.get("name", "")
+                field_identifier = f"{identifier}_{cpp_identifier(field_name)}"
+                if is_component:
+                    offset = f"offsetof({qualified_name}, {field_name})"
+                    size = f"sizeof(static_cast<{qualified_name}*>(nullptr)->{field_name})"
+                    flags = "Refl::RuntimeFieldFlags::Serializable | Refl::RuntimeFieldFlags::ComponentField"
+                    get_const = f"&GetConst_{field_identifier}"
+                    get_mutable = f"&GetMutable_{field_identifier}"
+                    serialize_field = f"&Serialize_{field_identifier}"
+                    deserialize_field = f"&Deserialize_{field_identifier}"
+                else:
+                    offset = "0"
+                    size = "0"
+                    flags = "Refl::RuntimeFieldFlags::None"
+                    get_const = "nullptr"
+                    get_mutable = "nullptr"
+                    serialize_field = "nullptr"
+                    deserialize_field = "nullptr"
                 lines.append(
                     "    {"
                     + ", ".join(
                         [
-                            cpp_string(field.get("name", "")),
+                            cpp_string(field_name),
                             cpp_string(field.get("type", "")),
                             cpp_string(field.get("display_name", "")),
                             cpp_string(field.get("category", "")),
+                            offset,
+                            size,
+                            flags,
+                            get_const,
+                            get_mutable,
+                            serialize_field,
+                            deserialize_field,
                         ]
                     )
                     + "},"
@@ -850,8 +872,8 @@ def write_generated_files(manifest: Dict[str, Any], out_dir: Path) -> List[Path]
                 construct = f"&ConstructDefault_{identifier}"
                 destroy = f"&Destroy_{identifier}"
                 copy = f"&Copy_{identifier}"
-                serialize = f"&Serialize_{identifier}"
-                deserialize = f"&Deserialize_{identifier}"
+                serialize = "nullptr"
+                deserialize = "nullptr"
                 add_copy_to_world = f"&AddCopyToWorld_{identifier}"
             else:
                 type_id = "InvalidComponentTypeId"
@@ -966,6 +988,48 @@ def write_generated_files(manifest: Dict[str, Any], out_dir: Path) -> List[Path]
     lines.append("    }")
     lines.append("")
     lines.append("    return nullptr;")
+    lines.append("}")
+    lines.append("")
+    lines.append("void SerializeRuntimeObject(")
+    lines.append("    const RuntimeTypeDescriptor& type,")
+    lines.append("    Serialization::SerializationBackend& backend,")
+    lines.append("    const std::string& name,")
+    lines.append("    const void* object) {")
+    lines.append("    backend.BeginObject(name);")
+    lines.append("    for (const RuntimeFieldDescriptor& field : type.Fields) {")
+    lines.append("        if (!HasRuntimeFieldFlag(field.Flags, RuntimeFieldFlags::Serializable) || field.Serialize == nullptr) {")
+    lines.append("            continue;")
+    lines.append("        }")
+    lines.append("        field.Serialize(backend, std::string(field.Name), object);")
+    lines.append("    }")
+    lines.append("    backend.EndObject();")
+    lines.append("}")
+    lines.append("")
+    lines.append("bool DeserializeRuntimeObject(")
+    lines.append("    const RuntimeTypeDescriptor& type,")
+    lines.append("    Serialization::SerializationBackend& backend,")
+    lines.append("    const std::string& name,")
+    lines.append("    void* object) {")
+    lines.append("    if (!name.empty() && !backend.HasField(name)) {")
+    lines.append("        return false;")
+    lines.append("    }")
+    lines.append("")
+    lines.append("    backend.BeginObject(name);")
+    lines.append("    bool success = true;")
+    lines.append("    for (const RuntimeFieldDescriptor& field : type.Fields) {")
+    lines.append("        if (!HasRuntimeFieldFlag(field.Flags, RuntimeFieldFlags::Serializable) || field.Deserialize == nullptr) {")
+    lines.append("            continue;")
+    lines.append("        }")
+    lines.append("        const std::string fieldName(field.Name);")
+    lines.append("        if (!backend.HasField(fieldName)) {")
+    lines.append("            continue;")
+    lines.append("        }")
+    lines.append("        if (!field.Deserialize(backend, fieldName, object)) {")
+    lines.append("            success = false;")
+    lines.append("        }")
+    lines.append("    }")
+    lines.append("    backend.EndObject();")
+    lines.append("    return success;")
     lines.append("}")
     lines.append("")
     lines.append("} // namespace HE::Refl")

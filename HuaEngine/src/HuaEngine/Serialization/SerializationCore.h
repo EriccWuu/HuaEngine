@@ -238,8 +238,8 @@ namespace HE::Serialization {
             else {
                 if constexpr (std::is_base_of_v<Component, std::remove_cv_t<T>>) {
                     if (const Refl::RuntimeTypeDescriptor* descriptor = Refl::FindRuntimeType(ComponentTypeIdOf<T>());
-                        descriptor != nullptr && descriptor->Serialize != nullptr) {
-                        descriptor->Serialize(backend, name, &obj);
+                        descriptor != nullptr) {
+                        Refl::SerializeRuntimeObject(*descriptor, backend, name, &obj);
                         return;
                     }
                 }
@@ -268,8 +268,8 @@ namespace HE::Serialization {
             else {
                 if constexpr (std::is_base_of_v<Component, std::remove_cv_t<T>>) {
                     if (const Refl::RuntimeTypeDescriptor* descriptor = Refl::FindRuntimeType(ComponentTypeIdOf<T>());
-                        descriptor != nullptr && descriptor->Deserialize != nullptr) {
-                        return descriptor->Deserialize(backend, name, &obj);
+                        descriptor != nullptr) {
+                        return Refl::DeserializeRuntimeObject(*descriptor, backend, name, &obj);
                     }
                 }
 

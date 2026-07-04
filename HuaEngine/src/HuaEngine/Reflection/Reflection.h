@@ -1,6 +1,7 @@
 #pragma once
 
 #include <cstddef>
+#include <cstdint>
 #include <span>
 #include <string>
 #include <string_view>
@@ -25,11 +26,40 @@ namespace Refl {
 //                              Runtime descriptors
 // --------------------------------------------------------------------------------
 
+enum class RuntimeFieldFlags : uint32_t {
+    None = 0,
+    Serializable = 1u << 0,
+    Editable = 1u << 1,
+    ReadOnly = 1u << 2,
+    ComponentField = 1u << 3,
+};
+
+inline constexpr RuntimeFieldFlags operator|(RuntimeFieldFlags lhs, RuntimeFieldFlags rhs) {
+    return static_cast<RuntimeFieldFlags>(
+        static_cast<uint32_t>(lhs) | static_cast<uint32_t>(rhs));
+}
+
+inline constexpr RuntimeFieldFlags operator&(RuntimeFieldFlags lhs, RuntimeFieldFlags rhs) {
+    return static_cast<RuntimeFieldFlags>(
+        static_cast<uint32_t>(lhs) & static_cast<uint32_t>(rhs));
+}
+
+inline constexpr bool HasRuntimeFieldFlag(RuntimeFieldFlags flags, RuntimeFieldFlags flag) {
+    return static_cast<uint32_t>(flags & flag) != 0;
+}
+
 struct RuntimeFieldDescriptor {
     std::string_view Name;
     std::string_view Type;
     std::string_view DisplayName;
     std::string_view Category;
+    size_t Offset;
+    size_t Size;
+    RuntimeFieldFlags Flags;
+    const void* (*GetConst)(const void*);
+    void* (*GetMutable)(void*);
+    void (*Serialize)(Serialization::SerializationBackend&, const std::string&, const void*);
+    bool (*Deserialize)(Serialization::SerializationBackend&, const std::string&, void*);
 };
 
 struct RuntimeTypeDescriptor {
@@ -52,6 +82,16 @@ struct RuntimeTypeDescriptor {
 std::span<const RuntimeTypeDescriptor> GetRuntimeTypes();
 const RuntimeTypeDescriptor* FindRuntimeType(std::string_view qualifiedName);
 const RuntimeTypeDescriptor* FindRuntimeType(ComponentTypeId typeId);
+void SerializeRuntimeObject(
+    const RuntimeTypeDescriptor& type,
+    Serialization::SerializationBackend& backend,
+    const std::string& name,
+    const void* object);
+bool DeserializeRuntimeObject(
+    const RuntimeTypeDescriptor& type,
+    Serialization::SerializationBackend& backend,
+    const std::string& name,
+    void* object);
 
 // --------------------------------------------------------------------------------
 //                                    srefl

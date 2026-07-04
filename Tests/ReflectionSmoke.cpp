@@ -43,8 +43,10 @@ int main() {
 	Require(HasRuntimeField(transformType->Fields, "Position", "glm::vec3"), "Expected runtime Position field");
 	Require(HasRuntimeField(transformType->Fields, "Rotation", "glm::vec3"), "Expected runtime Rotation field");
 	Require(HasRuntimeField(transformType->Fields, "Scale", "glm::vec3"), "Expected runtime Scale field");
-	Require(transformType->Serialize != nullptr, "Expected TransformComponent runtime serializer");
-	Require(transformType->Deserialize != nullptr, "Expected TransformComponent runtime deserializer");
+	for (const HE::Refl::RuntimeFieldDescriptor& field : transformType->Fields) {
+		Require(field.Serialize != nullptr, "Expected runtime field serializer");
+		Require(field.Deserialize != nullptr, "Expected runtime field deserializer");
+	}
 
 	HE::TransformComponent sourceTransform;
 	sourceTransform.Position = { 1.0f, 2.0f, 3.0f };
@@ -52,7 +54,7 @@ int main() {
 	sourceTransform.Scale = { 7.0f, 8.0f, 9.0f };
 
 	HE::Serialization::JsonSerializationBackend writeBackend;
-	transformType->Serialize(writeBackend, std::string(transformType->Name), &sourceTransform);
+	HE::Refl::SerializeRuntimeObject(*transformType, writeBackend, std::string(transformType->Name), &sourceTransform);
 	const std::string transformJson = writeBackend.SaveToString();
 	Require(transformJson.find("\"Position\"") != std::string::npos, "Expected runtime serialization to emit Position");
 	Require(transformJson.find("\"Rotation\"") != std::string::npos, "Expected runtime serialization to emit Rotation");
@@ -62,7 +64,7 @@ int main() {
 	HE::Serialization::JsonSerializationBackend readBackend;
 	readBackend.LoadFromString(transformJson);
 	Require(
-		transformType->Deserialize(readBackend, std::string(transformType->Name), &loadedTransform),
+		HE::Refl::DeserializeRuntimeObject(*transformType, readBackend, std::string(transformType->Name), &loadedTransform),
 		"Expected runtime deserialization to succeed");
 	Require(loadedTransform.Position == sourceTransform.Position, "Expected runtime Position to round-trip");
 	Require(loadedTransform.Rotation == sourceTransform.Rotation, "Expected runtime Rotation to round-trip");

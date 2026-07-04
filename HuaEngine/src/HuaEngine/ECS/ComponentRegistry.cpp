@@ -14,6 +14,7 @@ namespace HE {
 
 		ComponentMetadata metadata;
 		metadata.TypeId = descriptor.TypeId;
+		metadata.RuntimeType = &descriptor;
 		metadata.TypeName = descriptor.Name;
 		metadata.DisplayName = descriptor.DisplayName;
 		metadata.Category = descriptor.Category;
@@ -22,8 +23,6 @@ namespace HE {
 		metadata.ConstructDefault = descriptor.ConstructDefault;
 		metadata.Destroy = descriptor.Destroy;
 		metadata.Copy = descriptor.Copy;
-		metadata.Serialize = descriptor.Serialize;
-		metadata.Deserialize = descriptor.Deserialize;
 		metadata.AddCopyToWorld = descriptor.AddCopyToWorld;
 
 		const size_t index = m_Metadata.size();

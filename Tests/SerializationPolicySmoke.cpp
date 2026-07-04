@@ -119,7 +119,6 @@ namespace {
 		const std::string& message) {
 		const HE::Refl::RuntimeTypeDescriptor* transformDescriptor = HE::Refl::FindRuntimeType("HE::TransformComponent");
 		Require(transformDescriptor != nullptr, "Expected TransformComponent runtime descriptor");
-		Require(transformDescriptor->Deserialize != nullptr, "Expected TransformComponent runtime deserializer");
 
 		const glm::vec3 sentinelPosition = { 9.0f, 9.0f, 9.0f };
 		HE::TransformComponent target;
@@ -127,7 +126,9 @@ namespace {
 
 		HE::Serialization::JsonSerializationBackend backend;
 		backend.LoadFromString(json);
-		Require(!transformDescriptor->Deserialize(backend, std::string(transformDescriptor->Name), &target), message);
+		Require(
+			!HE::Refl::DeserializeRuntimeObject(*transformDescriptor, backend, std::string(transformDescriptor->Name), &target),
+			message);
 		Require(target.Position == sentinelPosition, "Expected failed runtime Position deserialize to keep original value");
 	}
 

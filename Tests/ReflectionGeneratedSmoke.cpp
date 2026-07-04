@@ -28,14 +28,16 @@ namespace {
 		return false;
 	}
 
-	bool HasField(std::span<const HE::Refl::RuntimeFieldDescriptor> fields, std::string_view name) {
+	const HE::Refl::RuntimeFieldDescriptor* FindRuntimeField(
+		std::span<const HE::Refl::RuntimeFieldDescriptor> fields,
+		std::string_view name) {
 		for (const HE::Refl::RuntimeFieldDescriptor& field : fields) {
 			if (field.Name == name) {
-				return true;
+				return &field;
 			}
 		}
 
-		return false;
+		return nullptr;
 	}
 }
 
@@ -52,9 +54,20 @@ int main() {
 	const auto* transformRuntime = HE::Refl::FindRuntimeType("HE::TransformComponent");
 	Require(transformRuntime != nullptr, "Expected runtime reflection descriptor for TransformComponent");
 	Require(transformRuntime->Fields.size() == 3, "Expected TransformComponent runtime fields");
-	Require(HasField(transformRuntime->Fields, "Position"), "Expected TransformComponent runtime Position field");
-	Require(HasField(transformRuntime->Fields, "Rotation"), "Expected TransformComponent runtime Rotation field");
-	Require(HasField(transformRuntime->Fields, "Scale"), "Expected TransformComponent runtime Scale field");
+	Require(transformRuntime->Serialize == nullptr, "Expected TransformComponent to use generic runtime serialization");
+	Require(transformRuntime->Deserialize == nullptr, "Expected TransformComponent to use generic runtime deserialization");
+	const HE::Refl::RuntimeFieldDescriptor* positionField = FindRuntimeField(transformRuntime->Fields, "Position");
+	Require(positionField != nullptr, "Expected TransformComponent runtime Position field");
+	Require(FindRuntimeField(transformRuntime->Fields, "Rotation") != nullptr, "Expected TransformComponent runtime Rotation field");
+	Require(FindRuntimeField(transformRuntime->Fields, "Scale") != nullptr, "Expected TransformComponent runtime Scale field");
+	Require(positionField->Offset == offsetof(HE::TransformComponent, Position), "Expected Position runtime offset");
+	Require(positionField->Size == sizeof(glm::vec3), "Expected Position runtime field size");
+	Require(HE::Refl::HasRuntimeFieldFlag(positionField->Flags, HE::Refl::RuntimeFieldFlags::Serializable), "Expected Position to be serializable");
+	Require(HE::Refl::HasRuntimeFieldFlag(positionField->Flags, HE::Refl::RuntimeFieldFlags::ComponentField), "Expected Position to be a component field");
+	Require(positionField->GetConst != nullptr, "Expected Position const accessor");
+	Require(positionField->GetMutable != nullptr, "Expected Position mutable accessor");
+	Require(positionField->Serialize != nullptr, "Expected Position runtime field serializer");
+	Require(positionField->Deserialize != nullptr, "Expected Position runtime field deserializer");
 
 	const HE::Generated::ReflectedTypeInfo* mesh = HE::Generated::FindReflectedType("HE::Rendering::MeshComponent");
 	Require(mesh != nullptr, "Expected to find HE::Rendering::MeshComponent");
@@ -78,6 +91,7 @@ int main() {
 	const HE::ComponentMetadata* transformMetadata = registry.FindByName("TransformComponent");
 	Require(transformMetadata != nullptr, "Expected TransformComponent metadata to be registered");
 	Require(transformMetadata->Size == sizeof(HE::TransformComponent), "Expected TransformComponent metadata size to match component size");
+	Require(transformMetadata->RuntimeType == transformRuntime, "Expected TransformComponent metadata to reference runtime type");
 
 	HE::TransformComponent sourceTransform;
 	sourceTransform.Position = { 1.0f, 2.0f, 3.0f };
@@ -85,7 +99,7 @@ int main() {
 	sourceTransform.Scale = { 7.0f, 8.0f, 9.0f };
 
 	HE::Serialization::JsonSerializationBackend writeBackend;
-	transformMetadata->Serialize(writeBackend, transformMetadata->TypeName, &sourceTransform);
+	HE::Refl::SerializeRuntimeObject(*transformMetadata->RuntimeType, writeBackend, transformMetadata->TypeName, &sourceTransform);
 	const std::string transformJson = writeBackend.SaveToString();
 	Require(transformJson.find("\"Position\"") != std::string::npos, "Expected metadata serialization to emit Position");
 	Require(transformJson.find("\"Rotation\"") != std::string::npos, "Expected metadata serialization to emit Rotation");
@@ -94,7 +108,9 @@ int main() {
 	HE::TransformComponent loadedTransform;
 	HE::Serialization::JsonSerializationBackend readBackend;
 	readBackend.LoadFromString(transformJson);
-	Require(transformMetadata->Deserialize(readBackend, transformMetadata->TypeName, &loadedTransform), "Expected metadata deserialization to succeed");
+	Require(
+		HE::Refl::DeserializeRuntimeObject(*transformMetadata->RuntimeType, readBackend, transformMetadata->TypeName, &loadedTransform),
+		"Expected metadata deserialization to succeed");
 	Require(loadedTransform.Position == sourceTransform.Position, "Expected metadata deserialization to round-trip Position");
 	Require(loadedTransform.Rotation == sourceTransform.Rotation, "Expected metadata deserialization to round-trip Rotation");
 	Require(loadedTransform.Scale == sourceTransform.Scale, "Expected metadata deserialization to round-trip Scale");

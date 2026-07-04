@@ -27,6 +27,7 @@ namespace HE {
 
 	struct ComponentMetadata {
 		ComponentTypeId TypeId = InvalidComponentTypeId;
+		const Refl::RuntimeTypeDescriptor* RuntimeType = nullptr;
 		std::string TypeName;
 		std::string DisplayName;
 		std::string Category;
@@ -35,8 +36,6 @@ namespace HE {
 		void* (*ConstructDefault)() = nullptr;
 		void (*Destroy)(void*) = nullptr;
 		void* (*Copy)(const void*) = nullptr;
-		std::function<void(Serialization::SerializationBackend&, const std::string&, const void*)> Serialize;
-		std::function<bool(Serialization::SerializationBackend&, const std::string&, void*)> Deserialize;
 		std::function<void(World&, EntityId, const void*)> AddCopyToWorld;
 	};
 
@@ -67,12 +66,6 @@ namespace HE {
 			};
 			metadata.Copy = [](const void* instance) -> void* {
 				return new ComponentType(*static_cast<const ComponentType*>(instance));
-			};
-			metadata.Serialize = [](Serialization::SerializationBackend& backend, const std::string& name, const void* component) {
-				Serialization::Serializer<ComponentType>::Serialize(backend, name, *static_cast<const ComponentType*>(component));
-			};
-			metadata.Deserialize = [](Serialization::SerializationBackend& backend, const std::string& name, void* component) {
-				return Serialization::Serializer<ComponentType>::Deserialize(backend, name, *static_cast<ComponentType*>(component));
 			};
 			metadata.AddCopyToWorld = [](World& world, EntityId id, const void* component) {
 				world.AddComponent<ComponentType>(id, *static_cast<const ComponentType*>(component));

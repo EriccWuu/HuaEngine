@@ -460,6 +460,13 @@ int main() {
 	Expect(
 		ReadTextFile(generatedReflectionDirectory / "GeneratedReflection.h").find("srefl_class(") == std::string::npos,
 		"GeneratedReflection.h should contain runtime descriptor declarations only; generated component implementations belong in GeneratedReflection.cpp");
+	const std::string generatedSource = ReadTextFile(generatedReflectionDirectory / "GeneratedReflection.cpp");
+	Expect(
+		generatedSource.find("Serialize_HE__TransformComponent(") == std::string::npos,
+		"GeneratedReflection.cpp should not emit ordinary component type-level serializers");
+	Expect(
+		generatedSource.find("Deserialize_HE__TransformComponent(") == std::string::npos,
+		"GeneratedReflection.cpp should not emit ordinary component type-level deserializers");
 
 	std::cout << "ReflectionToolSmoke passed" << std::endl;
 	return 0;

@@ -67,8 +67,8 @@ int main() {
 	HE::RegisterCoreComponents(registry);
 	const HE::ComponentMetadata* transformMetadata = registry.FindByName("TransformComponent");
 	Require(transformMetadata != nullptr, "Expected TransformComponent metadata to be registered");
-	Require(transformMetadata->Serialize != nullptr, "Expected TransformComponent metadata serializer");
-	Require(transformMetadata->Deserialize != nullptr, "Expected TransformComponent metadata deserializer");
+	Require(transformMetadata->RuntimeType != nullptr, "Expected TransformComponent metadata runtime type");
+	Require(transformMetadata->RuntimeType->QualifiedName == "HE::TransformComponent", "Expected TransformComponent runtime type metadata");
 	Require(transformMetadata->ConstructDefault != nullptr, "Expected TransformComponent metadata default constructor");
 	Require(transformMetadata->Destroy != nullptr, "Expected TransformComponent metadata destroy function");
 	Require(transformMetadata->Copy != nullptr, "Expected TransformComponent metadata copy function");
@@ -81,7 +81,7 @@ int main() {
 	sourceTransform.Scale = { 7.0f, 8.0f, 9.0f };
 
 	HE::Serialization::JsonSerializationBackend transformWriteBackend;
-	transformMetadata->Serialize(transformWriteBackend, transformMetadata->TypeName, &sourceTransform);
+	HE::Refl::SerializeRuntimeObject(*transformMetadata->RuntimeType, transformWriteBackend, transformMetadata->TypeName, &sourceTransform);
 	const std::string transformMetadataJson = transformWriteBackend.SaveToString();
 	Require(transformMetadataJson.find("\"Position\"") != std::string::npos, "Expected metadata serialization to emit Position");
 	Require(transformMetadataJson.find("\"Rotation\"") != std::string::npos, "Expected metadata serialization to emit Rotation");
@@ -90,7 +90,9 @@ int main() {
 	HE::TransformComponent loadedMetadataTransform;
 	HE::Serialization::JsonSerializationBackend transformReadBackend;
 	transformReadBackend.LoadFromString(transformMetadataJson);
-	Require(transformMetadata->Deserialize(transformReadBackend, transformMetadata->TypeName, &loadedMetadataTransform), "Expected metadata transform JSON to deserialize");
+	Require(
+		HE::Refl::DeserializeRuntimeObject(*transformMetadata->RuntimeType, transformReadBackend, transformMetadata->TypeName, &loadedMetadataTransform),
+		"Expected metadata transform JSON to deserialize");
 	Require(loadedMetadataTransform.Position == sourceTransform.Position, "Expected metadata Position to round-trip");
 	Require(loadedMetadataTransform.Rotation == sourceTransform.Rotation, "Expected metadata Rotation to round-trip");
 	Require(loadedMetadataTransform.Scale == sourceTransform.Scale, "Expected metadata Scale to round-trip");

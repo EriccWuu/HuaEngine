@@ -22,11 +22,11 @@ namespace {
 		for (const HE::ComponentTypeId typeId : entity.ListComponentTypes()) {
 			const auto* metadata = componentRegistry.FindByTypeId(typeId);
 			const void* component = entity.TryGetComponentByType(typeId);
-			if (metadata == nullptr || component == nullptr || !metadata->Serialize) {
+			if (metadata == nullptr || component == nullptr || metadata->RuntimeType == nullptr) {
 				continue;
 			}
 
-			metadata->Serialize(backend, metadata->TypeName, component);
+			HE::Refl::SerializeRuntimeObject(*metadata->RuntimeType, backend, metadata->TypeName, component);
 		}
 
 		backend.EndObject();
@@ -59,7 +59,7 @@ namespace {
 			for (const auto& componentName : componentNames) {
 				const auto* metadata = componentRegistry.FindByName(componentName);
 				if (metadata == nullptr || metadata->ConstructDefault == nullptr ||
-					metadata->Destroy == nullptr || !metadata->Deserialize || !metadata->AddCopyToWorld) {
+					metadata->Destroy == nullptr || metadata->RuntimeType == nullptr || !metadata->AddCopyToWorld) {
 					continue;
 				}
 
@@ -69,7 +69,11 @@ namespace {
 					continue;
 				}
 
-				const bool componentSuccess = metadata->Deserialize(backend, componentName, component);
+				const bool componentSuccess = HE::Refl::DeserializeRuntimeObject(
+					*metadata->RuntimeType,
+					backend,
+					componentName,
+					component);
 				if (componentSuccess) {
 					metadata->AddCopyToWorld(scene.GetWorld(), entity.GetId(), component);
 				}
