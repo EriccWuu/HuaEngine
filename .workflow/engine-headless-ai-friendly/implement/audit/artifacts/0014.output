@@ -1,6 +1,0 @@
-Build command: `cmake --build build --config Debug --target HuaEngine Editor Sandbox ProjectServiceSmoke SceneServiceSmoke`
-
-Result:
-- Exit code: 0
-- Targets built successfully: `HuaEngine`, `Editor`, `Sandbox`, `ProjectServiceSmoke`, `SceneServiceSmoke`
-- Notes: existing `Dependencies/entt/entt.hpp` C4828 encoding warnings remain unchanged

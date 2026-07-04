@@ -1,8 +1,0 @@
-diff --git a/HuaEngine/src/HuaEngine/Scene/SceneService.cpp b/HuaEngine/src/HuaEngine/Scene/SceneService.cpp
-@@
-+ legacy `RendererComponent` no longer satisfies formal render validation
-diff --git a/Tests/SceneServiceSmoke.cpp b/Tests/SceneServiceSmoke.cpp
-@@
-+ validates formal render pair round-trip
-+ rejects legacy `RendererComponent`
-+ preserves missing-transform degradation coverage
