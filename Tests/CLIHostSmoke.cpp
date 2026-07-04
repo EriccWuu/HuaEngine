@@ -69,6 +69,14 @@ int main() {
 	auto projectResponse = runner.Run({ "project", "init", "--root", tempRoot.string(), "--name", "CLISmoke" }, tempRoot);
 	Expect(projectResponse.Result.Succeeded(), "project init should succeed");
 
+	auto manifestResponse = runner.Run({ "asset", "manifest", "init", "--project", tempRoot.string() }, tempRoot);
+	Expect(manifestResponse.Result.Succeeded(), "asset manifest init should succeed");
+	Expect(std::filesystem::exists(tempRoot / ".hua" / "assets.json"), "asset manifest init should persist .hua/assets.json");
+
+	auto listBuiltinsResponse = runner.Run({ "asset", "list", "--project", tempRoot.string() }, tempRoot);
+	Expect(listBuiltinsResponse.Result.Succeeded(), "asset list should succeed");
+	Expect(listBuiltinsResponse.Result.Payload.find("asset_count") != listBuiltinsResponse.Result.Payload.end(), "asset list should include asset_count payload");
+
 	auto sceneResponse = runner.Run({ "scene", "create", "--project", tempRoot.string(), "--name", "SmokeScene" }, tempRoot);
 	Expect(sceneResponse.Result.Succeeded(), "scene create should succeed");
 	Expect(std::filesystem::exists(tempRoot / "Scenes" / "smokescene.scene"), "scene create should persist the scene file");
@@ -81,6 +89,15 @@ int main() {
 	}, tempRoot);
 	Expect(assetResponse.Result.Succeeded(), "asset register-default-mesh should succeed");
 	Expect(std::filesystem::exists(tempRoot / "Assets" / "primitives" / "quad.mesh"), "default mesh registration should persist the mesh asset");
+
+	auto importResponse = runner.Run({
+		"asset", "import",
+		"--project", tempRoot.string(),
+		"--asset-id", "primitives/quad.mesh",
+		"--kind", "mesh"
+	}, tempRoot);
+	Expect(importResponse.Result.Succeeded(), "asset import should succeed");
+	Expect(importResponse.Result.Payload.find("asset_guid") != importResponse.Result.Payload.end(), "asset import should include asset_guid payload");
 
 	auto validationResponse = runner.Run({
 		"validation", "run",

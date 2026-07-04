@@ -419,6 +419,78 @@ namespace HE {
 		return m_Services->Assets().RegisterTextureAsset(context, assetId, texture, outHandle);
 	}
 
+	ResultEnvelope ApplicationOperations::InitializeAssetManifest(const ProjectContext& context) const
+	{
+		auto result = m_Services->Assets().LoadOrCreateManifest(context);
+		result.Operation = "asset.manifest.init";
+		result.SetPayloadValue("manifest_path", GetAssetManifestPath(context).generic_string());
+		return result;
+	}
+
+	ResultEnvelope ApplicationOperations::ImportAsset(
+		const ProjectContext& context,
+		std::string_view assetId,
+		AssetKind kind,
+		AssetGuid* outGuid) const
+	{
+		AssetHandle handle = 0;
+		ResultEnvelope result;
+		switch (kind) {
+		case AssetKind::Mesh:
+			result = m_Services->Assets().LoadMeshAsset(context, assetId, &handle);
+			break;
+		case AssetKind::Material:
+			result = m_Services->Assets().LoadMaterialAsset(context, assetId, &handle);
+			break;
+		case AssetKind::Texture2D:
+			result = m_Services->Assets().RegisterTextureAsset(context, assetId, nullptr, &handle);
+			break;
+		case AssetKind::Unknown:
+		default:
+			result = ResultEnvelope::Failure("asset.import", std::string(assetId), "Unsupported asset import kind");
+			result.AddDetail({ DiagnosticSeverity::Error, "asset.import.kind_invalid", "Asset import requires mesh, material, or texture2d kind", std::string(ToString(kind)) });
+			return result;
+		}
+
+		result.Operation = "asset.import";
+		result.SetPayloadValue("asset_kind", std::string(ToString(kind)));
+
+		AssetRecord record;
+		if (result.Succeeded() && m_Services->Assets().ResolveAsset(std::string(assetId), record).Succeeded()) {
+			result.SetPayloadValue("asset_guid", record.Guid);
+			if (outGuid) {
+				*outGuid = record.Guid;
+			}
+		}
+		else if (outGuid) {
+			*outGuid = {};
+		}
+
+		return result;
+	}
+
+	ResultEnvelope ApplicationOperations::ListAssets(
+		const ProjectContext& context,
+		std::vector<AssetRecord>& outRecords) const
+	{
+		outRecords.clear();
+		if (!m_Services->Assets().IsManifestLoaded()) {
+			auto manifestResult = m_Services->Assets().LoadOrCreateManifest(context);
+			if (!manifestResult.Succeeded()) {
+				manifestResult.Operation = "asset.list";
+				return manifestResult;
+			}
+		}
+
+		m_Services->Assets().GetAssetRegistry().ForEachRecord([&](const AssetRecord& record) {
+			outRecords.push_back(record);
+		});
+
+		auto result = ResultEnvelope::Success("asset.list", context.GetTargetId(), "Project assets listed");
+		result.SetPayloadValue("asset_count", std::to_string(outRecords.size()));
+		return result;
+	}
+
 	ResultEnvelope ApplicationOperations::ResolveAsset(AssetHandle handle, AssetRecord& outRecord) const
 	{
 		return m_Services->Assets().ResolveAsset(handle, outRecord);
@@ -562,6 +634,9 @@ namespace HE {
 		m_Registry.Register({ "asset.register_material", OperationDomain::Asset, "Register a material asset into the project asset registry" });
 		m_Registry.Register({ "asset.load_material", OperationDomain::Asset, "Load and register a material asset from disk" });
 		m_Registry.Register({ "asset.register_texture", OperationDomain::Asset, "Register a texture asset into the project asset registry" });
+		m_Registry.Register({ "asset.manifest.init", OperationDomain::Asset, "Initialize the project asset manifest" });
+		m_Registry.Register({ "asset.import", OperationDomain::Asset, "Import a single project asset into the manifest" });
+		m_Registry.Register({ "asset.list", OperationDomain::Asset, "List project manifest assets" });
 		m_Registry.Register({ "asset.resolve", OperationDomain::Asset, "Resolve an asset record by handle or asset id" });
 		m_Registry.Register({ "asset.validate", OperationDomain::Asset, "Validate project asset registry health" });
 

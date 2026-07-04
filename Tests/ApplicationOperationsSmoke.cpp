@@ -3,6 +3,7 @@
 #include <filesystem>
 #include <iostream>
 #include <string>
+#include <vector>
 
 #include "HuaEngine.h"
 
@@ -39,6 +40,9 @@ int main() {
 	Require(operations.Supports("scene.create"), "Expected scene.create to be published through the operation registry");
 	Require(operations.Supports("scene.entity.create"), "Expected scene.entity.create to be published through the operation registry");
 	Require(operations.Supports("scene.component.add"), "Expected scene.component.add to be published through the operation registry");
+	Require(operations.Supports("asset.manifest.init"), "Expected asset.manifest.init to be published");
+	Require(operations.Supports("asset.import"), "Expected asset.import to be published");
+	Require(operations.Supports("asset.list"), "Expected asset.list to be published");
 	Require(operations.Supports("asset.register_mesh"), "Expected asset.register_mesh to be published through the operation registry");
 	Require(operations.Supports("validation.validate"), "Expected validation.validate to be published through the operation registry");
 	Require(!operations.Supports("project.missing"), "Expected unsupported operations to stay absent from the registry");
@@ -55,6 +59,11 @@ int main() {
 	auto initializeProject = operations.InitializeProject(smokeRoot / "SmokeProject", &projectContext, "SmokeProject");
 	Require(initializeProject.Succeeded(), "Expected project.initialize to succeed through ApplicationOperations");
 	Require(initializeProject.Operation == "project.initialize", "Expected project.initialize result to preserve the stable operation id");
+
+	auto manifestInit = operations.InitializeAssetManifest(projectContext);
+	Require(manifestInit.Succeeded(), "Expected manifest init operation to succeed");
+	Require(manifestInit.Payload.find("manifest_path") != manifestInit.Payload.end(), "Expected manifest path payload");
+	Require(!manifestInit.Payload.at("manifest_path").empty(), "Expected manifest path payload to be non-empty");
 
 	HE::Ref<HE::Scene> scene;
 	auto createScene = operations.CreateScene("OperationsScene", scene);
@@ -74,10 +83,27 @@ int main() {
 	auto runtimeMesh = HE::Mesh::CreateQuad("OperationsQuad");
 	Require(static_cast<bool>(runtimeMesh), "Expected runtime mesh creation to succeed");
 
+	const auto importedMeshPath = projectContext.GetAssetRootPath() / "Meshes" / "ImportedQuad.mesh";
+	std::filesystem::create_directories(importedMeshPath.parent_path(), errorCode);
+	Require(!errorCode, "Expected imported mesh directory creation to succeed");
+	Require(HE::Mesh::SaveToFile(*runtimeMesh, importedMeshPath.string()), "Expected imported mesh fixture to be saved");
+
+	HE::AssetGuid importedGuid;
+	auto importMesh = operations.ImportAsset(projectContext, "Meshes/ImportedQuad.mesh", HE::AssetKind::Mesh, &importedGuid);
+	Require(importMesh.Succeeded(), "Expected asset.import to succeed through ApplicationOperations");
+	Require(importMesh.Operation == "asset.import", "Expected asset.import result to preserve the stable operation id");
+	Require(!importedGuid.empty(), "Expected asset.import to return an asset guid");
+
 	HE::AssetHandle meshHandle = 0;
 	auto registerMesh = operations.RegisterMeshAsset(projectContext, "Meshes/OperationsQuad.mesh", runtimeMesh, &meshHandle);
 	Require(registerMesh.Succeeded(), "Expected asset.register_mesh to succeed through ApplicationOperations");
 	Require(meshHandle != 0, "Expected asset.register_mesh to assign a stable asset handle");
+
+	std::vector<HE::AssetRecord> records;
+	auto listAssets = operations.ListAssets(projectContext, records);
+	Require(listAssets.Succeeded(), "Expected asset.list to succeed through ApplicationOperations");
+	Require(listAssets.Payload.find("asset_count") != listAssets.Payload.end(), "Expected asset.list asset_count payload");
+	Require(!records.empty(), "Expected asset.list to return manifest registry records");
 
 	HE::ApplicationValidationRequest validationRequest;
 	validationRequest.Project = &projectContext;

@@ -4,6 +4,7 @@
 #include <filesystem>
 #include <span>
 #include <string_view>
+#include <vector>
 
 #include "OperationRegistry.h"
 #include "HuaEngine/Core/Core.h"
@@ -154,6 +155,16 @@ namespace HE {
 			std::string_view assetId,
 			const Ref<Rendering::Texture2D>& texture = nullptr,
 			AssetHandle* outHandle = nullptr);
+
+		[[nodiscard]] ResultEnvelope InitializeAssetManifest(const ProjectContext& context) const;
+		[[nodiscard]] ResultEnvelope ImportAsset(
+			const ProjectContext& context,
+			std::string_view assetId,
+			AssetKind kind,
+			AssetGuid* outGuid = nullptr) const;
+		[[nodiscard]] ResultEnvelope ListAssets(
+			const ProjectContext& context,
+			std::vector<AssetRecord>& outRecords) const;
 
 		[[nodiscard]] ResultEnvelope ResolveAsset(AssetHandle handle, AssetRecord& outRecord) const;
 		[[nodiscard]] ResultEnvelope ResolveAsset(std::string_view assetId, AssetRecord& outRecord) const;

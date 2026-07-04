@@ -170,6 +170,34 @@ namespace HE::CLI {
 			}
 		});
 		Register({
+			{ "asset", "manifest", "init" },
+			CLICommandDomain::Asset,
+			"asset.manifest.init",
+			"Initialize project asset manifest.",
+			"asset manifest init --project <path>",
+			{ ValueOption("--project", "Project path or child path.") }
+		});
+		Register({
+			{ "asset", "import" },
+			CLICommandDomain::Asset,
+			"asset.import",
+			"Import a single asset file.",
+			"asset import --project <path> --asset-id <path> --kind <mesh|material|texture2d>",
+			{
+				ValueOption("--project", "Project path or child path."),
+				ValueOption("--asset-id", "Asset id.", true),
+				ValueOption("--kind", "Asset kind.", true)
+			}
+		});
+		Register({
+			{ "asset", "list" },
+			CLICommandDomain::Asset,
+			"asset.list",
+			"List project assets.",
+			"asset list --project <path>",
+			{ ValueOption("--project", "Project path or child path.") }
+		});
+		Register({
 			{ "asset", "validate" },
 			CLICommandDomain::Asset,
 			"asset.validate",

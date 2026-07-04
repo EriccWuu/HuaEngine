@@ -181,6 +181,7 @@ int main() {
 	const std::filesystem::path scenePath = tempRoot / "Scenes" / "workflowscene.scene";
 	const std::filesystem::path meshPath = tempRoot / "Assets" / "primitives" / "quad.mesh";
 	const std::filesystem::path projectMarker = tempRoot / ".huaengine" / "project.json";
+	const std::filesystem::path assetManifest = tempRoot / ".hua" / "assets.json";
 
 	const std::vector<SmokeStep> workflow = {
 		{
@@ -208,6 +209,27 @@ int main() {
 			{ projectMarker }
 		},
 		{
+			"asset manifest init",
+			{ "asset", "manifest", "init", "--project", tempRoot.string() },
+			{
+				"\"operation\":\"asset.manifest.init\"",
+				"\"status\":\"success\"",
+				"\"manifest_path\":\""
+			},
+			{ assetManifest }
+		},
+		{
+			"asset list builtins",
+			{ "asset", "list", "--project", tempRoot.string() },
+			{
+				"\"operation\":\"asset.list\"",
+				"\"status\":\"success\"",
+				"\"asset_count\":\"",
+				"builtin/mesh/quad"
+			},
+			{}
+		},
+		{
 			"asset register-default-mesh",
 			{ "asset", "register-default-mesh", "--project", tempRoot.string(), "--asset-id", "primitives/quad.mesh", "--primitive", "quad" },
 			{
@@ -216,6 +238,17 @@ int main() {
 				"\"asset_id\":\"primitives/quad.mesh\""
 			},
 			{ meshPath }
+		},
+		{
+			"asset import mesh",
+			{ "asset", "import", "--project", tempRoot.string(), "--asset-id", "primitives/quad.mesh", "--kind", "mesh" },
+			{
+				"\"operation\":\"asset.import\"",
+				"\"status\":\"success\"",
+				"\"asset_guid\":\"",
+				"\"asset_id\":\"primitives/quad.mesh\""
+			},
+			{}
 		},
 		{
 			"scene create",

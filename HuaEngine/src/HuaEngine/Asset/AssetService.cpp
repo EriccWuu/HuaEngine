@@ -604,13 +604,13 @@ namespace HE {
 			switch (record.Kind) {
 			case AssetKind::Mesh:
 				++report.MeshAssets;
-				if (!Rendering::MeshManager::Instance().GetMesh(record.AssetId)) {
+				if (record.Source != AssetSource::Builtin && !Rendering::MeshManager::Instance().GetMesh(record.AssetId)) {
 					++report.MeshAssetsMissingRuntimePayload;
 				}
 				break;
 			case AssetKind::Material:
 				++report.MaterialAssets;
-				if (!Rendering::MaterialLibrary::Instance().GetMaterial(record.AssetId)) {
+				if (record.Source != AssetSource::Builtin && !Rendering::MaterialLibrary::Instance().GetMaterial(record.AssetId)) {
 					++report.MaterialAssetsMissingRuntimePayload;
 				}
 				break;
