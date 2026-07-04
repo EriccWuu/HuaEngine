@@ -264,8 +264,8 @@ namespace {
 		const std::filesystem::path& cliExecutable,
 		const std::filesystem::path& workingDirectory,
 		const std::filesystem::path& repositoryRoot) {
-		const auto fixtureRoot = repositoryRoot / ".workspace" / "reflection_cli_smoke" / "root with spaces %USERNAME% & meta";
-		RegisterCleanupPath(repositoryRoot / ".workspace" / "reflection_cli_smoke");
+		const auto fixtureRoot = repositoryRoot / "Tools" / "Reflection" / ".smoke" / "reflection_cli_smoke" / "root with spaces %USERNAME% & meta";
+		RegisterCleanupPath(repositoryRoot / "Tools" / "Reflection" / ".smoke" / "reflection_cli_smoke");
 		std::error_code errorCode;
 		std::filesystem::remove_all(fixtureRoot, errorCode);
 		Expect(!errorCode, "Failed to clean CLI shell-safe fixture");
@@ -321,7 +321,7 @@ int main() {
 
 	const auto repositoryRoot = FindRepositoryRoot(std::filesystem::current_path());
 	RegisterCleanupPath(repositoryRoot / "Tools" / "Reflection" / "__pycache__");
-	RegisterCleanupPath(repositoryRoot / ".workspace" / "reflection" / "reflection_manifest.json");
+	RegisterCleanupPath(repositoryRoot / "Tools" / "Reflection" / "reflection_manifest.json");
 	ExpectReflectionResult(cliExecutable, binaryDirectory, repositoryRoot, "scan", "reflection.scan");
 	ExpectReflectionResult(cliExecutable, binaryDirectory, repositoryRoot, "validate", "reflection.validate");
 	RunShellSafePathSmoke(cliExecutable, binaryDirectory, repositoryRoot);

@@ -512,7 +512,7 @@ namespace HE {
 		}
 
 		resolved.ManifestPath = request.ManifestPath.empty()
-			? resolved.RootPath / ".workspace" / "reflection" / "reflection_manifest.json"
+			? resolved.RootPath / "Tools" / "Reflection" / "reflection_manifest.json"
 			: NormalizePath(request.ManifestPath);
 		resolved.OutputDirectory = request.OutputDirectory.empty()
 			? resolved.RootPath / "HuaEngine" / "src" / "HuaEngine" / "Generated"

@@ -311,7 +311,7 @@ namespace {
 	void RunNegativeValidationSmoke(
 		const std::filesystem::path& repositoryRoot,
 		const std::filesystem::path& reflectionToolPath) {
-		const auto workspaceRoot = repositoryRoot / ".workspace" / "reflection_negative_smoke";
+		const auto workspaceRoot = repositoryRoot / "Tools" / "Reflection" / ".smoke" / "reflection_negative_smoke";
 		RegisterCleanupPath(workspaceRoot);
 		std::error_code errorCode;
 		std::filesystem::create_directories(workspaceRoot, errorCode);
@@ -459,9 +459,9 @@ int main() {
 	RegisterCleanupPath(reflectionToolPath.parent_path() / "__pycache__");
 
 	std::error_code errorCode;
-	const auto workspaceReflectionDirectory = repositoryRoot / ".workspace" / "reflection";
+	const auto workspaceReflectionDirectory = repositoryRoot / "Tools" / "Reflection";
 	std::filesystem::create_directories(workspaceReflectionDirectory, errorCode);
-	Expect(!errorCode, "Failed to prepare .workspace/reflection directory");
+	Expect(!errorCode, "Failed to prepare Tools/Reflection directory");
 
 	const auto manifestPath = workspaceReflectionDirectory / "reflection_tool_smoke_manifest.json";
 	const auto validatePath = workspaceReflectionDirectory / "reflection_tool_validate.json";

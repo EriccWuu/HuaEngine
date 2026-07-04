@@ -98,6 +98,14 @@ TestResults/
 # Local agent worktrees
 .worktrees/
 
+# AI workspace artifacts
+.workspace/
+
+# Reflection tool generated intermediates
+Tools/Reflection/reflection_manifest.json
+Tools/Reflection/*_manifest.json
+Tools/Reflection/.smoke/
+
 # Additional ignore patterns specific to this project
 # Dependency build artifacts
 Dependencies/*/bin/

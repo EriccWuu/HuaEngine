@@ -487,7 +487,7 @@ Reflection 命令用于把源码里的反射标记转换成机器可消费的 ma
 
 ```powershell
 <CLI> reflection scan --root D:/Workspace/HuaEngine
-<CLI> reflection scan --root D:/Workspace/HuaEngine --out D:/Workspace/HuaEngine/.workspace/reflection/reflection_manifest.json
+<CLI> reflection scan --root D:/Workspace/HuaEngine --out D:/Workspace/HuaEngine/Tools/Reflection/reflection_manifest.json
 ```
 
 参数：
@@ -497,7 +497,7 @@ Reflection 命令用于把源码里的反射标记转换成机器可消费的 ma
   - `ReflectionToolService` 会在该目录下查找 `Tools/Reflection/reflection_tool.py`。
 - `--out <manifest>`
   - 可选，manifest 输出路径。
-  - 未指定时默认写入 `<root>/.workspace/reflection/reflection_manifest.json`。
+  - 未指定时默认写入 `<root>/Tools/Reflection/reflection_manifest.json`。
 
 作用：
 
@@ -510,7 +510,7 @@ Reflection 命令用于把源码里的反射标记转换成机器可消费的 ma
 ```powershell
 <CLI> reflection generate --root D:/Workspace/HuaEngine
 <CLI> reflection generate --root D:/Workspace/HuaEngine --out-dir D:/Workspace/HuaEngine/HuaEngine/src/HuaEngine/Generated
-<CLI> reflection generate --root D:/Workspace/HuaEngine --out D:/Workspace/HuaEngine/.workspace/reflection/reflection_manifest.json --out-dir D:/Workspace/HuaEngine/HuaEngine/src/HuaEngine/Generated
+<CLI> reflection generate --root D:/Workspace/HuaEngine --out D:/Workspace/HuaEngine/Tools/Reflection/reflection_manifest.json --out-dir D:/Workspace/HuaEngine/HuaEngine/src/HuaEngine/Generated
 ```
 
 参数：
@@ -519,7 +519,7 @@ Reflection 命令用于把源码里的反射标记转换成机器可消费的 ma
   - 必填，仓库根目录。
 - `--out <manifest>`
   - 可选，扫描阶段使用的 manifest 路径。
-  - 未指定时默认写入 `<root>/.workspace/reflection/reflection_manifest.json`。
+  - 未指定时默认写入 `<root>/Tools/Reflection/reflection_manifest.json`。
 - `--out-dir <path>`
   - 可选，生成的 C++ 文件输出目录。
   - 未指定时默认写入 `<root>/HuaEngine/src/HuaEngine/Generated`。
