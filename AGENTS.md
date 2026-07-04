@@ -1,7 +1,13 @@
-The authoritative repository instructions are defined in `./CLAUDE.md`.
+本文件定义本仓库面向 AI Agent 的权威协作规则。
 
-Before performing any analysis, command execution, file edit, implementation, or review in this repository, read `./CLAUDE.md` and follow its contents as if they were written here verbatim.
+## 重要规则
 
-`AGENTS.md` is only a bootstrap file and must not define separate or conflicting instructions.
+1. 每次回复都要称呼用户为“老板”。
+2. 涉及文档输出或文档更新时，必须使用中文作为主要描述语言；允许使用英文术语，但文档的语言主体应为中文。
+3. 编写代码时，代码注释使用通俗易懂的英文，避免文件传播过程中出现中文乱码。
+4. `./.workspace` 是 AI 工作空间根目录。AI 工具产生的产物文件都应放在该目录下，除非用户额外指定。
+5. `./.workspace/superpower` 是 superpower 插件的工作空间根目录。superpower 相关产物文件都应放在该目录下，除非用户额外指定。
 
-If `./CLAUDE.md` cannot be read, stop and report that as a blocker instead of proceeding with assumptions.
+## 参考资料
+
+`./CLAUDE.md` 保留为历史工程说明和构建参考，不再作为本仓库 AI Agent 规则的权威来源。
