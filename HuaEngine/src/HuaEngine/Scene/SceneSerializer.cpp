@@ -1,13 +1,143 @@
 #include "enginepch.h"
 #include "SceneSerializer.h"
 
+#include "HuaEngine/Asset/AssetTypes.h"
 #include "HuaEngine/ECS/ComponentRegistry.h"
+#include "Module/Rendering/RenderingComponent.h"
 
 namespace {
 	HE::ComponentRegistry CreateSceneComponentRegistry() {
 		HE::ComponentRegistry registry;
 		HE::RegisterCoreComponents(registry);
 		return registry;
+	}
+
+	HE::AssetGuid ResolveLegacyMeshGuid(const std::string& meshAssetName) {
+		if (meshAssetName == "Quad" || meshAssetName == "quad" || meshAssetName == "builtin/mesh/quad") {
+			return HE::BuiltinAssetGuids::QuadMesh;
+		}
+		if (meshAssetName == "Cube" || meshAssetName == "cube" || meshAssetName == "builtin/mesh/cube") {
+			return HE::BuiltinAssetGuids::CubeMesh;
+		}
+		if (meshAssetName == "Sphere" || meshAssetName == "sphere" || meshAssetName == "builtin/mesh/sphere") {
+			return HE::BuiltinAssetGuids::SphereMesh;
+		}
+
+		HE_CORE_WARN("Scene migration could not map legacy MeshAssetName '{}'", meshAssetName);
+		return {};
+	}
+
+	bool DeserializeLegacyVec4Override(
+		HE::Serialization::SerializationBackend& backend,
+		const std::string& parameterName,
+		HE::Rendering::MaterialOverrideSet& overrides) {
+		std::string type;
+		if (!backend.Deserialize("value_type", type)) {
+			(void)backend.Deserialize("type", type);
+		}
+
+		if (type != "Vec4" && type != "vec4") {
+			return true;
+		}
+
+		glm::vec4 value(0.0f);
+		bool success = false;
+		if (backend.HasField("value") && backend.GetFieldType("value") == HE::Serialization::SerializationType::Object) {
+			backend.BeginObject("value");
+			success = backend.Deserialize("x", value.x);
+			success &= backend.Deserialize("y", value.y);
+			success &= backend.Deserialize("z", value.z);
+			success &= backend.Deserialize("w", value.w);
+			backend.EndObject();
+		}
+		else if (backend.HasField("value") && backend.GetFieldType("value") == HE::Serialization::SerializationType::Array &&
+			backend.GetArraySize("value") == 4) {
+			backend.BeginArray("value");
+			backend.BeginArrayElement(0);
+			success = backend.Deserialize("", value.x);
+			backend.EndArrayElement();
+			backend.BeginArrayElement(1);
+			success &= backend.Deserialize("", value.y);
+			backend.EndArrayElement();
+			backend.BeginArrayElement(2);
+			success &= backend.Deserialize("", value.z);
+			backend.EndArrayElement();
+			backend.BeginArrayElement(3);
+			success &= backend.Deserialize("", value.w);
+			backend.EndArrayElement();
+			backend.EndArray();
+		}
+
+		if (success) {
+			overrides.Parameters[parameterName] = value;
+			return true;
+		}
+
+		HE_CORE_WARN("Scene migration could not migrate legacy material override '{}'", parameterName);
+		return false;
+	}
+
+	void MigrateLegacyMeshComponent(
+		HE::Serialization::SerializationBackend& backend,
+		HE::Rendering::MeshComponent& component) {
+		if (!backend.HasField("MeshAssetName") || component.Mesh.Reference.IsValid()) {
+			return;
+		}
+
+		std::string legacyMeshAssetName;
+		if (backend.Deserialize("MeshAssetName", legacyMeshAssetName)) {
+			component.Mesh.Reference.Guid = ResolveLegacyMeshGuid(legacyMeshAssetName);
+		}
+	}
+
+	void MigrateLegacyMaterialComponent(
+		HE::Serialization::SerializationBackend& backend,
+		HE::Rendering::MaterialComponent& component) {
+		if (!backend.HasField("MaterialInstance")) {
+			return;
+		}
+
+		if (!component.Material.Reference.IsValid()) {
+			component.Material.Reference.Guid = HE::BuiltinAssetGuids::DefaultMaterial;
+		}
+
+		if (backend.GetFieldType("MaterialInstance") != HE::Serialization::SerializationType::Object) {
+			HE_CORE_WARN("Scene migration found legacy MaterialInstance with unsupported shape");
+			return;
+		}
+
+		backend.BeginObject("MaterialInstance");
+		if (backend.HasField("parameter_overrides") &&
+			backend.GetFieldType("parameter_overrides") == HE::Serialization::SerializationType::Object) {
+			backend.BeginObject("parameter_overrides");
+			backend.ForEachField([&](const std::string& parameterName) {
+				(void)DeserializeLegacyVec4Override(backend, parameterName, component.Overrides);
+			});
+			backend.EndObject();
+		}
+		backend.EndObject();
+	}
+
+	void MigrateLegacyComponent(
+		HE::Serialization::SerializationBackend& backend,
+		const std::string& componentName,
+		void* component) {
+		if (componentName != "MeshComponent" && componentName != "MaterialComponent") {
+			return;
+		}
+		if (!backend.HasField(componentName) ||
+			backend.GetFieldType(componentName) != HE::Serialization::SerializationType::Object) {
+			return;
+		}
+
+		backend.BeginObject(componentName);
+		if (componentName == "MeshComponent") {
+			MigrateLegacyMeshComponent(backend, *static_cast<HE::Rendering::MeshComponent*>(component));
+		}
+		else {
+			MigrateLegacyMaterialComponent(backend, *static_cast<HE::Rendering::MaterialComponent*>(component));
+		}
+		backend.EndObject();
 	}
 
 	void SerializeEntity(
@@ -75,6 +205,7 @@ namespace {
 					componentName,
 					component);
 				if (componentSuccess) {
+					MigrateLegacyComponent(backend, componentName, component);
 					metadata->AddCopyToWorld(scene.GetWorld(), entity.GetId(), component);
 				}
 				else {

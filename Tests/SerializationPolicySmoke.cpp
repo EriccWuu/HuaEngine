@@ -8,6 +8,7 @@
 #include <stdexcept>
 
 #include "HuaEngine/ECS/Components.h"
+#include "HuaEngine/Asset/AssetTypes.h"
 #include "HuaEngine/Scene/Scene.h"
 #include "HuaEngine/Scene/SceneSerializer.h"
 #include "HuaEngine/Serialization/Serialization.h"
@@ -336,15 +337,25 @@ namespace {
 		RemoveFile(scenePath);
 	}
 
-	void VerifyInvalidMaterialComponentFailsWithoutPoisoningNextSceneLoad() {
-		const auto invalidScenePath = MakePolicyPath("HuaEngineSerializationPolicyInvalidMaterialComponent.scene");
-		WriteTextFile(invalidScenePath, R"({
+	void VerifyLegacyMaterialComponentMigratesWithoutPoisoningNextSceneLoad() {
+		const auto legacyScenePath = MakePolicyPath("HuaEngineSerializationPolicyLegacyMaterialComponent.scene");
+		WriteTextFile(legacyScenePath, R"({
   "entities": [
     {
       "components": {
         "MaterialComponent": {
           "MaterialInstance": {
-            "parameter_overrides": {}
+            "parameter_overrides": {
+              "u_BaseColor": {
+                "value_type": "Vec4",
+                "value": {
+                  "x": 0.1,
+                  "y": 0.2,
+                  "z": 0.3,
+                  "w": 1.0
+                }
+              }
+            }
           }
         },
         "TransformComponent": {
@@ -373,19 +384,20 @@ namespace {
   "version": 3
 })");
 
-		HE::Scene invalidLoaded;
-		Require(!HE::Serialization::LoadScene(invalidScenePath.string(), invalidLoaded), "Expected scene load to fail when MaterialInstance is missing required fields");
+		HE::Scene legacyLoaded;
+		Require(HE::Serialization::LoadScene(legacyScenePath.string(), legacyLoaded), "Expected legacy MaterialInstance scene to load through migration");
+		HE::Entity legacyEntity = legacyLoaded.GetWorld().GetEntity(HE::EntityUuid::FromString("00000000000000000000000000000045"));
+		Require(legacyEntity.IsValid(), "Expected legacy material entity to load");
+		Require(legacyEntity.HasComponent<HE::Rendering::MaterialComponent>(), "Expected migrated material component");
+		const auto& material = legacyEntity.GetComponent<HE::Rendering::MaterialComponent>();
+		Require(material.Material.Reference.Guid == HE::BuiltinAssetGuids::DefaultMaterial, "Expected legacy material to migrate to default material GUID");
+		Require(material.Overrides.Parameters.find("u_BaseColor") != material.Overrides.Parameters.end(), "Expected legacy material override to migrate");
 
-		HE::Serialization::JsonSerializationBackend backend;
-		backend.LoadFromString(R"({
-  "MaterialInstance": {
-    "parameter_overrides": {}
-  },
-  "Sibling": true
-})");
-		HE::Rendering::MaterialInstance instance;
-		Require(!HE::Serialization::DeserializeValue(backend, "MaterialInstance", instance), "Expected malformed MaterialInstance to fail direct deserialize");
-		Require(backend.HasField("Sibling"), "Expected failed MaterialInstance deserialize to restore backend object scope");
+		const auto migratedScenePath = MakePolicyPath("HuaEngineSerializationPolicyMigratedMaterialComponent.scene");
+		Require(HE::Serialization::SaveScene(legacyLoaded, migratedScenePath.string()), "Expected migrated material scene to save");
+		const std::string migratedText = ReadTextFile(migratedScenePath);
+		Require(migratedText.find("MaterialInstance") == std::string::npos, "Expected migrated material scene to omit legacy MaterialInstance");
+		Require(migratedText.find("builtin-material-default") != std::string::npos, "Expected migrated material scene to contain default material GUID");
 
 		const auto validScenePath = MakePolicyPath("HuaEngineSerializationPolicyValidAfterMaterialFailure.scene");
 		const std::string uuid = "00000000000000000000000000000046";
@@ -428,7 +440,8 @@ namespace {
 		Require(entity.IsValid(), "Expected valid follow-up scene entity to load");
 		Require(entity.HasComponent<HE::TransformComponent>(), "Expected valid follow-up scene transform to load");
 
-		RemoveFile(invalidScenePath);
+		RemoveFile(legacyScenePath);
+		RemoveFile(migratedScenePath);
 		RemoveFile(validScenePath);
 	}
 
@@ -510,7 +523,7 @@ int main() {
 		VerifyUnknownSceneComponentIsSkipped();
 		VerifyKnownSceneComponentInvalidFieldFailsLoad();
 		VerifyKnownSceneComponentNonObjectFailsLoad();
-		VerifyInvalidMaterialComponentFailsWithoutPoisoningNextSceneLoad();
+		VerifyLegacyMaterialComponentMigratesWithoutPoisoningNextSceneLoad();
 		VerifyMissingSceneComponentFieldKeepsDefault();
 		VerifySceneOutputStability();
 

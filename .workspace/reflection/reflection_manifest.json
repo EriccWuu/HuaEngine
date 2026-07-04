@@ -1,0 +1,153 @@
+{
+  "schema_version": 1,
+  "types": [
+    {
+      "name": "NameComponent",
+      "qualified_name": "HE::NameComponent",
+      "kind": "component",
+      "declaration_kind": "struct",
+      "source": "HuaEngine/src/HuaEngine/ECS/Components.h",
+      "line": 16,
+      "fields": [
+        {
+          "name": "Name",
+          "type": "std::string",
+          "source": "HuaEngine/src/HuaEngine/ECS/Components.h",
+          "line": 18
+        }
+      ],
+      "display_name": "Name",
+      "category": "Core"
+    },
+    {
+      "name": "CameraComponent",
+      "qualified_name": "HE::Rendering::CameraComponent",
+      "kind": "component",
+      "declaration_kind": "struct",
+      "source": "HuaEngine/src/Module/Rendering/RenderingComponent.h",
+      "line": 26,
+      "fields": [
+        {
+          "name": "Primary",
+          "type": "bool",
+          "source": "HuaEngine/src/Module/Rendering/RenderingComponent.h",
+          "line": 34
+        },
+        {
+          "name": "FixedAspectRatio",
+          "type": "bool",
+          "source": "HuaEngine/src/Module/Rendering/RenderingComponent.h",
+          "line": 36
+        }
+      ],
+      "display_name": "Camera",
+      "category": "Rendering"
+    },
+    {
+      "name": "MaterialComponent",
+      "qualified_name": "HE::Rendering::MaterialComponent",
+      "kind": "component",
+      "declaration_kind": "struct",
+      "source": "HuaEngine/src/Module/Rendering/RenderingComponent.h",
+      "line": 53,
+      "fields": [
+        {
+          "name": "Material",
+          "type": "MaterialAssetRef",
+          "source": "HuaEngine/src/Module/Rendering/RenderingComponent.h",
+          "line": 59
+        },
+        {
+          "name": "Overrides",
+          "type": "MaterialOverrideSet",
+          "source": "HuaEngine/src/Module/Rendering/RenderingComponent.h",
+          "line": 61
+        },
+        {
+          "name": "BlendMode",
+          "type": "MaterialBlendMode",
+          "source": "HuaEngine/src/Module/Rendering/RenderingComponent.h",
+          "line": 63
+        }
+      ],
+      "display_name": "Material",
+      "category": "Rendering"
+    },
+    {
+      "name": "MeshComponent",
+      "qualified_name": "HE::Rendering::MeshComponent",
+      "kind": "component",
+      "declaration_kind": "struct",
+      "source": "HuaEngine/src/Module/Rendering/RenderingComponent.h",
+      "line": 77,
+      "fields": [
+        {
+          "name": "Mesh",
+          "type": "MeshAssetRef",
+          "source": "HuaEngine/src/Module/Rendering/RenderingComponent.h",
+          "line": 83
+        }
+      ],
+      "display_name": "Mesh",
+      "category": "Rendering"
+    },
+    {
+      "name": "TransformComponent",
+      "qualified_name": "HE::TransformComponent",
+      "kind": "component",
+      "declaration_kind": "struct",
+      "source": "HuaEngine/src/HuaEngine/ECS/Components.h",
+      "line": 26,
+      "fields": [
+        {
+          "name": "Position",
+          "type": "glm::vec3",
+          "source": "HuaEngine/src/HuaEngine/ECS/Components.h",
+          "line": 28
+        },
+        {
+          "name": "Rotation",
+          "type": "glm::vec3",
+          "source": "HuaEngine/src/HuaEngine/ECS/Components.h",
+          "line": 30
+        },
+        {
+          "name": "Scale",
+          "type": "glm::vec3",
+          "source": "HuaEngine/src/HuaEngine/ECS/Components.h",
+          "line": 32
+        }
+      ],
+      "display_name": "Transform",
+      "category": "Core"
+    }
+  ],
+  "enums": [
+    {
+      "name": "MaterialBlendMode",
+      "qualified_name": "HE::Rendering::MaterialBlendMode",
+      "underlying_type": "int",
+      "source": "HuaEngine/src/Module/Rendering/RenderingComponent.h",
+      "line": 19,
+      "values": [
+        {
+          "name": "Opaque",
+          "value": 0,
+          "display_name": ""
+        },
+        {
+          "name": "Masked",
+          "value": 1,
+          "display_name": ""
+        },
+        {
+          "name": "Transparent",
+          "value": 2,
+          "display_name": ""
+        }
+      ],
+      "display_name": "Material Blend Mode"
+    }
+  ],
+  "diagnostics": []
+}

@@ -24,8 +24,8 @@ namespace HE {
 	void RenderSystem::Update(SystemContext& context) {
 		auto cameraQuery = context.WorldRef().Query<Rendering::CameraComponent>();
 		cameraQuery.ForEach([&](Entity, Rendering::CameraComponent& camera) {
-			if (camera.Camera) {
-				RenderSingleCamera(context.WorldRef(), *camera.Camera);
+			if (camera.RuntimeCamera) {
+				RenderSingleCamera(context.WorldRef(), *camera.RuntimeCamera);
 			}
 		});
 	}

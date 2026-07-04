@@ -44,12 +44,13 @@ static constexpr ReflectedFieldInfo Type1Fields[] = {
 };
 
 static constexpr ReflectedFieldInfo Type2Fields[] = {
-    {"MaterialInstance", "Ref<HE::Rendering::MaterialInstance>"},
+    {"Material", "MaterialAssetRef"},
+    {"Overrides", "MaterialOverrideSet"},
     {"BlendMode", "MaterialBlendMode"},
 };
 
 static constexpr ReflectedFieldInfo Type3Fields[] = {
-    {"MeshAssetName", "std::string"},
+    {"Mesh", "MeshAssetRef"},
 };
 
 static constexpr ReflectedFieldInfo Type4Fields[] = {
@@ -193,32 +194,61 @@ static void AddCopyToWorld_HE__Rendering__MaterialComponent(World& world, Entity
     world.AddComponent<HE::Rendering::MaterialComponent>(entity, *static_cast<const HE::Rendering::MaterialComponent*>(object));
 }
 
-static const void* GetConst_HE__Rendering__MaterialComponent_MaterialInstance(const void* object) {
-    return &static_cast<const HE::Rendering::MaterialComponent*>(object)->MaterialInstance;
+static const void* GetConst_HE__Rendering__MaterialComponent_Material(const void* object) {
+    return &static_cast<const HE::Rendering::MaterialComponent*>(object)->Material;
 }
 
-static void* GetMutable_HE__Rendering__MaterialComponent_MaterialInstance(void* object) {
-    return &static_cast<HE::Rendering::MaterialComponent*>(object)->MaterialInstance;
+static void* GetMutable_HE__Rendering__MaterialComponent_Material(void* object) {
+    return &static_cast<HE::Rendering::MaterialComponent*>(object)->Material;
 }
 
-static void Serialize_HE__Rendering__MaterialComponent_MaterialInstance(
+static void Serialize_HE__Rendering__MaterialComponent_Material(
     Serialization::SerializationBackend& backend,
     const std::string& name,
     const void* object) {
     const auto& component = *static_cast<const HE::Rendering::MaterialComponent*>(object);
-    Serialization::SerializeValue(backend, name, component.MaterialInstance);
+    Serialization::SerializeValue(backend, name, component.Material);
 }
 
-static bool Deserialize_HE__Rendering__MaterialComponent_MaterialInstance(
+static bool Deserialize_HE__Rendering__MaterialComponent_Material(
     Serialization::SerializationBackend& backend,
     const std::string& name,
     void* object) {
     auto& component = *static_cast<HE::Rendering::MaterialComponent*>(object);
-    auto fieldValue = component.MaterialInstance;
+    auto fieldValue = component.Material;
     if (!Serialization::DeserializeValue(backend, name, fieldValue)) {
         return false;
     }
-    component.MaterialInstance = fieldValue;
+    component.Material = fieldValue;
+    return true;
+}
+
+static const void* GetConst_HE__Rendering__MaterialComponent_Overrides(const void* object) {
+    return &static_cast<const HE::Rendering::MaterialComponent*>(object)->Overrides;
+}
+
+static void* GetMutable_HE__Rendering__MaterialComponent_Overrides(void* object) {
+    return &static_cast<HE::Rendering::MaterialComponent*>(object)->Overrides;
+}
+
+static void Serialize_HE__Rendering__MaterialComponent_Overrides(
+    Serialization::SerializationBackend& backend,
+    const std::string& name,
+    const void* object) {
+    const auto& component = *static_cast<const HE::Rendering::MaterialComponent*>(object);
+    Serialization::SerializeValue(backend, name, component.Overrides);
+}
+
+static bool Deserialize_HE__Rendering__MaterialComponent_Overrides(
+    Serialization::SerializationBackend& backend,
+    const std::string& name,
+    void* object) {
+    auto& component = *static_cast<HE::Rendering::MaterialComponent*>(object);
+    auto fieldValue = component.Overrides;
+    if (!Serialization::DeserializeValue(backend, name, fieldValue)) {
+        return false;
+    }
+    component.Overrides = fieldValue;
     return true;
 }
 
@@ -274,32 +304,32 @@ static void AddCopyToWorld_HE__Rendering__MeshComponent(World& world, EntityId e
     world.AddComponent<HE::Rendering::MeshComponent>(entity, *static_cast<const HE::Rendering::MeshComponent*>(object));
 }
 
-static const void* GetConst_HE__Rendering__MeshComponent_MeshAssetName(const void* object) {
-    return &static_cast<const HE::Rendering::MeshComponent*>(object)->MeshAssetName;
+static const void* GetConst_HE__Rendering__MeshComponent_Mesh(const void* object) {
+    return &static_cast<const HE::Rendering::MeshComponent*>(object)->Mesh;
 }
 
-static void* GetMutable_HE__Rendering__MeshComponent_MeshAssetName(void* object) {
-    return &static_cast<HE::Rendering::MeshComponent*>(object)->MeshAssetName;
+static void* GetMutable_HE__Rendering__MeshComponent_Mesh(void* object) {
+    return &static_cast<HE::Rendering::MeshComponent*>(object)->Mesh;
 }
 
-static void Serialize_HE__Rendering__MeshComponent_MeshAssetName(
+static void Serialize_HE__Rendering__MeshComponent_Mesh(
     Serialization::SerializationBackend& backend,
     const std::string& name,
     const void* object) {
     const auto& component = *static_cast<const HE::Rendering::MeshComponent*>(object);
-    Serialization::SerializeValue(backend, name, component.MeshAssetName);
+    Serialization::SerializeValue(backend, name, component.Mesh);
 }
 
-static bool Deserialize_HE__Rendering__MeshComponent_MeshAssetName(
+static bool Deserialize_HE__Rendering__MeshComponent_Mesh(
     Serialization::SerializationBackend& backend,
     const std::string& name,
     void* object) {
     auto& component = *static_cast<HE::Rendering::MeshComponent*>(object);
-    auto fieldValue = component.MeshAssetName;
+    auto fieldValue = component.Mesh;
     if (!Serialization::DeserializeValue(backend, name, fieldValue)) {
         return false;
     }
-    component.MeshAssetName = fieldValue;
+    component.Mesh = fieldValue;
     return true;
 }
 
@@ -416,12 +446,13 @@ static constexpr Refl::RuntimeFieldDescriptor RuntimeType1Fields[] = {
 };
 
 static constexpr Refl::RuntimeFieldDescriptor RuntimeType2Fields[] = {
-    {"MaterialInstance", "Ref<HE::Rendering::MaterialInstance>", "", "", offsetof(HE::Rendering::MaterialComponent, MaterialInstance), sizeof(static_cast<HE::Rendering::MaterialComponent*>(nullptr)->MaterialInstance), Refl::RuntimeFieldFlags::Serializable | Refl::RuntimeFieldFlags::ComponentField, &GetConst_HE__Rendering__MaterialComponent_MaterialInstance, &GetMutable_HE__Rendering__MaterialComponent_MaterialInstance, &Serialize_HE__Rendering__MaterialComponent_MaterialInstance, &Deserialize_HE__Rendering__MaterialComponent_MaterialInstance, nullptr},
+    {"Material", "MaterialAssetRef", "", "", offsetof(HE::Rendering::MaterialComponent, Material), sizeof(static_cast<HE::Rendering::MaterialComponent*>(nullptr)->Material), Refl::RuntimeFieldFlags::Serializable | Refl::RuntimeFieldFlags::ComponentField, &GetConst_HE__Rendering__MaterialComponent_Material, &GetMutable_HE__Rendering__MaterialComponent_Material, &Serialize_HE__Rendering__MaterialComponent_Material, &Deserialize_HE__Rendering__MaterialComponent_Material, nullptr},
+    {"Overrides", "MaterialOverrideSet", "", "", offsetof(HE::Rendering::MaterialComponent, Overrides), sizeof(static_cast<HE::Rendering::MaterialComponent*>(nullptr)->Overrides), Refl::RuntimeFieldFlags::Serializable | Refl::RuntimeFieldFlags::ComponentField, &GetConst_HE__Rendering__MaterialComponent_Overrides, &GetMutable_HE__Rendering__MaterialComponent_Overrides, &Serialize_HE__Rendering__MaterialComponent_Overrides, &Deserialize_HE__Rendering__MaterialComponent_Overrides, nullptr},
     {"BlendMode", "MaterialBlendMode", "", "", offsetof(HE::Rendering::MaterialComponent, BlendMode), sizeof(static_cast<HE::Rendering::MaterialComponent*>(nullptr)->BlendMode), Refl::RuntimeFieldFlags::Serializable | Refl::RuntimeFieldFlags::ComponentField | Refl::RuntimeFieldFlags::Editable, &GetConst_HE__Rendering__MaterialComponent_BlendMode, &GetMutable_HE__Rendering__MaterialComponent_BlendMode, &Serialize_HE__Rendering__MaterialComponent_BlendMode, &Deserialize_HE__Rendering__MaterialComponent_BlendMode, &RuntimeEnums[0]},
 };
 
 static constexpr Refl::RuntimeFieldDescriptor RuntimeType3Fields[] = {
-    {"MeshAssetName", "std::string", "", "", offsetof(HE::Rendering::MeshComponent, MeshAssetName), sizeof(static_cast<HE::Rendering::MeshComponent*>(nullptr)->MeshAssetName), Refl::RuntimeFieldFlags::Serializable | Refl::RuntimeFieldFlags::ComponentField | Refl::RuntimeFieldFlags::Editable, &GetConst_HE__Rendering__MeshComponent_MeshAssetName, &GetMutable_HE__Rendering__MeshComponent_MeshAssetName, &Serialize_HE__Rendering__MeshComponent_MeshAssetName, &Deserialize_HE__Rendering__MeshComponent_MeshAssetName, nullptr},
+    {"Mesh", "MeshAssetRef", "", "", offsetof(HE::Rendering::MeshComponent, Mesh), sizeof(static_cast<HE::Rendering::MeshComponent*>(nullptr)->Mesh), Refl::RuntimeFieldFlags::Serializable | Refl::RuntimeFieldFlags::ComponentField, &GetConst_HE__Rendering__MeshComponent_Mesh, &GetMutable_HE__Rendering__MeshComponent_Mesh, &Serialize_HE__Rendering__MeshComponent_Mesh, &Deserialize_HE__Rendering__MeshComponent_Mesh, nullptr},
 };
 
 static constexpr Refl::RuntimeFieldDescriptor RuntimeType4Fields[] = {

@@ -49,34 +49,21 @@ namespace {
 
 	HE::Rendering::CameraComponent MakeDefaultCameraComponent() {
 		HE::Rendering::CameraComponent component;
-		component.Camera = HE::CreateRef<HE::Rendering::Camera>();
+		component.RuntimeCamera = HE::CreateRef<HE::Rendering::Camera>();
 		component.Primary = true;
 		component.FixedAspectRatio = false;
 		return component;
 	}
 
 	HE::Rendering::MeshComponent MakeDefaultMeshComponent() {
-		HE::Rendering::MeshManager::Instance().LoadDefaultMeshes();
-		return HE::Rendering::MeshComponent("Quad");
+		HE::Rendering::MeshComponent component;
+		component.Mesh.Reference.Guid = HE::BuiltinAssetGuids::QuadMesh;
+		return component;
 	}
 
 	HE::Rendering::MaterialComponent MakeDefaultMaterialComponent() {
-		auto& library = HE::Rendering::MaterialLibrary::Instance();
-		HE::Ref<HE::Rendering::Material> baseMaterial = nullptr;
-
-		if (library.HasMaterial("SandboxMaterial")) {
-			baseMaterial = library.GetMaterial("SandboxMaterial");
-		}
-
-		if (!baseMaterial) {
-			if (!library.GetDefaultMaterial()) {
-				library.CreateDefaultMaterials();
-			}
-			baseMaterial = library.GetDefaultMaterial();
-		}
-
 		HE::Rendering::MaterialComponent component;
-		component.MaterialInstance = baseMaterial ? baseMaterial->CreateInstance() : nullptr;
+		component.Material.Reference.Guid = HE::BuiltinAssetGuids::DefaultMaterial;
 		return component;
 	}
 }

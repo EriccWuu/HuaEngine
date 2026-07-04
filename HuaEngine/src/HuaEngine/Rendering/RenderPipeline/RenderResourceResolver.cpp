@@ -1,6 +1,8 @@
 #include "enginepch.h"
 #include "RenderResourceResolver.h"
 
+#include "HuaEngine/Asset/AssetTypes.h"
+#include "HuaEngine/Rendering/Material/MaterialLibrary.h"
 #include "HuaEngine/Rendering/Mesh/MeshManager.h"
 #include "Module/Rendering/RenderingComponent.h"
 
@@ -14,13 +16,34 @@ namespace HE::Rendering {
 			diagnostics.push_back({ code, sourceEntity, std::move(message) });
 		}
 
-		Ref<VertexArray> ResolveCachedVertexArray(const RenderItem& item) {
-			if (!item.SourceEntity.IsValid()) {
+		std::string MeshNameFromGuid(const AssetGuid& guid) {
+			if (guid == BuiltinAssetGuids::QuadMesh || guid == BuiltinAssetGuids::FallbackMesh) {
+				return "Quad";
+			}
+			if (guid == BuiltinAssetGuids::CubeMesh) {
+				return "Cube";
+			}
+			if (guid == BuiltinAssetGuids::SphereMesh) {
+				return "Sphere";
+			}
+			return {};
+		}
+
+		Ref<Material> ResolveBaseMaterial(const AssetGuid& guid) {
+			if (guid.empty()) {
 				return nullptr;
 			}
 
-			const auto* meshComponent = item.SourceEntity.TryGetComponent<MeshComponent>();
-			return meshComponent != nullptr ? meshComponent->m_CachedVertexArray : nullptr;
+			auto& library = MaterialLibrary::Instance();
+			if (!library.GetDefaultMaterial()) {
+				library.CreateDefaultMaterials();
+			}
+
+			if (guid == BuiltinAssetGuids::DefaultMaterial || guid == BuiltinAssetGuids::FallbackMaterial) {
+				return library.GetDefaultMaterial();
+			}
+
+			return nullptr;
 		}
 	}
 
@@ -31,53 +54,42 @@ namespace HE::Rendering {
 		outResolvedItem = {};
 		outResolvedItem.Source = &item;
 
-		Ref<Mesh> mesh = nullptr;
 		Ref<VertexArray> vertexArray = nullptr;
-		if (!item.MeshAssetName.empty()) {
-			mesh = MeshManager::Instance().GetMesh(item.MeshAssetName);
+		const std::string meshName = MeshNameFromGuid(item.Mesh.Reference.Guid);
+		if (!meshName.empty()) {
+			MeshManager::Instance().LoadDefaultMeshes();
+			Ref<Mesh> mesh = MeshManager::Instance().GetMesh(meshName);
 			if (mesh) {
 				vertexArray = mesh->GetVertexArray();
 			}
 		}
 
 		if (!vertexArray) {
-			vertexArray = ResolveCachedVertexArray(item);
-		}
-
-		if (!vertexArray && !mesh) {
 			AddDiagnostic(
 				diagnostics,
 				RenderDiagnosticCode::MissingMeshAsset,
 				item.SourceEntity,
-				"Render item mesh asset is missing: " + item.MeshAssetName);
+				"Render item mesh asset is missing: " + item.Mesh.Reference.Guid);
 			return false;
 		}
 
-		if (!vertexArray) {
-			AddDiagnostic(
-				diagnostics,
-				RenderDiagnosticCode::MissingVertexArray,
-				item.SourceEntity,
-				"Render item mesh does not provide a vertex array: " + item.MeshAssetName);
-			return false;
-		}
-
-		if (!item.MaterialInstanceRef) {
-			AddDiagnostic(
-				diagnostics,
-				RenderDiagnosticCode::MissingMaterialInstance,
-				item.SourceEntity,
-				"Render item material instance is missing");
-			return false;
-		}
-
-		auto baseMaterial = item.MaterialInstanceRef->GetBaseMaterial();
+		Ref<Material> baseMaterial = ResolveBaseMaterial(item.Material.Reference.Guid);
 		if (!baseMaterial) {
 			AddDiagnostic(
 				diagnostics,
 				RenderDiagnosticCode::MissingBaseMaterial,
 				item.SourceEntity,
-				"Render item material instance has no base material");
+				"Render item material asset is missing: " + item.Material.Reference.Guid);
+			return false;
+		}
+
+		Ref<MaterialInstance> materialInstance = baseMaterial->CreateInstance();
+		if (!materialInstance) {
+			AddDiagnostic(
+				diagnostics,
+				RenderDiagnosticCode::MissingMaterialInstance,
+				item.SourceEntity,
+				"Render item material instance could not be created");
 			return false;
 		}
 
@@ -90,8 +102,12 @@ namespace HE::Rendering {
 			return false;
 		}
 
+		for (const auto& [parameterName, value] : item.MaterialOverrides.Parameters) {
+			materialInstance->SetParameter(parameterName, value);
+		}
+
 		outResolvedItem.VertexArrayRef = vertexArray;
-		outResolvedItem.MaterialInstanceRef = item.MaterialInstanceRef;
+		outResolvedItem.MaterialInstanceRef = materialInstance;
 		return true;
 	}
 }

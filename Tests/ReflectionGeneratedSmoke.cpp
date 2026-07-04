@@ -77,8 +77,15 @@ int main() {
 
 	const HE::Generated::ReflectedTypeInfo* mesh = HE::Generated::FindReflectedType("HE::Rendering::MeshComponent");
 	Require(mesh != nullptr, "Expected to find HE::Rendering::MeshComponent");
-	Require(HasField(mesh->Fields, "MeshAssetName"), "Expected MeshComponent MeshAssetName field");
+	Require(HasField(mesh->Fields, "Mesh"), "Expected MeshComponent Mesh field");
+	Require(!HasField(mesh->Fields, "MeshAssetName"), "Expected MeshAssetName to be removed");
 	Require(!HasField(mesh->Fields, "m_CachedVertexArray"), "Expected MeshComponent cache field to be omitted");
+
+	const HE::Generated::ReflectedTypeInfo* material = HE::Generated::FindReflectedType("HE::Rendering::MaterialComponent");
+	Require(material != nullptr, "Expected to find HE::Rendering::MaterialComponent");
+	Require(HasField(material->Fields, "Material"), "Expected MaterialComponent Material field");
+	Require(HasField(material->Fields, "Overrides"), "Expected MaterialComponent Overrides field");
+	Require(!HasField(material->Fields, "MaterialInstance"), "Expected MaterialInstance field to be removed");
 
 	HE::ComponentRegistry registry;
 	HE::Generated::RegisterGeneratedComponents(registry);
@@ -149,6 +156,9 @@ int main() {
 
 	const auto* materialRuntime = HE::Refl::FindRuntimeType("HE::Rendering::MaterialComponent");
 	Require(materialRuntime != nullptr, "Expected MaterialComponent runtime descriptor");
+	Require(FindRuntimeField(materialRuntime->Fields, "Material") != nullptr, "Expected MaterialComponent runtime Material field");
+	Require(FindRuntimeField(materialRuntime->Fields, "Overrides") != nullptr, "Expected MaterialComponent runtime Overrides field");
+	Require(FindRuntimeField(materialRuntime->Fields, "MaterialInstance") == nullptr, "Expected MaterialInstance runtime field to be removed");
 	const HE::Refl::RuntimeFieldDescriptor* blendModeField = FindRuntimeField(materialRuntime->Fields, "BlendMode");
 	Require(blendModeField != nullptr, "Expected MaterialComponent BlendMode field");
 	Require(blendModeField->EnumType == blendModeEnum, "Expected BlendMode field to reference enum metadata");

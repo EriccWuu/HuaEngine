@@ -7,6 +7,7 @@
 #include <functional>
 #include <cstdint>
 #include "HuaEngine/Core/Core.h"
+#include "HuaEngine/Asset/AssetTypes.h"
 #include "HuaEngine/Reflection/Reflection.h"
 #include "glm/glm.hpp"
 
@@ -320,6 +321,59 @@ namespace HE::Serialization {
 
         static bool Deserialize(SerializationBackend& backend, const std::string& name, std::vector<T>& vec) {
             return DeserializeArray(backend, name, vec);
+        }
+    };
+
+    template<>
+    struct Serializer<AssetReference> {
+        static void Serialize(SerializationBackend& backend, const std::string& name, const AssetReference& reference) {
+            backend.BeginObject(name);
+            backend.Serialize("guid", reference.Guid);
+            backend.EndObject();
+        }
+
+        static bool Deserialize(SerializationBackend& backend, const std::string& name, AssetReference& reference) {
+            if (!name.empty() && !backend.HasField(name)) {
+                return false;
+            }
+
+            backend.BeginObject(name);
+            const bool success = backend.Deserialize("guid", reference.Guid);
+            backend.EndObject();
+            return success;
+        }
+    };
+
+    template<>
+    struct Serializer<MeshAssetRef> {
+        static void Serialize(SerializationBackend& backend, const std::string& name, const MeshAssetRef& reference) {
+            Serializer<AssetReference>::Serialize(backend, name, reference.Reference);
+        }
+
+        static bool Deserialize(SerializationBackend& backend, const std::string& name, MeshAssetRef& reference) {
+            return Serializer<AssetReference>::Deserialize(backend, name, reference.Reference);
+        }
+    };
+
+    template<>
+    struct Serializer<MaterialAssetRef> {
+        static void Serialize(SerializationBackend& backend, const std::string& name, const MaterialAssetRef& reference) {
+            Serializer<AssetReference>::Serialize(backend, name, reference.Reference);
+        }
+
+        static bool Deserialize(SerializationBackend& backend, const std::string& name, MaterialAssetRef& reference) {
+            return Serializer<AssetReference>::Deserialize(backend, name, reference.Reference);
+        }
+    };
+
+    template<>
+    struct Serializer<TextureAssetRef> {
+        static void Serialize(SerializationBackend& backend, const std::string& name, const TextureAssetRef& reference) {
+            Serializer<AssetReference>::Serialize(backend, name, reference.Reference);
+        }
+
+        static bool Deserialize(SerializationBackend& backend, const std::string& name, TextureAssetRef& reference) {
+            return Serializer<AssetReference>::Deserialize(backend, name, reference.Reference);
         }
     };
 

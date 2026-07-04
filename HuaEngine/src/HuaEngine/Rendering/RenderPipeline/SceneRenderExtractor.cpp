@@ -14,8 +14,9 @@ namespace HE::Rendering {
 			RenderItem item;
 			item.SourceEntity = entity;
 			item.Transform = transform.GetTransformMat();
-			item.MeshAssetName = mesh.MeshAssetName;
-			item.MaterialInstanceRef = material.MaterialInstance;
+			item.Mesh = mesh.Mesh;
+			item.Material = material.Material;
+			item.MaterialOverrides = material.Overrides;
 			renderItems.push_back(item);
 		});
 

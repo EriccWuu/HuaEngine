@@ -193,8 +193,12 @@ inline RuntimeFieldValueKind GetRuntimeFieldValueKind(const RuntimeFieldDescript
     if (field.Type == "glm::vec4") {
         return RuntimeFieldValueKind::Float4;
     }
-    if (field.Type.rfind("Ref<", 0) == 0) {
+    if (field.Type.rfind("Ref<", 0) == 0 ||
+        IsAnyRuntimeTypeName(field.Type, { "MeshAssetRef", "MaterialAssetRef", "TextureAssetRef" })) {
         return RuntimeFieldValueKind::AssetRef;
+    }
+    if (field.Type == "MaterialOverrideSet") {
+        return RuntimeFieldValueKind::Object;
     }
     return RuntimeFieldValueKind::Unsupported;
 }

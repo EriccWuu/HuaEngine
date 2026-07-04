@@ -12,6 +12,7 @@
 #include "HuaEngine/Rendering/FrameBuffer.h"
 #include "HuaEngine/Rendering/Material/Material.h"
 #include "HuaEngine/Rendering/VertexArray.h"
+#include "Module/Rendering/RenderingComponent.h"
 
 namespace HE::Rendering {
 	class RenderResourceResolver;
@@ -26,8 +27,9 @@ namespace HE::Rendering {
 	struct RenderItem {
 		Entity SourceEntity;
 		glm::mat4 Transform = glm::mat4(1.0f);
-		std::string MeshAssetName;
-		Ref<MaterialInstance> MaterialInstanceRef;
+		MeshAssetRef Mesh;
+		MaterialAssetRef Material;
+		MaterialOverrideSet MaterialOverrides;
 	};
 
 	enum class RenderDiagnosticCode {

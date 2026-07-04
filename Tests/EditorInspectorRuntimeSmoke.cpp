@@ -56,20 +56,26 @@ int main() {
 
 	const HE::ComponentMetadata* mesh = registry.FindByType<HE::Rendering::MeshComponent>();
 	Require(mesh != nullptr, "Expected MeshComponent metadata");
-	const auto* meshAssetName = FindField(mesh->RuntimeType->Fields, "MeshAssetName");
-	Require(meshAssetName != nullptr, "Expected MeshComponent MeshAssetName field");
+	const auto* meshAsset = FindField(mesh->RuntimeType->Fields, "Mesh");
+	Require(meshAsset != nullptr, "Expected MeshComponent Mesh field");
 	Require(
-		HE::Refl::GetRuntimeFieldValueKind(*meshAssetName) == HE::Refl::RuntimeFieldValueKind::String,
-		"Expected MeshAssetName to use String runtime editor");
+		HE::Refl::GetRuntimeFieldValueKind(*meshAsset) == HE::Refl::RuntimeFieldValueKind::AssetRef,
+		"Expected Mesh to use AssetRef runtime editor");
+	Require(FindField(mesh->RuntimeType->Fields, "MeshAssetName") == nullptr, "Expected MeshAssetName field to be removed");
 
 	const HE::ComponentMetadata* material = registry.FindByType<HE::Rendering::MaterialComponent>();
 	Require(material != nullptr, "Expected MaterialComponent metadata");
-	const auto* materialInstance = FindField(material->RuntimeType->Fields, "MaterialInstance");
-	Require(materialInstance != nullptr, "Expected MaterialComponent MaterialInstance field");
+	const auto* materialAsset = FindField(material->RuntimeType->Fields, "Material");
+	Require(materialAsset != nullptr, "Expected MaterialComponent Material field");
 	Require(
-		HE::Refl::GetRuntimeFieldValueKind(*materialInstance) == HE::Refl::RuntimeFieldValueKind::AssetRef,
-		"Expected MaterialInstance to use AssetRef runtime field kind");
-	Require(!HE::Editor::IsRuntimeFieldEditable(*materialInstance), "Expected MaterialInstance not to be runtime editable");
+		HE::Refl::GetRuntimeFieldValueKind(*materialAsset) == HE::Refl::RuntimeFieldValueKind::AssetRef,
+		"Expected Material to use AssetRef runtime field kind");
+	const auto* overrides = FindField(material->RuntimeType->Fields, "Overrides");
+	Require(overrides != nullptr, "Expected MaterialComponent Overrides field");
+	Require(
+		HE::Refl::GetRuntimeFieldValueKind(*overrides) == HE::Refl::RuntimeFieldValueKind::Object,
+		"Expected Overrides to use Object runtime field kind");
+	Require(FindField(material->RuntimeType->Fields, "MaterialInstance") == nullptr, "Expected MaterialInstance field to be removed");
 	const auto* blendMode = FindField(material->RuntimeType->Fields, "BlendMode");
 	Require(blendMode != nullptr, "Expected MaterialComponent BlendMode field");
 	Require(
