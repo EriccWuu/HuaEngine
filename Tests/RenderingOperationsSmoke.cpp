@@ -207,6 +207,7 @@ int main() {
 	Require(renderAssetRefScene.Payload.at("pass_count") == "1", "Expected typed asset-ref scene render to execute one render pass");
 	Require(renderAssetRefScene.Payload.at("visible_items") == "1", "Expected typed asset-ref scene render to count one visible item");
 	Require(renderAssetRefScene.Payload.at("diagnostics") == "0", "Expected typed asset-ref scene render to emit no resolver diagnostics");
+	Require(HasRenderedPixel(framebuffer), "Expected typed asset-ref render path to write a non-clear framebuffer pixel");
 
 	HE::Ref<HE::Scene> loadedScene;
 	const auto scenePath = HE::ResourcePaths::ResolveEngineResourcePath("SandboxScene.scene");

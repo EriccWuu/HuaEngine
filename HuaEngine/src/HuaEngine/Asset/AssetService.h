@@ -21,6 +21,7 @@ namespace HE {
 		uint32_t InvalidAssetRecords = 0;
 		uint32_t AssetsOutsideProjectRoot = 0;
 		uint32_t MissingFileAssets = 0;
+		uint32_t BuiltinMetadataIssues = 0;
 		uint32_t MeshAssetsMissingRuntimePayload = 0;
 		uint32_t MaterialAssetsMissingRuntimePayload = 0;
 		uint32_t SourceOnlyTextureAssets = 0;
@@ -31,12 +32,13 @@ namespace HE {
 				InvalidAssetRecords == 0 &&
 				AssetsOutsideProjectRoot == 0 &&
 				MissingFileAssets == 0 &&
+				BuiltinMetadataIssues == 0 &&
 				MeshAssetsMissingRuntimePayload == 0 &&
 				MaterialAssetsMissingRuntimePayload == 0;
 		}
 
 		[[nodiscard]] uint32_t MetadataIssueCount() const {
-			return UnknownKindAssets + InvalidAssetRecords + AssetsOutsideProjectRoot + MissingFileAssets;
+			return UnknownKindAssets + InvalidAssetRecords + AssetsOutsideProjectRoot + MissingFileAssets + BuiltinMetadataIssues;
 		}
 
 		[[nodiscard]] uint32_t RuntimeIssueCount() const {

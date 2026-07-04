@@ -409,6 +409,10 @@ namespace {
 				return false;
 			}
 		}
+		if (record.Source == HE::AssetSource::Builtin && !HE::IsBuiltinAssetNameLegal(record.Kind, record.BuiltinName)) {
+			outError = "Builtin asset metadata has an illegal kind/name combination";
+			return false;
+		}
 		return true;
 	}
 }
@@ -520,6 +524,27 @@ namespace HE {
 			return AssetImportState::Missing;
 		}
 		return AssetImportState::Unknown;
+	}
+
+	bool IsBuiltinAssetNameLegal(AssetKind kind, std::string_view builtinName) {
+		if (builtinName.empty()) {
+			return false;
+		}
+
+		switch (kind) {
+		case AssetKind::Mesh:
+			return builtinName == "quad" ||
+				builtinName == "cube" ||
+				builtinName == "sphere" ||
+				builtinName == "fallback";
+		case AssetKind::Material:
+			return builtinName == "default" ||
+				builtinName == "fallback";
+		case AssetKind::Texture2D:
+		case AssetKind::Unknown:
+		default:
+			return false;
+		}
 	}
 
 	const AssetManifestRecord* AssetManifest::FindByGuid(const AssetGuid& guid) const {

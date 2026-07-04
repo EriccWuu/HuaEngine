@@ -644,6 +644,10 @@ namespace HE {
 				++report.MissingFileAssets;
 				hasMetadataBlockingIssue = true;
 			}
+			if (record.Source == AssetSource::Builtin && !IsBuiltinAssetNameLegal(record.Kind, record.BuiltinName)) {
+				++report.BuiltinMetadataIssues;
+				hasMetadataBlockingIssue = true;
+			}
 			if (record.Guid == BuiltinAssetGuids::FallbackMesh || record.Guid == BuiltinAssetGuids::FallbackMaterial) {
 				++report.FallbackAssets;
 			}
@@ -701,6 +705,7 @@ namespace HE {
 		result.SetPayloadValue("invalid_asset_record_count", CountToString(report.InvalidAssetRecords));
 		result.SetPayloadValue("assets_outside_project_root", CountToString(report.AssetsOutsideProjectRoot));
 		result.SetPayloadValue("missing_file_asset_count", CountToString(report.MissingFileAssets));
+		result.SetPayloadValue("builtin_metadata_issue_count", CountToString(report.BuiltinMetadataIssues));
 		result.SetPayloadValue("mesh_assets_missing_runtime_payload", CountToString(report.MeshAssetsMissingRuntimePayload));
 		result.SetPayloadValue("material_assets_missing_runtime_payload", CountToString(report.MaterialAssetsMissingRuntimePayload));
 		result.SetPayloadValue("source_only_texture_asset_count", CountToString(report.SourceOnlyTextureAssets));
@@ -716,6 +721,9 @@ namespace HE {
 		}
 		if (report.MissingFileAssets > 0) {
 			result.AddDetail({ DiagnosticSeverity::Error, "asset.file.missing", "One or more file asset records are missing on disk", CountToString(report.MissingFileAssets) });
+		}
+		if (report.BuiltinMetadataIssues > 0) {
+			result.AddDetail({ DiagnosticSeverity::Error, "asset.builtin.invalid", "One or more builtin asset records have an illegal kind/name combination", CountToString(report.BuiltinMetadataIssues) });
 		}
 		if (report.MeshAssetsMissingRuntimePayload > 0) {
 			result.AddDetail({ DiagnosticSeverity::Warning, "asset.mesh.unloaded", "One or more mesh asset records are missing runtime mesh payloads", CountToString(report.MeshAssetsMissingRuntimePayload) });

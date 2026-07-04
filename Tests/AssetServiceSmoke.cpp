@@ -200,6 +200,15 @@ int main() {
 		"  ]\n"
 		"}\n");
 	Require(HE::LoadAssetManifest(projectContext, badManifest).Failed(), "Expected escaping manifest relative path to fail load");
+
+	WriteFileText(manifestPath,
+		"{\n"
+		"  \"version\": 1,\n"
+		"  \"assets\": [\n"
+		"    { \"guid\": \"bad-builtin\", \"asset_id\": \"builtin/mesh/bad\", \"kind\": \"mesh\", \"source\": \"builtin\", \"relative_path\": \"\", \"builtin_name\": \"not-a-builtin\", \"import_state\": \"builtin\" }\n"
+		"  ]\n"
+		"}\n");
+	Require(HE::LoadAssetManifest(projectContext, badManifest).Failed(), "Expected illegal builtin manifest metadata to fail load");
 	WriteFileText(manifestPath, originalManifestText);
 
 	HE::AssetService assetService;
@@ -298,6 +307,8 @@ int main() {
 	Require(cachedTextureResult.Succeeded(), "Expected runtime cached texture resolve to succeed");
 	Require(static_cast<bool>(cachedTexture), "Expected cached texture runtime object");
 
+	HE::AssetService builtinTextureAssetService;
+	Require(builtinTextureAssetService.LoadOrCreateManifest(projectContext).Succeeded(), "Expected builtin texture asset service manifest initialization to succeed");
 	HE::AssetRecord builtinTextureRecord;
 	builtinTextureRecord.Guid = "builtin-texture-unsupported";
 	builtinTextureRecord.AssetId = "builtin/texture/unsupported";
@@ -305,9 +316,10 @@ int main() {
 	builtinTextureRecord.Source = HE::AssetSource::Builtin;
 	builtinTextureRecord.BuiltinName = "unsupported";
 	builtinTextureRecord.ImportState = HE::AssetImportState::Builtin;
-	Require(assetService.GetAssetRegistry().Upsert(builtinTextureRecord) != 0, "Expected builtin texture metadata seed to succeed");
+	Require(builtinTextureAssetService.GetAssetRegistry().Upsert(builtinTextureRecord) != 0, "Expected builtin texture metadata seed to succeed");
+	HE::AssetResolver builtinTextureResolver(builtinTextureAssetService);
 	HE::Ref<HE::Texture2D> unsupportedBuiltinTexture;
-	auto unsupportedBuiltinTextureResult = resolver.ResolveTexture(builtinTextureRecord.Guid, unsupportedBuiltinTexture);
+	auto unsupportedBuiltinTextureResult = builtinTextureResolver.ResolveTexture(builtinTextureRecord.Guid, unsupportedBuiltinTexture);
 	Require(unsupportedBuiltinTextureResult.RequiresManualIntervention(), "Expected unsupported builtin texture resolve to require manual intervention");
 	Require(!unsupportedBuiltinTextureResult.Details.empty(), "Expected unsupported builtin texture resolve to include diagnostics");
 	Require(unsupportedBuiltinTextureResult.Details.front().Code == "asset.texture.builtin_unsupported", "Expected unsupported builtin texture diagnostic code");
@@ -341,6 +353,25 @@ int main() {
 	Require(missingCachedMeshValidation.Payload.at("metadata_issue_count") == "1", "Expected missing cached mesh metadata issue payload");
 	Require(missingCachedMeshValidation.Payload.at("runtime_issue_count") == "0", "Expected missing cached mesh runtime issue payload");
 	Require(missingCachedMeshValidation.Payload.at("fallback_asset_count") == "2", "Expected fallback asset payload to remain stable");
+
+	HE::AssetService badBuiltinAssetService;
+	Require(badBuiltinAssetService.LoadOrCreateManifest(projectContext).Succeeded(), "Expected bad-builtin asset service manifest initialization to succeed");
+	HE::AssetRecord badBuiltinMeshRecord;
+	badBuiltinMeshRecord.Guid = "bad-builtin-validation-mesh";
+	badBuiltinMeshRecord.Kind = HE::AssetKind::Mesh;
+	badBuiltinMeshRecord.Source = HE::AssetSource::Builtin;
+	badBuiltinMeshRecord.AssetId = "builtin/mesh/bad-validation";
+	badBuiltinMeshRecord.BuiltinName = "not-a-builtin";
+	badBuiltinMeshRecord.ImportState = HE::AssetImportState::Builtin;
+	Require(badBuiltinAssetService.GetAssetRegistry().Upsert(badBuiltinMeshRecord) != 0, "Expected bad builtin mesh metadata insertion to succeed");
+	HE::AssetValidationReport badBuiltinValidationReport;
+	auto badBuiltinValidation = badBuiltinAssetService.ValidateRegistry(projectContext, &badBuiltinValidationReport);
+	Require(badBuiltinValidation.RequiresManualIntervention(), "Expected illegal builtin metadata validation to require manual intervention");
+	Require(badBuiltinValidationReport.BuiltinMetadataIssues == 1, "Expected illegal builtin metadata validation to count the bad builtin");
+	Require(badBuiltinValidationReport.MetadataIssueCount() == 1, "Expected illegal builtin metadata validation to report one metadata issue");
+	Require(badBuiltinValidationReport.RuntimeIssueCount() == 0, "Expected illegal builtin metadata validation to skip runtime issue counting");
+	Require(badBuiltinValidation.Payload.at("metadata_issue_count") == "1", "Expected illegal builtin metadata issue payload");
+	Require(badBuiltinValidation.Payload.at("runtime_issue_count") == "0", "Expected illegal builtin runtime issue payload");
 
 	HE::AssetRecord missingRecord;
 	auto missingAssetResult = assetService.ResolveAsset(static_cast<HE::AssetHandle>(9999), missingRecord);
