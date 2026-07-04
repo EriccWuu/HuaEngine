@@ -1,14 +1,295 @@
 #include "enginepch.h"
 #include "AssetManifest.h"
 
+#include <cctype>
 #include <fstream>
 #include <iomanip>
+#include <map>
 #include <random>
-#include <regex>
 #include <sstream>
 #include <system_error>
+#include <variant>
 
 namespace {
+	struct JsonValue {
+		using Object = std::map<std::string, JsonValue>;
+		using Array = std::vector<JsonValue>;
+		using Value = std::variant<std::nullptr_t, bool, int64_t, std::string, Object, Array>;
+
+		Value Data = nullptr;
+	};
+
+	class JsonParser {
+	public:
+		explicit JsonParser(std::string_view text)
+			: m_Text(text) {}
+
+		bool Parse(JsonValue& outValue, std::string& outError) {
+			SkipWhitespace();
+			if (!ParseValue(outValue, outError)) {
+				return false;
+			}
+
+			SkipWhitespace();
+			if (m_Position != m_Text.size()) {
+				outError = "Unexpected trailing characters";
+				return false;
+			}
+
+			return true;
+		}
+
+	private:
+		bool ParseValue(JsonValue& outValue, std::string& outError) {
+			SkipWhitespace();
+			if (m_Position >= m_Text.size()) {
+				outError = "Unexpected end of JSON";
+				return false;
+			}
+
+			const char ch = m_Text[m_Position];
+			if (ch == '{') {
+				return ParseObject(outValue, outError);
+			}
+			if (ch == '[') {
+				return ParseArray(outValue, outError);
+			}
+			if (ch == '"') {
+				std::string value;
+				if (!ParseString(value, outError)) {
+					return false;
+				}
+				outValue.Data = std::move(value);
+				return true;
+			}
+			if (ch == '-' || std::isdigit(static_cast<unsigned char>(ch))) {
+				int64_t value = 0;
+				if (!ParseInteger(value, outError)) {
+					return false;
+				}
+				outValue.Data = value;
+				return true;
+			}
+			if (ConsumeLiteral("true")) {
+				outValue.Data = true;
+				return true;
+			}
+			if (ConsumeLiteral("false")) {
+				outValue.Data = false;
+				return true;
+			}
+			if (ConsumeLiteral("null")) {
+				outValue.Data = nullptr;
+				return true;
+			}
+
+			outError = "Unexpected JSON value";
+			return false;
+		}
+
+		bool ParseObject(JsonValue& outValue, std::string& outError) {
+			if (!Consume('{')) {
+				outError = "Expected object";
+				return false;
+			}
+
+			JsonValue::Object object;
+			SkipWhitespace();
+			if (Consume('}')) {
+				outValue.Data = std::move(object);
+				return true;
+			}
+
+			while (m_Position < m_Text.size()) {
+				std::string key;
+				if (!ParseString(key, outError)) {
+					return false;
+				}
+
+				SkipWhitespace();
+				if (!Consume(':')) {
+					outError = "Expected ':' after object key";
+					return false;
+				}
+
+				JsonValue value;
+				if (!ParseValue(value, outError)) {
+					return false;
+				}
+
+				if (!object.emplace(std::move(key), std::move(value)).second) {
+					outError = "Duplicate object key";
+					return false;
+				}
+
+				SkipWhitespace();
+				if (Consume('}')) {
+					outValue.Data = std::move(object);
+					return true;
+				}
+				if (!Consume(',')) {
+					outError = "Expected ',' or '}' in object";
+					return false;
+				}
+				SkipWhitespace();
+			}
+
+			outError = "Unterminated object";
+			return false;
+		}
+
+		bool ParseArray(JsonValue& outValue, std::string& outError) {
+			if (!Consume('[')) {
+				outError = "Expected array";
+				return false;
+			}
+
+			JsonValue::Array array;
+			SkipWhitespace();
+			if (Consume(']')) {
+				outValue.Data = std::move(array);
+				return true;
+			}
+
+			while (m_Position < m_Text.size()) {
+				JsonValue value;
+				if (!ParseValue(value, outError)) {
+					return false;
+				}
+				array.emplace_back(std::move(value));
+
+				SkipWhitespace();
+				if (Consume(']')) {
+					outValue.Data = std::move(array);
+					return true;
+				}
+				if (!Consume(',')) {
+					outError = "Expected ',' or ']' in array";
+					return false;
+				}
+				SkipWhitespace();
+			}
+
+			outError = "Unterminated array";
+			return false;
+		}
+
+		bool ParseString(std::string& outValue, std::string& outError) {
+			if (!Consume('"')) {
+				outError = "Expected string";
+				return false;
+			}
+
+			std::string value;
+			while (m_Position < m_Text.size()) {
+				const char ch = m_Text[m_Position++];
+				if (ch == '"') {
+					outValue = std::move(value);
+					return true;
+				}
+				if (static_cast<unsigned char>(ch) < 0x20) {
+					outError = "Control character in string";
+					return false;
+				}
+				if (ch != '\\') {
+					value += ch;
+					continue;
+				}
+				if (m_Position >= m_Text.size()) {
+					outError = "Unterminated escape sequence";
+					return false;
+				}
+
+				const char escaped = m_Text[m_Position++];
+				switch (escaped) {
+				case '"':
+				case '\\':
+				case '/':
+					value += escaped;
+					break;
+				case 'b':
+					value += '\b';
+					break;
+				case 'f':
+					value += '\f';
+					break;
+				case 'n':
+					value += '\n';
+					break;
+				case 'r':
+					value += '\r';
+					break;
+				case 't':
+					value += '\t';
+					break;
+				default:
+					outError = "Unsupported string escape sequence";
+					return false;
+				}
+			}
+
+			outError = "Unterminated string";
+			return false;
+		}
+
+		bool ParseInteger(int64_t& outValue, std::string& outError) {
+			const size_t start = m_Position;
+			if (m_Text[m_Position] == '-') {
+				++m_Position;
+			}
+			if (m_Position >= m_Text.size() || !std::isdigit(static_cast<unsigned char>(m_Text[m_Position]))) {
+				outError = "Invalid number";
+				return false;
+			}
+			if (m_Text[m_Position] == '0') {
+				++m_Position;
+			}
+			else {
+				while (m_Position < m_Text.size() && std::isdigit(static_cast<unsigned char>(m_Text[m_Position]))) {
+					++m_Position;
+				}
+			}
+			if (m_Position < m_Text.size() && (m_Text[m_Position] == '.' || m_Text[m_Position] == 'e' || m_Text[m_Position] == 'E')) {
+				outError = "Manifest only supports integer numeric fields";
+				return false;
+			}
+
+			try {
+				outValue = std::stoll(std::string(m_Text.substr(start, m_Position - start)));
+			}
+			catch (...) {
+				outError = "Invalid integer value";
+				return false;
+			}
+			return true;
+		}
+
+		void SkipWhitespace() {
+			while (m_Position < m_Text.size() && std::isspace(static_cast<unsigned char>(m_Text[m_Position]))) {
+				++m_Position;
+			}
+		}
+
+		bool Consume(char ch) {
+			if (m_Position < m_Text.size() && m_Text[m_Position] == ch) {
+				++m_Position;
+				return true;
+			}
+			return false;
+		}
+
+		bool ConsumeLiteral(std::string_view literal) {
+			if (m_Text.substr(m_Position, literal.size()) == literal) {
+				m_Position += literal.size();
+				return true;
+			}
+			return false;
+		}
+
+		std::string_view m_Text;
+		size_t m_Position = 0;
+	};
+
 	std::string EscapeJsonString(std::string_view value) {
 		std::string escaped;
 		escaped.reserve(value.size());
@@ -37,42 +318,47 @@ namespace {
 		return escaped;
 	}
 
-	std::string UnescapeJsonString(std::string value) {
-		std::string unescaped;
-		unescaped.reserve(value.size());
-		for (size_t index = 0; index < value.size(); ++index) {
-			if (value[index] != '\\' || index + 1 >= value.size()) {
-				unescaped += value[index];
-				continue;
-			}
-
-			const char escaped = value[++index];
-			switch (escaped) {
-			case 'n':
-				unescaped += '\n';
-				break;
-			case 'r':
-				unescaped += '\r';
-				break;
-			case 't':
-				unescaped += '\t';
-				break;
-			default:
-				unescaped += escaped;
-				break;
-			}
-		}
-		return unescaped;
+	bool IsEscapingAssetRoot(const std::filesystem::path& relativePath) {
+		const auto normalized = relativePath.lexically_normal().generic_string();
+		return normalized == ".." || normalized.rfind("../", 0) == 0 || normalized.find("/../") != std::string::npos;
 	}
 
-	bool TryReadStringField(const std::string& objectText, std::string_view fieldName, std::string& outValue) {
-		const std::regex fieldRegex("\"" + std::string(fieldName) + "\"\\s*:\\s*\"((?:\\\\.|[^\"])*)\"");
-		std::smatch match;
-		if (!std::regex_search(objectText, match, fieldRegex)) {
+	HE::ResultEnvelope MakeManifestLoadFailure(
+		const std::filesystem::path& manifestPath,
+		std::string summary,
+		std::string detailCode,
+		std::string detailContext) {
+		auto result = HE::ResultEnvelope::Failure("asset.manifest.load", manifestPath.generic_string(), std::move(summary));
+		result.AddDetail({ HE::DiagnosticSeverity::Error, std::move(detailCode), "Asset manifest validation failed", std::move(detailContext) });
+		return result;
+	}
+
+	const JsonValue::Object* AsObject(const JsonValue& value) {
+		return std::get_if<JsonValue::Object>(&value.Data);
+	}
+
+	const JsonValue::Array* AsArray(const JsonValue& value) {
+		return std::get_if<JsonValue::Array>(&value.Data);
+	}
+
+	bool ReadRequiredString(
+		const JsonValue::Object& object,
+		std::string_view fieldName,
+		std::string& outValue,
+		std::string& outError) {
+		const auto it = object.find(std::string(fieldName));
+		if (it == object.end()) {
+			outError = "Missing required field: " + std::string(fieldName);
 			return false;
 		}
 
-		outValue = UnescapeJsonString(match[1].str());
+		const auto* value = std::get_if<std::string>(&it->second.Data);
+		if (!value) {
+			outError = "Field must be a string: " + std::string(fieldName);
+			return false;
+		}
+
+		outValue = *value;
 		return true;
 	}
 
@@ -90,12 +376,46 @@ namespace {
 		record.ImportState = HE::AssetImportState::Builtin;
 		return record;
 	}
+
+	bool ValidateRecord(const HE::AssetManifestRecord& record, std::string& outError) {
+		if (record.Guid.empty()) {
+			outError = "Asset guid must not be empty";
+			return false;
+		}
+		if (record.AssetId.empty()) {
+			outError = "Asset id must not be empty";
+			return false;
+		}
+		if (record.Kind == HE::AssetKind::Unknown) {
+			outError = "Asset kind is invalid";
+			return false;
+		}
+		if (record.Source == HE::AssetSource::Unknown) {
+			outError = "Asset source is invalid";
+			return false;
+		}
+		if (record.ImportState == HE::AssetImportState::Unknown) {
+			outError = "Asset import state is invalid";
+			return false;
+		}
+		if (record.Source == HE::AssetSource::File) {
+			if (record.RelativePath.empty()) {
+				outError = "File asset relative_path must not be empty";
+				return false;
+			}
+			if (record.RelativePath.is_absolute() || IsEscapingAssetRoot(record.RelativePath)) {
+				outError = "File asset relative_path escapes the asset root";
+				return false;
+			}
+		}
+		return true;
+	}
 }
 
 namespace HE {
 	std::string GenerateAssetGuid() {
-		static std::random_device randomDevice;
-		static std::mt19937_64 generator(randomDevice());
+		thread_local std::random_device randomDevice;
+		thread_local std::mt19937_64 generator(randomDevice());
 		std::uniform_int_distribution<uint64_t> distribution;
 
 		const uint64_t high = distribution(generator);
@@ -221,21 +541,26 @@ namespace HE {
 			return false;
 		}
 
-		if (const auto guidIt = m_GuidIndex.find(record.Guid); guidIt != m_GuidIndex.end()) {
-			auto& existing = m_Records[guidIt->second];
+		const auto guidIt = m_GuidIndex.find(record.Guid);
+		const auto assetIt = m_AssetIdIndex.find(record.AssetId);
+
+		if (guidIt != m_GuidIndex.end() && assetIt != m_AssetIdIndex.end() && guidIt->second != assetIt->second) {
+			return false;
+		}
+		if (guidIt != m_GuidIndex.end()) {
+			const auto& existing = m_Records[guidIt->second];
 			if (existing.AssetId != record.AssetId) {
-				m_AssetIdIndex.erase(existing.AssetId);
+				return false;
 			}
-			existing = std::move(record);
-			m_AssetIdIndex[existing.AssetId] = guidIt->second;
+			m_Records[guidIt->second] = std::move(record);
 			return true;
 		}
-
-		if (const auto assetIt = m_AssetIdIndex.find(record.AssetId); assetIt != m_AssetIdIndex.end()) {
-			auto& existing = m_Records[assetIt->second];
-			m_GuidIndex.erase(existing.Guid);
-			existing = std::move(record);
-			m_GuidIndex[existing.Guid] = assetIt->second;
+		if (assetIt != m_AssetIdIndex.end()) {
+			const auto& existing = m_Records[assetIt->second];
+			if (existing.Guid != record.Guid) {
+				return false;
+			}
+			m_Records[assetIt->second] = std::move(record);
 			return true;
 		}
 
@@ -297,16 +622,42 @@ namespace HE {
 		}
 
 		const std::string text((std::istreambuf_iterator<char>(stream)), std::istreambuf_iterator<char>());
-		if (text.find("\"version\"") == std::string::npos || text.find("\"assets\"") == std::string::npos) {
-			auto result = ResultEnvelope::Failure("asset.manifest.load", manifestPath.generic_string(), "Asset manifest has an unsupported shape");
-			result.AddDetail({ DiagnosticSeverity::Error, "asset.manifest.invalid", "Expected top-level version and assets fields", manifestPath.generic_string() });
-			return result;
+		JsonValue root;
+		std::string error;
+		JsonParser parser(text);
+		if (!parser.Parse(root, error)) {
+			return MakeManifestLoadFailure(manifestPath, "Asset manifest contains invalid JSON", "asset.manifest.json_invalid", error);
+		}
+
+		const auto* rootObject = AsObject(root);
+		if (!rootObject) {
+			return MakeManifestLoadFailure(manifestPath, "Asset manifest root must be an object", "asset.manifest.root_invalid", manifestPath.generic_string());
+		}
+
+		const auto versionIt = rootObject->find("version");
+		if (versionIt == rootObject->end()) {
+			return MakeManifestLoadFailure(manifestPath, "Asset manifest is missing version", "asset.manifest.version_missing", manifestPath.generic_string());
+		}
+		const auto* version = std::get_if<int64_t>(&versionIt->second.Data);
+		if (!version || *version != 1) {
+			return MakeManifestLoadFailure(manifestPath, "Asset manifest version is unsupported", "asset.manifest.version_invalid", manifestPath.generic_string());
+		}
+
+		const auto assetsIt = rootObject->find("assets");
+		if (assetsIt == rootObject->end()) {
+			return MakeManifestLoadFailure(manifestPath, "Asset manifest is missing assets", "asset.manifest.assets_missing", manifestPath.generic_string());
+		}
+		const auto* assets = AsArray(assetsIt->second);
+		if (!assets) {
+			return MakeManifestLoadFailure(manifestPath, "Asset manifest assets must be an array", "asset.manifest.assets_invalid", manifestPath.generic_string());
 		}
 
 		AssetManifest loaded;
-		const std::regex objectRegex("\\{[^{}]*\"guid\"[^{}]*\\}");
-		for (auto it = std::sregex_iterator(text.begin(), text.end(), objectRegex); it != std::sregex_iterator(); ++it) {
-			const std::string objectText = it->str();
+		for (size_t index = 0; index < assets->size(); ++index) {
+			const auto* recordObject = AsObject((*assets)[index]);
+			if (!recordObject) {
+				return MakeManifestLoadFailure(manifestPath, "Asset manifest record must be an object", "asset.manifest.record_invalid", std::to_string(index));
+			}
 
 			AssetManifestRecord record;
 			std::string kind;
@@ -314,19 +665,27 @@ namespace HE {
 			std::string importState;
 			std::string relativePath;
 
-			TryReadStringField(objectText, "guid", record.Guid);
-			TryReadStringField(objectText, "asset_id", record.AssetId);
-			TryReadStringField(objectText, "kind", kind);
-			TryReadStringField(objectText, "source", source);
-			TryReadStringField(objectText, "relative_path", relativePath);
-			TryReadStringField(objectText, "builtin_name", record.BuiltinName);
-			TryReadStringField(objectText, "import_state", importState);
+			if (!ReadRequiredString(*recordObject, "guid", record.Guid, error) ||
+				!ReadRequiredString(*recordObject, "asset_id", record.AssetId, error) ||
+				!ReadRequiredString(*recordObject, "kind", kind, error) ||
+				!ReadRequiredString(*recordObject, "source", source, error) ||
+				!ReadRequiredString(*recordObject, "relative_path", relativePath, error) ||
+				!ReadRequiredString(*recordObject, "builtin_name", record.BuiltinName, error) ||
+				!ReadRequiredString(*recordObject, "import_state", importState, error)) {
+				return MakeManifestLoadFailure(manifestPath, "Asset manifest record is missing a required field", "asset.manifest.record_field_invalid", error);
+			}
 
 			record.Kind = AssetKindFromString(kind);
 			record.Source = AssetSourceFromString(source);
-			record.RelativePath = std::filesystem::path(relativePath);
+			record.RelativePath = std::filesystem::path(relativePath).lexically_normal();
 			record.ImportState = AssetImportStateFromString(importState);
-			(void)loaded.Upsert(std::move(record));
+
+			if (!ValidateRecord(record, error)) {
+				return MakeManifestLoadFailure(manifestPath, "Asset manifest record failed validation", "asset.manifest.record_invalid", error);
+			}
+			if (!loaded.Upsert(std::move(record))) {
+				return MakeManifestLoadFailure(manifestPath, "Asset manifest contains duplicate or conflicting records", "asset.manifest.record_conflict", std::to_string(index));
+			}
 		}
 
 		outManifest = std::move(loaded);

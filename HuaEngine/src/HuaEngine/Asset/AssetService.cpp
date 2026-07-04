@@ -357,13 +357,13 @@ namespace HE {
 		record.ExistsOnDisk = std::filesystem::is_regular_file(normalizedPath.AbsolutePath, errorCode);
 		record.ImportState = record.ExistsOnDisk ? AssetImportState::Registered : AssetImportState::Missing;
 
-		if (!record.ExistsOnDisk && !texture) {
+		if (!record.ExistsOnDisk) {
 			auto result = ResultEnvelope::ManualIntervention("asset.register_texture", normalizedPath.AssetId, "Texture asset is unresolved");
 			result.SetPayloadValue("asset_id", normalizedPath.AssetId);
 			result.SetPayloadValue("asset_kind", std::string(ToString(AssetKind::Texture2D)));
 			result.SetPayloadValue("asset_path", normalizedPath.AbsolutePath.generic_string());
 			result.SetPayloadValue("exists_on_disk", "false");
-			result.AddDetail({ DiagnosticSeverity::Warning, "asset.texture.unresolved", "Texture asset has neither a runtime texture nor an existing source file", normalizedPath.AbsolutePath.generic_string() });
+			result.AddDetail({ DiagnosticSeverity::Warning, "asset.texture.unresolved", "Task 1 texture registration requires an existing source file; runtime-only texture payloads are not stored in metadata registry", normalizedPath.AbsolutePath.generic_string() });
 			return result;
 		}
 

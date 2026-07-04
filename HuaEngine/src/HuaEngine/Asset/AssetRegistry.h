@@ -28,20 +28,34 @@ namespace HE {
 	class AssetRegistry {
 	public:
 		[[nodiscard]] AssetHandle Upsert(AssetRecord record) {
-			if (record.AssetId.empty()) {
+			if (record.Guid.empty() || record.AssetId.empty()) {
 				return 0;
 			}
 
 			AssetHandle handle = record.Handle;
 			const auto existingAssetIdIt = m_AssetIds.find(record.AssetId);
-			if (existingAssetIdIt != m_AssetIds.end()) {
+			const auto existingGuidIt = m_Guids.find(record.Guid);
+
+			if (existingAssetIdIt != m_AssetIds.end() && existingGuidIt != m_Guids.end() && existingAssetIdIt->second != existingGuidIt->second) {
+				return 0;
+			}
+
+			if (existingGuidIt != m_Guids.end()) {
+				const auto* existing = Find(existingGuidIt->second);
+				if (!existing || existing->AssetId != record.AssetId) {
+					return 0;
+				}
+				handle = existingGuidIt->second;
+			}
+			else if (existingAssetIdIt != m_AssetIds.end()) {
+				const auto* existing = Find(existingAssetIdIt->second);
+				if (!existing || existing->Guid != record.Guid) {
+					return 0;
+				}
 				handle = existingAssetIdIt->second;
 			}
-			else if (!record.Guid.empty()) {
-				const auto existingGuidIt = m_Guids.find(record.Guid);
-				if (existingGuidIt != m_Guids.end()) {
-					handle = existingGuidIt->second;
-				}
+			else if (handle != 0 && Contains(handle)) {
+				return 0;
 			}
 
 			if (handle == 0) {

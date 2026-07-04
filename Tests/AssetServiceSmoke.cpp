@@ -10,6 +10,14 @@
 #include "HuaEngine/Project/ProjectService.h"
 
 namespace {
+	class FakeTexture2D final : public HE::Rendering::Texture2D {
+	public:
+		uint32_t GetRenderID() const override { return 0; }
+		uint32_t GetWidth() const override { return 1; }
+		uint32_t GetHeight() const override { return 1; }
+		void Bind(uint32_t slot = 0) override { (void)slot; }
+	};
+
 	void Require(bool condition, const std::string& message) {
 		if (!condition) {
 			std::cerr << "[AssetServiceSmoke] " << message << std::endl;
@@ -17,10 +25,43 @@ namespace {
 		}
 	}
 
+	void WriteFileText(const std::filesystem::path& path, const std::string& text) {
+		std::filesystem::create_directories(path.parent_path());
+		std::ofstream stream(path, std::ios::out | std::ios::binary | std::ios::trunc);
+		Require(stream.good(), "Expected file write to succeed: " + path.generic_string());
+		stream << text;
+	}
+
 	std::string ReadFileText(const std::filesystem::path& path) {
 		std::ifstream stream(path, std::ios::in | std::ios::binary);
 		Require(stream.good(), "Expected file read to succeed: " + path.generic_string());
 		return std::string((std::istreambuf_iterator<char>(stream)), std::istreambuf_iterator<char>());
+	}
+
+	HE::AssetManifestRecord MakeManifestRecord(
+		const HE::AssetGuid& guid,
+		std::string assetId,
+		HE::AssetKind kind = HE::AssetKind::Mesh,
+		HE::AssetSource source = HE::AssetSource::File) {
+		HE::AssetManifestRecord record;
+		record.Guid = guid;
+		record.AssetId = std::move(assetId);
+		record.Kind = kind;
+		record.Source = source;
+		record.RelativePath = record.AssetId;
+		record.ImportState = source == HE::AssetSource::Builtin ? HE::AssetImportState::Builtin : HE::AssetImportState::Registered;
+		return record;
+	}
+
+	HE::AssetRecord MakeRegistryRecord(const HE::AssetGuid& guid, std::string assetId) {
+		HE::AssetRecord record;
+		record.Guid = guid;
+		record.AssetId = std::move(assetId);
+		record.Kind = HE::AssetKind::Mesh;
+		record.Source = HE::AssetSource::File;
+		record.RelativePath = record.AssetId;
+		record.ImportState = HE::AssetImportState::Registered;
+		return record;
 	}
 }
 
@@ -78,6 +119,75 @@ int main() {
 	Require(manifest.FindByGuid(HE::BuiltinAssetGuids::FallbackMaterial) != nullptr, "Expected builtin fallback material GUID");
 	Require(manifest.FindByAssetId("builtin/mesh/quad") != nullptr, "Expected builtin quad asset id lookup");
 
+	HE::AssetManifest upsertManifest;
+	Require(upsertManifest.Upsert(MakeManifestRecord("guid-a", "Meshes/A.mesh")), "Expected manifest initial upsert to succeed");
+	Require(upsertManifest.Upsert(MakeManifestRecord("guid-a", "Meshes/A.mesh", HE::AssetKind::Material)), "Expected manifest exact key update to succeed");
+	Require(!upsertManifest.Upsert(MakeManifestRecord("guid-b", "Meshes/A.mesh")), "Expected manifest asset id replacement to be rejected");
+	Require(!upsertManifest.Upsert(MakeManifestRecord("guid-a", "Meshes/B.mesh")), "Expected manifest guid replacement to be rejected");
+	Require(upsertManifest.Upsert(MakeManifestRecord("guid-b", "Meshes/B.mesh")), "Expected second manifest record to succeed");
+	Require(!upsertManifest.Upsert(MakeManifestRecord("guid-a", "Meshes/B.mesh")), "Expected manifest cross-index conflict to be rejected");
+	Require(upsertManifest.FindByGuid("guid-a")->AssetId == "Meshes/A.mesh", "Expected manifest guid index to remain stable after rejected conflicts");
+	Require(upsertManifest.FindByAssetId("Meshes/B.mesh")->Guid == "guid-b", "Expected manifest asset id index to remain stable after rejected conflicts");
+
+	HE::AssetRegistry upsertRegistry;
+	const auto registryHandleA = upsertRegistry.Upsert(MakeRegistryRecord("reg-guid-a", "Meshes/A.mesh"));
+	Require(registryHandleA != 0, "Expected registry initial upsert to succeed");
+	const auto registryHandleAUpdate = upsertRegistry.Upsert(MakeRegistryRecord("reg-guid-a", "Meshes/A.mesh"));
+	Require(registryHandleAUpdate == registryHandleA, "Expected registry exact key update to preserve handle");
+	Require(upsertRegistry.Upsert(MakeRegistryRecord("reg-guid-b", "Meshes/A.mesh")) == 0, "Expected registry asset id replacement to be rejected");
+	Require(upsertRegistry.Upsert(MakeRegistryRecord("reg-guid-a", "Meshes/B.mesh")) == 0, "Expected registry guid replacement to be rejected");
+	const auto registryHandleB = upsertRegistry.Upsert(MakeRegistryRecord("reg-guid-b", "Meshes/B.mesh"));
+	Require(registryHandleB != 0, "Expected second registry record to succeed");
+	Require(upsertRegistry.Upsert(MakeRegistryRecord("reg-guid-a", "Meshes/B.mesh")) == 0, "Expected registry cross-index conflict to be rejected");
+	Require(upsertRegistry.FindByGuid("reg-guid-a")->AssetId == "Meshes/A.mesh", "Expected registry guid index to remain stable after rejected conflicts");
+	Require(upsertRegistry.Find("Meshes/B.mesh")->Guid == "reg-guid-b", "Expected registry asset id index to remain stable after rejected conflicts");
+
+	const auto originalManifestText = ReadFileText(manifestPath);
+	WriteFileText(manifestPath, "{ \"version\": 1, \"assets\": [ { \"guid\": \"bad-guid\" } ] }");
+	HE::AssetManifest badManifest;
+	auto badManifestResult = HE::LoadOrCreateAssetManifest(projectContext, badManifest);
+	Require(badManifestResult.Failed(), "Expected malformed manifest to fail instead of being overwritten");
+	Require(ReadFileText(manifestPath).find("bad-guid") != std::string::npos, "Expected malformed manifest to remain on disk after failed load");
+
+	WriteFileText(manifestPath,
+		"{\n"
+		"  \"version\": 1,\n"
+		"  \"assets\": [\n"
+		"    { \"guid\": \"dup-guid\", \"asset_id\": \"Meshes/A.mesh\", \"kind\": \"mesh\", \"source\": \"file\", \"relative_path\": \"Meshes/A.mesh\", \"builtin_name\": \"\", \"import_state\": \"registered\" },\n"
+		"    { \"guid\": \"dup-guid\", \"asset_id\": \"Meshes/B.mesh\", \"kind\": \"mesh\", \"source\": \"file\", \"relative_path\": \"Meshes/B.mesh\", \"builtin_name\": \"\", \"import_state\": \"registered\" }\n"
+		"  ]\n"
+		"}\n");
+	Require(HE::LoadAssetManifest(projectContext, badManifest).Failed(), "Expected duplicate manifest GUID to fail load");
+
+	WriteFileText(manifestPath,
+		"{\n"
+		"  \"version\": 1,\n"
+		"  \"assets\": [\n"
+		"    { \"guid\": \"guid-a\", \"asset_id\": \"Meshes/A.mesh\", \"kind\": \"mesh\", \"source\": \"file\", \"relative_path\": \"Meshes/A.mesh\", \"builtin_name\": \"\", \"import_state\": \"registered\" },\n"
+		"    { \"guid\": \"guid-b\", \"asset_id\": \"Meshes/A.mesh\", \"kind\": \"mesh\", \"source\": \"file\", \"relative_path\": \"Meshes/A.mesh\", \"builtin_name\": \"\", \"import_state\": \"registered\" }\n"
+		"  ]\n"
+		"}\n");
+	Require(HE::LoadAssetManifest(projectContext, badManifest).Failed(), "Expected duplicate manifest asset id to fail load");
+
+	WriteFileText(manifestPath,
+		"{\n"
+		"  \"version\": 1,\n"
+		"  \"assets\": [\n"
+		"    { \"guid\": \"bad-enum\", \"asset_id\": \"Meshes/A.mesh\", \"kind\": \"invalid\", \"source\": \"file\", \"relative_path\": \"Meshes/A.mesh\", \"builtin_name\": \"\", \"import_state\": \"registered\" }\n"
+		"  ]\n"
+		"}\n");
+	Require(HE::LoadAssetManifest(projectContext, badManifest).Failed(), "Expected invalid manifest enum to fail load");
+
+	WriteFileText(manifestPath,
+		"{\n"
+		"  \"version\": 1,\n"
+		"  \"assets\": [\n"
+		"    { \"guid\": \"bad-path\", \"asset_id\": \"Meshes/A.mesh\", \"kind\": \"mesh\", \"source\": \"file\", \"relative_path\": \"../A.mesh\", \"builtin_name\": \"\", \"import_state\": \"registered\" }\n"
+		"  ]\n"
+		"}\n");
+	Require(HE::LoadAssetManifest(projectContext, badManifest).Failed(), "Expected escaping manifest relative path to fail load");
+	WriteFileText(manifestPath, originalManifestText);
+
 	HE::AssetService assetService;
 
 	HE::AssetHandle meshHandle = 0;
@@ -131,6 +241,11 @@ int main() {
 
 	auto missingTextureResult = assetService.RegisterTextureAsset(projectContext, "Textures/MissingTexture.txt");
 	Require(missingTextureResult.RequiresManualIntervention(), "Expected missing texture source file to require manual intervention");
+
+	HE::AssetHandle runtimeOnlyTextureHandle = 0;
+	auto runtimeOnlyTextureResult = assetService.RegisterTextureAsset(projectContext, "Textures/RuntimeOnlyTexture.txt", HE::CreateRef<FakeTexture2D>(), &runtimeOnlyTextureHandle);
+	Require(runtimeOnlyTextureResult.RequiresManualIntervention(), "Expected runtime-only texture registration to require manual intervention");
+	Require(runtimeOnlyTextureHandle == 0, "Expected runtime-only texture registration to avoid assigning a handle");
 
 	HE::AssetRecord missingRecord;
 	auto missingAssetResult = assetService.ResolveAsset(static_cast<HE::AssetHandle>(9999), missingRecord);
