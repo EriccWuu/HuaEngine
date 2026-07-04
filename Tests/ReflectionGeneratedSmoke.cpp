@@ -25,6 +25,16 @@ namespace {
 
 		return false;
 	}
+
+	bool HasField(std::span<const HE::Refl::RuntimeFieldDescriptor> fields, std::string_view name) {
+		for (const HE::Refl::RuntimeFieldDescriptor& field : fields) {
+			if (field.Name == name) {
+				return true;
+			}
+		}
+
+		return false;
+	}
 }
 
 int main() {
@@ -40,6 +50,9 @@ int main() {
 	const auto* transformRuntime = HE::Refl::FindRuntimeType("HE::TransformComponent");
 	Require(transformRuntime != nullptr, "Expected runtime reflection descriptor for TransformComponent");
 	Require(transformRuntime->Fields.size() == 3, "Expected TransformComponent runtime fields");
+	Require(HasField(transformRuntime->Fields, "Position"), "Expected TransformComponent runtime Position field");
+	Require(HasField(transformRuntime->Fields, "Rotation"), "Expected TransformComponent runtime Rotation field");
+	Require(HasField(transformRuntime->Fields, "Scale"), "Expected TransformComponent runtime Scale field");
 
 	const HE::Generated::ReflectedTypeInfo* mesh = HE::Generated::FindReflectedType("HE::Rendering::MeshComponent");
 	Require(mesh != nullptr, "Expected to find HE::Rendering::MeshComponent");
