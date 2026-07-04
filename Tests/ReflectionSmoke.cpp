@@ -1,9 +1,12 @@
 #include <cstdlib>
 #include <iostream>
+#include <span>
 #include <string>
+#include <string_view>
 
 #include "HuaEngine/ECS/Components.h"
 #include "HuaEngine/Reflection/Reflection.h"
+#include "HuaEngine/Serialization/Serialization.h"
 
 namespace {
 	void Require(bool condition, const std::string& message) {
@@ -12,41 +15,58 @@ namespace {
 			std::exit(1);
 		}
 	}
+
+	bool HasRuntimeField(
+		std::span<const HE::Refl::RuntimeFieldDescriptor> fields,
+		std::string_view name,
+		std::string_view type) {
+		for (const HE::Refl::RuntimeFieldDescriptor& field : fields) {
+			if (field.Name == name && field.Type == type) {
+				return true;
+			}
+		}
+
+		return false;
+	}
 }
 
 int main() {
-	HE::TransformComponent transform;
-	transform.Position = { 1.0f, 2.0f, 3.0f };
-	transform.Rotation = { 4.0f, 5.0f, 6.0f };
-	transform.Scale = { 7.0f, 8.0f, 9.0f };
+	const HE::Refl::RuntimeTypeDescriptor* transformType = HE::Refl::FindRuntimeType("HE::TransformComponent");
+	Require(transformType != nullptr, "Expected runtime descriptor for HE::TransformComponent");
+	Require(transformType->Name == "TransformComponent", "Expected TransformComponent runtime descriptor name");
+	Require(transformType->Kind == "component", "Expected TransformComponent runtime descriptor kind");
+	Require(transformType->DisplayName == "Transform", "Expected TransformComponent runtime display name");
+	Require(transformType->Category == "Core", "Expected TransformComponent runtime category");
+	Require(transformType->TypeId == HE::ComponentTypeIdOf<HE::TransformComponent>(), "Expected TransformComponent runtime type id");
+	Require(transformType->Size == sizeof(HE::TransformComponent), "Expected TransformComponent runtime size");
+	Require(transformType->Fields.size() == 3, "Expected TransformComponent runtime descriptor to expose three fields");
+	Require(HasRuntimeField(transformType->Fields, "Position", "glm::vec3"), "Expected runtime Position field");
+	Require(HasRuntimeField(transformType->Fields, "Rotation", "glm::vec3"), "Expected runtime Rotation field");
+	Require(HasRuntimeField(transformType->Fields, "Scale", "glm::vec3"), "Expected runtime Scale field");
+	Require(transformType->Serialize != nullptr, "Expected TransformComponent runtime serializer");
+	Require(transformType->Deserialize != nullptr, "Expected TransformComponent runtime deserializer");
 
-	auto typeInfo = HE::Refl::reflect<HE::TransformComponent>();
+	HE::TransformComponent sourceTransform;
+	sourceTransform.Position = { 1.0f, 2.0f, 3.0f };
+	sourceTransform.Rotation = { 4.0f, 5.0f, 6.0f };
+	sourceTransform.Scale = { 7.0f, 8.0f, 9.0f };
 
-	uint32_t fieldCount = 0;
-	typeInfo.visit_member_variables([&](auto&& field) {
-		++fieldCount;
-		const std::string fieldName(field.name());
-		if (fieldName == "Position") {
-			Require(field.GetValue(&transform).x == 1.0f, "Expected reflected Position to read original value");
-			field.SetValue(&transform, glm::vec3{ 10.0f, 11.0f, 12.0f });
-		}
-		else if (fieldName == "Rotation") {
-			Require(field.GetValue(&transform).y == 5.0f, "Expected reflected Rotation to read original value");
-			field.SetValue(&transform, glm::vec3{ 13.0f, 14.0f, 15.0f });
-		}
-		else if (fieldName == "Scale") {
-			Require(field.GetValue(&transform).z == 9.0f, "Expected reflected Scale to read original value");
-			field.SetValue(&transform, glm::vec3{ 16.0f, 17.0f, 18.0f });
-		}
-		else {
-			Require(false, "Unexpected reflected TransformComponent field: " + fieldName);
-		}
-	});
+	HE::Serialization::JsonSerializationBackend writeBackend;
+	transformType->Serialize(writeBackend, std::string(transformType->Name), &sourceTransform);
+	const std::string transformJson = writeBackend.SaveToString();
+	Require(transformJson.find("\"Position\"") != std::string::npos, "Expected runtime serialization to emit Position");
+	Require(transformJson.find("\"Rotation\"") != std::string::npos, "Expected runtime serialization to emit Rotation");
+	Require(transformJson.find("\"Scale\"") != std::string::npos, "Expected runtime serialization to emit Scale");
 
-	Require(fieldCount == 3, "Expected TransformComponent to expose three reflected fields");
-	Require(transform.Position == glm::vec3(10.0f, 11.0f, 12.0f), "Expected reflected Position write to update component");
-	Require(transform.Rotation == glm::vec3(13.0f, 14.0f, 15.0f), "Expected reflected Rotation write to update component");
-	Require(transform.Scale == glm::vec3(16.0f, 17.0f, 18.0f), "Expected reflected Scale write to update component");
+	HE::TransformComponent loadedTransform;
+	HE::Serialization::JsonSerializationBackend readBackend;
+	readBackend.LoadFromString(transformJson);
+	Require(
+		transformType->Deserialize(readBackend, std::string(transformType->Name), &loadedTransform),
+		"Expected runtime deserialization to succeed");
+	Require(loadedTransform.Position == sourceTransform.Position, "Expected runtime Position to round-trip");
+	Require(loadedTransform.Rotation == sourceTransform.Rotation, "Expected runtime Rotation to round-trip");
+	Require(loadedTransform.Scale == sourceTransform.Scale, "Expected runtime Scale to round-trip");
 
 	std::cout << "ReflectionSmoke passed" << std::endl;
 	return 0;

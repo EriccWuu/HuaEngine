@@ -395,6 +395,19 @@ namespace {
 
 		ValidateGeneratedDriftFixture(reflectionToolPath, workspaceRoot);
 	}
+
+	void ExpectNoLegacyGeneratedIncludeMarkers(const std::filesystem::path& path, const std::string& label) {
+		const std::string content = ReadTextFile(path);
+		Expect(
+			content.find("Generated/Reflection") == std::string::npos,
+			label + " should not include legacy per-source generated reflection headers");
+		Expect(
+			content.find("HE_GENERATED_REFLECTION_SOURCE_") == std::string::npos,
+			label + " should not contain legacy generated reflection source macro wrappers");
+		Expect(
+			content.find(".generated.h") == std::string::npos,
+			label + " should not include generated reflection header fragments");
+	}
 }
 
 int main() {
@@ -438,19 +451,15 @@ int main() {
 	RunNegativeValidationSmoke(repositoryRoot, reflectionToolPath);
 
 	const auto generatedReflectionDirectory = repositoryRoot / "HuaEngine" / "src" / "HuaEngine" / "Generated";
-	const auto ecsGeneratedHeader = generatedReflectionDirectory / "Reflection" / "HuaEngine_ECS_Components.generated.h";
-	const auto renderingGeneratedHeader = generatedReflectionDirectory / "Reflection" / "Module_Rendering_RenderingComponent.generated.h";
-	Expect(std::filesystem::exists(ecsGeneratedHeader), "ECS per-source generated reflection header should exist");
-	Expect(std::filesystem::exists(renderingGeneratedHeader), "Rendering per-source generated reflection header should exist");
-	Expect(
-		ReadTextFile(repositoryRoot / "HuaEngine" / "src" / "HuaEngine" / "ECS" / "Components.h").find("HE_GENERATED_REFLECTION_SOURCE_") == std::string::npos,
-		"Components.h should include a per-source generated header without source macro wrappers");
-	Expect(
-		ReadTextFile(repositoryRoot / "HuaEngine" / "src" / "Module" / "Rendering" / "RenderingComponent.h").find("HE_GENERATED_REFLECTION_SOURCE_") == std::string::npos,
-		"RenderingComponent.h should include a per-source generated header without source macro wrappers");
+	ExpectNoLegacyGeneratedIncludeMarkers(
+		repositoryRoot / "HuaEngine" / "src" / "HuaEngine" / "ECS" / "Components.h",
+		"Components.h");
+	ExpectNoLegacyGeneratedIncludeMarkers(
+		repositoryRoot / "HuaEngine" / "src" / "Module" / "Rendering" / "RenderingComponent.h",
+		"RenderingComponent.h");
 	Expect(
 		ReadTextFile(generatedReflectionDirectory / "GeneratedReflection.h").find("srefl_class(") == std::string::npos,
-		"GeneratedReflection.h should contain metadata declarations only; srefl_class blocks belong in per-source generated headers");
+		"GeneratedReflection.h should contain runtime descriptor declarations only; generated component implementations belong in GeneratedReflection.cpp");
 
 	std::cout << "ReflectionToolSmoke passed" << std::endl;
 	return 0;
