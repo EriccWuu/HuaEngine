@@ -111,6 +111,10 @@ int main() {
 	Require(importTexture.Payload.find("source_only") != importTexture.Payload.end(), "Expected texture import to report source_only payload");
 
 	HE::AssetHandle meshHandle = 0;
+	const auto registeredMeshPath = projectContext.GetAssetRootPath() / "Meshes" / "OperationsQuad.mesh";
+	std::filesystem::create_directories(registeredMeshPath.parent_path(), errorCode);
+	Require(!errorCode, "Expected registered mesh directory creation to succeed");
+	Require(HE::Mesh::SaveToFile(*runtimeMesh, registeredMeshPath.string()), "Expected registered mesh fixture to be saved");
 	auto registerMesh = operations.RegisterMeshAsset(projectContext, "Meshes/OperationsQuad.mesh", runtimeMesh, &meshHandle);
 	Require(registerMesh.Succeeded(), "Expected asset.register_mesh to succeed through ApplicationOperations");
 	Require(meshHandle != 0, "Expected asset.register_mesh to assign a stable asset handle");

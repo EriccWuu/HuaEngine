@@ -60,6 +60,10 @@ int main() {
 		.WorkingDirectory = smokeRoot
 	});
 	Require(assetCreate.Result.Succeeded(), "Expected asset.create_builtin_mesh to succeed");
+	Require(assetCreate.Result.Payload.find("asset_guid") != assetCreate.Result.Payload.end(), "Expected asset create payload to include asset guid");
+	Require(!assetCreate.Result.Payload.at("asset_guid").empty(), "Expected asset create payload to include asset guid");
+	Require(assetCreate.Result.Payload.find("asset_handle") != assetCreate.Result.Payload.end(), "Expected runtime handle payload");
+	Require(assetCreate.Result.Payload.at("asset_handle") != "0", "Expected runtime handle payload");
 
 	auto sceneCreate = adapter.Invoke({
 		.Operation = "scene.create",

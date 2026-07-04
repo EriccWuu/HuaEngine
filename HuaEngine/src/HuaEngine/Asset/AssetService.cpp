@@ -623,20 +623,29 @@ namespace HE {
 			return result;
 		}
 
+		AssetResolver resolver(const_cast<AssetService&>(*this));
 		m_Registry.ForEachRecord([&](const AssetRecord& record) {
 			++report.TotalAssets;
 
 			switch (record.Kind) {
 			case AssetKind::Mesh:
 				++report.MeshAssets;
-				if (record.Source != AssetSource::Builtin && !Rendering::MeshManager::Instance().GetMesh(record.AssetId)) {
-					++report.MeshAssetsMissingRuntimePayload;
+				{
+					Ref<Rendering::Mesh> mesh;
+					const auto resolveResult = resolver.ResolveMesh(record.Guid, mesh);
+					if (!resolveResult.Succeeded() || !mesh) {
+						++report.MeshAssetsMissingRuntimePayload;
+					}
 				}
 				break;
 			case AssetKind::Material:
 				++report.MaterialAssets;
-				if (record.Source != AssetSource::Builtin && !Rendering::MaterialLibrary::Instance().GetMaterial(record.AssetId)) {
-					++report.MaterialAssetsMissingRuntimePayload;
+				{
+					Ref<Rendering::Material> material;
+					const auto resolveResult = resolver.ResolveMaterial(record.Guid, material);
+					if (!resolveResult.Succeeded() || !material) {
+						++report.MaterialAssetsMissingRuntimePayload;
+					}
 				}
 				break;
 			case AssetKind::Texture2D:
@@ -653,6 +662,12 @@ namespace HE {
 
 			if (!record.IsOperational()) {
 				++report.InvalidAssetRecords;
+			}
+			if (record.Source == AssetSource::File && !record.ExistsOnDisk) {
+				++report.MissingFileAssets;
+			}
+			if (record.Guid == BuiltinAssetGuids::FallbackMesh || record.Guid == BuiltinAssetGuids::FallbackMaterial) {
+				++report.FallbackAssets;
 			}
 
 			const auto resolvedAbsolutePath = record.AbsolutePath.empty()
@@ -671,12 +686,16 @@ namespace HE {
 			? ResultEnvelope::Success("asset.validate", context.GetTargetId(), "Asset registry is operational")
 			: ResultEnvelope::ManualIntervention("asset.validate", context.GetTargetId(), "Asset registry requires intervention");
 		result.SetPayloadValue("asset_count", CountToString(report.TotalAssets));
+		result.SetPayloadValue("metadata_issue_count", CountToString(report.MetadataIssueCount()));
+		result.SetPayloadValue("runtime_issue_count", CountToString(report.RuntimeIssueCount()));
+		result.SetPayloadValue("fallback_asset_count", CountToString(report.FallbackAssets));
 		result.SetPayloadValue("mesh_asset_count", CountToString(report.MeshAssets));
 		result.SetPayloadValue("material_asset_count", CountToString(report.MaterialAssets));
 		result.SetPayloadValue("texture_asset_count", CountToString(report.TextureAssets));
 		result.SetPayloadValue("unknown_kind_asset_count", CountToString(report.UnknownKindAssets));
 		result.SetPayloadValue("invalid_asset_record_count", CountToString(report.InvalidAssetRecords));
 		result.SetPayloadValue("assets_outside_project_root", CountToString(report.AssetsOutsideProjectRoot));
+		result.SetPayloadValue("missing_file_asset_count", CountToString(report.MissingFileAssets));
 		result.SetPayloadValue("mesh_assets_missing_runtime_payload", CountToString(report.MeshAssetsMissingRuntimePayload));
 		result.SetPayloadValue("material_assets_missing_runtime_payload", CountToString(report.MaterialAssetsMissingRuntimePayload));
 		result.SetPayloadValue("source_only_texture_asset_count", CountToString(report.SourceOnlyTextureAssets));
@@ -689,6 +708,9 @@ namespace HE {
 		}
 		if (report.AssetsOutsideProjectRoot > 0) {
 			result.AddDetail({ DiagnosticSeverity::Error, "asset.path.outside_root", "One or more asset records resolve outside the project asset root", CountToString(report.AssetsOutsideProjectRoot) });
+		}
+		if (report.MissingFileAssets > 0) {
+			result.AddDetail({ DiagnosticSeverity::Error, "asset.file.missing", "One or more file asset records are missing on disk", CountToString(report.MissingFileAssets) });
 		}
 		if (report.MeshAssetsMissingRuntimePayload > 0) {
 			result.AddDetail({ DiagnosticSeverity::Warning, "asset.mesh.unloaded", "One or more mesh asset records are missing runtime mesh payloads", CountToString(report.MeshAssetsMissingRuntimePayload) });

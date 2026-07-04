@@ -41,19 +41,29 @@ int main() {
 
 	auto primaryEntity = scene.GetWorld().CreateEntity("Validation Entity");
 	primaryEntity.AddComponent<HE::TransformComponent>();
-	primaryEntity.AddComponent<HE::MeshComponent>("ValidationMesh");
+	HE::MeshAssetRef meshReference;
+	meshReference.Reference.Guid = HE::BuiltinAssetGuids::QuadMesh;
+	primaryEntity.AddComponent<HE::MeshComponent>(meshReference);
 	primaryEntity.AddComponent<HE::MaterialComponent>();
 
 	HE::AssetService assetService;
 	HE::AssetHandle meshHandle = 0;
 	const auto runtimeMesh = HE::Mesh::CreateQuad("ValidationQuad");
 	Require(static_cast<bool>(runtimeMesh), "Expected runtime mesh creation to succeed");
+	const auto meshAssetPath = projectContext.GetAssetRootPath() / "Meshes" / "ValidationQuad.mesh";
+	std::filesystem::create_directories(meshAssetPath.parent_path(), errorCode);
+	Require(!errorCode, "Expected validation mesh asset directory creation to succeed");
+	Require(HE::Mesh::SaveToFile(*runtimeMesh, meshAssetPath.generic_string()), "Expected validation mesh asset file save to succeed");
 	auto registerMeshResult = assetService.RegisterMeshAsset(projectContext, "Meshes/ValidationQuad.mesh", runtimeMesh, &meshHandle);
 	Require(registerMeshResult.Succeeded(), "Expected mesh asset registration to succeed");
 
 	HE::AssetHandle materialHandle = 0;
 	const auto runtimeMaterial = HE::Rendering::Material::Create("ValidationMaterial", HE::Rendering::MaterialType::Unlit);
 	Require(static_cast<bool>(runtimeMaterial), "Expected runtime material creation to succeed");
+	const auto materialAssetPath = projectContext.GetAssetRootPath() / "Materials" / "ValidationMaterial.mat";
+	std::filesystem::create_directories(materialAssetPath.parent_path(), errorCode);
+	Require(!errorCode, "Expected validation material asset directory creation to succeed");
+	Require(HE::Serialization::SaveMaterial(*runtimeMaterial, materialAssetPath.generic_string()), "Expected validation material asset file save to succeed");
 	auto registerMaterialResult = assetService.RegisterMaterialAsset(projectContext, "Materials/ValidationMaterial.mat", runtimeMaterial, &materialHandle);
 	Require(registerMaterialResult.Succeeded(), "Expected material asset registration to succeed");
 
@@ -70,16 +80,25 @@ int main() {
 	Require(healthyReport.DomainCount == 3, "Expected validation report to cover three domains");
 	Require(healthyReport.SuccessCount == 3, "Expected all three domains to validate successfully");
 	Require(healthyReport.ManualInterventionCount == 0, "Expected no domains to require manual intervention on the healthy path");
-	Require(healthyReport.AssetStatus.TotalAssets == 2, "Expected asset validation to see two registered assets");
+	Require(healthyReport.AssetStatus.TotalAssets == 8, "Expected asset validation to see builtin and registered assets");
+	Require(healthyReport.AssetStatus.MetadataIssueCount() == 0, "Expected healthy asset validation to report no metadata issues");
+	Require(healthyReport.AssetStatus.RuntimeIssueCount() == 0, "Expected healthy asset validation to report no runtime issues");
+	Require(healthyReport.AssetStatus.FallbackAssets == 2, "Expected asset validation to count fallback builtin assets");
 	RequirePayloadValue(healthyValidation, "project_status", "success");
 	RequirePayloadValue(healthyValidation, "scene_status", "success");
 	RequirePayloadValue(healthyValidation, "asset_status", "success");
+	RequirePayloadValue(healthyValidation, "asset_count", "8");
+	RequirePayloadValue(healthyValidation, "metadata_issue_count", "0");
+	RequirePayloadValue(healthyValidation, "runtime_issue_count", "0");
+	RequirePayloadValue(healthyValidation, "fallback_asset_count", "2");
 	RequirePayloadValue(healthyValidation, "can_continue_automatically", "true");
 
 	primaryEntity.RemoveComponent<HE::TransformComponent>();
 
 	HE::AssetRecord invalidAssetRecord;
+	invalidAssetRecord.Guid = "invalid-validation-asset";
 	invalidAssetRecord.Kind = HE::AssetKind::Unknown;
+	invalidAssetRecord.Source = HE::AssetSource::File;
 	invalidAssetRecord.AssetId = "Broken/Invalid.asset";
 	invalidAssetRecord.RelativePath = std::filesystem::path("Broken/Invalid.asset");
 	invalidAssetRecord.AbsolutePath = projectContext.GetAssetRootPath() / invalidAssetRecord.RelativePath;
@@ -94,8 +113,11 @@ int main() {
 	Require(degradedReport.ManualInterventionCount == 2, "Expected scene and asset domains to require manual intervention");
 	Require(degradedReport.SceneStatus.EntitiesMissingTransform == 1, "Expected degraded scene validation to detect one missing transform");
 	Require(degradedReport.AssetStatus.UnknownKindAssets == 1, "Expected degraded asset validation to detect one unknown-kind asset");
+	Require(degradedReport.AssetStatus.MetadataIssueCount() == 3, "Expected degraded asset validation to report metadata issues");
 	RequirePayloadValue(degradedValidation, "scene_status", "manual_intervention_required");
 	RequirePayloadValue(degradedValidation, "asset_status", "manual_intervention_required");
+	RequirePayloadValue(degradedValidation, "metadata_issue_count", "3");
+	RequirePayloadValue(degradedValidation, "runtime_issue_count", "0");
 	RequirePayloadValue(degradedValidation, "can_continue_automatically", "false");
 
 	HE::ValidationReport emptyReport;

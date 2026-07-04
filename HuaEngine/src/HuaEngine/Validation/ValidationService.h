@@ -15,7 +15,7 @@ namespace HE {
 	struct ValidationRequest {
 		const ProjectContext* Project = nullptr;
 		const Scene* SceneTarget = nullptr;
-		const AssetService* Assets = nullptr;
+		AssetService* Assets = nullptr;
 	};
 
 	struct ValidationReport {

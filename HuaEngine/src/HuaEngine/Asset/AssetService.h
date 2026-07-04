@@ -20,16 +20,27 @@ namespace HE {
 		uint32_t UnknownKindAssets = 0;
 		uint32_t InvalidAssetRecords = 0;
 		uint32_t AssetsOutsideProjectRoot = 0;
+		uint32_t MissingFileAssets = 0;
 		uint32_t MeshAssetsMissingRuntimePayload = 0;
 		uint32_t MaterialAssetsMissingRuntimePayload = 0;
 		uint32_t SourceOnlyTextureAssets = 0;
+		uint32_t FallbackAssets = 0;
 
 		[[nodiscard]] bool IsOperational() const {
 			return UnknownKindAssets == 0 &&
 				InvalidAssetRecords == 0 &&
 				AssetsOutsideProjectRoot == 0 &&
+				MissingFileAssets == 0 &&
 				MeshAssetsMissingRuntimePayload == 0 &&
 				MaterialAssetsMissingRuntimePayload == 0;
+		}
+
+		[[nodiscard]] uint32_t MetadataIssueCount() const {
+			return UnknownKindAssets + InvalidAssetRecords + AssetsOutsideProjectRoot + MissingFileAssets;
+		}
+
+		[[nodiscard]] uint32_t RuntimeIssueCount() const {
+			return MeshAssetsMissingRuntimePayload + MaterialAssetsMissingRuntimePayload;
 		}
 
 		[[nodiscard]] bool HasIssues() const {

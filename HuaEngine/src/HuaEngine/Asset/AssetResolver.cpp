@@ -5,6 +5,7 @@
 #include "HuaEngine/Rendering/Material/MaterialLibrary.h"
 #include "HuaEngine/Rendering/Shader/Shader.h"
 #include "HuaEngine/Serialization/Serialization.h"
+#include "glad/glad.h"
 
 namespace {
 	HE::ResultEnvelope MakeKindMismatchResult(std::string operation, const HE::AssetGuid& guid, HE::AssetKind expected, HE::AssetKind actual) {
@@ -75,6 +76,12 @@ namespace {
 			return nullptr;
 		}
 
+		if (glad_glCreateShader == nullptr) {
+			material->AddParameter(HE::Rendering::MaterialParameter("u_Color", HE::Rendering::MaterialParameterType::Vec4, color));
+			library.RegisterMaterial(name, material);
+			return material;
+		}
+
 		const std::string vertexSource = R"(
 #version 330 core
 layout(location = 0) in vec3 a_Position;
@@ -112,12 +119,12 @@ namespace HE {
 			return ResultEnvelope::Failure("asset.resolve_mesh", {}, "Mesh asset guid is empty");
 		}
 
-		if (auto cached = m_Service->GetRuntimeCache().FindMesh(guid)) {
-			outMesh = cached;
-			return ResultEnvelope::Success("asset.resolve_mesh", guid, "Mesh asset resolved from runtime cache");
-		}
-
 		if (!m_Service->IsManifestLoaded() && IsBuiltinGuid(guid)) {
+			if (auto cached = m_Service->GetRuntimeCache().FindMesh(guid)) {
+				outMesh = cached;
+				return ResultEnvelope::Success("asset.resolve_mesh", guid, "Mesh asset resolved from runtime cache");
+			}
+
 			auto mesh = CreateBuiltinMesh(MakeBuiltinRecord(guid));
 			if (mesh) {
 				m_Service->GetRuntimeCache().StoreMesh(guid, mesh);
@@ -147,6 +154,11 @@ namespace HE {
 		}
 		if (record->Source != AssetSource::Builtin && record->Source != AssetSource::File) {
 			return MakeUnsupportedSourceResult("asset.resolve_mesh", guid, record->Source);
+		}
+
+		if (auto cached = m_Service->GetRuntimeCache().FindMesh(guid)) {
+			outMesh = cached;
+			return ResultEnvelope::Success("asset.resolve_mesh", guid, "Mesh asset resolved from runtime cache");
 		}
 
 		Ref<Rendering::Mesh> mesh = nullptr;
@@ -182,12 +194,12 @@ namespace HE {
 			return ResultEnvelope::Failure("asset.resolve_material", {}, "Material asset guid is empty");
 		}
 
-		if (auto cached = m_Service->GetRuntimeCache().FindMaterial(guid)) {
-			outMaterial = cached;
-			return ResultEnvelope::Success("asset.resolve_material", guid, "Material asset resolved from runtime cache");
-		}
-
 		if (!m_Service->IsManifestLoaded() && IsBuiltinGuid(guid)) {
+			if (auto cached = m_Service->GetRuntimeCache().FindMaterial(guid)) {
+				outMaterial = cached;
+				return ResultEnvelope::Success("asset.resolve_material", guid, "Material asset resolved from runtime cache");
+			}
+
 			auto material = CreateBuiltinMaterial(MakeBuiltinRecord(guid));
 			if (material) {
 				m_Service->GetRuntimeCache().StoreMaterial(guid, material);
@@ -217,6 +229,11 @@ namespace HE {
 		}
 		if (record->Source != AssetSource::Builtin && record->Source != AssetSource::File) {
 			return MakeUnsupportedSourceResult("asset.resolve_material", guid, record->Source);
+		}
+
+		if (auto cached = m_Service->GetRuntimeCache().FindMaterial(guid)) {
+			outMaterial = cached;
+			return ResultEnvelope::Success("asset.resolve_material", guid, "Material asset resolved from runtime cache");
 		}
 
 		Ref<Rendering::Material> material = nullptr;

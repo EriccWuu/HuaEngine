@@ -31,6 +31,12 @@ namespace {
 		}
 	}
 
+	void CopyPayloadIfMissing(HE::ResultEnvelope& destination, const HE::ResultEnvelope& source) {
+		for (const auto& [key, value] : source.Payload) {
+			destination.Payload.try_emplace(key, value);
+		}
+	}
+
 	void AccumulateStatus(HE::ValidationReport& report, const HE::ResultEnvelope& child) {
 		++report.DomainCount;
 		if (child.Succeeded()) {
@@ -92,7 +98,15 @@ namespace {
 				report.AssetResult.AddDetail({ DiagnosticSeverity::Error, "validation.assets.project_missing", "Asset validation requires a loaded project context in the validation request", {} });
 			}
 			else {
-				report.AssetResult = request.Assets->ValidateRegistry(*request.Project, &report.AssetStatus);
+				if (!request.Assets->IsManifestLoaded()) {
+					report.AssetResult = request.Assets->LoadOrCreateManifest(*request.Project);
+				}
+				if (report.AssetResult.Failed()) {
+					report.AssetResult.Operation = "asset.validate";
+				}
+				else {
+					report.AssetResult = request.Assets->ValidateRegistry(*request.Project, &report.AssetStatus);
+				}
 			}
 			AccumulateStatus(report, report.AssetResult);
 		}
@@ -121,6 +135,7 @@ namespace {
 		}
 		if (report.IncludesAssets) {
 			result.SetPayloadValue("asset_status", std::string(ToString(report.AssetResult.Status)));
+			CopyPayloadIfMissing(result, report.AssetResult);
 			AppendChildDiagnostics(result, "asset", report.AssetResult);
 		}
 		if (outReport) {
