@@ -198,6 +198,18 @@ namespace HE::CLI {
 			{ ValueOption("--project", "Project path or child path.") }
 		});
 		Register({
+			{ "asset", "resolve" },
+			CLICommandDomain::Asset,
+			"asset.resolve",
+			"Resolve a project asset by GUID or asset id.",
+			"asset resolve --project <path> (--guid <asset-guid> | --asset-id <asset-id>)",
+			{
+				ValueOption("--project", "Project path or child path."),
+				ValueOption("--guid", "Asset GUID."),
+				ValueOption("--asset-id", "Asset id.")
+			}
+		});
+		Register({
 			{ "asset", "validate" },
 			CLICommandDomain::Asset,
 			"asset.validate",

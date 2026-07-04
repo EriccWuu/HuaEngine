@@ -168,6 +168,14 @@ namespace HE {
 
 		[[nodiscard]] ResultEnvelope ResolveAsset(AssetHandle handle, AssetRecord& outRecord) const;
 		[[nodiscard]] ResultEnvelope ResolveAsset(std::string_view assetId, AssetRecord& outRecord) const;
+		[[nodiscard]] ResultEnvelope ResolveAsset(
+			const ProjectContext& context,
+			std::string_view assetId,
+			AssetRecord& outRecord) const;
+		[[nodiscard]] ResultEnvelope ResolveAssetByGuid(
+			const ProjectContext& context,
+			const AssetGuid& guid,
+			AssetRecord& outRecord) const;
 		[[nodiscard]] ResultEnvelope ResolveMeshAsset(AssetHandle handle, Ref<Rendering::Mesh>& outMesh) const;
 		[[nodiscard]] ResultEnvelope ResolveMaterialAsset(AssetHandle handle, Ref<Rendering::Material>& outMaterial) const;
 		[[nodiscard]] ResultEnvelope ResolveTextureAsset(AssetHandle handle, Ref<Rendering::Texture2D>& outTexture) const;

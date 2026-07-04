@@ -34,7 +34,7 @@ namespace HE::CLI {
 	ResultEnvelope MakeUsageError(std::string_view summary, std::string_view context) {
 		auto result = ResultEnvelope::Failure("cli.usage", "command_line", std::string(summary));
 		result.AddDetail({ DiagnosticSeverity::Error, "cli.usage.invalid", std::string(summary), std::string(context) });
-		result.AddDetail({ DiagnosticSeverity::Info, "cli.usage.example", "Supported commands include: ops list, project init, project status, scene create, scene validate, scene entity create/delete, scene component add/remove, asset register-default-mesh, asset validate, reflection scan/generate/validate, validation run", {} });
+		result.AddDetail({ DiagnosticSeverity::Info, "cli.usage.example", "Supported commands include: ops list, project init, project status, scene create, scene validate, scene entity create/delete, scene component add/remove, asset register-default-mesh, asset resolve, asset validate, reflection scan/generate/validate, validation run", {} });
 		return result;
 	}
 

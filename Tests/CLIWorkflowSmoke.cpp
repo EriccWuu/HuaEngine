@@ -19,6 +19,7 @@ namespace {
 		std::vector<std::string> Arguments;
 		std::vector<std::string> ExpectedFragments;
 		std::vector<std::filesystem::path> ExpectedArtifacts;
+		DWORD ExpectedExitCode = 0;
 	};
 
 	void Expect(bool condition, const std::string& message) {
@@ -237,6 +238,58 @@ int main() {
 			{}
 		},
 		{
+			"asset resolve builtin by guid",
+			{ "asset", "resolve", "--project", tempRoot.string(), "--guid", "builtin-mesh-quad" },
+			{
+				"\"operation\":\"asset.resolve\"",
+				"\"status\":\"success\"",
+				"\"asset_guid\":\"builtin-mesh-quad\"",
+				"\"asset_id\":\"builtin/mesh/quad\"",
+				"\"asset_kind\":\"mesh\"",
+				"\"asset_source\":\"builtin\"",
+				"\"asset_handle\":\"",
+				"\"import_state\":\"builtin\""
+			},
+			{}
+		},
+		{
+			"asset resolve builtin by asset-id",
+			{ "asset", "resolve", "--project", tempRoot.string(), "--asset-id", "builtin/mesh/quad" },
+			{
+				"\"operation\":\"asset.resolve\"",
+				"\"status\":\"success\"",
+				"\"asset_guid\":\"builtin-mesh-quad\"",
+				"\"asset_id\":\"builtin/mesh/quad\"",
+				"\"asset_kind\":\"mesh\"",
+				"\"asset_source\":\"builtin\"",
+				"\"asset_handle\":\"",
+				"\"import_state\":\"builtin\""
+			},
+			{}
+		},
+		{
+			"asset resolve missing guid",
+			{ "asset", "resolve", "--project", tempRoot.string(), "--guid", "missing-guid" },
+			{
+				"\"operation\":\"asset.resolve\"",
+				"\"status\":\"failure\"",
+				"Asset guid was not found"
+			},
+			{},
+			1
+		},
+		{
+			"asset resolve rejects ambiguous query",
+			{ "asset", "resolve", "--project", tempRoot.string(), "--guid", "builtin-mesh-quad", "--asset-id", "builtin/mesh/quad" },
+			{
+				"\"operation\":\"cli.usage\"",
+				"\"status\":\"failure\"",
+				"asset resolve accepts either --guid or --asset-id, not both"
+			},
+			{},
+			1
+		},
+		{
 			"asset register-default-mesh",
 			{ "asset", "register-default-mesh", "--project", tempRoot.string(), "--asset-id", "primitives/quad.mesh", "--primitive", "quad" },
 			{
@@ -297,7 +350,7 @@ int main() {
 
 	for (const auto& step : workflow) {
 		const auto result = RunCLICommand(cliExecutable, step.Arguments, binaryDirectory);
-		Expect(result.ExitCode == 0, step.Name + " should exit with code 0\n" + result.Output);
+		Expect(result.ExitCode == step.ExpectedExitCode, step.Name + " should exit with code " + std::to_string(step.ExpectedExitCode) + "\n" + result.Output);
 
 		for (const auto& fragment : step.ExpectedFragments) {
 			ExpectContains(result.Output, fragment, step.Name);

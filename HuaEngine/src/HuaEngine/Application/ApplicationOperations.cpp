@@ -499,6 +499,50 @@ namespace HE {
 		return m_Services->Assets().ResolveAsset(assetId, outRecord);
 	}
 
+	ResultEnvelope ApplicationOperations::ResolveAsset(
+		const ProjectContext& context,
+		std::string_view assetId,
+		AssetRecord& outRecord) const
+	{
+		if (!m_Services->Assets().IsManifestLoaded()) {
+			auto manifestResult = m_Services->Assets().LoadManifestReadOnly(context);
+			if (!manifestResult.Succeeded()) {
+				manifestResult.Operation = "asset.resolve";
+				return manifestResult;
+			}
+		}
+
+		return ResolveAsset(assetId, outRecord);
+	}
+
+	ResultEnvelope ApplicationOperations::ResolveAssetByGuid(
+		const ProjectContext& context,
+		const AssetGuid& guid,
+		AssetRecord& outRecord) const
+	{
+		if (!m_Services->Assets().IsManifestLoaded()) {
+			auto manifestResult = m_Services->Assets().LoadManifestReadOnly(context);
+			if (!manifestResult.Succeeded()) {
+				manifestResult.Operation = "asset.resolve";
+				return manifestResult;
+			}
+		}
+
+		const auto* record = m_Services->Assets().FindRecordByGuid(guid);
+		if (!record) {
+			auto result = ResultEnvelope::Failure("asset.resolve", guid, "Asset guid was not found");
+			result.AddDetail({ DiagnosticSeverity::Error, "asset.guid.missing", "The requested asset GUID is not present in the project registry", guid });
+			return result;
+		}
+
+		outRecord = *record;
+		auto result = ResultEnvelope::Success("asset.resolve", guid, "Asset resolved by guid");
+		result.SetPayloadValue("asset_handle", std::to_string(record->Handle));
+		result.SetPayloadValue("asset_id", record->AssetId);
+		result.SetPayloadValue("asset_kind", std::string(ToString(record->Kind)));
+		return result;
+	}
+
 	ResultEnvelope ApplicationOperations::ResolveMeshAsset(AssetHandle handle, Ref<Rendering::Mesh>& outMesh) const
 	{
 		return m_Services->Assets().ResolveMeshAsset(handle, outMesh);
@@ -637,7 +681,7 @@ namespace HE {
 		m_Registry.Register({ "asset.manifest.init", OperationDomain::Asset, "Initialize the project asset manifest" });
 		m_Registry.Register({ "asset.import", OperationDomain::Asset, "Import a single project asset into the manifest" });
 		m_Registry.Register({ "asset.list", OperationDomain::Asset, "List project manifest assets" });
-		m_Registry.Register({ "asset.resolve", OperationDomain::Asset, "Resolve an asset record by handle or asset id" });
+		m_Registry.Register({ "asset.resolve", OperationDomain::Asset, "Resolve an asset record by GUID, handle, or asset id" });
 		m_Registry.Register({ "asset.validate", OperationDomain::Asset, "Validate project asset registry health" });
 
 		m_Registry.Register({ "rendering.attach_scene_viewport", OperationDomain::Rendering, "Attach or reuse a scene viewport renderer through the application layer" });
