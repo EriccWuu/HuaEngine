@@ -6,6 +6,7 @@
 
 #include "HuaEngine/ECS/ComponentRegistry.h"
 #include "HuaEngine/Generated/GeneratedReflection.h"
+#include "HuaEngine/Reflection/Reflection.h"
 
 namespace {
 	void Require(bool condition, const std::string& message) {
@@ -35,6 +36,10 @@ int main() {
 	Require(HasField(transform->Fields, "Position"), "Expected TransformComponent Position field");
 	Require(HasField(transform->Fields, "Rotation"), "Expected TransformComponent Rotation field");
 	Require(HasField(transform->Fields, "Scale"), "Expected TransformComponent Scale field");
+
+	const auto* transformRuntime = HE::Refl::FindRuntimeType("HE::TransformComponent");
+	Require(transformRuntime != nullptr, "Expected runtime reflection descriptor for TransformComponent");
+	Require(transformRuntime->Fields.size() == 3, "Expected TransformComponent runtime fields");
 
 	const HE::Generated::ReflectedTypeInfo* mesh = HE::Generated::FindReflectedType("HE::Rendering::MeshComponent");
 	Require(mesh != nullptr, "Expected to find HE::Rendering::MeshComponent");

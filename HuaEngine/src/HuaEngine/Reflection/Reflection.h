@@ -1,12 +1,56 @@
 #pragma once
 
+#include <span>
+#include <string>
+#include <string_view>
+
+#include "HuaEngine/ECS/ComponentType.h"
+#include "HuaEngine/ECS/EntityId.h"
+
 #include "TypeList.h"
 #include "FieldTraits.h"
 #include "misc.h"
 #include "ConstStr.h"
 
 namespace HE {
+class World;
+
+namespace Serialization {
+    class SerializationBackend;
+}
+
 namespace Refl {
+// --------------------------------------------------------------------------------
+//                              Runtime descriptors
+// --------------------------------------------------------------------------------
+
+struct RuntimeFieldDescriptor {
+    std::string_view Name;
+    std::string_view Type;
+    std::string_view DisplayName;
+    std::string_view Category;
+};
+
+struct RuntimeTypeDescriptor {
+    std::string_view Name;
+    std::string_view QualifiedName;
+    std::string_view Kind;
+    std::string_view DisplayName;
+    std::string_view Category;
+    ComponentTypeId TypeId;
+    std::span<const RuntimeFieldDescriptor> Fields;
+    void* (*ConstructDefault)();
+    void (*Destroy)(void*);
+    void* (*Copy)(const void*);
+    void (*Serialize)(Serialization::SerializationBackend&, const std::string&, const void*);
+    bool (*Deserialize)(Serialization::SerializationBackend&, const std::string&, void*);
+    void (*AddCopyToWorld)(World&, EntityId, const void*);
+};
+
+std::span<const RuntimeTypeDescriptor> GetRuntimeTypes();
+const RuntimeTypeDescriptor* FindRuntimeType(std::string_view qualifiedName);
+const RuntimeTypeDescriptor* FindRuntimeType(ComponentTypeId typeId);
+
 // --------------------------------------------------------------------------------
 //                                    srefl
 // --------------------------------------------------------------------------------
