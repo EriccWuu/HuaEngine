@@ -630,6 +630,13 @@ def macro_identifier(value: str) -> str:
     return re.sub(r"[^A-Za-z0-9]", "_", value).upper()
 
 
+def cpp_identifier(value: str) -> str:
+    identifier = re.sub(r"[^A-Za-z0-9_]", "_", value)
+    if not identifier or identifier[0].isdigit():
+        identifier = "_" + identifier
+    return identifier
+
+
 def legacy_reflection_type_guard(qualified_name: str) -> str:
     return f"HE_GENERATED_REFLECTION_TYPE_{macro_identifier(qualified_name)}"
 
@@ -679,9 +686,12 @@ def write_generated_files(manifest: Dict[str, Any], out_dir: Path) -> List[Path]
     header_path = out_dir / "GeneratedReflection.h"
     source_path = out_dir / "GeneratedReflection.cpp"
     source_header_dir = out_dir / "Reflection"
-    source_header_dir.mkdir(parents=True, exist_ok=True)
     manifest_types = manifest.get("types", [])
     written_files = [header_path, source_path]
+
+    if source_header_dir.exists():
+        for existing_source_header in source_header_dir.glob("*.generated.h"):
+            existing_source_header.unlink()
 
     header_lines = [
         "#pragma once",
@@ -717,32 +727,6 @@ def write_generated_files(manifest: Dict[str, Any], out_dir: Path) -> List[Path]
         "",
     ]
 
-    types_by_source: Dict[str, List[Dict[str, Any]]] = {}
-    for reflected_type in manifest.get("types", []):
-        types_by_source.setdefault(reflected_type.get("source", ""), []).append(reflected_type)
-
-    expected_source_headers: List[Path] = []
-    for source, reflected_types in sorted(types_by_source.items()):
-        relative_source_header = generated_source_header_path(source)
-        source_header_path = out_dir / relative_source_header
-        expected_source_headers.append(source_header_path)
-
-        source_header_lines = [
-            "#pragma once",
-            "",
-            '#include "HuaEngine/Reflection/Reflection.h"',
-            "",
-        ]
-        for reflected_type in reflected_types:
-            write_legacy_reflection_specialization(source_header_lines, reflected_type)
-            source_header_lines.append("")
-        source_header_path.write_text("\n".join(source_header_lines), encoding="utf-8")
-        written_files.append(source_header_path)
-
-    for existing_source_header in source_header_dir.glob("*.generated.h"):
-        if existing_source_header not in expected_source_headers:
-            existing_source_header.unlink()
-
     header = "\n".join(header_lines)
 
     include_paths = sorted(
@@ -756,7 +740,14 @@ def write_generated_files(manifest: Dict[str, Any], out_dir: Path) -> List[Path]
     lines = [
         '#include "GeneratedReflection.h"',
         "",
+        "#include <string>",
+        "#include <string_view>",
+        "",
         '#include "HuaEngine/ECS/ComponentRegistry.h"',
+        '#include "HuaEngine/ECS/ComponentType.h"',
+        '#include "HuaEngine/ECS/World.h"',
+        '#include "HuaEngine/Reflection/Reflection.h"',
+        '#include "HuaEngine/Serialization/Serialization.h"',
     ]
     for include_path in include_paths:
         lines.append(f'#include "{include_path}"')
@@ -785,6 +776,131 @@ def write_generated_files(manifest: Dict[str, Any], out_dir: Path) -> List[Path]
                 )
             lines.append("};")
             lines.append("")
+
+    for type_index, reflected_type in enumerate(manifest_types):
+        if reflected_type.get("kind", "") != "component":
+            continue
+
+        qualified_name = reflected_type.get("qualified_name", "")
+        identifier = cpp_identifier(qualified_name)
+        fields = reflected_type.get("fields", [])
+        lines.append(f"static void* ConstructDefault_{identifier}() {{")
+        lines.append(f"    return new {qualified_name}();")
+        lines.append("}")
+        lines.append("")
+        lines.append(f"static void Destroy_{identifier}(void* object) {{")
+        lines.append(f"    delete static_cast<{qualified_name}*>(object);")
+        lines.append("}")
+        lines.append("")
+        lines.append(f"static void* Copy_{identifier}(const void* object) {{")
+        lines.append(f"    return new {qualified_name}(*static_cast<const {qualified_name}*>(object));")
+        lines.append("}")
+        lines.append("")
+        lines.append(f"static void AddCopyToWorld_{identifier}(World& world, EntityId entity, const void* object) {{")
+        lines.append(f"    world.AddComponent<{qualified_name}>(entity, *static_cast<const {qualified_name}*>(object));")
+        lines.append("}")
+        lines.append("")
+        lines.append(f"static void Serialize_{identifier}(")
+        lines.append("    Serialization::SerializationBackend& backend,")
+        lines.append("    const std::string& name,")
+        lines.append("    const void* object) {")
+        lines.append(f"    const auto& component = *static_cast<const {qualified_name}*>(object);")
+        lines.append("    backend.BeginObject(name);")
+        for field in fields:
+            field_name = field.get("name", "")
+            lines.append(
+                f"    Serialization::SerializeValue(backend, {cpp_string(field_name)}, component.{field_name});"
+            )
+        lines.append("    backend.EndObject();")
+        lines.append("}")
+        lines.append("")
+        lines.append(f"static bool Deserialize_{identifier}(")
+        lines.append("    Serialization::SerializationBackend& backend,")
+        lines.append("    const std::string& name,")
+        lines.append("    void* object) {")
+        lines.append(f"    auto& component = *static_cast<{qualified_name}*>(object);")
+        lines.append("    bool success = true;")
+        lines.append("    backend.BeginObject(name);")
+        for field in fields:
+            field_name = field.get("name", "")
+            lines.append(
+                f"    success &= Serialization::DeserializeValue(backend, {cpp_string(field_name)}, component.{field_name});"
+            )
+        lines.append("    backend.EndObject();")
+        lines.append("    return success;")
+        lines.append("}")
+        lines.append("")
+
+    for type_index, reflected_type in enumerate(manifest_types):
+        fields = reflected_type.get("fields", [])
+        if fields:
+            lines.append(f"static constexpr Refl::RuntimeFieldDescriptor RuntimeType{type_index}Fields[] = {{")
+            for field in fields:
+                lines.append(
+                    "    {"
+                    + ", ".join(
+                        [
+                            cpp_string(field.get("name", "")),
+                            cpp_string(field.get("type", "")),
+                            cpp_string(field.get("display_name", "")),
+                            cpp_string(field.get("category", "")),
+                        ]
+                    )
+                    + "},"
+                )
+            lines.append("};")
+            lines.append("")
+
+    if manifest_types:
+        lines.append("static const Refl::RuntimeTypeDescriptor RuntimeTypes[] = {")
+        for type_index, reflected_type in enumerate(manifest_types):
+            field_count = len(reflected_type.get("fields", []))
+            field_span = (
+                f"std::span<const Refl::RuntimeFieldDescriptor>{{RuntimeType{type_index}Fields}}"
+                if field_count
+                else "std::span<const Refl::RuntimeFieldDescriptor>{}"
+            )
+            qualified_name = reflected_type.get("qualified_name", "")
+            identifier = cpp_identifier(qualified_name)
+            if reflected_type.get("kind", "") == "component":
+                type_id = f"ComponentTypeIdOf<{qualified_name}>()"
+                construct = f"&ConstructDefault_{identifier}"
+                destroy = f"&Destroy_{identifier}"
+                copy = f"&Copy_{identifier}"
+                serialize = f"&Serialize_{identifier}"
+                deserialize = f"&Deserialize_{identifier}"
+                add_copy_to_world = f"&AddCopyToWorld_{identifier}"
+            else:
+                type_id = "InvalidComponentTypeId"
+                construct = "nullptr"
+                destroy = "nullptr"
+                copy = "nullptr"
+                serialize = "nullptr"
+                deserialize = "nullptr"
+                add_copy_to_world = "nullptr"
+            lines.append(
+                "    {"
+                + ", ".join(
+                    [
+                        cpp_string(reflected_type.get("name", "")),
+                        cpp_string(qualified_name),
+                        cpp_string(reflected_type.get("kind", "")),
+                        cpp_string(reflected_type.get("display_name", "")),
+                        cpp_string(reflected_type.get("category", "")),
+                        type_id,
+                        field_span,
+                        construct,
+                        destroy,
+                        copy,
+                        serialize,
+                        deserialize,
+                        add_copy_to_world,
+                    ]
+                )
+                + "},"
+            )
+        lines.append("};")
+        lines.append("")
 
     if manifest_types:
         lines.append("static constexpr ReflectedTypeInfo Types[] = {")
@@ -840,6 +956,37 @@ def write_generated_files(manifest: Dict[str, Any], out_dir: Path) -> List[Path]
     lines.append("}")
     lines.append("")
     lines.append("} // namespace HE::Generated")
+    lines.append("")
+    lines.append("namespace HE::Refl {")
+    lines.append("")
+    lines.append("std::span<const RuntimeTypeDescriptor> GetRuntimeTypes() {")
+    if manifest_types:
+        lines.append("    return Generated::RuntimeTypes;")
+    else:
+        lines.append("    return {};")
+    lines.append("}")
+    lines.append("")
+    lines.append("const RuntimeTypeDescriptor* FindRuntimeType(std::string_view qualifiedName) {")
+    lines.append("    for (const RuntimeTypeDescriptor& type : GetRuntimeTypes()) {")
+    lines.append("        if (type.QualifiedName == qualifiedName) {")
+    lines.append("            return &type;")
+    lines.append("        }")
+    lines.append("    }")
+    lines.append("")
+    lines.append("    return nullptr;")
+    lines.append("}")
+    lines.append("")
+    lines.append("const RuntimeTypeDescriptor* FindRuntimeType(ComponentTypeId typeId) {")
+    lines.append("    for (const RuntimeTypeDescriptor& type : GetRuntimeTypes()) {")
+    lines.append("        if (type.TypeId == typeId) {")
+    lines.append("            return &type;")
+    lines.append("        }")
+    lines.append("    }")
+    lines.append("")
+    lines.append("    return nullptr;")
+    lines.append("}")
+    lines.append("")
+    lines.append("} // namespace HE::Refl")
     lines.append("")
 
     header_path.write_text(header, encoding="utf-8")

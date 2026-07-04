@@ -92,5 +92,3 @@ namespace HE {
 		}
 	};
 }
-
-#include "HuaEngine/Generated/Reflection/HuaEngine_ECS_Components.generated.h"

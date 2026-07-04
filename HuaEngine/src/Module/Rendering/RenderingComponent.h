@@ -103,5 +103,3 @@ namespace HE::Rendering {
 		}
 	};
 }
-
-#include "HuaEngine/Generated/Reflection/Module_Rendering_RenderingComponent.generated.h"
