@@ -2,6 +2,7 @@
 
 #include <string>
 #include <string_view>
+#include <vector>
 
 #include "HuaEngine/ECS/ComponentRegistry.h"
 #include "HuaEngine/ECS/ComponentType.h"
@@ -413,8 +414,37 @@ void RegisterGeneratedComponents(ComponentRegistry& registry) {
 
 namespace HE::Refl {
 
-std::span<const RuntimeTypeDescriptor> GetRuntimeTypes() {
+namespace {
+using RuntimeTypeProvider = std::span<const RuntimeTypeDescriptor> (*)();
+
+std::span<const RuntimeTypeDescriptor> GetGeneratedRuntimeTypes() {
     return Generated::RuntimeTypes;
+}
+
+std::span<const RuntimeTypeProvider> GetRuntimeTypeProviders() {
+    static const RuntimeTypeProvider providers[] = {
+        &GetGeneratedRuntimeTypes,
+    };
+    return providers;
+}
+
+const std::vector<RuntimeTypeDescriptor>& GetRuntimeTypeCache() {
+    static const std::vector<RuntimeTypeDescriptor> types = [] {
+        std::vector<RuntimeTypeDescriptor> result;
+        for (RuntimeTypeProvider provider : GetRuntimeTypeProviders()) {
+            const std::span<const RuntimeTypeDescriptor> providedTypes = provider();
+            result.insert(result.end(), providedTypes.begin(), providedTypes.end());
+        }
+        return result;
+    }();
+    return types;
+}
+
+} // namespace
+
+std::span<const RuntimeTypeDescriptor> GetRuntimeTypes() {
+    const std::vector<RuntimeTypeDescriptor>& types = GetRuntimeTypeCache();
+    return std::span<const RuntimeTypeDescriptor>{ types.data(), types.size() };
 }
 
 const RuntimeTypeDescriptor* FindRuntimeType(std::string_view qualifiedName) {

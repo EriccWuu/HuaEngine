@@ -5,6 +5,10 @@
 #include <span>
 #include <string>
 #include <string_view>
+#include <tuple>
+#include <type_traits>
+#include <utility>
+#include <vector>
 
 #include "HuaEngine/ECS/ComponentType.h"
 #include "HuaEngine/ECS/EntityId.h"
@@ -19,6 +23,12 @@ class World;
 
 namespace Serialization {
     class SerializationBackend;
+
+    template<typename T>
+    void SerializeValue(SerializationBackend& backend, const std::string& name, const T& value);
+
+    template<typename T>
+    bool DeserializeValue(SerializationBackend& backend, const std::string& name, T& value);
 }
 
 namespace Refl {
@@ -92,6 +102,109 @@ bool DeserializeRuntimeObject(
     Serialization::SerializationBackend& backend,
     const std::string& name,
     void* object);
+
+template <typename T>
+struct type_info;
+
+namespace Detail {
+    template<typename T, size_t Index>
+    const void* GetStaticRuntimeFieldConst(const void* object) {
+        constexpr auto field = std::get<Index>(type_info<T>::fields);
+        return &field.GetValue(static_cast<const T*>(object));
+    }
+
+    template<typename T, size_t Index>
+    void* GetStaticRuntimeFieldMutable(void* object) {
+        constexpr auto field = std::get<Index>(type_info<T>::fields);
+        return reinterpret_cast<char*>(object) + field.offset();
+    }
+
+    template<typename T, size_t Index>
+    void SerializeStaticRuntimeField(
+        Serialization::SerializationBackend& backend,
+        const std::string& name,
+        const void* object) {
+        constexpr auto field = std::get<Index>(type_info<T>::fields);
+        Serialization::SerializeValue(backend, name, field.GetValue(static_cast<const T*>(object)));
+    }
+
+    template<typename T, size_t Index>
+    bool DeserializeStaticRuntimeField(
+        Serialization::SerializationBackend& backend,
+        const std::string& name,
+        void* object) {
+        constexpr auto field = std::get<Index>(type_info<T>::fields);
+        using FieldType = std::remove_cv_t<std::remove_reference_t<
+            decltype(field.GetValue(static_cast<const T*>(nullptr)))>>;
+
+        auto& target = *reinterpret_cast<FieldType*>(reinterpret_cast<char*>(object) + field.offset());
+        FieldType fieldValue = target;
+        if (!Serialization::DeserializeValue(backend, name, fieldValue)) {
+            return false;
+        }
+
+        target = fieldValue;
+        return true;
+    }
+
+    template<typename T, size_t Index>
+    RuntimeFieldDescriptor MakeStaticRuntimeFieldDescriptor() {
+        constexpr auto field = std::get<Index>(type_info<T>::fields);
+        using FieldType = std::remove_cv_t<std::remove_reference_t<
+            decltype(field.GetValue(static_cast<const T*>(nullptr)))>>;
+
+        return RuntimeFieldDescriptor{
+            field.name(),
+            "",
+            "",
+            "",
+            field.offset(),
+            sizeof(FieldType),
+            RuntimeFieldFlags::Serializable,
+            &GetStaticRuntimeFieldConst<T, Index>,
+            &GetStaticRuntimeFieldMutable<T, Index>,
+            &SerializeStaticRuntimeField<T, Index>,
+            &DeserializeStaticRuntimeField<T, Index>,
+        };
+    }
+
+    template<typename T, size_t... Indices>
+    std::vector<RuntimeFieldDescriptor> MakeStaticRuntimeFieldDescriptors(std::index_sequence<Indices...>) {
+        return std::vector<RuntimeFieldDescriptor>{
+            MakeStaticRuntimeFieldDescriptor<T, Indices>()...
+        };
+    }
+}
+
+template<typename T>
+const RuntimeTypeDescriptor& MakeStaticRuntimeTypeDescriptor(
+    std::string_view name,
+    std::string_view qualifiedName,
+    std::string_view kind) {
+    using Type = remove_cvref_t<T>;
+    static const std::vector<RuntimeFieldDescriptor> fields =
+        Detail::MakeStaticRuntimeFieldDescriptors<Type>(
+            std::make_index_sequence<list_size_v<std::remove_cv_t<decltype(type_info<Type>::fields)>>>{});
+
+    static const RuntimeTypeDescriptor descriptor{
+        name,
+        qualifiedName,
+        kind,
+        "",
+        "",
+        InvalidComponentTypeId,
+        sizeof(Type),
+        std::span<const RuntimeFieldDescriptor>{ fields.data(), fields.size() },
+        nullptr,
+        nullptr,
+        nullptr,
+        nullptr,
+        nullptr,
+        nullptr,
+    };
+
+    return descriptor;
+}
 
 // --------------------------------------------------------------------------------
 //                                    srefl

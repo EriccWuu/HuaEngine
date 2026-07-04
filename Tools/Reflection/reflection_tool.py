@@ -717,6 +717,7 @@ def write_generated_files(manifest: Dict[str, Any], out_dir: Path) -> List[Path]
         "",
         "#include <string>",
         "#include <string_view>",
+        "#include <vector>",
         "",
         '#include "HuaEngine/ECS/ComponentRegistry.h"',
         '#include "HuaEngine/ECS/ComponentType.h"',
@@ -963,11 +964,40 @@ def write_generated_files(manifest: Dict[str, Any], out_dir: Path) -> List[Path]
     lines.append("")
     lines.append("namespace HE::Refl {")
     lines.append("")
-    lines.append("std::span<const RuntimeTypeDescriptor> GetRuntimeTypes() {")
+    lines.append("namespace {")
+    lines.append("using RuntimeTypeProvider = std::span<const RuntimeTypeDescriptor> (*)();")
+    lines.append("")
+    lines.append("std::span<const RuntimeTypeDescriptor> GetGeneratedRuntimeTypes() {")
     if manifest_types:
         lines.append("    return Generated::RuntimeTypes;")
     else:
         lines.append("    return {};")
+    lines.append("}")
+    lines.append("")
+    lines.append("std::span<const RuntimeTypeProvider> GetRuntimeTypeProviders() {")
+    lines.append("    static const RuntimeTypeProvider providers[] = {")
+    lines.append("        &GetGeneratedRuntimeTypes,")
+    lines.append("    };")
+    lines.append("    return providers;")
+    lines.append("}")
+    lines.append("")
+    lines.append("const std::vector<RuntimeTypeDescriptor>& GetRuntimeTypeCache() {")
+    lines.append("    static const std::vector<RuntimeTypeDescriptor> types = [] {")
+    lines.append("        std::vector<RuntimeTypeDescriptor> result;")
+    lines.append("        for (RuntimeTypeProvider provider : GetRuntimeTypeProviders()) {")
+    lines.append("            const std::span<const RuntimeTypeDescriptor> providedTypes = provider();")
+    lines.append("            result.insert(result.end(), providedTypes.begin(), providedTypes.end());")
+    lines.append("        }")
+    lines.append("        return result;")
+    lines.append("    }();")
+    lines.append("    return types;")
+    lines.append("}")
+    lines.append("")
+    lines.append("} // namespace")
+    lines.append("")
+    lines.append("std::span<const RuntimeTypeDescriptor> GetRuntimeTypes() {")
+    lines.append("    const std::vector<RuntimeTypeDescriptor>& types = GetRuntimeTypeCache();")
+    lines.append("    return std::span<const RuntimeTypeDescriptor>{ types.data(), types.size() };")
     lines.append("}")
     lines.append("")
     lines.append("const RuntimeTypeDescriptor* FindRuntimeType(std::string_view qualifiedName) {")
