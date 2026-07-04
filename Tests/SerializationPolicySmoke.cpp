@@ -295,6 +295,102 @@ namespace {
 		RemoveFile(scenePath);
 	}
 
+	void VerifyInvalidMaterialComponentFailsWithoutPoisoningNextSceneLoad() {
+		const auto invalidScenePath = MakePolicyPath("HuaEngineSerializationPolicyInvalidMaterialComponent.scene");
+		WriteTextFile(invalidScenePath, R"({
+  "entities": [
+    {
+      "components": {
+        "MaterialComponent": {
+          "MaterialInstance": {
+            "parameter_overrides": {}
+          }
+        },
+        "TransformComponent": {
+          "Position": {
+            "x": 1.0,
+            "y": 2.0,
+            "z": 3.0
+          },
+          "Rotation": {
+            "x": 4.0,
+            "y": 5.0,
+            "z": 6.0
+          },
+          "Scale": {
+            "x": 1.0,
+            "y": 1.0,
+            "z": 1.0
+          }
+        }
+      },
+      "name": "Invalid Material Entity",
+      "uuid": "00000000000000000000000000000045"
+    }
+  ],
+  "name": "Invalid Material Component Policy",
+  "version": 3
+})");
+
+		HE::Scene invalidLoaded;
+		Require(!HE::Serialization::LoadScene(invalidScenePath.string(), invalidLoaded), "Expected scene load to fail when MaterialInstance is missing required fields");
+
+		HE::Serialization::JsonSerializationBackend backend;
+		backend.LoadFromString(R"({
+  "MaterialInstance": {
+    "parameter_overrides": {}
+  },
+  "Sibling": true
+})");
+		HE::Rendering::MaterialInstance instance;
+		Require(!HE::Serialization::DeserializeValue(backend, "MaterialInstance", instance), "Expected malformed MaterialInstance to fail direct deserialize");
+		Require(backend.HasField("Sibling"), "Expected failed MaterialInstance deserialize to restore backend object scope");
+
+		const auto validScenePath = MakePolicyPath("HuaEngineSerializationPolicyValidAfterMaterialFailure.scene");
+		const std::string uuid = "00000000000000000000000000000046";
+		WriteTextFile(validScenePath, R"({
+  "entities": [
+    {
+      "components": {
+        "FutureUnknownComponent": {
+          "Enabled": true
+        },
+        "TransformComponent": {
+          "Position": {
+            "x": 10.0,
+            "y": 20.0,
+            "z": 30.0
+          },
+          "Rotation": {
+            "x": 1.0,
+            "y": 2.0,
+            "z": 3.0
+          },
+          "Scale": {
+            "x": 4.0,
+            "y": 5.0,
+            "z": 6.0
+          }
+        }
+      },
+      "name": "Valid After Failure Entity",
+      "uuid": "00000000000000000000000000000046"
+    }
+  ],
+  "name": "Valid After Material Failure Policy",
+  "version": 3
+})");
+
+		HE::Scene validLoaded;
+		Require(HE::Serialization::LoadScene(validScenePath.string(), validLoaded), "Expected later independent scene load to succeed after invalid MaterialComponent rejection");
+		HE::Entity entity = validLoaded.GetWorld().GetEntity(HE::EntityUuid::FromString(uuid));
+		Require(entity.IsValid(), "Expected valid follow-up scene entity to load");
+		Require(entity.HasComponent<HE::TransformComponent>(), "Expected valid follow-up scene transform to load");
+
+		RemoveFile(invalidScenePath);
+		RemoveFile(validScenePath);
+	}
+
 	void VerifyMissingSceneComponentFieldKeepsDefault() {
 		const auto scenePath = MakePolicyPath("HuaEngineSerializationPolicyMissingComponentField.scene");
 		const std::string uuid = "00000000000000000000000000000043";
@@ -371,6 +467,7 @@ int main() {
 		VerifyRuntimeComponentDeserializeFailureDoesNotPartiallyMutate();
 		VerifyUnknownSceneComponentIsSkipped();
 		VerifyKnownSceneComponentInvalidFieldFailsLoad();
+		VerifyInvalidMaterialComponentFailsWithoutPoisoningNextSceneLoad();
 		VerifyMissingSceneComponentFieldKeepsDefault();
 		VerifySceneOutputStability();
 

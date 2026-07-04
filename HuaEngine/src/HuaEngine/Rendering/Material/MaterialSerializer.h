@@ -205,50 +205,52 @@ namespace HE::Serialization {
         }
 
         static bool Deserialize(SerializationBackend& backend, const std::string& name, Rendering::MaterialInstance& instance) {
-            if (!name.empty())
+            const bool hasNamedObject = !name.empty();
+            if (hasNamedObject)
                 backend.BeginObject(name);
 
-            if (!(backend.HasField("base_material_name") &&
-                backend.HasField("parameter_overrides")))
-                return false;
+            bool success = backend.HasField("base_material_name") &&
+                backend.HasField("parameter_overrides");
 
-            std::string baseMaterialName;
-            backend.Deserialize("base_material_name", baseMaterialName);
-            if (!baseMaterialName.empty() && Rendering::MaterialLibrary::Instance().HasMaterial(baseMaterialName)) {
-                instance.SetBaseMaterial(Rendering::MaterialLibrary::Instance().GetMaterial(baseMaterialName));
-            } else if (!baseMaterialName.empty() && !instance.GetBaseMaterial()) {
-                instance.SetBaseMaterial(Rendering::Material::Create(baseMaterialName, Rendering::MaterialType::Custom));
+            if (success) {
+                std::string baseMaterialName;
+                backend.Deserialize("base_material_name", baseMaterialName);
+                if (!baseMaterialName.empty() && Rendering::MaterialLibrary::Instance().HasMaterial(baseMaterialName)) {
+                    instance.SetBaseMaterial(Rendering::MaterialLibrary::Instance().GetMaterial(baseMaterialName));
+                } else if (!baseMaterialName.empty() && !instance.GetBaseMaterial()) {
+                    instance.SetBaseMaterial(Rendering::Material::Create(baseMaterialName, Rendering::MaterialType::Custom));
+                }
+
+                // Clear existing parameter overrides
+                instance.ClearParameterOverrides();
+
+                // Parameter overrides (object format, iterate using ForEachField)
+                backend.BeginObject("parameter_overrides");
+                backend.ForEachField([&](const std::string& paramName) {
+                    // ForEachField has switched context to the value node for paramName
+                    if (backend.HasField("value") && backend.HasField("value_type")) {
+                        std::string typeStr;
+                        backend.Deserialize("value_type", typeStr);
+                        auto type = Rendering::MaterialParameterSerializer::StringToParameterType(typeStr);
+
+                        Rendering::MaterialParameterValue value;
+                        Rendering::MaterialParameterSerializer::Deserialize(backend, "value", value, type);
+
+                        if (instance.GetBaseMaterial() && instance.GetBaseMaterial()->HasParameter(paramName)) {
+                            instance.SetParameter(paramName, value);
+                        } else if (instance.GetBaseMaterial()) {
+                            instance.GetBaseMaterial()->AddParameter({ paramName, type, value });
+                            instance.SetParameter(paramName, value);
+                        }
+                    }
+                });
+                backend.EndObject();
             }
 
-            // Clear existing parameter overrides
-            instance.ClearParameterOverrides();
-
-            // Parameter overrides (object format, iterate using ForEachField)
-            backend.BeginObject("parameter_overrides");
-            backend.ForEachField([&](const std::string& paramName) {
-                // ForEachField has switched context to the value node for paramName
-                if (backend.HasField("value") && backend.HasField("value_type")) {
-                    std::string typeStr;
-                    backend.Deserialize("value_type", typeStr);
-                    auto type = Rendering::MaterialParameterSerializer::StringToParameterType(typeStr);
-
-                    Rendering::MaterialParameterValue value;
-                    Rendering::MaterialParameterSerializer::Deserialize(backend, "value", value, type);
-
-                    if (instance.GetBaseMaterial() && instance.GetBaseMaterial()->HasParameter(paramName)) {
-                        instance.SetParameter(paramName, value);
-                    } else if (instance.GetBaseMaterial()) {
-                        instance.GetBaseMaterial()->AddParameter({ paramName, type, value });
-                        instance.SetParameter(paramName, value);
-                    }
-                }
-            });
-            backend.EndObject();
-
-            if (!name.empty())
+            if (hasNamedObject)
                 backend.EndObject();
 
-            return true;
+            return success;
         }
     };
 
