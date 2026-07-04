@@ -61,12 +61,18 @@ namespace {
 	}
 
 	void VerifyProjectDescriptorRuntimeFields() {
+		const std::string temporaryName = "ProjectDescriptor";
+		const std::string temporaryQualifiedName = "HE::ProjectDescriptor";
+		const std::string temporaryKind = "struct";
 		const HE::Refl::RuntimeTypeDescriptor& descriptor =
 			HE::Refl::MakeStaticRuntimeTypeDescriptor<HE::ProjectDescriptor>(
-				"ProjectDescriptor",
-				"HE::ProjectDescriptor",
-				"struct");
+				temporaryName,
+				temporaryQualifiedName,
+				temporaryKind);
 
+		Require(descriptor.Name == "ProjectDescriptor", "Expected ProjectDescriptor runtime name to stay stable");
+		Require(descriptor.QualifiedName == "HE::ProjectDescriptor", "Expected ProjectDescriptor runtime qualified name to stay stable");
+		Require(descriptor.Kind == "struct", "Expected ProjectDescriptor runtime kind to stay stable");
 		Require(descriptor.Fields.size() == 4, "Expected ProjectDescriptor runtime fields");
 		Require(descriptor.Fields[0].Name == "Name", "Expected ProjectDescriptor Name field");
 		Require(descriptor.Fields[1].Name == "SchemaVersion", "Expected ProjectDescriptor SchemaVersion field");

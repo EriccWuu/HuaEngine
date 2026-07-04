@@ -296,6 +296,28 @@ namespace {
 		RemoveFile(scenePath);
 	}
 
+	void VerifyKnownSceneComponentNonObjectFailsLoad() {
+		const auto scenePath = MakePolicyPath("HuaEngineSerializationPolicyKnownComponentNonObject.scene");
+		WriteTextFile(scenePath, R"({
+  "entities": [
+    {
+      "components": {
+        "TransformComponent": 123
+      },
+      "name": "Invalid Known Component Shape Entity",
+      "uuid": "00000000000000000000000000000046"
+    }
+  ],
+  "name": "Invalid Known Component Shape Policy",
+  "version": 3
+})");
+
+		HE::Scene loaded;
+		Require(!HE::Serialization::LoadScene(scenePath.string(), loaded), "Expected scene load to fail when a known component payload is not an object");
+
+		RemoveFile(scenePath);
+	}
+
 	void VerifyInvalidMaterialComponentFailsWithoutPoisoningNextSceneLoad() {
 		const auto invalidScenePath = MakePolicyPath("HuaEngineSerializationPolicyInvalidMaterialComponent.scene");
 		WriteTextFile(invalidScenePath, R"({
@@ -468,6 +490,7 @@ int main() {
 		VerifyRuntimeComponentDeserializeFailureDoesNotPartiallyMutate();
 		VerifyUnknownSceneComponentIsSkipped();
 		VerifyKnownSceneComponentInvalidFieldFailsLoad();
+		VerifyKnownSceneComponentNonObjectFailsLoad();
 		VerifyInvalidMaterialComponentFailsWithoutPoisoningNextSceneLoad();
 		VerifyMissingSceneComponentFieldKeepsDefault();
 		VerifySceneOutputStability();

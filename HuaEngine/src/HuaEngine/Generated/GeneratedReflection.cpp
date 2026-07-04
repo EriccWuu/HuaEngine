@@ -487,8 +487,10 @@ bool DeserializeRuntimeObject(
     Serialization::SerializationBackend& backend,
     const std::string& name,
     void* object) {
-    if (!name.empty() && !backend.HasField(name)) {
-        return false;
+    if (!name.empty()) {
+        if (!backend.HasField(name) || backend.GetFieldType(name) != Serialization::SerializationType::Object) {
+            return false;
+        }
     }
 
     backend.BeginObject(name);

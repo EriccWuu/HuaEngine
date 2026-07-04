@@ -185,11 +185,15 @@ const RuntimeTypeDescriptor& MakeStaticRuntimeTypeDescriptor(
     static const std::vector<RuntimeFieldDescriptor> fields =
         Detail::MakeStaticRuntimeFieldDescriptors<Type>(
             std::make_index_sequence<list_size_v<std::remove_cv_t<decltype(type_info<Type>::fields)>>>{});
+    // The first call for each T defines the stable runtime identity strings.
+    static const std::string stableName(name);
+    static const std::string stableQualifiedName(qualifiedName);
+    static const std::string stableKind(kind);
 
     static const RuntimeTypeDescriptor descriptor{
-        name,
-        qualifiedName,
-        kind,
+        stableName,
+        stableQualifiedName,
+        stableKind,
         "",
         "",
         InvalidComponentTypeId,
