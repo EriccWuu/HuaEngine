@@ -93,6 +93,31 @@ int main() {
 	RequirePayloadValue(healthyValidation, "fallback_asset_count", "2");
 	RequirePayloadValue(healthyValidation, "can_continue_automatically", "true");
 
+	HE::AssetService missingFileAssetService;
+	Require(missingFileAssetService.LoadOrCreateManifest(projectContext).Succeeded(), "Expected missing-file asset service manifest initialization to succeed");
+	HE::AssetRecord missingCachedMeshRecord;
+	missingCachedMeshRecord.Guid = "missing-cached-validation-mesh";
+	missingCachedMeshRecord.Kind = HE::AssetKind::Mesh;
+	missingCachedMeshRecord.Source = HE::AssetSource::File;
+	missingCachedMeshRecord.AssetId = "Meshes/MissingCachedValidation.mesh";
+	missingCachedMeshRecord.RelativePath = std::filesystem::path("Meshes/MissingCachedValidation.mesh");
+	missingCachedMeshRecord.AbsolutePath = projectContext.GetAssetRootPath() / missingCachedMeshRecord.RelativePath;
+	missingCachedMeshRecord.ImportState = HE::AssetImportState::Registered;
+	missingCachedMeshRecord.ExistsOnDisk = false;
+	Require(missingFileAssetService.GetAssetRegistry().Upsert(missingCachedMeshRecord) != 0, "Expected missing cached mesh record insertion to succeed");
+	missingFileAssetService.GetRuntimeCache().StoreMesh(missingCachedMeshRecord.Guid, runtimeMesh);
+
+	HE::ValidationRequest missingFileRequest = validationRequest;
+	missingFileRequest.Assets = &missingFileAssetService;
+	HE::ValidationReport missingFileReport;
+	auto missingFileValidation = validationService.Validate(missingFileRequest, &missingFileReport);
+	Require(missingFileValidation.RequiresManualIntervention(), "Expected missing file asset validation to require manual intervention");
+	Require(missingFileReport.AssetStatus.MissingFileAssets == 1, "Expected missing file asset validation to count missing files");
+	Require(missingFileReport.AssetStatus.MetadataIssueCount() == 1, "Expected missing file asset validation to report one metadata issue");
+	Require(missingFileReport.AssetStatus.RuntimeIssueCount() == 0, "Expected cached missing file asset to skip runtime issue counting");
+	RequirePayloadValue(missingFileValidation, "metadata_issue_count", "1");
+	RequirePayloadValue(missingFileValidation, "runtime_issue_count", "0");
+
 	primaryEntity.RemoveComponent<HE::TransformComponent>();
 
 	HE::AssetRecord invalidAssetRecord;

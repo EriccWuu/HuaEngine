@@ -627,10 +627,31 @@ namespace HE {
 		m_Registry.ForEachRecord([&](const AssetRecord& record) {
 			++report.TotalAssets;
 
+			bool hasMetadataBlockingIssue = false;
+			const auto resolvedAbsolutePath = record.AbsolutePath.empty()
+				? (assetRoot / record.RelativePath).lexically_normal()
+				: record.AbsolutePath.lexically_normal();
+			if (IsOutsideAssetRoot(assetRoot, resolvedAbsolutePath)) {
+				++report.AssetsOutsideProjectRoot;
+				hasMetadataBlockingIssue = true;
+			}
+
+			if (!record.IsOperational()) {
+				++report.InvalidAssetRecords;
+				hasMetadataBlockingIssue = true;
+			}
+			if (record.Source == AssetSource::File && !record.ExistsOnDisk) {
+				++report.MissingFileAssets;
+				hasMetadataBlockingIssue = true;
+			}
+			if (record.Guid == BuiltinAssetGuids::FallbackMesh || record.Guid == BuiltinAssetGuids::FallbackMaterial) {
+				++report.FallbackAssets;
+			}
+
 			switch (record.Kind) {
 			case AssetKind::Mesh:
 				++report.MeshAssets;
-				{
+				if (!hasMetadataBlockingIssue) {
 					Ref<Rendering::Mesh> mesh;
 					const auto resolveResult = resolver.ResolveMesh(record.Guid, mesh);
 					if (!resolveResult.Succeeded() || !mesh) {
@@ -640,7 +661,7 @@ namespace HE {
 				break;
 			case AssetKind::Material:
 				++report.MaterialAssets;
-				{
+				if (!hasMetadataBlockingIssue) {
 					Ref<Rendering::Material> material;
 					const auto resolveResult = resolver.ResolveMaterial(record.Guid, material);
 					if (!resolveResult.Succeeded() || !material) {
@@ -657,24 +678,8 @@ namespace HE {
 			case AssetKind::Unknown:
 			default:
 				++report.UnknownKindAssets;
+				hasMetadataBlockingIssue = true;
 				break;
-			}
-
-			if (!record.IsOperational()) {
-				++report.InvalidAssetRecords;
-			}
-			if (record.Source == AssetSource::File && !record.ExistsOnDisk) {
-				++report.MissingFileAssets;
-			}
-			if (record.Guid == BuiltinAssetGuids::FallbackMesh || record.Guid == BuiltinAssetGuids::FallbackMaterial) {
-				++report.FallbackAssets;
-			}
-
-			const auto resolvedAbsolutePath = record.AbsolutePath.empty()
-				? (assetRoot / record.RelativePath).lexically_normal()
-				: record.AbsolutePath.lexically_normal();
-			if (IsOutsideAssetRoot(assetRoot, resolvedAbsolutePath)) {
-				++report.AssetsOutsideProjectRoot;
 			}
 		});
 

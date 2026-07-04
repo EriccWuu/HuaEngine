@@ -320,6 +320,28 @@ int main() {
 	Require(runtimeOnlyTextureResult.RequiresManualIntervention(), "Expected runtime-only texture registration to require manual intervention");
 	Require(runtimeOnlyTextureHandle == 0, "Expected runtime-only texture registration to avoid assigning a handle");
 
+	HE::AssetRecord missingCachedMeshRecord;
+	missingCachedMeshRecord.Guid = "missing-cached-smoke-mesh";
+	missingCachedMeshRecord.Kind = HE::AssetKind::Mesh;
+	missingCachedMeshRecord.Source = HE::AssetSource::File;
+	missingCachedMeshRecord.AssetId = "Meshes/MissingCached.mesh";
+	missingCachedMeshRecord.RelativePath = std::filesystem::path("Meshes/MissingCached.mesh");
+	missingCachedMeshRecord.AbsolutePath = projectContext.GetAssetRootPath() / missingCachedMeshRecord.RelativePath;
+	missingCachedMeshRecord.ImportState = HE::AssetImportState::Registered;
+	missingCachedMeshRecord.ExistsOnDisk = false;
+	Require(assetService.GetAssetRegistry().Upsert(missingCachedMeshRecord) != 0, "Expected missing cached mesh metadata insertion to succeed");
+	assetService.GetRuntimeCache().StoreMesh(missingCachedMeshRecord.Guid, loadedMesh);
+
+	HE::AssetValidationReport missingCachedMeshValidationReport;
+	auto missingCachedMeshValidation = assetService.ValidateRegistry(projectContext, &missingCachedMeshValidationReport);
+	Require(missingCachedMeshValidation.RequiresManualIntervention(), "Expected missing cached mesh validation to require manual intervention");
+	Require(missingCachedMeshValidationReport.MissingFileAssets == 1, "Expected missing cached mesh validation to count the missing file");
+	Require(missingCachedMeshValidationReport.MetadataIssueCount() == 1, "Expected missing cached mesh validation to report one metadata issue");
+	Require(missingCachedMeshValidationReport.RuntimeIssueCount() == 0, "Expected missing cached mesh validation to skip runtime issue counting");
+	Require(missingCachedMeshValidation.Payload.at("metadata_issue_count") == "1", "Expected missing cached mesh metadata issue payload");
+	Require(missingCachedMeshValidation.Payload.at("runtime_issue_count") == "0", "Expected missing cached mesh runtime issue payload");
+	Require(missingCachedMeshValidation.Payload.at("fallback_asset_count") == "2", "Expected fallback asset payload to remain stable");
+
 	HE::AssetRecord missingRecord;
 	auto missingAssetResult = assetService.ResolveAsset(static_cast<HE::AssetHandle>(9999), missingRecord);
 	Require(missingAssetResult.Failed(), "Expected resolving an unknown asset handle to fail");
