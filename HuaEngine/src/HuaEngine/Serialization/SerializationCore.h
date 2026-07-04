@@ -287,7 +287,11 @@ namespace HE::Serialization {
                     // Type is known at compile time through reflection
                     using FieldType = std::remove_cv_t<std::remove_reference_t<
                         decltype(field.GetValue(&obj))>>;
-                    FieldType tempValue{};
+                    if (!backend.HasField(fieldName)) {
+                        return;
+                    }
+
+                    FieldType tempValue = field.GetValue(&obj);
 
                     // Direct deserialization - type comes from reflection, not file
                     if (DeserializeValue(backend, fieldName, tempValue)) {

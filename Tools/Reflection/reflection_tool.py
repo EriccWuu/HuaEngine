@@ -798,9 +798,12 @@ def write_generated_files(manifest: Dict[str, Any], out_dir: Path) -> List[Path]
         lines.append("    backend.BeginObject(name);")
         for field in fields:
             field_name = field.get("name", "")
+            field_literal = cpp_string(field_name)
+            lines.append(f"    if (backend.HasField({field_literal})) {{")
             lines.append(
-                f"    success &= Serialization::DeserializeValue(backend, {cpp_string(field_name)}, component.{field_name});"
+                f"        success &= Serialization::DeserializeValue(backend, {field_literal}, component.{field_name});"
             )
+            lines.append("    }")
         lines.append("    backend.EndObject();")
         lines.append("    return success;")
         lines.append("}")
