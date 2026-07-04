@@ -20,6 +20,7 @@ P2 已经把组件反射和组件序列化主路径切到 `HE::Refl` runtime des
 4. 引入 runtime provider/registry 模型，让 generated component provider、static reflection provider、manual provider 可以汇入同一套 runtime type table。
 5. 保留静态反射接口作为底层实现能力，而不是外部推荐 API。
 6. 先迁移当前组件和一批 legacy 非组件类型，保持 P2 已经通过的序列化策略不回退。
+7. 改造 `ComponentRegistry`，不再要求每个组件类型提供 type-level `Serialize_X` / `Deserialize_X` callback；组件序列化统一通过 `RuntimeTypeDescriptor` + generic runtime operation 完成。
 
 ## 非目标
 
@@ -143,8 +144,8 @@ struct RuntimeTypeDescriptor {
     void (*Destroy)(void*);
     void* (*Copy)(const void*);
 
-    void (*Serialize)(Serialization::SerializationBackend&, const std::string&, const void*);
-    bool (*Deserialize)(Serialization::SerializationBackend&, const std::string&, void*);
+    void (*SerializeOverride)(Serialization::SerializationBackend&, const std::string&, const void*);
+    bool (*DeserializeOverride)(Serialization::SerializationBackend&, const std::string&, void*);
 
     void (*AddCopyToWorld)(World&, EntityId, const void*);
 };
@@ -162,7 +163,7 @@ struct RuntimeTypeDescriptor {
 - `TypeId = InvalidComponentTypeId`
 - ECS callbacks 为空
 
-`Serialize` / `Deserialize` 默认可以指向 generic runtime object serializer，也允许特殊类型覆盖。
+`SerializeOverride` / `DeserializeOverride` 只用于特殊类型覆盖。普通组件不再生成或注册 type-level serializer/deserializer callback；调用方应优先使用 `SerializeRuntimeObject` / `DeserializeRuntimeObject`。如果 override 为空，则 runtime generic operation 遍历 `Fields`。
 
 ## 通用 runtime 操作
 
@@ -282,15 +283,63 @@ RuntimeFieldDescriptor[]
 RuntimeTypeDescriptor[]
 ```
 
-`RuntimeTypeDescriptor.Serialize/Deserialize` 默认指向 generic runtime object serializer wrapper：
+P3 后不再生成 `Serialize_HE__TransformComponent` / `Deserialize_HE__TransformComponent` 这类普通组件 type-level callback。特殊类型确实需要覆盖时，才显式生成 `SerializeOverride` / `DeserializeOverride`。
+
+`ComponentRegistry` 不再把组件序列化能力表达为“注册时复制 type-level callback”。它应保存或引用对应 `RuntimeTypeDescriptor`，并在需要序列化时调用：
 
 ```cpp
-static void Serialize_HE__TransformComponent(..., const void* object) {
-    Refl::SerializeRuntimeObject(RuntimeTypes[index], backend, name, object);
-}
+Refl::SerializeRuntimeObject(*metadata.RuntimeType, backend, metadata.TypeName, component);
 ```
 
-这仍然保留 type-level callback 以兼容 `ComponentRegistry`，但字段处理进入通用路径。
+反序列化同理：
+
+```cpp
+Refl::DeserializeRuntimeObject(*metadata.RuntimeType, backend, metadata.TypeName, component);
+```
+
+这样 `ComponentRegistry` 只负责 ECS 类型注册、构造/销毁/复制/AddCopyToWorld 和 descriptor 关联；字段级读写、序列化策略、缺失字段策略都由 runtime facade 统一处理。
+
+## ComponentRegistry 调整
+
+当前 `ComponentMetadata` 存储：
+
+```cpp
+std::function<void(SerializationBackend&, const std::string&, const void*)> Serialize;
+std::function<bool(SerializationBackend&, const std::string&, void*)> Deserialize;
+```
+
+这是 P2 为了替换旧 `Serializer<T> -> Refl::reflect<T>()` 组件路径而保留的过渡形态。它导致生成器必须为每个组件生成 type-level `Serialize_X` / `Deserialize_X` 函数来喂给 registry。
+
+P3 后调整为：
+
+```cpp
+struct ComponentMetadata {
+    ComponentTypeId TypeId;
+    std::string TypeName;
+    std::string DisplayName;
+    std::string Category;
+    size_t Size;
+    bool AllowMultiple;
+    const Refl::RuntimeTypeDescriptor* RuntimeType;
+    void* (*ConstructDefault)();
+    void (*Destroy)(void*);
+    void* (*Copy)(const void*);
+    std::function<void(World&, EntityId, const void*)> AddCopyToWorld;
+};
+```
+
+如果为了减少改动暂时保留 `Serialize` / `Deserialize` 成员，也必须把它们实现为 registry 侧 generic wrapper，而不是 generated type-level callback：
+
+```cpp
+metadata.Serialize = [runtimeType = &descriptor](auto& backend, const auto& name, const void* component) {
+    Refl::SerializeRuntimeObject(*runtimeType, backend, name, component);
+};
+metadata.Deserialize = [runtimeType = &descriptor](auto& backend, const auto& name, void* component) {
+    return Refl::DeserializeRuntimeObject(*runtimeType, backend, name, component);
+};
+```
+
+最终目标是删除组件 generated type-level callbacks，而不是把它们改成一层 wrapper。
 
 ## 静态反射 adapter
 
@@ -325,7 +374,7 @@ info.visit_fields(...);
 SaveScene
   -> Serializer<Scene>::Serialize
   -> ComponentRegistry metadata
-  -> metadata.Serialize
+  -> metadata.RuntimeType
   -> Refl::SerializeRuntimeObject(type, backend, name, object)
   -> RuntimeFieldDescriptor.Serialize
   -> Serialization::SerializeValue
@@ -337,7 +386,7 @@ SaveScene
 LoadScene
   -> Serializer<Scene>::Deserialize
   -> metadata.ConstructDefault
-  -> metadata.Deserialize
+  -> metadata.RuntimeType
   -> Refl::DeserializeRuntimeObject(type, backend, name, object)
   -> RuntimeFieldDescriptor.Deserialize
   -> AddCopyToWorld if success
@@ -369,6 +418,7 @@ Serialization::ToJson(obj)
 
 - `SerializationSmoke`
   - `ComponentRegistry` metadata 仍能 round-trip `TransformComponent`。
+  - 测试应断言普通组件不再依赖 generated type-level `Serialize_HE__*` / `Deserialize_HE__*` 函数。
 
 - `ECSSceneSerializationSmoke`
   - scene 保存文本仍包含组件字段。
@@ -399,17 +449,18 @@ Serialization::ToJson(obj)
 1. 扩展 descriptor API 和 tests。
 2. 实现 generic runtime object serializer/deserializer。
 3. 修改 generator 输出 field accessors。
-4. 让 component type-level serializer 委托 generic runtime object operations。
-5. 加 runtime registry/provider 汇总层。
-6. 接入 static reflection adapter 的第一个非组件测试类型。
-7. 迁移 `ProjectDescriptor` 或 `MeshData` 中一个小类型作为验证。
-8. 全量 smoke 验证并更新审计报告。
+4. 改造 `ComponentRegistry`，让组件序列化/反序列化通过 `RuntimeTypeDescriptor` 调用 generic runtime operation。
+5. 删除普通组件 generated type-level `Serialize_X` / `Deserialize_X` 输出。
+6. 加 runtime registry/provider 汇总层。
+7. 接入 static reflection adapter 的第一个非组件测试类型。
+8. 迁移 `ProjectDescriptor` 或 `MeshData` 中一个小类型作为验证。
+9. 全量 smoke 验证并更新审计报告。
 
 ## 验收标准
 
 - 外部 smoke 不直接使用组件静态反射。
 - runtime field descriptor 能读写字段。
-- 组件序列化不再依赖 per-type generated field loop，而是走 generic runtime object serializer。
+- 组件序列化不再依赖 per-type generated field loop，也不再依赖普通组件 generated type-level callback，而是由 `ComponentRegistry` 关联的 `RuntimeTypeDescriptor` 走 generic runtime object serializer。
 - P2-C 序列化 policy 全部继续通过。
 - `reflection_tool.py validate --root .` 无 diagnostics。
 - generated files 无 drift。
