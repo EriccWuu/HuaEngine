@@ -1,0 +1,39 @@
+#pragma once
+
+#include <unordered_map>
+#include <utility>
+
+#include "AssetTypes.h"
+#include "HuaEngine/Core/Core.h"
+#include "HuaEngine/Rendering/Material/Material.h"
+#include "HuaEngine/Rendering/Mesh/MeshCore.h"
+#include "HuaEngine/Rendering/Texture.h"
+
+namespace HE {
+	class AssetRuntimeCache {
+	public:
+		void StoreMesh(const AssetGuid& guid, Ref<Rendering::Mesh> mesh) { m_Meshes[guid] = std::move(mesh); }
+		void StoreMaterial(const AssetGuid& guid, Ref<Rendering::Material> material) { m_Materials[guid] = std::move(material); }
+		void StoreTexture(const AssetGuid& guid, Ref<Rendering::Texture2D> texture) { m_Textures[guid] = std::move(texture); }
+
+		[[nodiscard]] Ref<Rendering::Mesh> FindMesh(const AssetGuid& guid) const {
+			const auto it = m_Meshes.find(guid);
+			return it != m_Meshes.end() ? it->second : nullptr;
+		}
+
+		[[nodiscard]] Ref<Rendering::Material> FindMaterial(const AssetGuid& guid) const {
+			const auto it = m_Materials.find(guid);
+			return it != m_Materials.end() ? it->second : nullptr;
+		}
+
+		[[nodiscard]] Ref<Rendering::Texture2D> FindTexture(const AssetGuid& guid) const {
+			const auto it = m_Textures.find(guid);
+			return it != m_Textures.end() ? it->second : nullptr;
+		}
+
+	private:
+		std::unordered_map<AssetGuid, Ref<Rendering::Mesh>> m_Meshes;
+		std::unordered_map<AssetGuid, Ref<Rendering::Material>> m_Materials;
+		std::unordered_map<AssetGuid, Ref<Rendering::Texture2D>> m_Textures;
+	};
+}

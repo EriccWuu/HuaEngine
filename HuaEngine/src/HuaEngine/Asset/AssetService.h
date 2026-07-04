@@ -2,7 +2,9 @@
 
 #include <string_view>
 
+#include "AssetManifest.h"
 #include "AssetRegistry.h"
+#include "AssetRuntimeCache.h"
 #include "HuaEngine/Core/ResultEnvelope.h"
 #include "HuaEngine/Project/ProjectContext.h"
 #include "HuaEngine/Rendering/Material/Material.h"
@@ -37,6 +39,8 @@ namespace HE {
 
 	class ENGINE_API AssetService {
 	public:
+		[[nodiscard]] ResultEnvelope LoadOrCreateManifest(const ProjectContext& context);
+
 		[[nodiscard]] ResultEnvelope CreateBuiltinMeshAsset(
 			const ProjectContext& context,
 			std::string_view assetId,
@@ -81,8 +85,15 @@ namespace HE {
 
 		[[nodiscard]] const AssetRegistry& GetAssetRegistry() const { return m_Registry; }
 		[[nodiscard]] AssetRegistry& GetAssetRegistry() { return m_Registry; }
+		[[nodiscard]] const AssetManifest& GetManifest() const { return m_Manifest; }
+		[[nodiscard]] AssetManifest& GetManifest() { return m_Manifest; }
+		[[nodiscard]] AssetRuntimeCache& GetRuntimeCache() { return m_RuntimeCache; }
+		[[nodiscard]] const AssetRuntimeCache& GetRuntimeCache() const { return m_RuntimeCache; }
+		[[nodiscard]] const AssetRecord* FindRecordByGuid(const AssetGuid& guid) const;
 
 	private:
 		AssetRegistry m_Registry;
+		AssetManifest m_Manifest;
+		AssetRuntimeCache m_RuntimeCache;
 	};
 }

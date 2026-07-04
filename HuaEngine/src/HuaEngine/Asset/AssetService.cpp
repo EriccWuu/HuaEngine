@@ -3,6 +3,7 @@
 
 #include <system_error>
 
+#include "AssetResolver.h"
 #include "HuaEngine/Rendering/Material/MaterialLibrary.h"
 #include "HuaEngine/Rendering/Material/MaterialSerializer.h"
 #include "HuaEngine/Rendering/Mesh/MeshManager.h"
@@ -117,7 +118,12 @@ namespace {
 		return result;
 	}
 
-	HE::AssetGuid GetExistingGuidOrGenerate(const HE::AssetRegistry& registry, std::string_view assetId) {
+	HE::AssetGuid GetExistingGuidOrGenerate(const HE::AssetRegistry& registry, const HE::AssetManifest& manifest, std::string_view assetId) {
+		if (const auto* existing = manifest.FindByAssetId(assetId)) {
+			if (!existing->Guid.empty()) {
+				return existing->Guid;
+			}
+		}
 		if (const auto* existing = registry.Find(assetId)) {
 			if (!existing->Guid.empty()) {
 				return existing->Guid;
@@ -131,6 +137,27 @@ namespace {
 		auto result = HE::ResultEnvelope::Failure(std::move(operation), std::move(target), std::move(summary));
 		result.AddDetail({ HE::DiagnosticSeverity::Error, "asset.lookup.missing", "Requested asset could not be found in the registry", {} });
 		return result;
+	}
+
+	HE::AssetRecord MakeRegistryRecord(
+		const HE::ProjectContext& context,
+		const HE::AssetManifestRecord& manifestRecord,
+		HE::AssetHandle handle = 0) {
+		HE::AssetRecord record;
+		record.Handle = handle;
+		record.Guid = manifestRecord.Guid;
+		record.Kind = manifestRecord.Kind;
+		record.Source = manifestRecord.Source;
+		record.AssetId = manifestRecord.AssetId;
+		record.RelativePath = manifestRecord.RelativePath;
+		record.BuiltinName = manifestRecord.BuiltinName;
+		record.ImportState = manifestRecord.ImportState;
+		if (record.Source == HE::AssetSource::File) {
+			record.AbsolutePath = (context.GetAssetRootPath() / record.RelativePath).lexically_normal();
+			std::error_code errorCode;
+			record.ExistsOnDisk = std::filesystem::is_regular_file(record.AbsolutePath, errorCode);
+		}
+		return record;
 	}
 
 	HE::Ref<HE::Rendering::Mesh> CreateBuiltinMesh(
@@ -154,6 +181,20 @@ namespace {
 }
 
 namespace HE {
+	ResultEnvelope AssetService::LoadOrCreateManifest(const ProjectContext& context) {
+		AssetManifest loadedManifest;
+		auto result = LoadOrCreateAssetManifest(context, loadedManifest);
+		if (!result.Succeeded()) {
+			return result;
+		}
+
+		m_Manifest = std::move(loadedManifest);
+		m_Manifest.ForEachRecord([&](const AssetManifestRecord& manifestRecord) {
+			(void)m_Registry.Upsert(MakeRegistryRecord(context, manifestRecord));
+		});
+		return result;
+	}
+
 	ResultEnvelope AssetService::CreateBuiltinMeshAsset(
 		const ProjectContext& context,
 		std::string_view assetId,
@@ -217,19 +258,40 @@ namespace HE {
 			return normalizeError;
 		}
 
+		if (m_Manifest.Empty()) {
+			auto manifestResult = LoadOrCreateManifest(context);
+			if (!manifestResult.Succeeded()) {
+				manifestResult.Operation = "asset.register_mesh";
+				return manifestResult;
+			}
+		}
+
 		Rendering::MeshManager::Instance().RegisterMesh(normalizedPath.AssetId, mesh);
 
-		AssetRecord record;
-		record.Guid = GetExistingGuidOrGenerate(m_Registry, normalizedPath.AssetId);
-		record.Kind = AssetKind::Mesh;
-		record.Source = AssetSource::File;
-		record.AssetId = normalizedPath.AssetId;
-		record.RelativePath = normalizedPath.RelativePath;
+		AssetManifestRecord manifestRecord;
+		manifestRecord.Guid = GetExistingGuidOrGenerate(m_Registry, m_Manifest, normalizedPath.AssetId);
+		manifestRecord.Kind = AssetKind::Mesh;
+		manifestRecord.Source = AssetSource::File;
+		manifestRecord.AssetId = normalizedPath.AssetId;
+		manifestRecord.RelativePath = normalizedPath.RelativePath;
+		manifestRecord.ImportState = AssetImportState::Registered;
+		if (!m_Manifest.Upsert(manifestRecord)) {
+			return ResultEnvelope::Failure("asset.register_mesh", normalizedPath.AssetId, "Mesh manifest record conflicts with an existing asset");
+		}
+		auto saveResult = SaveAssetManifest(context, m_Manifest);
+		if (!saveResult.Succeeded()) {
+			saveResult.Operation = "asset.register_mesh";
+			return saveResult;
+		}
+
+		auto record = MakeRegistryRecord(context, manifestRecord);
 		record.AbsolutePath = normalizedPath.AbsolutePath;
 		record.ExistsOnDisk = normalizedPath.ExistsOnDisk;
-		record.ImportState = AssetImportState::Registered;
-
-		const auto handle = m_Registry.Upsert(std::move(record));
+		const auto handle = m_Registry.Upsert(record);
+		if (handle == 0) {
+			return ResultEnvelope::Failure("asset.register_mesh", normalizedPath.AssetId, "Mesh registry record conflicts with an existing asset");
+		}
+		m_RuntimeCache.StoreMesh(manifestRecord.Guid, mesh);
 		if (outHandle) {
 			*outHandle = handle;
 		}
@@ -283,22 +345,43 @@ namespace HE {
 			return normalizeError;
 		}
 
+		if (m_Manifest.Empty()) {
+			auto manifestResult = LoadOrCreateManifest(context);
+			if (!manifestResult.Succeeded()) {
+				manifestResult.Operation = "asset.register_material";
+				return manifestResult;
+			}
+		}
+
 		Rendering::MaterialLibrary::Instance().RegisterMaterial(normalizedPath.AssetId, material);
 		if (!material->GetName().empty() && material->GetName() != normalizedPath.AssetId) {
 			Rendering::MaterialLibrary::Instance().RegisterMaterial(material->GetName(), material);
 		}
 
-		AssetRecord record;
-		record.Guid = GetExistingGuidOrGenerate(m_Registry, normalizedPath.AssetId);
-		record.Kind = AssetKind::Material;
-		record.Source = AssetSource::File;
-		record.AssetId = normalizedPath.AssetId;
-		record.RelativePath = normalizedPath.RelativePath;
+		AssetManifestRecord manifestRecord;
+		manifestRecord.Guid = GetExistingGuidOrGenerate(m_Registry, m_Manifest, normalizedPath.AssetId);
+		manifestRecord.Kind = AssetKind::Material;
+		manifestRecord.Source = AssetSource::File;
+		manifestRecord.AssetId = normalizedPath.AssetId;
+		manifestRecord.RelativePath = normalizedPath.RelativePath;
+		manifestRecord.ImportState = AssetImportState::Registered;
+		if (!m_Manifest.Upsert(manifestRecord)) {
+			return ResultEnvelope::Failure("asset.register_material", normalizedPath.AssetId, "Material manifest record conflicts with an existing asset");
+		}
+		auto saveResult = SaveAssetManifest(context, m_Manifest);
+		if (!saveResult.Succeeded()) {
+			saveResult.Operation = "asset.register_material";
+			return saveResult;
+		}
+
+		auto record = MakeRegistryRecord(context, manifestRecord);
 		record.AbsolutePath = normalizedPath.AbsolutePath;
 		record.ExistsOnDisk = normalizedPath.ExistsOnDisk;
-		record.ImportState = AssetImportState::Registered;
-
-		const auto handle = m_Registry.Upsert(std::move(record));
+		const auto handle = m_Registry.Upsert(record);
+		if (handle == 0) {
+			return ResultEnvelope::Failure("asset.register_material", normalizedPath.AssetId, "Material registry record conflicts with an existing asset");
+		}
+		m_RuntimeCache.StoreMaterial(manifestRecord.Guid, material);
 		if (outHandle) {
 			*outHandle = handle;
 		}
@@ -346,8 +429,16 @@ namespace HE {
 			return normalizeError;
 		}
 
+		if (m_Manifest.Empty()) {
+			auto manifestResult = LoadOrCreateManifest(context);
+			if (!manifestResult.Succeeded()) {
+				manifestResult.Operation = "asset.register_texture";
+				return manifestResult;
+			}
+		}
+
 		AssetRecord record;
-		record.Guid = GetExistingGuidOrGenerate(m_Registry, normalizedPath.AssetId);
+		record.Guid = GetExistingGuidOrGenerate(m_Registry, m_Manifest, normalizedPath.AssetId);
 		record.Kind = AssetKind::Texture2D;
 		record.Source = AssetSource::File;
 		record.AssetId = normalizedPath.AssetId;
@@ -367,7 +458,29 @@ namespace HE {
 			return result;
 		}
 
+		AssetManifestRecord manifestRecord;
+		manifestRecord.Guid = record.Guid;
+		manifestRecord.Kind = record.Kind;
+		manifestRecord.Source = record.Source;
+		manifestRecord.AssetId = record.AssetId;
+		manifestRecord.RelativePath = record.RelativePath;
+		manifestRecord.ImportState = record.ImportState;
+		if (!m_Manifest.Upsert(manifestRecord)) {
+			return ResultEnvelope::Failure("asset.register_texture", normalizedPath.AssetId, "Texture manifest record conflicts with an existing asset");
+		}
+		auto saveResult = SaveAssetManifest(context, m_Manifest);
+		if (!saveResult.Succeeded()) {
+			saveResult.Operation = "asset.register_texture";
+			return saveResult;
+		}
+
 		const auto handle = m_Registry.Upsert(record);
+		if (handle == 0) {
+			return ResultEnvelope::Failure("asset.register_texture", normalizedPath.AssetId, "Texture registry record conflicts with an existing asset");
+		}
+		if (texture) {
+			m_RuntimeCache.StoreTexture(record.Guid, texture);
+		}
 		if (outHandle) {
 			*outHandle = handle;
 		}
@@ -414,15 +527,9 @@ namespace HE {
 			return result;
 		}
 
-		auto mesh = Rendering::MeshManager::Instance().GetMesh(record->AssetId);
-		if (!mesh) {
-			auto result = ResultEnvelope::ManualIntervention("asset.resolve_mesh", HandleToString(handle), "Mesh asset is registered but has no runtime mesh payload");
-			result.AddDetail({ DiagnosticSeverity::Warning, "asset.mesh.unloaded", "Mesh asset must be loaded or registered with a runtime mesh before use", record->AssetId });
-			return result;
-		}
-
-		outMesh = mesh;
-		auto result = ResultEnvelope::Success("asset.resolve_mesh", HandleToString(handle), "Mesh asset resolved");
+		AssetResolver resolver(const_cast<AssetService&>(*this));
+		auto result = resolver.ResolveMesh(record->Guid, outMesh);
+		result.Target = HandleToString(handle);
 		result.SetPayloadValue("asset_id", record->AssetId);
 		return result;
 	}
@@ -439,15 +546,9 @@ namespace HE {
 			return result;
 		}
 
-		auto material = Rendering::MaterialLibrary::Instance().GetMaterial(record->AssetId);
-		if (!material) {
-			auto result = ResultEnvelope::ManualIntervention("asset.resolve_material", HandleToString(handle), "Material asset is registered but has no runtime material payload");
-			result.AddDetail({ DiagnosticSeverity::Warning, "asset.material.unloaded", "Material asset must be loaded or registered with a runtime material before use", record->AssetId });
-			return result;
-		}
-
-		outMaterial = material;
-		auto result = ResultEnvelope::Success("asset.resolve_material", HandleToString(handle), "Material asset resolved");
+		AssetResolver resolver(const_cast<AssetService&>(*this));
+		auto result = resolver.ResolveMaterial(record->Guid, outMaterial);
+		result.Target = HandleToString(handle);
 		result.SetPayloadValue("asset_id", record->AssetId);
 		return result;
 	}
@@ -464,10 +565,15 @@ namespace HE {
 			return result;
 		}
 
-		outTexture = nullptr;
-		auto result = ResultEnvelope::ManualIntervention("asset.resolve_texture", HandleToString(handle), "Texture asset has no runtime texture payload");
-		result.AddDetail({ DiagnosticSeverity::Warning, "asset.texture.unloaded", "Texture asset currently only has metadata or a source path", record->AssetId });
+		AssetResolver resolver(const_cast<AssetService&>(*this));
+		auto result = resolver.ResolveTexture(record->Guid, outTexture);
+		result.Target = HandleToString(handle);
+		result.SetPayloadValue("asset_id", record->AssetId);
 		return result;
+	}
+
+	const AssetRecord* AssetService::FindRecordByGuid(const AssetGuid& guid) const {
+		return m_Registry.FindByGuid(guid);
 	}
 
 	ResultEnvelope AssetService::ValidateRegistry(const ProjectContext& context, AssetValidationReport* outReport) const {

@@ -17,6 +17,9 @@ list(APPEND HUAENGINE_SOURCES
     "${CMAKE_CURRENT_SOURCE_DIR}/src/HuaEngine/Asset/AssetTypes.h"
     "${CMAKE_CURRENT_SOURCE_DIR}/src/HuaEngine/Asset/AssetManifest.h"
     "${CMAKE_CURRENT_SOURCE_DIR}/src/HuaEngine/Asset/AssetManifest.cpp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/src/HuaEngine/Asset/AssetRuntimeCache.h"
+    "${CMAKE_CURRENT_SOURCE_DIR}/src/HuaEngine/Asset/AssetResolver.h"
+    "${CMAKE_CURRENT_SOURCE_DIR}/src/HuaEngine/Asset/AssetResolver.cpp"
 )
 list(REMOVE_DUPLICATES HUAENGINE_SOURCES)
 

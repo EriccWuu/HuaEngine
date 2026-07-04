@@ -6,6 +6,7 @@
 
 #include "HuaEngine.h"
 #include "HuaEngine/Asset/AssetManifest.h"
+#include "HuaEngine/Asset/AssetResolver.h"
 #include "HuaEngine/Asset/AssetService.h"
 #include "HuaEngine/Project/ProjectService.h"
 
@@ -201,6 +202,19 @@ int main() {
 	WriteFileText(manifestPath, originalManifestText);
 
 	HE::AssetService assetService;
+	auto serviceManifestResult = assetService.LoadOrCreateManifest(projectContext);
+	Require(serviceManifestResult.Succeeded(), "Expected asset service manifest initialization to succeed");
+
+	HE::AssetResolver resolver(assetService);
+	HE::Ref<HE::Rendering::Mesh> builtinQuad;
+	auto builtinQuadResult = resolver.ResolveMesh(HE::BuiltinAssetGuids::QuadMesh, builtinQuad);
+	Require(builtinQuadResult.Succeeded(), "Expected builtin quad mesh resolve to succeed");
+	Require(static_cast<bool>(builtinQuad), "Expected builtin quad runtime mesh");
+
+	HE::Ref<HE::Rendering::Material> fallbackMaterial;
+	auto fallbackMaterialResult = resolver.ResolveMaterial(HE::BuiltinAssetGuids::FallbackMaterial, fallbackMaterial);
+	Require(fallbackMaterialResult.Succeeded(), "Expected fallback material resolve to succeed");
+	Require(static_cast<bool>(fallbackMaterial), "Expected fallback material runtime object");
 
 	HE::AssetHandle meshHandle = 0;
 	auto loadMeshResult = assetService.LoadMeshAsset(projectContext, "Meshes/SmokeQuad.mesh", &meshHandle);
@@ -223,6 +237,12 @@ int main() {
 	Require(!quadRecord.Guid.empty(), "Expected asset record to have stable guid");
 	Require(quadRecord.Handle != 0, "Expected runtime handle to remain available");
 	Require(quadRecord.Kind == HE::AssetKind::Mesh, "Expected mesh asset kind");
+
+	HE::Ref<HE::Rendering::Mesh> resolvedByGuidA;
+	HE::Ref<HE::Rendering::Mesh> resolvedByGuidB;
+	Require(resolver.ResolveMesh(quadRecord.Guid, resolvedByGuidA).Succeeded(), "Expected mesh resolve by guid");
+	Require(resolver.ResolveMesh(quadRecord.Guid, resolvedByGuidB).Succeeded(), "Expected second mesh resolve by guid");
+	Require(resolvedByGuidA == resolvedByGuidB, "Expected resolver to reuse runtime cache");
 
 	HE::AssetHandle materialHandle = 0;
 	auto loadMaterialResult = assetService.LoadMaterialAsset(projectContext, "Materials/SmokeMaterial.mat", &materialHandle);
@@ -263,7 +283,7 @@ int main() {
 	auto missingAssetResult = assetService.ResolveAsset(static_cast<HE::AssetHandle>(9999), missingRecord);
 	Require(missingAssetResult.Failed(), "Expected resolving an unknown asset handle to fail");
 
-	Require(assetService.GetAssetRegistry().GetAssetCount() == 3, "Expected registry to contain exactly three operational asset records");
+	Require(assetService.GetAssetRegistry().GetAssetCount() == 9, "Expected registry to contain builtin and file asset records");
 
 	std::filesystem::remove_all(smokeRoot, errorCode);
 	Require(!errorCode, "Expected asset smoke temporary directory cleanup to succeed");
