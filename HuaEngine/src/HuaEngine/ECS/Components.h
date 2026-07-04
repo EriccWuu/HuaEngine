@@ -1,8 +1,5 @@
 #pragma once
 
-#include <string>
-#include <utility>
-
 #include "glm/glm.hpp"
 
 #define GLM_ENABLE_EXPERIMENTAL
@@ -13,16 +10,6 @@
 #include "HuaEngine/Reflection/ReflectionMarkers.h"
 
 namespace HE {
-	HE_REFLECT_COMPONENT(DisplayName="Name", Category="Core")
-	struct NameComponent : Component {
-		HE_REFLECT_FIELD()
-		std::string Name = "Entity";
-
-		NameComponent() = default;
-		explicit NameComponent(std::string name)
-			: Name(std::move(name)) {}
-	};
-
 	HE_REFLECT_COMPONENT(DisplayName="Transform", Category="Core")
 	struct TransformComponent : Component {
 		HE_REFLECT_FIELD()

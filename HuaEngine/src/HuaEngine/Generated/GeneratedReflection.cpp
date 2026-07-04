@@ -35,74 +35,25 @@ static constexpr ReflectedEnumInfo ReflectedEnums[] = {
 };
 
 static constexpr ReflectedFieldInfo Type0Fields[] = {
-    {"Name", "std::string"},
-};
-
-static constexpr ReflectedFieldInfo Type1Fields[] = {
     {"Primary", "bool"},
     {"FixedAspectRatio", "bool"},
 };
 
-static constexpr ReflectedFieldInfo Type2Fields[] = {
+static constexpr ReflectedFieldInfo Type1Fields[] = {
     {"Material", "MaterialAssetRef"},
     {"Overrides", "MaterialOverrideSet"},
     {"BlendMode", "MaterialBlendMode"},
 };
 
-static constexpr ReflectedFieldInfo Type3Fields[] = {
+static constexpr ReflectedFieldInfo Type2Fields[] = {
     {"Mesh", "MeshAssetRef"},
 };
 
-static constexpr ReflectedFieldInfo Type4Fields[] = {
+static constexpr ReflectedFieldInfo Type3Fields[] = {
     {"Position", "glm::vec3"},
     {"Rotation", "glm::vec3"},
     {"Scale", "glm::vec3"},
 };
-
-static void* ConstructDefault_HE__NameComponent() {
-    return new HE::NameComponent();
-}
-
-static void Destroy_HE__NameComponent(void* object) {
-    delete static_cast<HE::NameComponent*>(object);
-}
-
-static void* Copy_HE__NameComponent(const void* object) {
-    return new HE::NameComponent(*static_cast<const HE::NameComponent*>(object));
-}
-
-static void AddCopyToWorld_HE__NameComponent(World& world, EntityId entity, const void* object) {
-    world.AddComponent<HE::NameComponent>(entity, *static_cast<const HE::NameComponent*>(object));
-}
-
-static const void* GetConst_HE__NameComponent_Name(const void* object) {
-    return &static_cast<const HE::NameComponent*>(object)->Name;
-}
-
-static void* GetMutable_HE__NameComponent_Name(void* object) {
-    return &static_cast<HE::NameComponent*>(object)->Name;
-}
-
-static void Serialize_HE__NameComponent_Name(
-    Serialization::SerializationBackend& backend,
-    const std::string& name,
-    const void* object) {
-    const auto& component = *static_cast<const HE::NameComponent*>(object);
-    Serialization::SerializeValue(backend, name, component.Name);
-}
-
-static bool Deserialize_HE__NameComponent_Name(
-    Serialization::SerializationBackend& backend,
-    const std::string& name,
-    void* object) {
-    auto& component = *static_cast<HE::NameComponent*>(object);
-    auto fieldValue = component.Name;
-    if (!Serialization::DeserializeValue(backend, name, fieldValue)) {
-        return false;
-    }
-    component.Name = fieldValue;
-    return true;
-}
 
 static void* ConstructDefault_HE__Rendering__CameraComponent() {
     return new HE::Rendering::CameraComponent();
@@ -437,44 +388,38 @@ static bool Deserialize_HE__TransformComponent_Scale(
 }
 
 static constexpr Refl::RuntimeFieldDescriptor RuntimeType0Fields[] = {
-    {"Name", "std::string", "", "", offsetof(HE::NameComponent, Name), sizeof(static_cast<HE::NameComponent*>(nullptr)->Name), Refl::RuntimeFieldFlags::Serializable | Refl::RuntimeFieldFlags::ComponentField | Refl::RuntimeFieldFlags::Editable, &GetConst_HE__NameComponent_Name, &GetMutable_HE__NameComponent_Name, &Serialize_HE__NameComponent_Name, &Deserialize_HE__NameComponent_Name, nullptr},
-};
-
-static constexpr Refl::RuntimeFieldDescriptor RuntimeType1Fields[] = {
     {"Primary", "bool", "", "", offsetof(HE::Rendering::CameraComponent, Primary), sizeof(static_cast<HE::Rendering::CameraComponent*>(nullptr)->Primary), Refl::RuntimeFieldFlags::Serializable | Refl::RuntimeFieldFlags::ComponentField | Refl::RuntimeFieldFlags::Editable, &GetConst_HE__Rendering__CameraComponent_Primary, &GetMutable_HE__Rendering__CameraComponent_Primary, &Serialize_HE__Rendering__CameraComponent_Primary, &Deserialize_HE__Rendering__CameraComponent_Primary, nullptr},
     {"FixedAspectRatio", "bool", "", "", offsetof(HE::Rendering::CameraComponent, FixedAspectRatio), sizeof(static_cast<HE::Rendering::CameraComponent*>(nullptr)->FixedAspectRatio), Refl::RuntimeFieldFlags::Serializable | Refl::RuntimeFieldFlags::ComponentField | Refl::RuntimeFieldFlags::Editable, &GetConst_HE__Rendering__CameraComponent_FixedAspectRatio, &GetMutable_HE__Rendering__CameraComponent_FixedAspectRatio, &Serialize_HE__Rendering__CameraComponent_FixedAspectRatio, &Deserialize_HE__Rendering__CameraComponent_FixedAspectRatio, nullptr},
 };
 
-static constexpr Refl::RuntimeFieldDescriptor RuntimeType2Fields[] = {
+static constexpr Refl::RuntimeFieldDescriptor RuntimeType1Fields[] = {
     {"Material", "MaterialAssetRef", "", "", offsetof(HE::Rendering::MaterialComponent, Material), sizeof(static_cast<HE::Rendering::MaterialComponent*>(nullptr)->Material), Refl::RuntimeFieldFlags::Serializable | Refl::RuntimeFieldFlags::ComponentField, &GetConst_HE__Rendering__MaterialComponent_Material, &GetMutable_HE__Rendering__MaterialComponent_Material, &Serialize_HE__Rendering__MaterialComponent_Material, &Deserialize_HE__Rendering__MaterialComponent_Material, nullptr},
     {"Overrides", "MaterialOverrideSet", "", "", offsetof(HE::Rendering::MaterialComponent, Overrides), sizeof(static_cast<HE::Rendering::MaterialComponent*>(nullptr)->Overrides), Refl::RuntimeFieldFlags::Serializable | Refl::RuntimeFieldFlags::ComponentField, &GetConst_HE__Rendering__MaterialComponent_Overrides, &GetMutable_HE__Rendering__MaterialComponent_Overrides, &Serialize_HE__Rendering__MaterialComponent_Overrides, &Deserialize_HE__Rendering__MaterialComponent_Overrides, nullptr},
     {"BlendMode", "MaterialBlendMode", "", "", offsetof(HE::Rendering::MaterialComponent, BlendMode), sizeof(static_cast<HE::Rendering::MaterialComponent*>(nullptr)->BlendMode), Refl::RuntimeFieldFlags::Serializable | Refl::RuntimeFieldFlags::ComponentField | Refl::RuntimeFieldFlags::Editable, &GetConst_HE__Rendering__MaterialComponent_BlendMode, &GetMutable_HE__Rendering__MaterialComponent_BlendMode, &Serialize_HE__Rendering__MaterialComponent_BlendMode, &Deserialize_HE__Rendering__MaterialComponent_BlendMode, &RuntimeEnums[0]},
 };
 
-static constexpr Refl::RuntimeFieldDescriptor RuntimeType3Fields[] = {
+static constexpr Refl::RuntimeFieldDescriptor RuntimeType2Fields[] = {
     {"Mesh", "MeshAssetRef", "", "", offsetof(HE::Rendering::MeshComponent, Mesh), sizeof(static_cast<HE::Rendering::MeshComponent*>(nullptr)->Mesh), Refl::RuntimeFieldFlags::Serializable | Refl::RuntimeFieldFlags::ComponentField, &GetConst_HE__Rendering__MeshComponent_Mesh, &GetMutable_HE__Rendering__MeshComponent_Mesh, &Serialize_HE__Rendering__MeshComponent_Mesh, &Deserialize_HE__Rendering__MeshComponent_Mesh, nullptr},
 };
 
-static constexpr Refl::RuntimeFieldDescriptor RuntimeType4Fields[] = {
+static constexpr Refl::RuntimeFieldDescriptor RuntimeType3Fields[] = {
     {"Position", "glm::vec3", "", "", offsetof(HE::TransformComponent, Position), sizeof(static_cast<HE::TransformComponent*>(nullptr)->Position), Refl::RuntimeFieldFlags::Serializable | Refl::RuntimeFieldFlags::ComponentField | Refl::RuntimeFieldFlags::Editable, &GetConst_HE__TransformComponent_Position, &GetMutable_HE__TransformComponent_Position, &Serialize_HE__TransformComponent_Position, &Deserialize_HE__TransformComponent_Position, nullptr},
     {"Rotation", "glm::vec3", "", "", offsetof(HE::TransformComponent, Rotation), sizeof(static_cast<HE::TransformComponent*>(nullptr)->Rotation), Refl::RuntimeFieldFlags::Serializable | Refl::RuntimeFieldFlags::ComponentField | Refl::RuntimeFieldFlags::Editable, &GetConst_HE__TransformComponent_Rotation, &GetMutable_HE__TransformComponent_Rotation, &Serialize_HE__TransformComponent_Rotation, &Deserialize_HE__TransformComponent_Rotation, nullptr},
     {"Scale", "glm::vec3", "", "", offsetof(HE::TransformComponent, Scale), sizeof(static_cast<HE::TransformComponent*>(nullptr)->Scale), Refl::RuntimeFieldFlags::Serializable | Refl::RuntimeFieldFlags::ComponentField | Refl::RuntimeFieldFlags::Editable, &GetConst_HE__TransformComponent_Scale, &GetMutable_HE__TransformComponent_Scale, &Serialize_HE__TransformComponent_Scale, &Deserialize_HE__TransformComponent_Scale, nullptr},
 };
 
 static const Refl::RuntimeTypeDescriptor RuntimeTypes[] = {
-    {"NameComponent", "HE::NameComponent", "component", "Name", "Core", ComponentTypeIdOf<HE::NameComponent>(), sizeof(HE::NameComponent), std::span<const Refl::RuntimeFieldDescriptor>{RuntimeType0Fields}, &ConstructDefault_HE__NameComponent, &Destroy_HE__NameComponent, &Copy_HE__NameComponent, nullptr, nullptr, &AddCopyToWorld_HE__NameComponent},
-    {"CameraComponent", "HE::Rendering::CameraComponent", "component", "Camera", "Rendering", ComponentTypeIdOf<HE::Rendering::CameraComponent>(), sizeof(HE::Rendering::CameraComponent), std::span<const Refl::RuntimeFieldDescriptor>{RuntimeType1Fields}, &ConstructDefault_HE__Rendering__CameraComponent, &Destroy_HE__Rendering__CameraComponent, &Copy_HE__Rendering__CameraComponent, nullptr, nullptr, &AddCopyToWorld_HE__Rendering__CameraComponent},
-    {"MaterialComponent", "HE::Rendering::MaterialComponent", "component", "Material", "Rendering", ComponentTypeIdOf<HE::Rendering::MaterialComponent>(), sizeof(HE::Rendering::MaterialComponent), std::span<const Refl::RuntimeFieldDescriptor>{RuntimeType2Fields}, &ConstructDefault_HE__Rendering__MaterialComponent, &Destroy_HE__Rendering__MaterialComponent, &Copy_HE__Rendering__MaterialComponent, nullptr, nullptr, &AddCopyToWorld_HE__Rendering__MaterialComponent},
-    {"MeshComponent", "HE::Rendering::MeshComponent", "component", "Mesh", "Rendering", ComponentTypeIdOf<HE::Rendering::MeshComponent>(), sizeof(HE::Rendering::MeshComponent), std::span<const Refl::RuntimeFieldDescriptor>{RuntimeType3Fields}, &ConstructDefault_HE__Rendering__MeshComponent, &Destroy_HE__Rendering__MeshComponent, &Copy_HE__Rendering__MeshComponent, nullptr, nullptr, &AddCopyToWorld_HE__Rendering__MeshComponent},
-    {"TransformComponent", "HE::TransformComponent", "component", "Transform", "Core", ComponentTypeIdOf<HE::TransformComponent>(), sizeof(HE::TransformComponent), std::span<const Refl::RuntimeFieldDescriptor>{RuntimeType4Fields}, &ConstructDefault_HE__TransformComponent, &Destroy_HE__TransformComponent, &Copy_HE__TransformComponent, nullptr, nullptr, &AddCopyToWorld_HE__TransformComponent},
+    {"CameraComponent", "HE::Rendering::CameraComponent", "component", "Camera", "Rendering", ComponentTypeIdOf<HE::Rendering::CameraComponent>(), sizeof(HE::Rendering::CameraComponent), std::span<const Refl::RuntimeFieldDescriptor>{RuntimeType0Fields}, &ConstructDefault_HE__Rendering__CameraComponent, &Destroy_HE__Rendering__CameraComponent, &Copy_HE__Rendering__CameraComponent, nullptr, nullptr, &AddCopyToWorld_HE__Rendering__CameraComponent},
+    {"MaterialComponent", "HE::Rendering::MaterialComponent", "component", "Material", "Rendering", ComponentTypeIdOf<HE::Rendering::MaterialComponent>(), sizeof(HE::Rendering::MaterialComponent), std::span<const Refl::RuntimeFieldDescriptor>{RuntimeType1Fields}, &ConstructDefault_HE__Rendering__MaterialComponent, &Destroy_HE__Rendering__MaterialComponent, &Copy_HE__Rendering__MaterialComponent, nullptr, nullptr, &AddCopyToWorld_HE__Rendering__MaterialComponent},
+    {"MeshComponent", "HE::Rendering::MeshComponent", "component", "Mesh", "Rendering", ComponentTypeIdOf<HE::Rendering::MeshComponent>(), sizeof(HE::Rendering::MeshComponent), std::span<const Refl::RuntimeFieldDescriptor>{RuntimeType2Fields}, &ConstructDefault_HE__Rendering__MeshComponent, &Destroy_HE__Rendering__MeshComponent, &Copy_HE__Rendering__MeshComponent, nullptr, nullptr, &AddCopyToWorld_HE__Rendering__MeshComponent},
+    {"TransformComponent", "HE::TransformComponent", "component", "Transform", "Core", ComponentTypeIdOf<HE::TransformComponent>(), sizeof(HE::TransformComponent), std::span<const Refl::RuntimeFieldDescriptor>{RuntimeType3Fields}, &ConstructDefault_HE__TransformComponent, &Destroy_HE__TransformComponent, &Copy_HE__TransformComponent, nullptr, nullptr, &AddCopyToWorld_HE__TransformComponent},
 };
 
 static constexpr ReflectedTypeInfo Types[] = {
-    {"NameComponent", "HE::NameComponent", "component", "Name", "Core", std::span<const ReflectedFieldInfo>{Type0Fields}},
-    {"CameraComponent", "HE::Rendering::CameraComponent", "component", "Camera", "Rendering", std::span<const ReflectedFieldInfo>{Type1Fields}},
-    {"MaterialComponent", "HE::Rendering::MaterialComponent", "component", "Material", "Rendering", std::span<const ReflectedFieldInfo>{Type2Fields}},
-    {"MeshComponent", "HE::Rendering::MeshComponent", "component", "Mesh", "Rendering", std::span<const ReflectedFieldInfo>{Type3Fields}},
-    {"TransformComponent", "HE::TransformComponent", "component", "Transform", "Core", std::span<const ReflectedFieldInfo>{Type4Fields}},
+    {"CameraComponent", "HE::Rendering::CameraComponent", "component", "Camera", "Rendering", std::span<const ReflectedFieldInfo>{Type0Fields}},
+    {"MaterialComponent", "HE::Rendering::MaterialComponent", "component", "Material", "Rendering", std::span<const ReflectedFieldInfo>{Type1Fields}},
+    {"MeshComponent", "HE::Rendering::MeshComponent", "component", "Mesh", "Rendering", std::span<const ReflectedFieldInfo>{Type2Fields}},
+    {"TransformComponent", "HE::TransformComponent", "component", "Transform", "Core", std::span<const ReflectedFieldInfo>{Type3Fields}},
 };
 
 std::span<const ReflectedTypeInfo> GetReflectedTypes() {

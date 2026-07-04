@@ -17,7 +17,6 @@ namespace HE {
 	class ApplicationServices;
 	class Entity;
 	class Scene;
-	struct NameComponent;
 	struct ProjectContext;
 	struct ProjectStatusReport;
 	struct SceneValidationReport;
@@ -95,7 +94,7 @@ namespace HE {
 		[[nodiscard]] ResultEnvelope UpsertSceneEntityName(
 			Scene& scene,
 			uint32_t entityId,
-			const NameComponent& component) const;
+			std::string_view name) const;
 		[[nodiscard]] ResultEnvelope UpsertSceneEntityTransform(
 			Scene& scene,
 			uint32_t entityId,

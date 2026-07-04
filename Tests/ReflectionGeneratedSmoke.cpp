@@ -44,7 +44,8 @@ namespace {
 
 int main() {
 	const std::span<const HE::Generated::ReflectedTypeInfo> types = HE::Generated::GetReflectedTypes();
-	Require(types.size() == 5, "Expected five reflected component types");
+	Require(types.size() == 4, "Expected four reflected component types");
+	Require(HE::Generated::FindReflectedType("HE::NameComponent") == nullptr, "Expected NameComponent reflection to be removed");
 
 	const HE::Generated::ReflectedTypeInfo* transform = HE::Generated::FindReflectedType("HE::TransformComponent");
 	Require(transform != nullptr, "Expected to find HE::TransformComponent");
@@ -91,7 +92,6 @@ int main() {
 	HE::Generated::RegisterGeneratedComponents(registry);
 
 	constexpr std::string_view expectedNames[] = {
-		"NameComponent",
 		"TransformComponent",
 		"CameraComponent",
 		"MeshComponent",
@@ -100,6 +100,7 @@ int main() {
 	for (const std::string_view name : expectedNames) {
 		Require(registry.FindByName(name) != nullptr, "Expected registered component: " + std::string(name));
 	}
+	Require(registry.FindByName("NameComponent") == nullptr, "Expected NameComponent not to be registered");
 
 	const HE::ComponentMetadata* transformMetadata = registry.FindByName("TransformComponent");
 	Require(transformMetadata != nullptr, "Expected TransformComponent metadata to be registered");

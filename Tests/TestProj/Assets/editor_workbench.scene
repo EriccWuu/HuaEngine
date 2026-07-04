@@ -1,144 +1,161 @@
 name: Untitled Scene
 version: 3
 entities:
-  - uuid: 00000000000000000000000000000004
-    name: Entity
-    components:
-      TransformComponent:
-        Position:
-          x: 1.5
-          y: -0.400000006
-          z: -3.20000005
-        Rotation:
-          x: 0.300000012
-          y: 0
-          z: 0
-        Scale:
-          x: 0.5
-          y: 0.5
-          z: 0.5
-      MaterialComponent:
-        Material:
-          guid: builtin-material-default
-        Overrides:
-          parameters:
-            u_Color:
-              type: vec4
-              value:
-                - 0.800000012
-                - 0
-                - 0.899999976
-                - 1
-        BlendMode: Opaque
-      MeshComponent:
-        Mesh:
-          guid: builtin-mesh-sphere
-      NameComponent:
-        Name: Entity
-  - uuid: 00000000000000000000000000000003
-    name: Entity
-    components:
-      TransformComponent:
-        Position:
-          x: -0.5
-          y: -0.5
-          z: -4.30000019
-        Rotation:
-          x: 0
-          y: 0
-          z: 0
-        Scale:
-          x: 1
-          y: 1
-          z: 1
-      MaterialComponent:
-        Material:
-          guid: builtin-material-default
-        Overrides:
-          parameters:
-            u_Color:
-              type: vec4
-              value:
-                - 0.800000012
-                - 0.400000006
-                - 0.899999976
-                - 1
-            u_TextureScale:
-              type: vec2
-              value:
-                - 2
-                - 2
-        BlendMode: Opaque
-      MeshComponent:
-        Mesh:
-          guid: ""
-      NameComponent:
-        Name: Entity
-  - uuid: 00000000000000000000000000000002
-    name: Entity
-    components:
-      TransformComponent:
-        Position:
-          x: -1.5
-          y: 0
-          z: -2.9000001
-        Rotation:
-          x: -0.600000024
-          y: 0
-          z: 0
-        Scale:
-          x: 0.5
-          y: 0.5
-          z: 0.5
-      MaterialComponent:
-        Material:
-          guid: builtin-material-default
-        Overrides:
-          parameters:
-            u_Color:
-              type: vec4
-              value:
-                - 0.800000012
-                - 0
-                - 0.899999976
-                - 1
-        BlendMode: Opaque
-      MeshComponent:
-        Mesh:
-          guid: builtin-mesh-cube
-      NameComponent:
-        Name: Entity
-  - uuid: 00000000000000000000000000000001
-    name: Entity
-    components:
-      TransformComponent:
-        Position:
-          x: 0.5
-          y: 0.5
-          z: -3.0999999
-        Rotation:
-          x: 0
-          y: 0
-          z: 0
-        Scale:
-          x: 1
-          y: 1
-          z: 1
-      MaterialComponent:
-        Material:
-          guid: builtin-material-default
-        Overrides:
-          parameters:
-            u_Color:
-              type: vec4
-              value:
-                - 1
-                - 1
-                - 0.800000012
-                - 1
-        BlendMode: Opaque
-      MeshComponent:
-        Mesh:
-          guid: builtin-mesh-quad
-      NameComponent:
-        Name: Entity
+- uuid: 4
+  name: Entity
+  components:
+    TransformComponent:
+      Position:
+        x: 1.5
+        y: -0.400000006
+        z: -3.20000005
+      Rotation:
+        x: 0.300000012
+        y: 0
+        z: 0
+      Scale:
+        x: 0.5
+        y: 0.5
+        z: 0.5
+    MaterialComponent:
+      Material:
+        guid: builtin-material-default
+      Overrides:
+        parameters:
+          u_Color:
+            type: vec4
+            value:
+            - 0.800000012
+            - 0
+            - 0.899999976
+            - 1
+      BlendMode: Opaque
+    MeshComponent:
+      Mesh:
+        guid: builtin-mesh-sphere
+- uuid: 3
+  name: Entity
+  components:
+    TransformComponent:
+      Position:
+        x: -0.5
+        y: -0.5
+        z: -4.30000019
+      Rotation:
+        x: 0
+        y: 0
+        z: 0
+      Scale:
+        x: 1
+        y: 1
+        z: 1
+    MaterialComponent:
+      Material:
+        guid: builtin-material-default
+      Overrides:
+        parameters:
+          u_Color:
+            type: vec4
+            value:
+            - 0.800000012
+            - 0.400000006
+            - 0.899999976
+            - 1
+          u_TextureScale:
+            type: vec2
+            value:
+            - 2
+            - 2
+      BlendMode: Opaque
+    MeshComponent:
+      Mesh:
+        guid: ''
+- uuid: 2
+  name: Entity
+  components:
+    TransformComponent:
+      Position:
+        x: -1.5
+        y: 0
+        z: -2.9000001
+      Rotation:
+        x: -0.600000024
+        y: 0
+        z: 0
+      Scale:
+        x: 0.5
+        y: 0.5
+        z: 0.5
+    MaterialComponent:
+      Material:
+        guid: builtin-material-default
+      Overrides:
+        parameters:
+          u_Color:
+            type: vec4
+            value:
+            - 0.800000012
+            - 0
+            - 0.899999976
+            - 1
+      BlendMode: Opaque
+    MeshComponent:
+      Mesh:
+        guid: builtin-mesh-cube
+- uuid: 1
+  name: Entity
+  components:
+    TransformComponent:
+      Position:
+        x: 0.5
+        y: 0.5
+        z: -3.0999999
+      Rotation:
+        x: 0
+        y: 0
+        z: 0
+      Scale:
+        x: 1
+        y: 1
+        z: 1
+    MaterialComponent:
+      Material:
+        guid: builtin-material-default
+      Overrides:
+        parameters:
+          u_Color:
+            type: vec4
+            value:
+            - 1
+            - 1
+            - 0.800000012
+            - 1
+      BlendMode: Opaque
+    MeshComponent:
+      Mesh:
+        guid: builtin-mesh-quad
+- uuid: 5
+  name: Entity 1
+  components:
+    TransformComponent:
+      Position:
+        x: 2.20000005
+        y: -0.400000006
+        z: -3.29999995
+      Rotation:
+        x: 0
+        y: -1.60000002
+        z: 0
+      Scale:
+        x: 1
+        y: 1
+        z: 1
+    MeshComponent:
+      Mesh:
+        guid: builtin-mesh-quad
+    MaterialComponent:
+      Material:
+        guid: builtin-material-default
+      Overrides:
+        parameters: {}
+      BlendMode: Opaque

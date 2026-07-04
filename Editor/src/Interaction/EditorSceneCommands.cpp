@@ -85,7 +85,7 @@ namespace HE {
                 return createResult;
             }
 
-            auto nameResult = operations->UpsertSceneEntityName(*scene, entityId, NameComponent(snapshot.Name));
+            auto nameResult = operations->UpsertSceneEntityName(*scene, entityId, snapshot.Name);
             if (!nameResult.Succeeded()) {
                 return nameResult;
             }

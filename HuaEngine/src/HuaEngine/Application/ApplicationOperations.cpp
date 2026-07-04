@@ -177,7 +177,7 @@ namespace HE {
 	ResultEnvelope ApplicationOperations::UpsertSceneEntityName(
 		Scene& scene,
 		uint32_t entityId,
-		const NameComponent& component) const
+		std::string_view name) const
 	{
 		ResultEnvelope resolveError;
 		if (!EnsureSceneEntityExists(scene, entityId, resolveError)) {
@@ -186,12 +186,11 @@ namespace HE {
 		}
 
 		auto entity = ResolveSceneEntity(scene, entityId);
-		entity.SetName(component.Name);
-		scene.GetWorld().AddComponent<NameComponent>(entity.GetId(), component);
+		entity.SetName(std::string(name));
 
 		auto result = ResultEnvelope::Success("scene.entity.upsert_name", MakeSceneEntityTarget(scene, entityId), "Scene entity name updated");
 		result.SetPayloadValue("entity_id", std::to_string(entityId));
-		result.SetPayloadValue("entity_name", component.Name);
+		result.SetPayloadValue("entity_name", entity.GetName());
 		return result;
 	}
 

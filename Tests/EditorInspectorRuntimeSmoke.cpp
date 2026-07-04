@@ -93,8 +93,8 @@ int main() {
 		HE::Editor::GetRuntimeComponentDisplayName(*camera->RuntimeType) == "Camera",
 		"Expected Camera display name from runtime metadata");
 	Require(
-		registry.FindByName("NameComponent") != nullptr,
-		"Expected Add Component candidate source to include runtime-registered NameComponent");
+		registry.FindByName("NameComponent") == nullptr,
+		"Expected entity names to stay out of runtime component candidates");
 	Require(
 		registry.FindByName("RendererComponent") == nullptr,
 		"Expected deprecated RendererComponent to stay out of generated runtime metadata");
