@@ -31,6 +31,36 @@ namespace HE::Rendering {
 		}
 	}
 
+	void BindTargetPass::Execute(RenderPassContext& context) {
+		if (!context.View || !context.View->Target || !context.Stats) {
+			return;
+		}
+
+		++context.Stats->PassCount;
+		context.View->Target->Bind();
+	}
+
+	void ClearTargetPass::Execute(RenderPassContext& context) {
+		if (!context.View || !context.Stats) {
+			return;
+		}
+
+		++context.Stats->PassCount;
+		if (context.View->ClearColorBuffer) {
+			RenderCommand::SetClearColor(context.View->ClearColor);
+			RenderCommand::Clear();
+		}
+	}
+
+	void BeginRendererPass::Execute(RenderPassContext& context) {
+		if (!context.View || !context.View->CameraRef || !context.Stats) {
+			return;
+		}
+
+		++context.Stats->PassCount;
+		Renderer::Begin(context.View->CameraRef);
+	}
+
 	void ForwardOpaquePass::Execute(RenderPassContext& context) {
 		if (!context.RenderItems || !context.ResourceResolver || !context.Stats || !context.Diagnostics) {
 			return;
@@ -51,16 +81,73 @@ namespace HE::Rendering {
 		}
 	}
 
+	void EndRendererPass::Execute(RenderPassContext& context) {
+		if (!context.Stats) {
+			return;
+		}
+
+		++context.Stats->PassCount;
+		Renderer::End();
+	}
+
+	void UnbindTargetPass::Execute(RenderPassContext& context) {
+		if (!context.View || !context.View->Target || !context.Stats) {
+			return;
+		}
+
+		++context.Stats->PassCount;
+		context.View->Target->Unbind();
+	}
+
 	void ForwardRenderPipeline::BuildGraph() {
 		m_Graph.Reset();
+		m_Graph.AddExternalInput("RenderTarget");
 		m_Graph.AddExternalInput("CameraView");
 		m_Graph.AddExternalInput("SceneItems");
 		m_Graph.AddPass({
+			.Name = "BindTarget",
+			.Inputs = { "RenderTarget" },
+			.Outputs = { "BoundRenderTarget" },
+			.Execute = [this](RenderPassContext& context) {
+				m_BindTargetPass.Execute(context);
+			}
+		});
+		m_Graph.AddPass({
+			.Name = "ClearTarget",
+			.Inputs = { "BoundRenderTarget" },
+			.Outputs = { "ClearedSceneColor" },
+			.Execute = [this](RenderPassContext& context) {
+				m_ClearTargetPass.Execute(context);
+			}
+		});
+		m_Graph.AddPass({
+			.Name = "BeginRenderer",
+			.Inputs = { "CameraView" },
+			.Outputs = { "RendererFrame" },
+			.Execute = [this](RenderPassContext& context) {
+				m_BeginRendererPass.Execute(context);
+			}
+		});
+		m_Graph.AddPass({
 			.Name = "ForwardOpaque",
-			.Inputs = { "CameraView", "SceneItems" },
+			.Inputs = { "CameraView", "SceneItems", "RendererFrame", "ClearedSceneColor" },
 			.Outputs = { "SceneColor" },
 			.Execute = [this](RenderPassContext& context) {
 				m_OpaquePass.Execute(context);
+			}
+		});
+		m_Graph.AddPass({
+			.Name = "EndRenderer",
+			.Inputs = { "RendererFrame" },
+			.Execute = [this](RenderPassContext& context) {
+				m_EndRendererPass.Execute(context);
+			}
+		});
+		m_Graph.AddPass({
+			.Name = "UnbindTarget",
+			.Inputs = { "BoundRenderTarget" },
+			.Execute = [this](RenderPassContext& context) {
+				m_UnbindTargetPass.Execute(context);
 			}
 		});
 	}
@@ -105,18 +192,12 @@ namespace HE::Rendering {
 		result.Stats.RenderItems = static_cast<uint32_t>(renderItems.size());
 		result.Stats.VisibleItems = result.Stats.RenderItems;
 
-		if (!EnsureGraphCompiled(result)) {
-			return result;
-		}
-
 		if (!view.CameraRef || !view.Target) {
 			return result;
 		}
 
-		view.Target->Bind();
-		if (view.ClearColorBuffer) {
-			RenderCommand::SetClearColor(view.ClearColor);
-			RenderCommand::Clear();
+		if (!EnsureGraphCompiled(result)) {
+			return result;
 		}
 
 		RenderPassContext passContext;
@@ -126,10 +207,7 @@ namespace HE::Rendering {
 		passContext.Stats = &result.Stats;
 		passContext.Diagnostics = &result.Diagnostics;
 
-		Renderer::Begin(view.CameraRef);
 		const bool graphExecuted = m_Graph.Execute(passContext);
-		Renderer::End();
-		view.Target->Unbind();
 
 		result.Succeeded = graphExecuted;
 		CopyGraphStateToResult(result);
