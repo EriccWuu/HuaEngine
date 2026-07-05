@@ -66,6 +66,40 @@ namespace {
 		component.Material.Reference.Guid = HE::BuiltinAssetGuids::DefaultMaterial;
 		return component;
 	}
+
+	std::string ToRenderingGraphDetailCode(HE::Rendering::RenderGraphDiagnosticCode code) {
+		switch (code) {
+			case HE::Rendering::RenderGraphDiagnosticCode::EmptyGraph:
+				return "rendering.graph.empty_graph";
+			case HE::Rendering::RenderGraphDiagnosticCode::EmptyPassName:
+				return "rendering.graph.empty_pass_name";
+			case HE::Rendering::RenderGraphDiagnosticCode::DuplicatePassName:
+				return "rendering.graph.duplicate_pass_name";
+			case HE::Rendering::RenderGraphDiagnosticCode::MissingExecuteCallback:
+				return "rendering.graph.missing_execute_callback";
+			case HE::Rendering::RenderGraphDiagnosticCode::EmptyResourceName:
+				return "rendering.graph.empty_resource";
+			case HE::Rendering::RenderGraphDiagnosticCode::DuplicateResourceAccess:
+				return "rendering.graph.duplicate_resource_access";
+			case HE::Rendering::RenderGraphDiagnosticCode::MissingResourceProducer:
+				return "rendering.graph.missing_resource_producer";
+			case HE::Rendering::RenderGraphDiagnosticCode::DuplicateResourceWriter:
+				return "rendering.graph.duplicate_resource_writer";
+		}
+
+		return "rendering.graph.unknown";
+	}
+
+	void AddRenderGraphDetails(HE::ResultEnvelope& result, const HE::Rendering::RenderResult& renderResult) {
+		for (const auto& diagnostic : renderResult.GraphDiagnostics) {
+			result.AddDetail({
+				HE::DiagnosticSeverity::Error,
+				ToRenderingGraphDetailCode(diagnostic.Code),
+				diagnostic.Message,
+				diagnostic.PassName
+			});
+		}
+	}
 }
 
 namespace HE {
@@ -611,6 +645,7 @@ namespace HE {
 		if (!renderResult.Succeeded) {
 			auto result = ResultEnvelope::Failure("rendering.render_scene_viewport", scene.GetName(), "Scene viewport render failed");
 			result.AddDetail({ DiagnosticSeverity::Error, "rendering.render_scene_viewport.pipeline_failed", "RenderPipeline did not produce a successful result", {} });
+			AddRenderGraphDetails(result, renderResult);
 			return result;
 		}
 
@@ -624,6 +659,11 @@ namespace HE {
 		result.SetPayloadValue("visible_items", std::to_string(renderResult.Stats.VisibleItems));
 		result.SetPayloadValue("fallback_items", std::to_string(renderResult.Stats.FallbackItems));
 		result.SetPayloadValue("diagnostics", std::to_string(renderResult.Diagnostics.size()));
+		result.SetPayloadValue("graph_resources", std::to_string(renderResult.GraphStats.ResourceCount));
+		result.SetPayloadValue("graph_edges", std::to_string(renderResult.GraphStats.EdgeCount));
+		result.SetPayloadValue("graph_external_inputs", std::to_string(renderResult.GraphStats.ExternalInputCount));
+		result.SetPayloadValue("graph_outputs", std::to_string(renderResult.GraphStats.OutputCount));
+		result.SetPayloadValue("graph_diagnostics", std::to_string(renderResult.GraphDiagnostics.size()));
 		return result;
 	}
 
