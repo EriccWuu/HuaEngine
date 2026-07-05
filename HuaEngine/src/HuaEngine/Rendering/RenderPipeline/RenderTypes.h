@@ -47,6 +47,30 @@ namespace HE::Rendering {
 		std::string Message;
 	};
 
+	enum class RenderGraphDiagnosticCode {
+		EmptyGraph,
+		EmptyPassName,
+		DuplicatePassName,
+		MissingExecuteCallback,
+		EmptyResourceName,
+		DuplicateResourceAccess,
+		MissingResourceProducer,
+		DuplicateResourceWriter
+	};
+
+	struct RenderGraphDiagnostic {
+		RenderGraphDiagnosticCode Code;
+		std::string PassName;
+		std::string Message;
+	};
+
+	struct RenderGraphStats {
+		uint32_t ResourceCount = 0;
+		uint32_t EdgeCount = 0;
+		uint32_t ExternalInputCount = 0;
+		uint32_t OutputCount = 0;
+	};
+
 	struct ResolvedRenderItem {
 		const RenderItem* Source = nullptr;
 		Ref<VertexArray> VertexArrayRef;
@@ -74,6 +98,8 @@ namespace HE::Rendering {
 	struct RenderResult {
 		bool Succeeded = false;
 		RenderStats Stats;
+		RenderGraphStats GraphStats;
 		std::vector<RenderDiagnostic> Diagnostics;
+		std::vector<RenderGraphDiagnostic> GraphDiagnostics;
 	};
 }
