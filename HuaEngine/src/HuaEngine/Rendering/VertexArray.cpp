@@ -1,6 +1,6 @@
 #include "enginepch.h"
 #include "VertexArray.h"
-#include "Renderer.h"
+#include "RendererAPI.h"
 #include "Platform/OpenGL/OpenGLVertexArray.h"
 
 namespace HE::Rendering {

@@ -1,49 +1,10 @@
 #include "enginepch.h"
 #include "Renderer.h"
-#include "RenderCommand.h"
+
+#include "HuaEngine/Rendering/RHI/RenderHardwareInterface.h"
 
 namespace HE::Rendering {
-	Ref<Camera> Renderer::m_Camera = nullptr;
-
 	void Renderer::Init() {
-		RenderCommand::Init();
+		RenderHardwareInterface::Init();
 	}
-
-	void Renderer::Begin(Ref<Camera> camera) {
-		m_Camera = camera;
-	}
-
-	void Renderer::End() {
-
-	}
-
-	void Renderer::Submit(const Ref<Shader>& shader, const Ref<VertexArray>& vertexArray, const glm::mat4& transform) {
-		shader->SetMat4("u_ViewProjection", m_Camera->GetViewProjection());
-		shader->SetMat4("u_Transform", transform);
-
-		vertexArray->Bind();
-		RenderCommand::DrawIndexed(vertexArray);
-	}
-
-	void Renderer::Submit(const Ref<MaterialInstance>& materialInstance, const Ref<VertexArray>& vertexArray, const glm::mat4& transform) {
-		if (!materialInstance || !materialInstance->GetShader()) {
-			HE_CORE_WARN("Trying to submit with null material instance or shader");
-			return;
-		}
-
-		auto shader = materialInstance->GetShader();
-
-		// Set standard matrix uniforms
-		shader->SetMat4("u_ViewProjection", m_Camera->GetViewProjection());
-		shader->SetMat4("u_Transform", transform);
-
-		// Bind material and apply parameters
-		materialInstance->Bind();
-
-		vertexArray->Bind();
-		RenderCommand::DrawIndexed(vertexArray);
-
-		materialInstance->Unbind();
-	}
-
 }
