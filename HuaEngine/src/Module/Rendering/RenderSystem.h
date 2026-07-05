@@ -5,8 +5,8 @@
 #include "HuaEngine/Rendering/Renderer.h"
 #include "HuaEngine/Rendering/RenderPipeline/RenderPipeline.h"
 #include "HuaEngine/Rendering/RenderPipeline/RenderResourceResolver.h"
-#include "HuaEngine/Rendering/RenderPipeline/SceneRenderExtractor.h"
 #include "HuaEngine/Rendering/FrameBuffer.h"
+#include "Module/Rendering/SceneRenderExtractor.h"
 
 namespace HE {
 	class AssetResolver;
@@ -28,7 +28,7 @@ namespace HE {
 		Ref<Scene> m_Scene;
 		Ref<Rendering::Camera> m_Camera;
 		Ref<Rendering::FrameBuffer> m_Framebuffer;
-		Rendering::SceneRenderExtractor m_Extractor;
+		SceneRenderExtractor m_Extractor;
 		Rendering::RenderResourceResolver m_ResourceResolver;
 		Scope<Rendering::RenderPipeline> m_RenderPipeline;
 		Rendering::RenderResult m_LastRenderResult;

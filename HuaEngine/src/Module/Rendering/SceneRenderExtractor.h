@@ -6,11 +6,9 @@
 
 namespace HE {
 	class World;
-}
 
-namespace HE::Rendering {
 	class SceneRenderExtractor {
 	public:
-		[[nodiscard]] std::vector<RenderItem> Extract(World& world) const;
+		[[nodiscard]] std::vector<Rendering::RenderItem> Extract(World& world) const;
 	};
 }
