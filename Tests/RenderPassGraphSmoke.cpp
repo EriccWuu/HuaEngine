@@ -97,6 +97,22 @@ int main() {
 		HasDiagnostic(duplicateWriterGraph.GetDiagnostics(), HE::Rendering::PassGraphDiagnosticCode::DuplicateResourceWriter),
 		"Expected duplicate resource writer diagnostic");
 
+	HE::Rendering::PassGraph futureProducerGraph;
+	futureProducerGraph.AddPass({
+		.Name = "ReadsFutureColor",
+		.Inputs = { "SceneColor" },
+		.Execute = [](HE::Rendering::RenderPassContext&) {}
+	});
+	futureProducerGraph.AddPass({
+		.Name = "WritesFutureColor",
+		.Outputs = { "SceneColor" },
+		.Execute = [](HE::Rendering::RenderPassContext&) {}
+	});
+	Require(!futureProducerGraph.Compile(), "Expected future resource producer to fail compile");
+	Require(
+		HasDiagnostic(futureProducerGraph.GetDiagnostics(), HE::Rendering::PassGraphDiagnosticCode::MissingResourceProducer),
+		"Expected future resource producer diagnostic");
+
 	std::vector<std::string> executionOrder;
 	HE::Rendering::PassGraph graph;
 	graph.AddExternalInput("CameraView");

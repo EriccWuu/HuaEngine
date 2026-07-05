@@ -41,6 +41,7 @@ namespace HE::Rendering {
 
 		std::unordered_set<std::string> passNames;
 		std::unordered_set<std::string> externalInputs;
+		std::unordered_set<std::string> availableResources;
 		std::unordered_set<std::string> resources;
 		std::unordered_set<std::string> readResources;
 		std::unordered_map<std::string, std::string> resourceWriters;
@@ -52,7 +53,7 @@ namespace HE::Rendering {
 					m_Diagnostics,
 					PassGraphDiagnosticCode::EmptyResourceName,
 					{},
-					"External input resource name must not be empty");
+					"Render graph resource name must not be empty");
 				continue;
 			}
 
@@ -61,9 +62,10 @@ namespace HE::Rendering {
 					m_Diagnostics,
 					PassGraphDiagnosticCode::DuplicateResourceAccess,
 					{},
-					"External input resource name must be unique");
+					"Render pass declares the same resource more than once");
 			}
 
+			availableResources.insert(resourceName);
 			resources.insert(resourceName);
 		}
 
@@ -97,7 +99,7 @@ namespace HE::Rendering {
 						m_Diagnostics,
 						PassGraphDiagnosticCode::EmptyResourceName,
 						pass.Name,
-						"Render pass input resource name must not be empty");
+						"Render graph resource name must not be empty");
 					continue;
 				}
 
@@ -106,7 +108,15 @@ namespace HE::Rendering {
 						m_Diagnostics,
 						PassGraphDiagnosticCode::DuplicateResourceAccess,
 						pass.Name,
-						"Render pass must not access the same resource more than once");
+						"Render pass declares the same resource more than once");
+				}
+
+				if (!availableResources.contains(input)) {
+					AddDiagnostic(
+						m_Diagnostics,
+						PassGraphDiagnosticCode::MissingResourceProducer,
+						pass.Name,
+						"Render pass reads a resource that has no producer or external input");
 				}
 
 				resources.insert(input);
@@ -120,7 +130,7 @@ namespace HE::Rendering {
 						m_Diagnostics,
 						PassGraphDiagnosticCode::EmptyResourceName,
 						pass.Name,
-						"Render pass output resource name must not be empty");
+						"Render graph resource name must not be empty");
 					continue;
 				}
 
@@ -129,7 +139,7 @@ namespace HE::Rendering {
 						m_Diagnostics,
 						PassGraphDiagnosticCode::DuplicateResourceAccess,
 						pass.Name,
-						"Render pass must not access the same resource more than once");
+						"Render pass declares the same resource more than once");
 				}
 
 				resources.insert(output);
@@ -139,18 +149,14 @@ namespace HE::Rendering {
 						m_Diagnostics,
 						PassGraphDiagnosticCode::DuplicateResourceWriter,
 						pass.Name,
-						"Render pass output resource must have a single writer");
+						"Render graph resource must not have multiple writers");
 				}
 			}
-		}
 
-		for (const auto& resource : readResources) {
-			if (!externalInputs.contains(resource) && !resourceWriters.contains(resource)) {
-				AddDiagnostic(
-					m_Diagnostics,
-					PassGraphDiagnosticCode::MissingResourceProducer,
-					{},
-					"Render pass input resource must be produced by a pass or external input");
+			for (const auto& output : pass.Outputs) {
+				if (!output.empty()) {
+					availableResources.insert(output);
+				}
 			}
 		}
 
