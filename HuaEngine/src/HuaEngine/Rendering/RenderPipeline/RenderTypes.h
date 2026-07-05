@@ -15,6 +15,7 @@
 #include "Module/Rendering/RenderingComponent.h"
 
 namespace HE::Rendering {
+	class CommandList;
 	class RenderResourceResolver;
 
 	struct RenderView {
@@ -91,6 +92,7 @@ namespace HE::Rendering {
 		const RenderView* View = nullptr;
 		const std::vector<RenderItem>* RenderItems = nullptr;
 		const RenderResourceResolver* ResourceResolver = nullptr;
+		CommandList* Commands = nullptr;
 		RenderStats* Stats = nullptr;
 		std::vector<RenderDiagnostic>* Diagnostics = nullptr;
 	};

@@ -1,9 +1,9 @@
 #include "enginepch.h"
 #include "ForwardRenderPipeline.h"
 
-#include "HuaEngine/Rendering/RenderCommand.h"
 #include "HuaEngine/Rendering/RenderPipeline/RenderResourceResolver.h"
-#include "HuaEngine/Rendering/Renderer.h"
+#include "HuaEngine/Rendering/RHI/CommandList.h"
+#include "HuaEngine/Rendering/RHI/RenderHardwareInterface.h"
 
 namespace HE::Rendering {
 	namespace {
@@ -32,37 +32,36 @@ namespace HE::Rendering {
 	}
 
 	void BindTargetPass::Execute(RenderPassContext& context) {
-		if (!context.View || !context.View->Target || !context.Stats) {
+		if (!context.View || !context.View->Target || !context.Commands || !context.Stats) {
 			return;
 		}
 
 		++context.Stats->PassCount;
-		context.View->Target->Bind();
+		context.Commands->BeginRenderTarget(*context.View->Target);
 	}
 
 	void ClearTargetPass::Execute(RenderPassContext& context) {
-		if (!context.View || !context.Stats) {
+		if (!context.View || !context.Commands || !context.Stats) {
 			return;
 		}
 
 		++context.Stats->PassCount;
 		if (context.View->ClearColorBuffer) {
-			RenderCommand::SetClearColor(context.View->ClearColor);
-			RenderCommand::Clear();
+			context.Commands->ClearColor(context.View->ClearColor);
 		}
 	}
 
 	void BeginRendererPass::Execute(RenderPassContext& context) {
-		if (!context.View || !context.View->CameraRef || !context.Stats) {
+		if (!context.View || !context.View->CameraRef || !context.Commands || !context.Stats) {
 			return;
 		}
 
 		++context.Stats->PassCount;
-		Renderer::Begin(context.View->CameraRef);
+		context.Commands->BeginFrame(*context.View->CameraRef);
 	}
 
 	void ForwardOpaquePass::Execute(RenderPassContext& context) {
-		if (!context.RenderItems || !context.ResourceResolver || !context.Stats || !context.Diagnostics) {
+		if (!context.RenderItems || !context.ResourceResolver || !context.Commands || !context.Stats || !context.Diagnostics) {
 			return;
 		}
 
@@ -75,28 +74,28 @@ namespace HE::Rendering {
 				continue;
 			}
 
-			Renderer::Submit(resolvedItem.MaterialInstanceRef, resolvedItem.VertexArrayRef, item.Transform);
+			context.Commands->DrawIndexed(*resolvedItem.MaterialInstanceRef, *resolvedItem.VertexArrayRef, item.Transform);
 			++context.Stats->SubmittedItems;
 			++context.Stats->DrawCalls;
 		}
 	}
 
 	void EndRendererPass::Execute(RenderPassContext& context) {
-		if (!context.Stats) {
+		if (!context.Commands || !context.Stats) {
 			return;
 		}
 
 		++context.Stats->PassCount;
-		Renderer::End();
+		context.Commands->EndFrame();
 	}
 
 	void UnbindTargetPass::Execute(RenderPassContext& context) {
-		if (!context.View || !context.View->Target || !context.Stats) {
+		if (!context.View || !context.View->Target || !context.Commands || !context.Stats) {
 			return;
 		}
 
 		++context.Stats->PassCount;
-		context.View->Target->Unbind();
+		context.Commands->EndRenderTarget();
 	}
 
 	void ForwardRenderPipeline::BuildGraph() {
@@ -200,10 +199,13 @@ namespace HE::Rendering {
 			return result;
 		}
 
+		auto& commandList = RenderHardwareInterface::GetDevice().GetImmediateCommandList();
+
 		RenderPassContext passContext;
 		passContext.View = &view;
 		passContext.RenderItems = &renderItems;
 		passContext.ResourceResolver = &resourceResolver;
+		passContext.Commands = &commandList;
 		passContext.Stats = &result.Stats;
 		passContext.Diagnostics = &result.Diagnostics;
 
