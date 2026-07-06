@@ -8,6 +8,7 @@
 namespace HE::Rendering {
 	class Camera;
 	class FrameBuffer;
+	class MaterialBinding;
 	class MaterialInstance;
 	class RenderTarget;
 	class ShaderProgram;
@@ -28,6 +29,7 @@ namespace HE::Rendering {
 		virtual void SetVertexBufferView(VertexBufferView& vertexBufferView) = 0;
 		virtual void SetTexture(uint32_t slot, TextureResource& texture) = 0;
 		virtual void SetMat4(const std::string& name, const glm::mat4& value) = 0;
+		virtual void SetMaterialBinding(const MaterialBinding& binding) = 0;
 		virtual void DrawIndexed(uint32_t indexCount, const glm::mat4& transform) = 0;
 
 		// Compatibility path for legacy MaterialInstance and VertexArray shells.

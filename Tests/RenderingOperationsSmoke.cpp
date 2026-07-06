@@ -1,4 +1,5 @@
 #include <cstdlib>
+#include <cstdint>
 #include <filesystem>
 #include <iostream>
 #include <algorithm>
@@ -57,8 +58,24 @@ namespace {
 		return renderableCount;
 	}
 
+	bool PixelNear(
+		const HE::Rendering::FrameBufferPixelRGBA8& pixel,
+		const HE::Rendering::FrameBufferPixelRGBA8& expected,
+		uint8_t tolerance) {
+		const auto nearChannel = [tolerance](uint8_t actual, uint8_t target) {
+			const int delta = static_cast<int>(actual) - static_cast<int>(target);
+			return delta >= -static_cast<int>(tolerance) && delta <= static_cast<int>(tolerance);
+		};
+
+		return nearChannel(pixel.R, expected.R)
+			&& nearChannel(pixel.G, expected.G)
+			&& nearChannel(pixel.B, expected.B)
+			&& nearChannel(pixel.A, expected.A);
+	}
+
 	bool IsClearColor(const HE::Rendering::FrameBufferPixelRGBA8& pixel) {
-		return pixel.R == 26 && pixel.G == 26 && pixel.B == 26 && pixel.A == 255;
+		const HE::Rendering::FrameBufferPixelRGBA8 expectedClearColor{ 26, 26, 26, 255 };
+		return PixelNear(pixel, expectedClearColor, 1);
 	}
 
 	bool HasRenderedPixel(const HE::Ref<HE::FrameBuffer>& framebuffer) {
@@ -127,6 +144,7 @@ int main() {
 
 	HE::Rendering::EditorCamera camera;
 	camera.SetViewport(320.0f, 180.0f);
+	camera.OnUpdate();
 	auto renderWithoutAttach = operations.RenderSceneViewport(*scene, camera);
 	Require(renderWithoutAttach.Failed(), "Expected rendering.render_scene_viewport to fail before attach");
 
@@ -228,6 +246,16 @@ int main() {
 	Require(renderAssetRefScene.Payload.at("graph_outputs") == "1", "Expected typed asset-ref scene render graph to report one output");
 	Require(renderAssetRefScene.Payload.at("graph_diagnostics") == "0", "Expected typed asset-ref scene render to emit no render graph diagnostics");
 	Require(HasRenderedPixel(framebuffer), "Expected typed asset-ref render path to write a non-clear framebuffer pixel");
+	const HE::Rendering::FrameBufferPixelRGBA8 expectedOverrideColor{ 230, 204, 51, 255 };
+	const auto& typedSpec = framebuffer->GetSpecification();
+	bool hasOverrideColorPixel = false;
+	for (uint32_t y = typedSpec.Height / 8; y < typedSpec.Height; y += typedSpec.Height / 8) {
+		for (uint32_t x = typedSpec.Width / 8; x < typedSpec.Width; x += typedSpec.Width / 8) {
+			const auto pixel = framebuffer->ReadPixelRGBA8(0, x, y);
+			hasOverrideColorPixel = hasOverrideColorPixel || PixelNear(pixel, expectedOverrideColor, 8);
+		}
+	}
+	Require(hasOverrideColorPixel, "Expected typed asset-ref material override color to be visible in the framebuffer");
 
 	HE::Ref<HE::Scene> loadedScene;
 	const auto scenePath = HE::ResourcePaths::ResolveEngineResourcePath("SandboxScene.scene");

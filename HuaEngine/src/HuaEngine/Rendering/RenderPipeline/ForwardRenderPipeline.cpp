@@ -74,10 +74,10 @@ namespace HE::Rendering {
 				continue;
 			}
 
-			if (resolvedItem.ShaderProgramRef && resolvedItem.VertexBufferViewRef) {
-				resolvedItem.MaterialInstanceRef->Bind();
+			if (resolvedItem.ShaderProgramRef && resolvedItem.VertexBufferViewRef && resolvedItem.MaterialBindingRef) {
 				context.Commands->SetShaderProgram(*resolvedItem.ShaderProgramRef);
 				context.Commands->SetVertexBufferView(*resolvedItem.VertexBufferViewRef);
+				context.Commands->SetMaterialBinding(*resolvedItem.MaterialBindingRef);
 				context.Commands->DrawIndexed(resolvedItem.VertexBufferViewRef->GetDesc().IndexCount, item.Transform);
 			} else {
 				context.Commands->DrawIndexed(*resolvedItem.MaterialInstanceRef, *resolvedItem.VertexArrayRef, item.Transform);

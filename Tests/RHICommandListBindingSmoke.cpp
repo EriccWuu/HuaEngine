@@ -4,6 +4,7 @@
 #include <string>
 
 #include "HuaEngine.h"
+#include "HuaEngine/Rendering/Material/MaterialBinding.h"
 #include "HuaEngine/Rendering/Camera.h"
 #include "HuaEngine/Rendering/RHI/CommandList.h"
 #include "HuaEngine/Rendering/RHI/RenderHardwareInterface.h"
@@ -115,8 +116,9 @@ int main() {
 	const std::string fragmentSource = R"(
 		#version 330 core
 		layout(location = 0) out vec4 color;
+		uniform vec4 u_Color;
 		void main() {
-			color = vec4(0.9, 0.2, 0.1, 1.0);
+			color = u_Color;
 		}
 	)";
 
@@ -136,6 +138,13 @@ int main() {
 	commands.SetShaderProgram(*shaderProgram);
 	commands.SetVertexBufferView(*vertexBufferView);
 	commands.SetMat4("u_Transform", glm::mat4(1.0f));
+	HE::Rendering::MaterialBinding materialBinding;
+	materialBinding.Parameters.push_back({
+		.Name = "u_Color",
+		.Type = HE::Rendering::MaterialParameterType::Vec4,
+		.Value = glm::vec4(0.9f, 0.2f, 0.1f, 1.0f)
+	});
+	commands.SetMaterialBinding(materialBinding);
 	commands.DrawIndexed(vertexBufferView->GetDesc().IndexCount, glm::mat4(1.0f));
 	commands.EndFrame();
 	commands.EndRenderTarget();

@@ -7,6 +7,7 @@
 
 #include "HuaEngine/Rendering/Camera.h"
 #include "HuaEngine/Rendering/FrameBuffer.h"
+#include "HuaEngine/Rendering/Material/MaterialBinding.h"
 #include "HuaEngine/Rendering/Material/Material.h"
 #include "HuaEngine/Rendering/RHI/RenderTarget.h"
 #include "HuaEngine/Rendering/RHI/ShaderProgram.h"
@@ -457,6 +458,60 @@ namespace HE::Rendering {
 		}
 
 		m_CurrentShaderProgram->SetMat4(name, value);
+	}
+
+	void OpenGLCommandList::SetMaterialBinding(const MaterialBinding& binding) {
+		if (!m_CurrentShaderProgram) {
+			HE_CORE_WARN("CommandList::SetMaterialBinding skipped because no shader program is bound");
+			return;
+		}
+
+		for (const auto& parameter : binding.Parameters) {
+			std::visit([&](auto&& value) {
+				using T = std::decay_t<decltype(value)>;
+
+				if constexpr (std::is_same_v<T, int>) {
+					m_CurrentShaderProgram->SetInt(parameter.Name, value);
+				}
+				else if constexpr (std::is_same_v<T, float>) {
+					m_CurrentShaderProgram->SetFloat(parameter.Name, value);
+				}
+				else if constexpr (std::is_same_v<T, glm::vec2>) {
+					m_CurrentShaderProgram->SetFloat2(parameter.Name, value);
+				}
+				else if constexpr (std::is_same_v<T, glm::vec3>) {
+					m_CurrentShaderProgram->SetFloat3(parameter.Name, value);
+				}
+				else if constexpr (std::is_same_v<T, glm::vec4>) {
+					m_CurrentShaderProgram->SetFloat4(parameter.Name, value);
+				}
+				else if constexpr (std::is_same_v<T, glm::mat3>) {
+					m_CurrentShaderProgram->SetMat3(parameter.Name, value);
+				}
+				else if constexpr (std::is_same_v<T, glm::mat4>) {
+					m_CurrentShaderProgram->SetMat4(parameter.Name, value);
+				}
+				else if constexpr (std::is_same_v<T, std::vector<int>>) {
+					m_CurrentShaderProgram->SetIntArray(parameter.Name, const_cast<int*>(value.data()), static_cast<uint32_t>(value.size()));
+				}
+				else if constexpr (std::is_same_v<T, std::vector<float>>) {
+					HE_CORE_WARN("CommandList::SetMaterialBinding skipped unsupported float array parameter '{0}'", parameter.Name);
+				}
+				else if constexpr (std::is_same_v<T, Ref<Texture2D>>) {
+					HE_CORE_WARN("CommandList::SetMaterialBinding received legacy texture parameter '{0}' in scalar parameter list", parameter.Name);
+				}
+			}, parameter.Value);
+		}
+
+		for (const auto& texture : binding.Textures) {
+			if (!texture.Texture) {
+				HE_CORE_WARN("CommandList::SetMaterialBinding skipped null texture parameter '{0}'", texture.Name);
+				continue;
+			}
+
+			texture.Texture->Bind(texture.Slot);
+			m_CurrentShaderProgram->SetInt(texture.Name, static_cast<int>(texture.Slot));
+		}
 	}
 
 	void OpenGLCommandList::DrawIndexed(MaterialInstance& material, VertexArray& vertexArray, const glm::mat4& transform) {

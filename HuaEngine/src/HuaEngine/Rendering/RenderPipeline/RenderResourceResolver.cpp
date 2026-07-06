@@ -3,6 +3,7 @@
 
 #include "HuaEngine/Asset/AssetResolver.h"
 #include "HuaEngine/Asset/AssetTypes.h"
+#include "HuaEngine/Rendering/Texture.h"
 #include "Module/Rendering/RenderingComponent.h"
 
 namespace HE::Rendering {
@@ -25,6 +26,57 @@ namespace HE::Rendering {
 				RenderDiagnosticCode::FallbackResourceUsed,
 				sourceEntity,
 				"Asset resolve failed for " + requestedGuid + "; using fallback " + fallbackGuid);
+		}
+
+		void AddMaterialBindingParameter(MaterialBinding& binding, const Material& material, const MaterialParameter& parameter) {
+			if (parameter.Type == MaterialParameterType::Texture2D) {
+				const auto* texture = std::get_if<Ref<Texture2D>>(&parameter.Value);
+				if (!texture || !*texture) {
+					return;
+				}
+
+				auto textureResource = (*texture)->GetTextureResource();
+				if (!textureResource) {
+					HE_CORE_WARN("Skipping material texture parameter '{0}' because it has no RHI texture resource", parameter.Name);
+					return;
+				}
+
+				binding.Textures.push_back({
+					.Name = parameter.Name,
+					.Slot = material.GetTextureSlot(parameter.Name),
+					.Texture = textureResource
+				});
+				return;
+			}
+
+			binding.Parameters.push_back({
+				.Name = parameter.Name,
+				.Type = parameter.Type,
+				.Value = parameter.Value
+			});
+		}
+
+		Ref<MaterialBinding> BuildMaterialBinding(const MaterialInstance& materialInstance) {
+			auto baseMaterial = materialInstance.GetBaseMaterial();
+			if (!baseMaterial) {
+				return nullptr;
+			}
+
+			auto binding = CreateRef<MaterialBinding>();
+			for (const auto& [name, parameter] : baseMaterial->GetParameters()) {
+				const auto* overrideParameter = materialInstance.GetParameterOverride(name);
+				AddMaterialBindingParameter(*binding, *baseMaterial, overrideParameter ? *overrideParameter : parameter);
+			}
+
+			for (const auto& [name, parameter] : materialInstance.GetParameterOverrides()) {
+				if (baseMaterial->HasParameter(name)) {
+					continue;
+				}
+
+				AddMaterialBindingParameter(*binding, *baseMaterial, parameter);
+			}
+
+			return binding;
 		}
 	}
 
@@ -109,6 +161,7 @@ namespace HE::Rendering {
 
 		outResolvedItem.VertexArrayRef = mesh->GetVertexArray();
 		outResolvedItem.MaterialInstanceRef = materialInstance;
+		outResolvedItem.MaterialBindingRef = BuildMaterialBinding(*materialInstance);
 		if (outResolvedItem.VertexArrayRef) {
 			outResolvedItem.VertexBufferViewRef = outResolvedItem.VertexArrayRef->GetVertexBufferView();
 		}

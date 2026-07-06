@@ -10,6 +10,7 @@
 #include "HuaEngine/ECS/Entity.h"
 #include "HuaEngine/Rendering/Camera.h"
 #include "HuaEngine/Rendering/FrameBuffer.h"
+#include "HuaEngine/Rendering/Material/MaterialBinding.h"
 #include "HuaEngine/Rendering/Material/Material.h"
 #include "HuaEngine/Rendering/RHI/ShaderProgram.h"
 #include "HuaEngine/Rendering/RHI/VertexBufferView.h"
@@ -80,6 +81,7 @@ namespace HE::Rendering {
 		Ref<VertexBufferView> VertexBufferViewRef;
 		Ref<ShaderProgram> ShaderProgramRef;
 		Ref<MaterialInstance> MaterialInstanceRef;
+		Ref<MaterialBinding> MaterialBindingRef;
 	};
 
 	struct RenderStats {

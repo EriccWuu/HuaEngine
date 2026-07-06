@@ -6,6 +6,7 @@
 namespace HE::Rendering {
 	class Camera;
 	class FrameBuffer;
+	class MaterialBinding;
 	class OpenGLFrameBuffer;
 	class OpenGLShader;
 	class OpenGLTexture2D;
@@ -20,6 +21,7 @@ namespace HE::Rendering {
 		void SetVertexBufferView(VertexBufferView& vertexBufferView) override;
 		void SetTexture(uint32_t slot, TextureResource& texture) override;
 		void SetMat4(const std::string& name, const glm::mat4& value) override;
+		void SetMaterialBinding(const MaterialBinding& binding) override;
 		void DrawIndexed(uint32_t indexCount, const glm::mat4& transform) override;
 		void DrawIndexed(MaterialInstance& material, VertexArray& vertexArray, const glm::mat4& transform) override;
 		void EndFrame() override;
