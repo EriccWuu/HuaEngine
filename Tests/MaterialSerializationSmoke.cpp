@@ -8,6 +8,25 @@
 #include "HuaEngine/Rendering/Material/MaterialSerializer.h"
 
 namespace {
+	class FakeShader final : public HE::Rendering::Shader {
+	public:
+		void Bind() override { BindCalled = true; }
+		void Unbind() override {}
+
+		void SetInt(const std::string&, int) override { ++SetIntCalls; }
+		void SetIntArray(const std::string&, int*, uint32_t) override {}
+		void SetFloat(const std::string&, float) override {}
+		void SetFloat2(const std::string&, const glm::vec2) override {}
+		void SetFloat3(const std::string&, const glm::vec3) override {}
+		void SetFloat4(const std::string&, const glm::vec4) override {}
+		void SetMat3(const std::string&, const glm::mat3) override {}
+		void SetMat4(const std::string&, const glm::mat4) override {}
+		HE::Ref<HE::Rendering::ShaderProgram> GetShaderProgram() const override { return nullptr; }
+
+		bool BindCalled = false;
+		int SetIntCalls = 0;
+	};
+
 	void Require(bool condition, const std::string& message) {
 		if (!condition) {
 			std::cerr << "[MaterialSerializationSmoke] " << message << std::endl;
@@ -70,6 +89,16 @@ int main() {
 	Require(loadedInstance.GetBaseMaterial() == standardMaterial, "Expected material instance base material to resolve from library");
 	Require(loadedInstance.HasParameterOverride("u_BaseColor"), "Expected material instance color override to round-trip");
 	Require(loadedInstance.HasParameterOverride("u_Metallic"), "Expected material instance metallic override to round-trip");
+
+	auto fakeShader = HE::CreateRef<FakeShader>();
+	auto nullTextureMaterial = HE::Rendering::Material::Create("NullTextureMaterial", HE::Rendering::MaterialType::Custom);
+	nullTextureMaterial->SetShader(fakeShader);
+	nullTextureMaterial->AddParameter({ "u_NullTexture", HE::Rendering::MaterialParameterType::Texture2D, HE::Ref<HE::Rendering::Texture2D>() });
+
+	HE::Rendering::MaterialInstance nullTextureInstance(nullTextureMaterial);
+	nullTextureInstance.Bind();
+	Require(fakeShader->BindCalled, "Expected material instance bind to bind the shader");
+	Require(fakeShader->SetIntCalls == 0, "Expected null texture parameter to skip sampler uniform binding");
 
 	std::error_code errorCode;
 	std::filesystem::remove_all(materialPath.parent_path(), errorCode);

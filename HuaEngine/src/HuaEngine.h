@@ -17,7 +17,6 @@
 
 // Render
 #include "HuaEngine/Rendering/Renderer.h"
-#include "HuaEngine/Rendering/RendererAPI.h"
 #include "HuaEngine/Rendering/VertexBuffer.h"
 #include "HuaEngine/Rendering/IndexBuffer.h"
 #include "HuaEngine/Rendering/VertexArray.h"
@@ -64,7 +63,6 @@ namespace HE {
 	// Core rendering type aliases
 	using Camera = Rendering::Camera;
 	using Renderer = Rendering::Renderer;
-	using RendererAPI = Rendering::RendererAPI;
 
 	// Buffer related
 	using Buffer = Rendering::Buffer;

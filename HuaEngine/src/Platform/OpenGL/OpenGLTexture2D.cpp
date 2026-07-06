@@ -2,6 +2,7 @@
 #include "OpenGLTexture2D.h"
 #include "stb_image.h"
 #include "glad/glad.h"
+#include <utility>
 
 namespace HE::Rendering {
 	OpenGLTexture2D::OpenGLTexture2D(const std::string& path) {
@@ -40,19 +41,50 @@ namespace HE::Rendering {
 		m_Path = path;
 	}
 
+	OpenGLTexture2D::OpenGLTexture2D(Ref<TextureResource> textureResource)
+		: m_TextureResource(std::move(textureResource)) {
+		HE_CORE_ASSERT(m_TextureResource, "OpenGLTexture2D requires a texture resource");
+		m_Path = m_TextureResource->GetDesc().SourcePath;
+	}
+
 	OpenGLTexture2D::~OpenGLTexture2D() {
+		if (m_TextureResource) {
+			return;
+		}
+
 		glDeleteTextures(1, &m_RenderID);
 	}
 
+	uint32_t OpenGLTexture2D::GetRenderID() const {
+		if (m_TextureResource) {
+			return m_TextureResource->GetRenderID();
+		}
+
+		return m_RenderID;
+	}
+
 	uint32_t OpenGLTexture2D::GetWidth() const {
+		if (m_TextureResource) {
+			return m_TextureResource->GetWidth();
+		}
+
 		return m_Width;
 	}
 
 	uint32_t OpenGLTexture2D::GetHeight() const {
+		if (m_TextureResource) {
+			return m_TextureResource->GetHeight();
+		}
+
 		return m_Height;
 	}
 
 	void OpenGLTexture2D::Bind(uint32_t slot) {
+		if (m_TextureResource) {
+			m_TextureResource->Bind(slot);
+			return;
+		}
+
 		glBindTextureUnit(slot, m_RenderID);
 	}
 }

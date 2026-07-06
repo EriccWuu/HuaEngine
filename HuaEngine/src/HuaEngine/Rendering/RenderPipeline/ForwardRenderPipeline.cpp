@@ -74,7 +74,15 @@ namespace HE::Rendering {
 				continue;
 			}
 
-			context.Commands->DrawIndexed(*resolvedItem.MaterialInstanceRef, *resolvedItem.VertexArrayRef, item.Transform);
+			if (resolvedItem.ShaderProgramRef && resolvedItem.VertexBufferViewRef) {
+				resolvedItem.MaterialInstanceRef->Bind();
+				context.Commands->SetShaderProgram(*resolvedItem.ShaderProgramRef);
+				context.Commands->SetVertexBufferView(*resolvedItem.VertexBufferViewRef);
+				context.Commands->DrawIndexed(resolvedItem.VertexBufferViewRef->GetDesc().IndexCount, item.Transform);
+			} else {
+				context.Commands->DrawIndexed(*resolvedItem.MaterialInstanceRef, *resolvedItem.VertexArrayRef, item.Transform);
+			}
+
 			++context.Stats->SubmittedItems;
 			++context.Stats->DrawCalls;
 		}

@@ -1,6 +1,9 @@
 #include "enginepch.h"
 #include "MaterialSerializer.h"
 #include "HuaEngine/Core/Log.h"
+#include "HuaEngine/Core/ResourcePaths.h"
+
+#include <filesystem>
 
 namespace HE::Rendering {
 
@@ -80,6 +83,18 @@ namespace HE::Rendering {
                 case MaterialParameterType::Texture2D: {
                     std::string texturePath;
                     if (backend.Deserialize(name, texturePath)) {
+                        if (texturePath.empty()) {
+                            value = Ref<Texture2D>();
+                            return true;
+                        }
+
+                        const auto resolvedTexturePath = HE::ResourcePaths::ResolveRuntimePath(texturePath);
+                        if (!std::filesystem::exists(resolvedTexturePath)) {
+                            HE_CORE_WARN("Skipping missing material texture parameter '{0}': {1}", name, resolvedTexturePath.generic_string());
+                            value = Ref<Texture2D>();
+                            return true;
+                        }
+
                         value = Texture2D::Create(texturePath);
                         return true;
                     }

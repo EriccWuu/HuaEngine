@@ -1,5 +1,8 @@
 #include "enginepch.h"
 #include "OpenGLVertexArray.h"
+#include "OpenGLIndexBuffer.h"
+#include "OpenGLVertexBuffer.h"
+#include "HuaEngine/Rendering/RHI/RenderHardwareInterface.h"
 #include "glad/glad.h"
 
 #include <cstdint>
@@ -32,10 +35,20 @@ namespace HE::Rendering {
 	}
 
 	void OpenGLVertexArray::Bind() {
+		if (m_VertexBufferView) {
+			m_VertexBufferView->Bind();
+			return;
+		}
+
 		glBindVertexArray(m_RenderID);
 	}
 
 	void OpenGLVertexArray::Unbind() {
+		if (m_VertexBufferView) {
+			m_VertexBufferView->Unbind();
+			return;
+		}
+
 		glBindVertexArray(0);
 	}
 
@@ -58,6 +71,7 @@ namespace HE::Rendering {
 		}
 
 		m_VertexBuffers.push_back(vertexBuffer);
+		TryCreateVertexBufferView();
 	}
 
 	void OpenGLVertexArray::SetIndexBuffer(const std::shared_ptr<IndexBuffer>& indexBuffer) {
@@ -65,6 +79,7 @@ namespace HE::Rendering {
 		indexBuffer->Bind();
 
 		m_IndexBuffer = indexBuffer;
+		TryCreateVertexBufferView();
 	}
 
 	const std::vector<std::shared_ptr<VertexBuffer>> OpenGLVertexArray::GetVertexBuffers() const {
@@ -73,5 +88,32 @@ namespace HE::Rendering {
 
 	const std::shared_ptr<IndexBuffer> OpenGLVertexArray::GetIndexBuffer() const {
 		return m_IndexBuffer;
+	}
+
+	void OpenGLVertexArray::TryCreateVertexBufferView() {
+		m_VertexBufferView = nullptr;
+
+		if (m_VertexBuffers.empty() || !m_IndexBuffer) {
+			return;
+		}
+
+		const auto& firstVertexBuffer = m_VertexBuffers.front();
+		if (!firstVertexBuffer || firstVertexBuffer->GetLayout().GetElements().empty() || m_IndexBuffer->GetCount() == 0) {
+			return;
+		}
+
+		auto openGLVertexBuffer = std::dynamic_pointer_cast<OpenGLVertexBuffer>(firstVertexBuffer);
+		auto openGLIndexBuffer = std::dynamic_pointer_cast<OpenGLIndexBuffer>(m_IndexBuffer);
+		if (!openGLVertexBuffer || !openGLIndexBuffer || !openGLVertexBuffer->GetGpuBuffer() || !openGLIndexBuffer->GetGpuBuffer()) {
+			return;
+		}
+
+		m_VertexBufferView = RenderHardwareInterface::GetDevice().CreateVertexBufferView({
+			.VertexBuffer = openGLVertexBuffer->GetGpuBuffer(),
+			.IndexBuffer = openGLIndexBuffer->GetGpuBuffer(),
+			.Layout = firstVertexBuffer->GetLayout(),
+			.IndexFormatValue = IndexFormat::UInt32,
+			.IndexCount = m_IndexBuffer->GetCount()
+		});
 	}
 }

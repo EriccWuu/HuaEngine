@@ -1,7 +1,7 @@
 #include "enginepch.h"
 #include "Shader.h"
-#include "HuaEngine/Rendering/RendererAPI.h"
 #include "HuaEngine/Core/ResourcePaths.h"
+#include "HuaEngine/Rendering/RHI/RenderHardwareInterface.h"
 #include "Platform/OpenGL/OpenGLShader.h"
 #include <fstream>
 #include <sstream>
@@ -49,16 +49,12 @@ namespace HE::Rendering {
 
 	Ref<Shader> Shader::Create(const std::string& vertSrc, const std::string& fragSrc)
 	{
-		switch (RendererAPI::GetAPI()) {
-		case RendererAPI::API::None:
-			HE_CORE_ASSERT(false, "API None is not supported!");
-			return nullptr;
-		case RendererAPI::API::OpenGL:
-			return std::make_shared<OpenGLShader>(vertSrc, fragSrc);
-		}
-
-		HE_CORE_ASSERT(false, "No matching graphic API!");
-		return nullptr;
+		auto shaderProgram = RenderHardwareInterface::GetDevice().CreateShaderProgram({
+			.VertexSource = vertSrc,
+			.FragmentSource = fragSrc
+		});
+		HE_CORE_ASSERT(shaderProgram, "Shader::Create failed to create shader program");
+		return CreateRef<OpenGLShader>(shaderProgram);
 	}
 
 	Ref<Shader> Shader::CreateFromFile(const std::string& vertexPath, const std::string& fragmentPath)

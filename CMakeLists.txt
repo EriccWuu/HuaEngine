@@ -560,6 +560,46 @@ if(WIN32)
 endif()
 configure_smoke_target(RenderPassGraphSmoke)
 
+add_executable(RHIResourceCreationSmoke Tests/RHIResourceCreationSmoke.cpp)
+target_include_directories(RHIResourceCreationSmoke PRIVATE
+    ${CMAKE_SOURCE_DIR}/HuaEngine/src
+    ${SPDLOG_INCLUDE_DIR}
+    ${GLM_INCLUDE_DIR}
+    ${IMGUI_INCLUDE_DIR}
+    ${STB_IMAGE_INCLUDE_DIR}
+)
+target_link_libraries(RHIResourceCreationSmoke PRIVATE HuaEngine)
+if(WIN32)
+    target_compile_definitions(RHIResourceCreationSmoke PRIVATE GLFW_INCLUDE_NONE)
+    if(MSVC)
+        set_target_properties(RHIResourceCreationSmoke PROPERTIES
+            MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>"
+        )
+        target_compile_options(RHIResourceCreationSmoke PRIVATE /utf-8)
+    endif()
+endif()
+configure_smoke_target(RHIResourceCreationSmoke)
+
+add_executable(RHICommandListBindingSmoke Tests/RHICommandListBindingSmoke.cpp)
+target_include_directories(RHICommandListBindingSmoke PRIVATE
+    ${CMAKE_SOURCE_DIR}/HuaEngine/src
+    ${SPDLOG_INCLUDE_DIR}
+    ${GLM_INCLUDE_DIR}
+    ${IMGUI_INCLUDE_DIR}
+    ${STB_IMAGE_INCLUDE_DIR}
+)
+target_link_libraries(RHICommandListBindingSmoke PRIVATE HuaEngine)
+if(WIN32)
+    target_compile_definitions(RHICommandListBindingSmoke PRIVATE GLFW_INCLUDE_NONE)
+    if(MSVC)
+        set_target_properties(RHICommandListBindingSmoke PROPERTIES
+            MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>"
+        )
+        target_compile_options(RHICommandListBindingSmoke PRIVATE /utf-8)
+    endif()
+endif()
+configure_smoke_target(RHICommandListBindingSmoke)
+
 add_executable(RenderingOperationsSmoke Tests/RenderingOperationsSmoke.cpp)
 target_include_directories(RenderingOperationsSmoke PRIVATE
     ${CMAKE_SOURCE_DIR}/HuaEngine/src
@@ -715,6 +755,8 @@ set_property(TARGET CLIWorkflowSmoke PROPERTY FOLDER "Tests")
 set_property(TARGET CLIContractSmoke PROPERTY FOLDER "Tests")
 set_property(TARGET CLIReflectionSmoke PROPERTY FOLDER "Tests")
 set_property(TARGET RenderPassGraphSmoke PROPERTY FOLDER "Tests")
+set_property(TARGET RHIResourceCreationSmoke PROPERTY FOLDER "Tests")
+set_property(TARGET RHICommandListBindingSmoke PROPERTY FOLDER "Tests")
 set_property(TARGET RenderingOperationsSmoke PROPERTY FOLDER "Tests")
 set_property(TARGET HostConsistencySmoke PROPERTY FOLDER "Tests")
 set_property(TARGET ProjectWorkbenchSmoke PROPERTY FOLDER "Tests")

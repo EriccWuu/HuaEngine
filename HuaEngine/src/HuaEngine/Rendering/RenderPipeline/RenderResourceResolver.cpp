@@ -109,6 +109,12 @@ namespace HE::Rendering {
 
 		outResolvedItem.VertexArrayRef = mesh->GetVertexArray();
 		outResolvedItem.MaterialInstanceRef = materialInstance;
+		if (outResolvedItem.VertexArrayRef) {
+			outResolvedItem.VertexBufferViewRef = outResolvedItem.VertexArrayRef->GetVertexBufferView();
+		}
+		if (baseMaterial->GetShader()) {
+			outResolvedItem.ShaderProgramRef = baseMaterial->GetShader()->GetShaderProgram();
+		}
 		return true;
 	}
 }

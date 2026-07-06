@@ -122,6 +122,12 @@ namespace HE::Rendering {
 			}
 			else if constexpr (std::is_same_v<T, Ref<Texture2D>>)
 			{
+				if (!val)
+				{
+					HE_CORE_WARN("Skipping null texture parameter '{0}' in material '{1}'", name, m_Name);
+					return;
+				}
+
 				uint32_t slot = GetTextureSlot(name);
 				val->Bind(slot);
 				m_Shader->SetInt(name, static_cast<int>(slot));
