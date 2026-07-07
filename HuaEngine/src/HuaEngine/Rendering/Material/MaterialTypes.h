@@ -17,10 +17,10 @@ namespace HE::Rendering {
 		void SetAO(float ao);
 
 		// Predefined texture setters
-		void SetDiffuseTexture(Ref<Texture2D> texture);
-		void SetNormalTexture(Ref<Texture2D> texture);
-		void SetMetallicRoughnessTexture(Ref<Texture2D> texture);
-		void SetAOTexture(Ref<Texture2D> texture);
+		void SetDiffuseTexture(Ref<TextureResource> texture);
+		void SetNormalTexture(Ref<TextureResource> texture);
+		void SetMetallicRoughnessTexture(Ref<TextureResource> texture);
+		void SetAOTexture(Ref<TextureResource> texture);
 
 		static Ref<StandardMaterial> Create(const std::string& name = "StandardMaterial");
 
@@ -36,7 +36,7 @@ namespace HE::Rendering {
 
 		// Predefined parameter setters
 		void SetColor(const glm::vec4& color);
-		void SetDiffuseTexture(Ref<Texture2D> texture);
+		void SetDiffuseTexture(Ref<TextureResource> texture);
 
 		static Ref<UnlitMaterial> Create(const std::string& name = "UnlitMaterial");
 
@@ -47,10 +47,10 @@ namespace HE::Rendering {
 	// Custom material
 	class CustomMaterial : public Material {
 	public:
-		CustomMaterial(const std::string& name, Ref<Shader> shader);
+		CustomMaterial(const std::string& name, Ref<ShaderProgram> shaderProgram);
 		virtual ~CustomMaterial() = default;
 
-		static Ref<CustomMaterial> Create(const std::string& name, Ref<Shader> shader);
+		static Ref<CustomMaterial> Create(const std::string& name, Ref<ShaderProgram> shaderProgram);
 	};
 
 }

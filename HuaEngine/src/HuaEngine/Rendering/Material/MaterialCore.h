@@ -1,8 +1,8 @@
 #pragma once
 
 #include "HuaEngine/Core/Core.h"
-#include "../Shader/Shader.h"
-#include "../Texture.h"
+#include "HuaEngine/Rendering/RHI/ShaderProgram.h"
+#include "HuaEngine/Rendering/RHI/TextureResource.h"
 #include <unordered_map>
 #include <variant>
 #include <string>
@@ -18,7 +18,7 @@ namespace HE::Rendering {
 	// Material parameter variant type
 	using MaterialParameterValue = std::variant<
 		int, float, glm::vec2, glm::vec3, glm::vec4, glm::mat3, glm::mat4,
-		Ref<Texture2D>, std::vector<int>, std::vector<float>
+		Ref<TextureResource>, std::vector<int>, std::vector<float>
 	>;
 
 	struct MaterialParameter {
@@ -53,8 +53,13 @@ namespace HE::Rendering {
 		// Basic properties
 		const std::string& GetName() const { return m_Name; }
 		MaterialType GetType() const { return m_Type; }
-		Ref<Shader> GetShader() const { return m_Shader; }
-		void SetShader(Ref<Shader> shader) { m_Shader = shader; }
+		Ref<ShaderProgram> GetShaderProgram() const { return m_ShaderProgram; }
+		void SetShaderProgram(Ref<ShaderProgram> shaderProgram, std::string shaderPath = {})
+		{
+			m_ShaderProgram = std::move(shaderProgram);
+			m_ShaderPath = std::move(shaderPath);
+		}
+		const std::string& GetShaderPath() const { return m_ShaderPath; }
 
 		// Setter interface for deserialization
 		void SetName(const std::string& name) { m_Name = name; }
@@ -92,7 +97,8 @@ namespace HE::Rendering {
 	protected:
 		std::string m_Name;
 		MaterialType m_Type;
-		Ref<Shader> m_Shader;
+		Ref<ShaderProgram> m_ShaderProgram;
+		std::string m_ShaderPath;
 		std::unordered_map<std::string, MaterialParameter> m_Parameters;
 		std::unordered_map<std::string, uint32_t> m_TextureSlots;
 		uint32_t m_NextTextureSlot = 0;
@@ -107,7 +113,7 @@ namespace HE::Rendering {
 		// Basic properties
 		Ref<Material> GetBaseMaterial() const { return m_BaseMaterial; }
 		void SetBaseMaterial(Ref<Material> baseMaterial) { m_BaseMaterial = std::move(baseMaterial); }
-		Ref<Shader> GetShader() const { return m_BaseMaterial ? m_BaseMaterial->GetShader() : nullptr; }
+		Ref<ShaderProgram> GetShaderProgram() const { return m_BaseMaterial ? m_BaseMaterial->GetShaderProgram() : nullptr; }
 
 		// Parameter overrides
 		void SetParameter(const std::string& name, const MaterialParameterValue& value);

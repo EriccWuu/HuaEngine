@@ -43,7 +43,7 @@ namespace {
 		auto sandboxMaterial = HE::Rendering::Material::Create("SandboxMaterial", HE::Rendering::MaterialType::Custom);
 		const auto materialPath = HE::ResourcePaths::ResolveEngineResourcePath("SandboxMaterial.material");
 		Require(HE::Serialization::LoadMaterial(materialPath.generic_string(), *sandboxMaterial), "Expected SandboxMaterial.material to load for renderable scene smoke");
-		Require(static_cast<bool>(sandboxMaterial->GetShader()), "Expected loaded sandbox material to have a shader");
+		Require(static_cast<bool>(sandboxMaterial->GetShaderProgram()), "Expected loaded sandbox material to have a shader program");
 		HE::Rendering::MaterialLibrary::Instance().RegisterMaterial(sandboxMaterial->GetName(), sandboxMaterial);
 	}
 

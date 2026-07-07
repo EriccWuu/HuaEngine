@@ -491,8 +491,8 @@ namespace HE::Rendering {
 				else if constexpr (std::is_same_v<T, std::vector<float>>) {
 					HE_CORE_WARN("CommandList::SetMaterialBinding skipped unsupported float array parameter '{0}'", parameter.Name);
 				}
-				else if constexpr (std::is_same_v<T, Ref<Texture2D>>) {
-					HE_CORE_WARN("CommandList::SetMaterialBinding received legacy texture parameter '{0}' in scalar parameter list", parameter.Name);
+				else if constexpr (std::is_same_v<T, Ref<TextureResource>>) {
+					HE_CORE_WARN("CommandList::SetMaterialBinding received texture resource parameter '{0}' in scalar parameter list", parameter.Name);
 				}
 			}, parameter.Value);
 		}

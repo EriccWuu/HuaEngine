@@ -2,6 +2,7 @@
 
 #include "MaterialCore.h"
 #include "MaterialLibrary.h"
+#include "HuaEngine/Rendering/Shader/Shader.h"
 #include "HuaEngine/Serialization/Serialization.h"
 
 namespace HE::Rendering {
@@ -85,9 +86,7 @@ namespace HE::Serialization {
 
             // Shader path
             std::string shaderPath = "";
-            if (material.GetShader()) {
-                shaderPath = material.GetShader()->GetPath();
-            }
+            shaderPath = material.GetShaderPath();
             backend.Serialize("shader_path", shaderPath);
 
             // Parameters (object format: "paramName": { "value_type": "...", "value": ... })
@@ -141,7 +140,7 @@ namespace HE::Serialization {
             // Load shader from path
             if (!shaderPath.empty()) {
                 auto shader = Rendering::Shader::CreateFromFile(shaderPath);
-                material.SetShader(shader);
+                material.SetShaderProgram(shader ? shader->GetShaderProgram() : nullptr, shaderPath);
             }
 
             // Parameters (object format, iterate using ForEachField)

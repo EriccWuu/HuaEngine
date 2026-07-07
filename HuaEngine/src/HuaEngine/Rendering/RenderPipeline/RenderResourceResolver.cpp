@@ -3,7 +3,6 @@
 
 #include "HuaEngine/Asset/AssetResolver.h"
 #include "HuaEngine/Asset/AssetTypes.h"
-#include "HuaEngine/Rendering/Texture.h"
 #include "Module/Rendering/RenderingComponent.h"
 
 namespace HE::Rendering {
@@ -30,21 +29,15 @@ namespace HE::Rendering {
 
 		void AddMaterialBindingParameter(MaterialBinding& binding, const Material& material, const MaterialParameter& parameter) {
 			if (parameter.Type == MaterialParameterType::Texture2D) {
-				const auto* texture = std::get_if<Ref<Texture2D>>(&parameter.Value);
+				const auto* texture = std::get_if<Ref<TextureResource>>(&parameter.Value);
 				if (!texture || !*texture) {
-					return;
-				}
-
-				auto textureResource = (*texture)->GetTextureResource();
-				if (!textureResource) {
-					HE_CORE_WARN("Skipping material texture parameter '{0}' because it has no RHI texture resource", parameter.Name);
 					return;
 				}
 
 				binding.Textures.push_back({
 					.Name = parameter.Name,
 					.Slot = material.GetTextureSlot(parameter.Name),
-					.Texture = textureResource
+					.Texture = *texture
 				});
 				return;
 			}
@@ -104,10 +97,10 @@ namespace HE::Rendering {
 		bool usedFallback = false;
 		const AssetGuid requestedMeshGuid = item.Mesh.Reference.Guid;
 		auto meshResult = m_AssetResolver->ResolveMesh(requestedMeshGuid, mesh);
-		if (!meshResult.Succeeded() || !mesh || !mesh->GetVertexArray()) {
+		if (!meshResult.Succeeded() || !mesh || !mesh->GetVertexBufferView()) {
 			Ref<Mesh> fallbackMesh = nullptr;
 			const auto fallbackResult = m_AssetResolver->ResolveMesh(BuiltinAssetGuids::FallbackMesh, fallbackMesh);
-			if (!fallbackResult.Succeeded() || !fallbackMesh || !fallbackMesh->GetVertexArray()) {
+			if (!fallbackResult.Succeeded() || !fallbackMesh || !fallbackMesh->GetVertexBufferView()) {
 				AddDiagnostic(
 					diagnostics,
 					RenderDiagnosticCode::MissingMeshAsset,
@@ -124,10 +117,10 @@ namespace HE::Rendering {
 		Ref<Material> baseMaterial = nullptr;
 		const AssetGuid requestedMaterialGuid = item.Material.Reference.Guid;
 		auto materialResult = m_AssetResolver->ResolveMaterial(requestedMaterialGuid, baseMaterial);
-		if (!materialResult.Succeeded() || !baseMaterial || !baseMaterial->GetShader()) {
+		if (!materialResult.Succeeded() || !baseMaterial || !baseMaterial->GetShaderProgram()) {
 			Ref<Material> fallbackMaterial = nullptr;
 			const auto fallbackResult = m_AssetResolver->ResolveMaterial(BuiltinAssetGuids::FallbackMaterial, fallbackMaterial);
-			if (!fallbackResult.Succeeded() || !fallbackMaterial || !fallbackMaterial->GetShader()) {
+			if (!fallbackResult.Succeeded() || !fallbackMaterial || !fallbackMaterial->GetShaderProgram()) {
 				AddDiagnostic(
 					diagnostics,
 					RenderDiagnosticCode::MissingBaseMaterial,
@@ -159,15 +152,10 @@ namespace HE::Rendering {
 			++stats.FallbackItems;
 		}
 
-		auto vertexArray = mesh->GetVertexArray();
 		outResolvedItem.MaterialInstanceRef = materialInstance;
 		outResolvedItem.MaterialBindingRef = BuildMaterialBinding(*materialInstance);
-		if (vertexArray) {
-			outResolvedItem.VertexBufferViewRef = vertexArray->GetVertexBufferView();
-		}
-		if (baseMaterial->GetShader()) {
-			outResolvedItem.ShaderProgramRef = baseMaterial->GetShader()->GetShaderProgram();
-		}
+		outResolvedItem.VertexBufferViewRef = mesh->GetVertexBufferView();
+		outResolvedItem.ShaderProgramRef = baseMaterial->GetShaderProgram();
 		return true;
 	}
 }

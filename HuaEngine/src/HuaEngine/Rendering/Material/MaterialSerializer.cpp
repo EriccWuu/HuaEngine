@@ -2,6 +2,8 @@
 #include "MaterialSerializer.h"
 #include "HuaEngine/Core/Log.h"
 #include "HuaEngine/Core/ResourcePaths.h"
+#include "HuaEngine/Rendering/RHI/RenderHardwareInterface.h"
+#include "HuaEngine/Rendering/Shader/Shader.h"
 
 #include <filesystem>
 
@@ -10,8 +12,8 @@ namespace HE::Rendering {
     void MaterialParameterSerializer::Serialize(HE::Serialization::SerializationBackend& backend, const std::string& name, const MaterialParameterValue& value) {
         std::visit([&](auto&& val) {
             using T = std::decay_t<decltype(val)>;
-            if constexpr (std::is_same_v<T, Ref<Texture2D>>) {
-                std::string texturePath = val ? val->GetPath() : "";
+            if constexpr (std::is_same_v<T, Ref<TextureResource>>) {
+                std::string texturePath = val ? val->GetDesc().SourcePath : "";
                 backend.Serialize(name, texturePath);
             }
             else {
@@ -84,18 +86,18 @@ namespace HE::Rendering {
                     std::string texturePath;
                     if (backend.Deserialize(name, texturePath)) {
                         if (texturePath.empty()) {
-                            value = Ref<Texture2D>();
+                            value = Ref<TextureResource>();
                             return true;
                         }
 
                         const auto resolvedTexturePath = HE::ResourcePaths::ResolveRuntimePath(texturePath);
                         if (!std::filesystem::exists(resolvedTexturePath)) {
                             HE_CORE_WARN("Skipping missing material texture parameter '{0}': {1}", name, resolvedTexturePath.generic_string());
-                            value = Ref<Texture2D>();
+                            value = Ref<TextureResource>();
                             return true;
                         }
 
-                        value = Texture2D::Create(texturePath);
+                        value = RenderHardwareInterface::GetDevice().CreateTexture({ .SourcePath = texturePath });
                         return true;
                     }
                     break;

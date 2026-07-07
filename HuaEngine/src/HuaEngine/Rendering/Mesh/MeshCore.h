@@ -1,7 +1,7 @@
 #pragma once
 
 #include "HuaEngine/Core/Core.h"
-#include "HuaEngine/Rendering/VertexArray.h"
+#include "HuaEngine/Rendering/RHI/VertexBufferView.h"
 #include "HuaEngine/Serialization/SerializationManager.h"
 #include "MeshData.h"
 #include <string>
@@ -19,8 +19,8 @@ namespace HE::Rendering {
 
         void SetName(const std::string& name) { m_Name = name; }
 
-        // Get VertexArray (lazy loading)
-        Ref<VertexArray> GetVertexArray();
+        // Get GPU vertex buffer view (lazy loading)
+        Ref<VertexBufferView> GetVertexBufferView();
 
         // Get raw mesh data
         const MeshData& GetMeshData() const { return m_MeshData; }
@@ -29,7 +29,7 @@ namespace HE::Rendering {
         void SetMeshData(const MeshData& meshData);
 
         // Check if loaded to GPU
-        bool IsLoadedToGPU() const { return m_VertexArray != nullptr; }
+        bool IsLoadedToGPU() const { return m_VertexBufferView != nullptr; }
 
         // Force reload to GPU
         void ReloadToGPU();
@@ -51,7 +51,7 @@ namespace HE::Rendering {
     private:
         std::string m_Name;
         MeshData m_MeshData;
-        Ref<VertexArray> m_VertexArray;  // Lazy loaded GPU resource
+        Ref<VertexBufferView> m_VertexBufferView;  // Lazy loaded GPU resource
 
         // Create VertexArray from MeshData
         void LoadToGPU();

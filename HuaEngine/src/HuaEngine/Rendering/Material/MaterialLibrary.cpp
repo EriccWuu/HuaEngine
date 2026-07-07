@@ -19,7 +19,7 @@ namespace HE::Rendering {
 		case MaterialType::Unlit:
 			return CreateUnlitMaterial(name);
 		case MaterialType::Custom:
-			HE_CORE_WARN("Custom material requires a shader. Use CreateCustomMaterial instead.");
+		HE_CORE_WARN("Custom material requires a shader program. Use CreateCustomMaterial instead.");
 			return nullptr;
 		default:
 			HE_CORE_ERROR("Unknown material type");
@@ -53,7 +53,7 @@ namespace HE::Rendering {
 		return material;
 	}
 
-	Ref<CustomMaterial> MaterialLibrary::CreateCustomMaterial(const std::string& name, Ref<Shader> shader)
+	Ref<CustomMaterial> MaterialLibrary::CreateCustomMaterial(const std::string& name, Ref<ShaderProgram> shaderProgram)
 	{
 		if (HasMaterial(name))
 		{
@@ -61,7 +61,7 @@ namespace HE::Rendering {
 			return std::dynamic_pointer_cast<CustomMaterial>(GetMaterial(name));
 		}
 
-		auto material = CustomMaterial::Create(name, shader);
+		auto material = CustomMaterial::Create(name, shaderProgram);
 		RegisterMaterial(name, material);
 		return material;
 	}

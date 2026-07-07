@@ -8,17 +8,17 @@ namespace HE::Rendering {
         : m_Name(name), m_MeshData(meshData) {
     }
 
-    Ref<VertexArray> Mesh::GetVertexArray() {
-        if (!m_VertexArray && m_MeshData.IsValid()) {
+    Ref<VertexBufferView> Mesh::GetVertexBufferView() {
+        if (!m_VertexBufferView && m_MeshData.IsValid()) {
             LoadToGPU();
         }
-        return m_VertexArray;
+        return m_VertexBufferView;
     }
 
     void Mesh::SetMeshData(const MeshData& meshData) {
         m_MeshData = meshData;
         // Clear existing GPU resource, reload on next access
-        m_VertexArray = nullptr;
+        m_VertexBufferView = nullptr;
     }
 
     void Mesh::ReloadToGPU() {
@@ -27,7 +27,7 @@ namespace HE::Rendering {
     }
 
     void Mesh::UnloadFromGPU() {
-        m_VertexArray = nullptr;  // Smart pointer auto-releases resources
+        m_VertexBufferView = nullptr;  // Smart pointer auto-releases resources
     }
 
     void Mesh::LoadToGPU() {
@@ -36,8 +36,9 @@ namespace HE::Rendering {
             return;
         }
 
-        m_VertexArray = m_MeshData.ToVertexArray();
-        if (m_VertexArray) {
+        auto vertexArray = m_MeshData.ToVertexArray();
+        m_VertexBufferView = vertexArray ? vertexArray->GetVertexBufferView() : nullptr;
+        if (m_VertexBufferView) {
             HE_CORE_INFO("Mesh '{}' loaded to GPU successfully", m_Name);
         } else {
             HE_CORE_ERROR("Failed to load mesh '{}' to GPU", m_Name);

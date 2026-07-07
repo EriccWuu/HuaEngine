@@ -22,10 +22,10 @@ namespace HE::Rendering {
 		AddParameter(MaterialParameter("u_AO", MaterialParameterType::Float, 1.0f));
 
 		// Texture parameters
-		AddParameter(MaterialParameter("u_DiffuseTexture", MaterialParameterType::Texture2D, Ref<Texture2D>()));
-		AddParameter(MaterialParameter("u_NormalTexture", MaterialParameterType::Texture2D, Ref<Texture2D>()));
-		AddParameter(MaterialParameter("u_MetallicRoughnessTexture", MaterialParameterType::Texture2D, Ref<Texture2D>()));
-		AddParameter(MaterialParameter("u_AOTexture", MaterialParameterType::Texture2D, Ref<Texture2D>()));
+		AddParameter(MaterialParameter("u_DiffuseTexture", MaterialParameterType::Texture2D, Ref<TextureResource>()));
+		AddParameter(MaterialParameter("u_NormalTexture", MaterialParameterType::Texture2D, Ref<TextureResource>()));
+		AddParameter(MaterialParameter("u_MetallicRoughnessTexture", MaterialParameterType::Texture2D, Ref<TextureResource>()));
+		AddParameter(MaterialParameter("u_AOTexture", MaterialParameterType::Texture2D, Ref<TextureResource>()));
 	}
 
 	void StandardMaterial::SetBaseColor(const glm::vec4& color)
@@ -48,22 +48,22 @@ namespace HE::Rendering {
 		SetParameter("u_AO", ao);
 	}
 
-	void StandardMaterial::SetDiffuseTexture(Ref<Texture2D> texture)
+	void StandardMaterial::SetDiffuseTexture(Ref<TextureResource> texture)
 	{
 		SetParameter("u_DiffuseTexture", texture);
 	}
 
-	void StandardMaterial::SetNormalTexture(Ref<Texture2D> texture)
+	void StandardMaterial::SetNormalTexture(Ref<TextureResource> texture)
 	{
 		SetParameter("u_NormalTexture", texture);
 	}
 
-	void StandardMaterial::SetMetallicRoughnessTexture(Ref<Texture2D> texture)
+	void StandardMaterial::SetMetallicRoughnessTexture(Ref<TextureResource> texture)
 	{
 		SetParameter("u_MetallicRoughnessTexture", texture);
 	}
 
-	void StandardMaterial::SetAOTexture(Ref<Texture2D> texture)
+	void StandardMaterial::SetAOTexture(Ref<TextureResource> texture)
 	{
 		SetParameter("u_AOTexture", texture);
 	}
@@ -86,7 +86,7 @@ namespace HE::Rendering {
 		AddParameter(MaterialParameter("u_Color", MaterialParameterType::Vec4, glm::vec4(1.0f, 1.0f, 1.0f, 1.0f)));
 
 		// Texture parameter
-		AddParameter(MaterialParameter("u_Texture", MaterialParameterType::Texture2D, Ref<Texture2D>()));
+		AddParameter(MaterialParameter("u_Texture", MaterialParameterType::Texture2D, Ref<TextureResource>()));
 	}
 
 	void UnlitMaterial::SetColor(const glm::vec4& color)
@@ -94,7 +94,7 @@ namespace HE::Rendering {
 		SetParameter("u_Color", color);
 	}
 
-	void UnlitMaterial::SetDiffuseTexture(Ref<Texture2D> texture)
+	void UnlitMaterial::SetDiffuseTexture(Ref<TextureResource> texture)
 	{
 		SetParameter("u_Texture", texture);
 	}
@@ -105,15 +105,15 @@ namespace HE::Rendering {
 	}
 
 	// CustomMaterial implementation
-	CustomMaterial::CustomMaterial(const std::string& name, Ref<Shader> shader)
+	CustomMaterial::CustomMaterial(const std::string& name, Ref<ShaderProgram> shaderProgram)
 		: Material(name, MaterialType::Custom)
 	{
-		SetShader(shader);
+		SetShaderProgram(shaderProgram);
 	}
 
-	Ref<CustomMaterial> CustomMaterial::Create(const std::string& name, Ref<Shader> shader)
+	Ref<CustomMaterial> CustomMaterial::Create(const std::string& name, Ref<ShaderProgram> shaderProgram)
 	{
-		return std::make_shared<CustomMaterial>(name, shader);
+		return std::make_shared<CustomMaterial>(name, shaderProgram);
 	}
 
 }

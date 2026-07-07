@@ -102,7 +102,8 @@ void main() {
 }
 )";
 
-		material->SetShader(HE::Rendering::Shader::Create(vertexSource, fragmentSource));
+		auto shader = HE::Rendering::Shader::Create(vertexSource, fragmentSource);
+		material->SetShaderProgram(shader ? shader->GetShaderProgram() : nullptr);
 		material->AddParameter(HE::Rendering::MaterialParameter("u_Color", HE::Rendering::MaterialParameterType::Vec4, color));
 		library.RegisterMaterial(name, material);
 		return material;

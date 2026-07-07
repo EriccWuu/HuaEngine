@@ -9,21 +9,6 @@
 #include "HuaEngine/Rendering/Material/MaterialSerializer.h"
 
 namespace {
-	class FakeShader final : public HE::Rendering::Shader {
-	public:
-		void SetInt(const std::string&, int) override { ++SetIntCalls; }
-		void SetIntArray(const std::string&, int*, uint32_t) override {}
-		void SetFloat(const std::string&, float) override {}
-		void SetFloat2(const std::string&, const glm::vec2) override {}
-		void SetFloat3(const std::string&, const glm::vec3) override {}
-		void SetFloat4(const std::string&, const glm::vec4) override {}
-		void SetMat3(const std::string&, const glm::mat3) override {}
-		void SetMat4(const std::string&, const glm::mat4) override {}
-		HE::Ref<HE::Rendering::ShaderProgram> GetShaderProgram() const override { return nullptr; }
-
-		int SetIntCalls = 0;
-	};
-
 	void Require(bool condition, const std::string& message) {
 		if (!condition) {
 			std::cerr << "[MaterialSerializationSmoke] " << message << std::endl;
@@ -87,17 +72,14 @@ int main() {
 	Require(loadedInstance.HasParameterOverride("u_BaseColor"), "Expected material instance color override to round-trip");
 	Require(loadedInstance.HasParameterOverride("u_Metallic"), "Expected material instance metallic override to round-trip");
 
-	auto fakeShader = HE::CreateRef<FakeShader>();
 	auto nullTextureMaterial = HE::Rendering::Material::Create("NullTextureMaterial", HE::Rendering::MaterialType::Custom);
-	nullTextureMaterial->SetShader(fakeShader);
-	nullTextureMaterial->AddParameter({ "u_NullTexture", HE::Rendering::MaterialParameterType::Texture2D, HE::Ref<HE::Rendering::Texture2D>() });
-	nullTextureMaterial->SetParameter("u_NullTexture", HE::Ref<HE::Rendering::Texture2D>());
+	nullTextureMaterial->AddParameter({ "u_NullTexture", HE::Rendering::MaterialParameterType::Texture2D, HE::Ref<HE::Rendering::TextureResource>() });
+	nullTextureMaterial->SetParameter("u_NullTexture", HE::Ref<HE::Rendering::TextureResource>());
 
 	const auto* nullTextureParameter = nullTextureMaterial->GetParameter("u_NullTexture");
 	Require(nullTextureParameter != nullptr, "Expected null texture material parameter to remain stored");
-	const auto* storedNullTexture = std::get_if<HE::Ref<HE::Rendering::Texture2D>>(&nullTextureParameter->Value);
+	const auto* storedNullTexture = std::get_if<HE::Ref<HE::Rendering::TextureResource>>(&nullTextureParameter->Value);
 	Require(storedNullTexture != nullptr && !*storedNullTexture, "Expected null texture parameter value to remain stored");
-	Require(fakeShader->SetIntCalls == 0, "Expected material SetParameter not to write sampler uniform state");
 
 	std::error_code errorCode;
 	std::filesystem::remove_all(materialPath.parent_path(), errorCode);

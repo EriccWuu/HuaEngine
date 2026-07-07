@@ -14,7 +14,7 @@ namespace HE::Rendering {
 		Ref<Material> CreateMaterial(const std::string& name, MaterialType type);
 		Ref<StandardMaterial> CreateStandardMaterial(const std::string& name);
 		Ref<UnlitMaterial> CreateUnlitMaterial(const std::string& name);
-		Ref<CustomMaterial> CreateCustomMaterial(const std::string& name, Ref<Shader> shader);
+		Ref<CustomMaterial> CreateCustomMaterial(const std::string& name, Ref<ShaderProgram> shaderProgram);
 
 		// Material registration and retrieval
 		void RegisterMaterial(const std::string& name, Ref<Material> material);

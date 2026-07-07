@@ -753,7 +753,7 @@ namespace HE {
 
         if (Rendering::MaterialLibrary::Instance().HasMaterial(std::string(materialName))) {
             auto cachedMaterial = Rendering::MaterialLibrary::Instance().GetMaterial(std::string(materialName));
-            if (cachedMaterial && cachedMaterial->GetShader()) {
+            if (cachedMaterial && cachedMaterial->GetShaderProgram()) {
                 return true;
             }
         }
@@ -776,7 +776,7 @@ namespace HE {
                 return false;
             }
 
-            if (!material->GetShader()) {
+            if (!material->GetShaderProgram()) {
                 return false;
             }
 
