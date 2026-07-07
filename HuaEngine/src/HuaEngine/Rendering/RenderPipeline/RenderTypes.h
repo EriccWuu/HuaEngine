@@ -42,7 +42,8 @@ namespace HE::Rendering {
 		MissingMaterialInstance,
 		MissingBaseMaterial,
 		MissingShader,
-		FallbackResourceUsed
+		FallbackResourceUsed,
+		LegacyDrawFallbackUsed
 	};
 
 	struct RenderDiagnostic {

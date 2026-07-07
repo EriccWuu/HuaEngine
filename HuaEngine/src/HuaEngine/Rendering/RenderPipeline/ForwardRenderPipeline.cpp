@@ -83,6 +83,11 @@ namespace HE::Rendering {
 				context.Commands->SetObjectBinding({ .Transform = item.Transform });
 				context.Commands->DrawIndexed(resolvedItem.VertexBufferViewRef->GetDesc().IndexCount);
 			} else {
+				context.Diagnostics->push_back({
+					RenderDiagnosticCode::LegacyDrawFallbackUsed,
+					item.SourceEntity,
+					"Render item used legacy draw fallback because resolved RHI draw resources were incomplete"
+				});
 				context.Commands->DrawIndexed(*resolvedItem.MaterialInstanceRef, *resolvedItem.VertexArrayRef, item.Transform);
 			}
 
