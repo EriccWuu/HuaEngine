@@ -13,7 +13,6 @@
 #include "HuaEngine/Rendering/RHI/ShaderProgram.h"
 #include "HuaEngine/Rendering/RHI/TextureResource.h"
 #include "HuaEngine/Rendering/RHI/VertexBufferView.h"
-#include "HuaEngine/Rendering/VertexArray.h"
 #include "Platform/OpenGL/OpenGLFrameBuffer.h"
 #include "Platform/OpenGL/OpenGLShader.h"
 #include "Platform/OpenGL/OpenGLTexture2D.h"
@@ -636,19 +635,4 @@ namespace HE::Rendering {
 		return CreateRef<OpenGLShaderProgram>(desc);
 	}
 
-	Ref<GpuBuffer> OpenGLRenderDevice::CreateVertexBuffer(float* vertices, uint32_t size) {
-		return CreateBuffer({
-			.Usage = GpuBufferUsage::Vertex,
-			.Size = size,
-			.Stride = 0
-		}, vertices);
-	}
-
-	Ref<GpuBuffer> OpenGLRenderDevice::CreateIndexBuffer(uint32_t* indices, uint32_t count) {
-		return CreateBuffer({
-			.Usage = GpuBufferUsage::Index,
-			.Size = count * static_cast<uint32_t>(sizeof(uint32_t)),
-			.Stride = static_cast<uint32_t>(sizeof(uint32_t))
-		}, indices);
-	}
 }

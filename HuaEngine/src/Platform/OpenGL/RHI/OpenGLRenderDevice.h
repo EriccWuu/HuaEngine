@@ -139,8 +139,6 @@ namespace HE::Rendering {
 		Ref<RenderTarget> CreateRenderTarget(const RenderTargetDesc& desc) override;
 		Ref<TextureResource> CreateTexture(const TextureDesc& desc) override;
 		Ref<ShaderProgram> CreateShaderProgram(const ShaderProgramDesc& desc) override;
-		Ref<GpuBuffer> CreateVertexBuffer(float* vertices, uint32_t size) override;
-		Ref<GpuBuffer> CreateIndexBuffer(uint32_t* indices, uint32_t count) override;
 
 	private:
 		OpenGLCommandList m_ImmediateCommandList;

@@ -17,9 +17,7 @@
 
 // Render
 #include "HuaEngine/Rendering/Renderer.h"
-#include "HuaEngine/Rendering/VertexBuffer.h"
-#include "HuaEngine/Rendering/IndexBuffer.h"
-#include "HuaEngine/Rendering/VertexArray.h"
+#include "HuaEngine/Rendering/VertexLayout.h"
 #include "HuaEngine/Rendering/Texture.h"
 #include "HuaEngine/Rendering/FrameBuffer.h"
 #include "HuaEngine/Rendering/Material/Material.h"
@@ -63,11 +61,7 @@ namespace HE {
 	using Camera = Rendering::Camera;
 	using Renderer = Rendering::Renderer;
 
-	// Buffer related
-	using Buffer = Rendering::Buffer;
-	using VertexBuffer = Rendering::VertexBuffer;
-	using IndexBuffer = Rendering::IndexBuffer;
-	using VertexArray = Rendering::VertexArray;
+	// Vertex layout related
 	using BufferLayout = Rendering::BufferLayout;
 	using ShaderDataType = Rendering::ShaderDataType;
 

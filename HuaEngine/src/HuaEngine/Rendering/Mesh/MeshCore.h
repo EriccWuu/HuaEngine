@@ -53,7 +53,7 @@ namespace HE::Rendering {
         MeshData m_MeshData;
         Ref<VertexBufferView> m_VertexBufferView;  // Lazy loaded GPU resource
 
-        // Create VertexArray from MeshData
+        // Upload MeshData to GPU resources.
         void LoadToGPU();
     };
 

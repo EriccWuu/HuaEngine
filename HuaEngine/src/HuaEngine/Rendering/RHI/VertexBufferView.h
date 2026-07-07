@@ -2,7 +2,7 @@
 
 #include "HuaEngine/Core/Core.h"
 #include "HuaEngine/Rendering/RHI/GpuBuffer.h"
-#include "HuaEngine/Rendering/VertexBuffer.h"
+#include "HuaEngine/Rendering/VertexLayout.h"
 
 namespace HE::Rendering {
 	enum class IndexFormat : uint8_t {

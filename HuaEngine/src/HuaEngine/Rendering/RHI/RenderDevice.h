@@ -25,9 +25,5 @@ namespace HE::Rendering {
 		virtual Ref<RenderTarget> CreateRenderTarget(const RenderTargetDesc& desc) = 0;
 		virtual Ref<TextureResource> CreateTexture(const TextureDesc& desc) = 0;
 		virtual Ref<ShaderProgram> CreateShaderProgram(const ShaderProgramDesc& desc) = 0;
-
-		// Compatibility helpers for legacy VertexBuffer/IndexBuffer shells only.
-		virtual Ref<GpuBuffer> CreateVertexBuffer(float* vertices, uint32_t size) = 0;
-		virtual Ref<GpuBuffer> CreateIndexBuffer(uint32_t* indices, uint32_t count) = 0;
 	};
 }

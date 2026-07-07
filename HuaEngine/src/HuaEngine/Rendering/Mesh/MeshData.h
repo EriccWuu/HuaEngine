@@ -1,8 +1,7 @@
 #pragma once
 
 #include "HuaEngine/Core/Core.h"
-#include "HuaEngine/Rendering/VertexArray.h"
-#include "HuaEngine/Rendering/VertexBuffer.h"
+#include "HuaEngine/Rendering/RHI/VertexBufferView.h"
 #include "HuaEngine/Serialization/SerializationCore.h"
 #include <vector>
 
@@ -60,11 +59,8 @@ namespace HE::Rendering {
         std::vector<uint32_t> IndexData;            // Index data
         SerializableBufferLayout Layout;            // Vertex layout
 
-        // Extract data from VertexArray
-        static MeshData FromVertexArray(const Ref<VertexArray>& vertexArray);
-
-        // Create VertexArray
-        Ref<VertexArray> ToVertexArray() const;
+        // Upload mesh data and create a vertex buffer view.
+        Ref<VertexBufferView> ToVertexBufferView() const;
 
         // Validate data
         bool IsValid() const {

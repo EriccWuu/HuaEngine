@@ -36,8 +36,7 @@ namespace HE::Rendering {
             return;
         }
 
-        auto vertexArray = m_MeshData.ToVertexArray();
-        m_VertexBufferView = vertexArray ? vertexArray->GetVertexBufferView() : nullptr;
+        m_VertexBufferView = m_MeshData.ToVertexBufferView();
         if (m_VertexBufferView) {
             HE_CORE_INFO("Mesh '{}' loaded to GPU successfully", m_Name);
         } else {

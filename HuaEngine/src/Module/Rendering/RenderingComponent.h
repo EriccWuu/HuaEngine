@@ -4,7 +4,6 @@
 #include "HuaEngine/ECS/Components.h"
 #include "HuaEngine/Asset/AssetTypes.h"
 #include "HuaEngine/Rendering/Camera.h"
-#include "HuaEngine/Rendering/VertexArray.h"
 #include "HuaEngine/Rendering/RHI/ShaderProgram.h"
 #include "HuaEngine/Rendering/Texture.h"
 #include "HuaEngine/Rendering/Material/Material.h"
