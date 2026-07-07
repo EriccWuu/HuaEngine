@@ -2,6 +2,7 @@
 #include "OpenGLFrameBuffer.h"
 
 #include "glad/glad.h"
+#include "Platform/OpenGL/RHI/OpenGLRenderDevice.h"
 #include <utility>
 
 namespace HE::Rendering {
@@ -105,7 +106,7 @@ namespace HE::Rendering {
 
 	void OpenGLFrameBuffer::Bind() {
 		if (m_RenderTarget) {
-			m_RenderTarget->Bind();
+			static_cast<OpenGLRenderTarget&>(*m_RenderTarget).BeginForCommandList();
 			return;
 		}
 
@@ -115,7 +116,7 @@ namespace HE::Rendering {
 
 	void OpenGLFrameBuffer::Unbind() {
 		if (m_RenderTarget) {
-			m_RenderTarget->Unbind();
+			static_cast<OpenGLRenderTarget&>(*m_RenderTarget).EndForCommandList();
 			return;
 		}
 

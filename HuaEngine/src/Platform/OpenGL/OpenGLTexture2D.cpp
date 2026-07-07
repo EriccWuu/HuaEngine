@@ -2,6 +2,7 @@
 #include "OpenGLTexture2D.h"
 #include "stb_image.h"
 #include "glad/glad.h"
+#include "Platform/OpenGL/RHI/OpenGLRenderDevice.h"
 #include <utility>
 
 namespace HE::Rendering {
@@ -81,7 +82,7 @@ namespace HE::Rendering {
 
 	void OpenGLTexture2D::Bind(uint32_t slot) {
 		if (m_TextureResource) {
-			m_TextureResource->Bind(slot);
+			static_cast<OpenGLTextureResource&>(*m_TextureResource).BindForCommandList(slot);
 			return;
 		}
 

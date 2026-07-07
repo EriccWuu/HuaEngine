@@ -2,6 +2,7 @@
 #include "OpenGLShader.h"
 #include "glad/glad.h"
 #include "glm/glm.hpp"
+#include "Platform/OpenGL/RHI/OpenGLRenderDevice.h"
 #include <glm/gtc/type_ptr.hpp>
 #include <fstream>
 #include <sstream>
@@ -204,7 +205,7 @@ namespace HE::Rendering {
 
 	void OpenGLShader::Bind() {
 		if (m_ShaderProgram) {
-			m_ShaderProgram->Bind();
+			static_cast<OpenGLShaderProgram&>(*m_ShaderProgram).BindForCommandList();
 			return;
 		}
 
@@ -213,7 +214,7 @@ namespace HE::Rendering {
 
 	void OpenGLShader::Unbind() {
 		if (m_ShaderProgram) {
-			m_ShaderProgram->Unbind();
+			static_cast<OpenGLShaderProgram&>(*m_ShaderProgram).UnbindForCommandList();
 		}
 
 	}

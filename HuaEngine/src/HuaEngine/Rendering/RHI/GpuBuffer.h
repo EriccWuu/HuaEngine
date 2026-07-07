@@ -21,9 +21,5 @@ namespace HE::Rendering {
 		virtual ~GpuBuffer() = default;
 
 		virtual const GpuBufferDesc& GetDesc() const = 0;
-		// Compatibility helper for backend and legacy wrappers.
-		// New rendering code must submit state through CommandList instead.
-		virtual void Bind() const = 0;
-		virtual void Unbind() const = 0;
 	};
 }

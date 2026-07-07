@@ -1,6 +1,7 @@
 #include "enginepch.h"
 #include "OpenGLIndexBuffer.h"
 #include "glad/glad.h"
+#include "Platform/OpenGL/RHI/OpenGLRenderDevice.h"
 #include <utility>
 
 namespace HE::Rendering {
@@ -26,7 +27,7 @@ namespace HE::Rendering {
 
 	void OpenGLIndexBuffer::Bind() const {
 		if (m_GpuBuffer) {
-			m_GpuBuffer->Bind();
+			static_cast<OpenGLGpuBuffer&>(*m_GpuBuffer).BindForCommandList();
 			return;
 		}
 
@@ -35,7 +36,7 @@ namespace HE::Rendering {
 
 	void OpenGLIndexBuffer::Unbind() const {
 		if (m_GpuBuffer) {
-			m_GpuBuffer->Unbind();
+			static_cast<OpenGLGpuBuffer&>(*m_GpuBuffer).UnbindForCommandList();
 			return;
 		}
 

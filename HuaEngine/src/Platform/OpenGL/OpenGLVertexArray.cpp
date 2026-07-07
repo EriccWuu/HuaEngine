@@ -4,6 +4,7 @@
 #include "OpenGLVertexBuffer.h"
 #include "HuaEngine/Rendering/RHI/RenderHardwareInterface.h"
 #include "glad/glad.h"
+#include "Platform/OpenGL/RHI/OpenGLRenderDevice.h"
 
 #include <cstdint>
 
@@ -36,7 +37,7 @@ namespace HE::Rendering {
 
 	void OpenGLVertexArray::Bind() {
 		if (m_VertexBufferView) {
-			m_VertexBufferView->Bind();
+			static_cast<OpenGLVertexBufferView&>(*m_VertexBufferView).BindForCommandList();
 			return;
 		}
 
@@ -45,7 +46,7 @@ namespace HE::Rendering {
 
 	void OpenGLVertexArray::Unbind() {
 		if (m_VertexBufferView) {
-			m_VertexBufferView->Unbind();
+			static_cast<OpenGLVertexBufferView&>(*m_VertexBufferView).UnbindForCommandList();
 			return;
 		}
 

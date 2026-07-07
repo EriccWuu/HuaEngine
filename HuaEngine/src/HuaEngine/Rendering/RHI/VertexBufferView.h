@@ -22,9 +22,5 @@ namespace HE::Rendering {
 		virtual ~VertexBufferView() = default;
 
 		virtual const VertexBufferViewDesc& GetDesc() const = 0;
-		// Compatibility helper for backend and legacy wrappers.
-		// New rendering code must submit state through CommandList instead.
-		virtual void Bind() = 0;
-		virtual void Unbind() = 0;
 	};
 }

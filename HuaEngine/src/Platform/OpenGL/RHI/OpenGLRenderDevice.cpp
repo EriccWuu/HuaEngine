@@ -211,11 +211,11 @@ namespace HE::Rendering {
 		return m_Desc;
 	}
 
-	void OpenGLGpuBuffer::Bind() const {
+	void OpenGLGpuBuffer::BindForCommandList() const {
 		glBindBuffer(ToOpenGLBufferTarget(m_Desc.Usage), m_RenderID);
 	}
 
-	void OpenGLGpuBuffer::Unbind() const {
+	void OpenGLGpuBuffer::UnbindForCommandList() const {
 		glBindBuffer(ToOpenGLBufferTarget(m_Desc.Usage), 0);
 	}
 
@@ -239,7 +239,7 @@ namespace HE::Rendering {
 
 		glGenVertexArrays(1, &m_RenderID);
 		glBindVertexArray(m_RenderID);
-		m_Desc.VertexBuffer->Bind();
+		static_cast<OpenGLGpuBuffer&>(*m_Desc.VertexBuffer).BindForCommandList();
 
 		uint32_t index = 0;
 		const auto& layout = m_Desc.Layout;
@@ -285,7 +285,7 @@ namespace HE::Rendering {
 			++index;
 		}
 
-		m_Desc.IndexBuffer->Bind();
+		static_cast<OpenGLGpuBuffer&>(*m_Desc.IndexBuffer).BindForCommandList();
 		glBindBuffer(GL_ARRAY_BUFFER, previousArrayBuffer);
 		glBindVertexArray(previousVertexArray);
 	}
@@ -298,11 +298,11 @@ namespace HE::Rendering {
 		return m_Desc;
 	}
 
-	void OpenGLVertexBufferView::Bind() {
+	void OpenGLVertexBufferView::BindForCommandList() {
 		glBindVertexArray(m_RenderID);
 	}
 
-	void OpenGLVertexBufferView::Unbind() {
+	void OpenGLVertexBufferView::UnbindForCommandList() {
 		glBindVertexArray(0);
 	}
 
@@ -313,11 +313,11 @@ namespace HE::Rendering {
 		return m_Desc;
 	}
 
-	void OpenGLRenderTarget::Bind() {
+	void OpenGLRenderTarget::BeginForCommandList() {
 		m_FrameBuffer->Bind();
 	}
 
-	void OpenGLRenderTarget::Unbind() {
+	void OpenGLRenderTarget::EndForCommandList() {
 		m_FrameBuffer->Unbind();
 	}
 
@@ -365,7 +365,7 @@ namespace HE::Rendering {
 		return m_Texture->GetHeight();
 	}
 
-	void OpenGLTextureResource::Bind(uint32_t slot) {
+	void OpenGLTextureResource::BindForCommandList(uint32_t slot) {
 		m_Texture->Bind(slot);
 	}
 
@@ -376,11 +376,11 @@ namespace HE::Rendering {
 		return m_Desc;
 	}
 
-	void OpenGLShaderProgram::Bind() {
+	void OpenGLShaderProgram::BindForCommandList() {
 		m_Shader->Bind();
 	}
 
-	void OpenGLShaderProgram::Unbind() {
+	void OpenGLShaderProgram::UnbindForCommandList() {
 		m_Shader->Unbind();
 	}
 
@@ -425,7 +425,7 @@ namespace HE::Rendering {
 	void OpenGLCommandList::BeginRenderTarget(RenderTarget& target) {
 		m_CurrentLegacyTarget = nullptr;
 		m_CurrentRenderTarget = &target;
-		target.Bind();
+		static_cast<OpenGLRenderTarget&>(target).BeginForCommandList();
 	}
 
 	void OpenGLCommandList::ClearColor(const glm::vec4& color) {
@@ -439,7 +439,7 @@ namespace HE::Rendering {
 
 	void OpenGLCommandList::SetShaderProgram(ShaderProgram& shaderProgram) {
 		m_CurrentShaderProgram = &shaderProgram;
-		shaderProgram.Bind();
+		static_cast<OpenGLShaderProgram&>(shaderProgram).BindForCommandList();
 		if (m_HasFrameBinding) {
 			m_CurrentShaderProgram->SetMat4("u_ViewProjection", m_CurrentFrameBinding.ViewProjection);
 		}
@@ -450,7 +450,7 @@ namespace HE::Rendering {
 
 	void OpenGLCommandList::SetVertexBufferView(VertexBufferView& vertexBufferView) {
 		m_CurrentVertexBufferView = &vertexBufferView;
-		vertexBufferView.Bind();
+		static_cast<OpenGLVertexBufferView&>(vertexBufferView).BindForCommandList();
 	}
 
 	void OpenGLCommandList::SetFrameBinding(const FrameBinding& binding) {
@@ -510,7 +510,7 @@ namespace HE::Rendering {
 				continue;
 			}
 
-			texture.Texture->Bind(texture.Slot);
+			static_cast<OpenGLTextureResource&>(*texture.Texture).BindForCommandList(texture.Slot);
 			m_CurrentShaderProgram->SetInt(texture.Name, static_cast<int>(texture.Slot));
 		}
 	}
@@ -570,7 +570,7 @@ namespace HE::Rendering {
 
 	void OpenGLCommandList::EndRenderTarget() {
 		if (m_CurrentRenderTarget) {
-			m_CurrentRenderTarget->Unbind();
+			static_cast<OpenGLRenderTarget*>(m_CurrentRenderTarget)->EndForCommandList();
 		}
 		else if (m_CurrentLegacyTarget) {
 			m_CurrentLegacyTarget->Unbind();

@@ -46,8 +46,8 @@ namespace HE::Rendering {
 		OpenGLGpuBuffer& operator=(const OpenGLGpuBuffer&) = delete;
 
 		const GpuBufferDesc& GetDesc() const override;
-		void Bind() const override;
-		void Unbind() const override;
+		void BindForCommandList() const;
+		void UnbindForCommandList() const;
 		uint32_t GetRenderID() const;
 
 	private:
@@ -63,8 +63,8 @@ namespace HE::Rendering {
 		OpenGLVertexBufferView& operator=(const OpenGLVertexBufferView&) = delete;
 
 		const VertexBufferViewDesc& GetDesc() const override;
-		void Bind() override;
-		void Unbind() override;
+		void BindForCommandList();
+		void UnbindForCommandList();
 
 	private:
 		VertexBufferViewDesc m_Desc;
@@ -78,8 +78,8 @@ namespace HE::Rendering {
 		OpenGLRenderTarget& operator=(const OpenGLRenderTarget&) = delete;
 
 		const RenderTargetDesc& GetDesc() const override;
-		void Bind() override;
-		void Unbind() override;
+		void BeginForCommandList();
+		void EndForCommandList();
 		void Resize(uint32_t width, uint32_t height) override;
 		void ClearAttachment(uint32_t index, int value) override;
 		FrameBufferPixelRGBA8 ReadPixelRGBA8(uint32_t attachmentIndex, uint32_t x, uint32_t y) const override;
@@ -102,7 +102,7 @@ namespace HE::Rendering {
 		uint32_t GetRenderID() const override;
 		uint32_t GetWidth() const override;
 		uint32_t GetHeight() const override;
-		void Bind(uint32_t slot = 0) override;
+		void BindForCommandList(uint32_t slot = 0);
 
 	private:
 		TextureDesc m_Desc;
@@ -116,8 +116,8 @@ namespace HE::Rendering {
 		OpenGLShaderProgram& operator=(const OpenGLShaderProgram&) = delete;
 
 		const ShaderProgramDesc& GetDesc() const override;
-		void Bind() override;
-		void Unbind() override;
+		void BindForCommandList();
+		void UnbindForCommandList();
 		void SetInt(const std::string& name, int value) override;
 		void SetIntArray(const std::string& name, int* values, uint32_t size) override;
 		void SetFloat(const std::string& name, float value) override;

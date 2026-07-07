@@ -1,6 +1,7 @@
 #include "enginepch.h"
 #include "OpenGLVertexBuffer.h"
 #include "glad/glad.h"
+#include "Platform/OpenGL/RHI/OpenGLRenderDevice.h"
 #include <utility>
 
 namespace HE::Rendering {
@@ -25,7 +26,7 @@ namespace HE::Rendering {
 
 	void OpenGLVertexBuffer::Bind() const {
 		if (m_GpuBuffer) {
-			m_GpuBuffer->Bind();
+			static_cast<OpenGLGpuBuffer&>(*m_GpuBuffer).BindForCommandList();
 			return;
 		}
 
@@ -34,7 +35,7 @@ namespace HE::Rendering {
 
 	void OpenGLVertexBuffer::Unbind() const {
 		if (m_GpuBuffer) {
-			m_GpuBuffer->Unbind();
+			static_cast<OpenGLGpuBuffer&>(*m_GpuBuffer).UnbindForCommandList();
 			return;
 		}
 
