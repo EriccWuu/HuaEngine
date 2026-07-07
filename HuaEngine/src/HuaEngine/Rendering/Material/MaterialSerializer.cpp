@@ -3,7 +3,6 @@
 #include "HuaEngine/Core/Log.h"
 #include "HuaEngine/Core/ResourcePaths.h"
 #include "HuaEngine/Rendering/RHI/RenderHardwareInterface.h"
-#include "HuaEngine/Rendering/Shader/Shader.h"
 
 #include <filesystem>
 

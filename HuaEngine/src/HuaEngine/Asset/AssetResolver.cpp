@@ -3,7 +3,7 @@
 
 #include "AssetService.h"
 #include "HuaEngine/Rendering/Material/MaterialLibrary.h"
-#include "HuaEngine/Rendering/Shader/Shader.h"
+#include "HuaEngine/Rendering/RHI/ShaderProgramLoader.h"
 #include "HuaEngine/Serialization/Serialization.h"
 #include "glad/glad.h"
 
@@ -102,8 +102,8 @@ void main() {
 }
 )";
 
-		auto shader = HE::Rendering::Shader::Create(vertexSource, fragmentSource);
-		material->SetShaderProgram(shader ? shader->GetShaderProgram() : nullptr);
+		auto shaderProgram = HE::Rendering::ShaderProgramLoader::CreateFromSource(vertexSource, fragmentSource);
+		material->SetShaderProgram(shaderProgram);
 		material->AddParameter(HE::Rendering::MaterialParameter("u_Color", HE::Rendering::MaterialParameterType::Vec4, color));
 		library.RegisterMaterial(name, material);
 		return material;

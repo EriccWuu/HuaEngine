@@ -1,30 +1,30 @@
 #pragma once
 
 #include <string>
-#include "HuaEngine/Rendering/Shader/Shader.h"
-#include "HuaEngine/Rendering/RHI/ShaderProgram.h"
+#include <unordered_map>
+
+#include "glm/glm.hpp"
+#include "HuaEngine/Core/Core.h"
 
 namespace HE::Rendering {
-	class OpenGLShader : public Shader {
+	class OpenGLShader {
 	public:
 		OpenGLShader(const std::string& vertexSrc, const std::string& fragmentSrc);
 		OpenGLShader(const std::string& vertexPath, const std::string& fragmentPath, bool fromFile);
 		OpenGLShader(const std::string& shaderPath); // For combined shader files
-		explicit OpenGLShader(Ref<ShaderProgram> shaderProgram);
 		~OpenGLShader();
 		
 		void BindForCommandList();
 		void UnbindForCommandList();
 
-		virtual void SetInt(const std::string& name, int value) override;
-		virtual void SetIntArray(const std::string& name, int* values, uint32_t size) override;
-		virtual void SetFloat(const std::string& name, float value) override;
-		virtual void SetFloat2(const std::string& name, const glm::vec2 value) override;
-		virtual void SetFloat3(const std::string& name, const glm::vec3 value) override;
-		virtual void SetFloat4(const std::string& name, const glm::vec4 value) override;
-		virtual void SetMat3(const std::string& name, const glm::mat3 value) override;
-		virtual void SetMat4(const std::string& name, const glm::mat4 value) override;
-		Ref<ShaderProgram> GetShaderProgram() const override { return m_ShaderProgram; }
+		void SetInt(const std::string& name, int value);
+		void SetIntArray(const std::string& name, int* values, uint32_t size);
+		void SetFloat(const std::string& name, float value);
+		void SetFloat2(const std::string& name, const glm::vec2 value);
+		void SetFloat3(const std::string& name, const glm::vec3 value);
+		void SetFloat4(const std::string& name, const glm::vec4 value);
+		void SetMat3(const std::string& name, const glm::mat3 value);
+		void SetMat4(const std::string& name, const glm::mat4 value);
 
 	private:
 		void CreateShader(const std::string& vertexSrc, const std::string& fragmentSrc);
@@ -33,6 +33,5 @@ namespace HE::Rendering {
 		
 		unsigned int m_Program = 0;
 		unsigned int m_FragShader = 0, m_VertShader = 0;
-		Ref<ShaderProgram> m_ShaderProgram;
 	};
 }

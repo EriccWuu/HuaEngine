@@ -2,7 +2,7 @@
 
 #include "MaterialCore.h"
 #include "MaterialLibrary.h"
-#include "HuaEngine/Rendering/Shader/Shader.h"
+#include "HuaEngine/Rendering/RHI/ShaderProgramLoader.h"
 #include "HuaEngine/Serialization/Serialization.h"
 
 namespace HE::Rendering {
@@ -139,8 +139,8 @@ namespace HE::Serialization {
 
             // Load shader from path
             if (!shaderPath.empty()) {
-                auto shader = Rendering::Shader::CreateFromFile(shaderPath);
-                material.SetShaderProgram(shader ? shader->GetShaderProgram() : nullptr, shaderPath);
+                auto shaderProgram = Rendering::ShaderProgramLoader::CreateFromFile(shaderPath);
+                material.SetShaderProgram(shaderProgram, shaderPath);
             }
 
             // Parameters (object format, iterate using ForEachField)
