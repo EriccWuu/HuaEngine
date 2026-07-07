@@ -3,6 +3,7 @@
 
 #include "HuaEngine/Rendering/RenderPipeline/RenderResourceResolver.h"
 #include "HuaEngine/Rendering/RHI/CommandList.h"
+#include "HuaEngine/Rendering/RHI/FrameObjectBinding.h"
 #include "HuaEngine/Rendering/RHI/RenderHardwareInterface.h"
 
 namespace HE::Rendering {
@@ -76,9 +77,11 @@ namespace HE::Rendering {
 
 			if (resolvedItem.ShaderProgramRef && resolvedItem.VertexBufferViewRef && resolvedItem.MaterialBindingRef) {
 				context.Commands->SetShaderProgram(*resolvedItem.ShaderProgramRef);
+				context.Commands->SetFrameBinding({ .ViewProjection = context.View->CameraRef->GetViewProjection() });
 				context.Commands->SetVertexBufferView(*resolvedItem.VertexBufferViewRef);
 				context.Commands->SetMaterialBinding(*resolvedItem.MaterialBindingRef);
-				context.Commands->DrawIndexed(resolvedItem.VertexBufferViewRef->GetDesc().IndexCount, item.Transform);
+				context.Commands->SetObjectBinding({ .Transform = item.Transform });
+				context.Commands->DrawIndexed(resolvedItem.VertexBufferViewRef->GetDesc().IndexCount);
 			} else {
 				context.Commands->DrawIndexed(*resolvedItem.MaterialInstanceRef, *resolvedItem.VertexArrayRef, item.Transform);
 			}

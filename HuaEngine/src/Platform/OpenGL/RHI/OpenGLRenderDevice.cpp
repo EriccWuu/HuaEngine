@@ -440,11 +440,25 @@ namespace HE::Rendering {
 	void OpenGLCommandList::SetShaderProgram(ShaderProgram& shaderProgram) {
 		m_CurrentShaderProgram = &shaderProgram;
 		shaderProgram.Bind();
+		if (m_HasFrameBinding) {
+			m_CurrentShaderProgram->SetMat4("u_ViewProjection", m_CurrentFrameBinding.ViewProjection);
+		}
+		if (m_HasObjectBinding) {
+			m_CurrentShaderProgram->SetMat4("u_Transform", m_CurrentObjectBinding.Transform);
+		}
 	}
 
 	void OpenGLCommandList::SetVertexBufferView(VertexBufferView& vertexBufferView) {
 		m_CurrentVertexBufferView = &vertexBufferView;
 		vertexBufferView.Bind();
+	}
+
+	void OpenGLCommandList::SetFrameBinding(const FrameBinding& binding) {
+		m_CurrentFrameBinding = binding;
+		m_HasFrameBinding = true;
+		if (m_CurrentShaderProgram) {
+			m_CurrentShaderProgram->SetMat4("u_ViewProjection", binding.ViewProjection);
+		}
 	}
 
 	void OpenGLCommandList::SetTexture(uint32_t slot, TextureResource& texture) {
@@ -514,6 +528,14 @@ namespace HE::Rendering {
 		}
 	}
 
+	void OpenGLCommandList::SetObjectBinding(const ObjectBinding& binding) {
+		m_CurrentObjectBinding = binding;
+		m_HasObjectBinding = true;
+		if (m_CurrentShaderProgram) {
+			m_CurrentShaderProgram->SetMat4("u_Transform", binding.Transform);
+		}
+	}
+
 	void OpenGLCommandList::DrawIndexed(MaterialInstance& material, VertexArray& vertexArray, const glm::mat4& transform) {
 		if (!m_CurrentCamera || !material.GetShader()) {
 			HE_CORE_WARN("Trying to draw without a camera or material shader");
@@ -538,7 +560,7 @@ namespace HE::Rendering {
 		material.Unbind();
 	}
 
-	void OpenGLCommandList::DrawIndexed(uint32_t indexCount, const glm::mat4& transform) {
+	void OpenGLCommandList::DrawIndexed(uint32_t indexCount) {
 		if (!m_CurrentShaderProgram) {
 			HE_CORE_WARN("CommandList::DrawIndexed skipped because no shader program is bound");
 			return;
@@ -549,8 +571,13 @@ namespace HE::Rendering {
 			return;
 		}
 
-		if (!m_CurrentCamera) {
-			HE_CORE_WARN("CommandList::DrawIndexed skipped because no camera is active");
+		if (!m_HasFrameBinding) {
+			HE_CORE_WARN("CommandList::DrawIndexed skipped because no frame binding is active");
+			return;
+		}
+
+		if (!m_HasObjectBinding) {
+			HE_CORE_WARN("CommandList::DrawIndexed skipped because no object binding is active");
 			return;
 		}
 
@@ -565,16 +592,28 @@ namespace HE::Rendering {
 			return;
 		}
 
-		m_CurrentShaderProgram->SetMat4("u_ViewProjection", m_CurrentCamera->GetViewProjection());
-		m_CurrentShaderProgram->SetMat4("u_Transform", transform);
-
 		glDrawElements(GL_TRIANGLES, static_cast<GLsizei>(indexCount), GL_UNSIGNED_INT, nullptr);
+	}
+
+	void OpenGLCommandList::DrawIndexed(uint32_t indexCount, const glm::mat4& transform) {
+		if (!m_CurrentCamera) {
+			HE_CORE_WARN("CommandList::DrawIndexed compatibility helper skipped because no camera is active");
+			return;
+		}
+
+		SetFrameBinding({ .ViewProjection = m_CurrentCamera->GetViewProjection() });
+		SetObjectBinding({ .Transform = transform });
+		DrawIndexed(indexCount);
 	}
 
 	void OpenGLCommandList::EndFrame() {
 		m_CurrentCamera = nullptr;
 		m_CurrentShaderProgram = nullptr;
 		m_CurrentVertexBufferView = nullptr;
+		m_CurrentFrameBinding = {};
+		m_CurrentObjectBinding = {};
+		m_HasFrameBinding = false;
+		m_HasObjectBinding = false;
 	}
 
 	void OpenGLCommandList::EndRenderTarget() {

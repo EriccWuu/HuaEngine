@@ -7,6 +7,7 @@
 #include "HuaEngine/Rendering/Material/MaterialBinding.h"
 #include "HuaEngine/Rendering/Camera.h"
 #include "HuaEngine/Rendering/RHI/CommandList.h"
+#include "HuaEngine/Rendering/RHI/FrameObjectBinding.h"
 #include "HuaEngine/Rendering/RHI/RenderHardwareInterface.h"
 
 namespace {
@@ -48,6 +49,29 @@ namespace {
 			&& nearChannel(pixel.G, expected.G)
 			&& nearChannel(pixel.B, expected.B)
 			&& nearChannel(pixel.A, expected.A);
+	}
+
+	HE::Rendering::MaterialBinding MakeColorBinding(const glm::vec4& color) {
+		HE::Rendering::MaterialBinding materialBinding;
+		materialBinding.Parameters.push_back({
+			.Name = "u_Color",
+			.Type = HE::Rendering::MaterialParameterType::Vec4,
+			.Value = color
+		});
+		return materialBinding;
+	}
+
+	void VerifyRenderTargetSamples(const HE::Ref<HE::Rendering::RenderTarget>& renderTarget) {
+		const auto& actualTargetSpec = renderTarget->GetSpecification();
+		const auto fragmentPixel = renderTarget->ReadPixelRGBA8(0, actualTargetSpec.Width / 2, actualTargetSpec.Height / 2);
+		const auto clearPixel = renderTarget->ReadPixelRGBA8(0, actualTargetSpec.Width / 8, actualTargetSpec.Height / 8);
+
+		Require(
+			PixelNear(fragmentPixel, kExpectedFragmentPixel, kPixelTolerance),
+			"Expected triangle-covered sample to match the fragment shader color");
+		Require(
+			PixelNear(clearPixel, kExpectedClearPixel, kPixelTolerance),
+			"Expected sample outside the triangle to keep the clear color");
 	}
 }
 
@@ -136,29 +160,39 @@ int main() {
 	commands.ClearColor({ 0.1f, 0.1f, 0.1f, 1.0f });
 	commands.BeginFrame(camera);
 	commands.SetShaderProgram(*shaderProgram);
+	commands.SetFrameBinding({ .ViewProjection = camera.GetViewProjection() });
 	commands.SetVertexBufferView(*vertexBufferView);
-	commands.SetMat4("u_Transform", glm::mat4(1.0f));
-	HE::Rendering::MaterialBinding materialBinding;
-	materialBinding.Parameters.push_back({
-		.Name = "u_Color",
-		.Type = HE::Rendering::MaterialParameterType::Vec4,
-		.Value = glm::vec4(0.9f, 0.2f, 0.1f, 1.0f)
-	});
+	auto materialBinding = MakeColorBinding(glm::vec4(0.9f, 0.2f, 0.1f, 1.0f));
+	commands.SetMaterialBinding(materialBinding);
+	commands.SetObjectBinding({ .Transform = glm::mat4(1.0f) });
+	commands.DrawIndexed(vertexBufferView->GetDesc().IndexCount);
+	commands.EndFrame();
+	commands.EndRenderTarget();
+	VerifyRenderTargetSamples(renderTarget);
+
+	commands.BeginRenderTarget(*renderTarget);
+	commands.ClearColor({ 0.1f, 0.1f, 0.1f, 1.0f });
+	commands.BeginFrame(camera);
+	commands.SetShaderProgram(*shaderProgram);
+	commands.SetVertexBufferView(*vertexBufferView);
 	commands.SetMaterialBinding(materialBinding);
 	commands.DrawIndexed(vertexBufferView->GetDesc().IndexCount, glm::mat4(1.0f));
 	commands.EndFrame();
 	commands.EndRenderTarget();
+	VerifyRenderTargetSamples(renderTarget);
 
-	const auto& actualTargetSpec = renderTarget->GetSpecification();
-	const auto fragmentPixel = renderTarget->ReadPixelRGBA8(0, actualTargetSpec.Width / 2, actualTargetSpec.Height / 2);
-	const auto clearPixel = renderTarget->ReadPixelRGBA8(0, actualTargetSpec.Width / 8, actualTargetSpec.Height / 8);
-
-	Require(
-		PixelNear(fragmentPixel, kExpectedFragmentPixel, kPixelTolerance),
-		"Expected triangle-covered sample to match the fragment shader color");
-	Require(
-		PixelNear(clearPixel, kExpectedClearPixel, kPixelTolerance),
-		"Expected sample outside the triangle to keep the clear color");
+	commands.BeginRenderTarget(*renderTarget);
+	commands.ClearColor({ 0.1f, 0.1f, 0.1f, 1.0f });
+	commands.BeginFrame(camera);
+	commands.SetFrameBinding({ .ViewProjection = camera.GetViewProjection() });
+	commands.SetObjectBinding({ .Transform = glm::mat4(1.0f) });
+	commands.SetShaderProgram(*shaderProgram);
+	commands.SetVertexBufferView(*vertexBufferView);
+	commands.SetMaterialBinding(materialBinding);
+	commands.DrawIndexed(vertexBufferView->GetDesc().IndexCount);
+	commands.EndFrame();
+	commands.EndRenderTarget();
+	VerifyRenderTargetSamples(renderTarget);
 
 	std::cout << "RHICommandListBindingSmoke passed" << std::endl;
 	return 0;

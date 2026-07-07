@@ -3,6 +3,7 @@
 #include <cstdint>
 #include <string>
 
+#include "HuaEngine/Rendering/RHI/FrameObjectBinding.h"
 #include "glm/glm.hpp"
 
 namespace HE::Rendering {
@@ -29,13 +30,19 @@ namespace HE::Rendering {
 		virtual void SetShaderProgram(ShaderProgram& shaderProgram) = 0;
 		// Normal render path state submission.
 		virtual void SetVertexBufferView(VertexBufferView& vertexBufferView) = 0;
+		// Normal render path frame/view parameter submission.
+		virtual void SetFrameBinding(const FrameBinding& binding) = 0;
 		// Temporary helper until frame/object/material parameter sets are introduced.
 		virtual void SetTexture(uint32_t slot, TextureResource& texture) = 0;
 		// Temporary helper until frame/object/material parameter sets are introduced.
 		virtual void SetMat4(const std::string& name, const glm::mat4& value) = 0;
 		// Normal render path state submission.
 		virtual void SetMaterialBinding(const MaterialBinding& binding) = 0;
-		// Normal render path state submission.
+		// Normal render path per-object parameter submission.
+		virtual void SetObjectBinding(const ObjectBinding& binding) = 0;
+		// Normal render path draw. Frame and object bindings must be submitted first.
+		virtual void DrawIndexed(uint32_t indexCount) = 0;
+		// Compatibility helper until normal render paths submit ObjectBinding explicitly.
 		virtual void DrawIndexed(uint32_t indexCount, const glm::mat4& transform) = 0;
 
 		// Legacy fallback for old MaterialInstance and VertexArray shells.

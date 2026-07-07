@@ -19,9 +19,12 @@ namespace HE::Rendering {
 		void BeginFrame(Camera& camera) override;
 		void SetShaderProgram(ShaderProgram& shaderProgram) override;
 		void SetVertexBufferView(VertexBufferView& vertexBufferView) override;
+		void SetFrameBinding(const FrameBinding& binding) override;
 		void SetTexture(uint32_t slot, TextureResource& texture) override;
 		void SetMat4(const std::string& name, const glm::mat4& value) override;
 		void SetMaterialBinding(const MaterialBinding& binding) override;
+		void SetObjectBinding(const ObjectBinding& binding) override;
+		void DrawIndexed(uint32_t indexCount) override;
 		void DrawIndexed(uint32_t indexCount, const glm::mat4& transform) override;
 		void DrawIndexed(MaterialInstance& material, VertexArray& vertexArray, const glm::mat4& transform) override;
 		void EndFrame() override;
@@ -33,6 +36,10 @@ namespace HE::Rendering {
 		Camera* m_CurrentCamera = nullptr;
 		ShaderProgram* m_CurrentShaderProgram = nullptr;
 		VertexBufferView* m_CurrentVertexBufferView = nullptr;
+		FrameBinding m_CurrentFrameBinding;
+		ObjectBinding m_CurrentObjectBinding;
+		bool m_HasFrameBinding = false;
+		bool m_HasObjectBinding = false;
 	};
 
 	class OpenGLGpuBuffer final : public GpuBuffer {
