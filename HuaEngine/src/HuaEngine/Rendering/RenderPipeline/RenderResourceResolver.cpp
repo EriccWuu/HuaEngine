@@ -159,11 +159,11 @@ namespace HE::Rendering {
 			++stats.FallbackItems;
 		}
 
-		outResolvedItem.VertexArrayRef = mesh->GetVertexArray();
+		auto vertexArray = mesh->GetVertexArray();
 		outResolvedItem.MaterialInstanceRef = materialInstance;
 		outResolvedItem.MaterialBindingRef = BuildMaterialBinding(*materialInstance);
-		if (outResolvedItem.VertexArrayRef) {
-			outResolvedItem.VertexBufferViewRef = outResolvedItem.VertexArrayRef->GetVertexBufferView();
+		if (vertexArray) {
+			outResolvedItem.VertexBufferViewRef = vertexArray->GetVertexBufferView();
 		}
 		if (baseMaterial->GetShader()) {
 			outResolvedItem.ShaderProgramRef = baseMaterial->GetShader()->GetShaderProgram();

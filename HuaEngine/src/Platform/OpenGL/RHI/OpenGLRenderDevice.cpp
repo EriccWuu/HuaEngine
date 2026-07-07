@@ -461,19 +461,6 @@ namespace HE::Rendering {
 		}
 	}
 
-	void OpenGLCommandList::SetTexture(uint32_t slot, TextureResource& texture) {
-		texture.Bind(slot);
-	}
-
-	void OpenGLCommandList::SetMat4(const std::string& name, const glm::mat4& value) {
-		if (!m_CurrentShaderProgram) {
-			HE_CORE_WARN("CommandList::SetMat4 skipped because no shader program is bound");
-			return;
-		}
-
-		m_CurrentShaderProgram->SetMat4(name, value);
-	}
-
 	void OpenGLCommandList::SetMaterialBinding(const MaterialBinding& binding) {
 		if (!m_CurrentShaderProgram) {
 			HE_CORE_WARN("CommandList::SetMaterialBinding skipped because no shader program is bound");
@@ -536,30 +523,6 @@ namespace HE::Rendering {
 		}
 	}
 
-	void OpenGLCommandList::DrawIndexed(MaterialInstance& material, VertexArray& vertexArray, const glm::mat4& transform) {
-		if (!m_CurrentCamera || !material.GetShader()) {
-			HE_CORE_WARN("Trying to draw without a camera or material shader");
-			return;
-		}
-
-		const auto& shader = material.GetShader();
-		shader->SetMat4("u_ViewProjection", m_CurrentCamera->GetViewProjection());
-		shader->SetMat4("u_Transform", transform);
-
-		material.Bind();
-		vertexArray.Bind();
-
-		const auto& indexBuffer = vertexArray.GetIndexBuffer();
-		if (!indexBuffer) {
-			HE_CORE_WARN("Trying to draw vertex array without an index buffer");
-			material.Unbind();
-			return;
-		}
-
-		glDrawElements(GL_TRIANGLES, indexBuffer->GetCount(), GL_UNSIGNED_INT, nullptr);
-		material.Unbind();
-	}
-
 	void OpenGLCommandList::DrawIndexed(uint32_t indexCount) {
 		if (!m_CurrentShaderProgram) {
 			HE_CORE_WARN("CommandList::DrawIndexed skipped because no shader program is bound");
@@ -593,17 +556,6 @@ namespace HE::Rendering {
 		}
 
 		glDrawElements(GL_TRIANGLES, static_cast<GLsizei>(indexCount), GL_UNSIGNED_INT, nullptr);
-	}
-
-	void OpenGLCommandList::DrawIndexed(uint32_t indexCount, const glm::mat4& transform) {
-		if (!m_CurrentCamera) {
-			HE_CORE_WARN("CommandList::DrawIndexed compatibility helper skipped because no camera is active");
-			return;
-		}
-
-		SetFrameBinding({ .ViewProjection = m_CurrentCamera->GetViewProjection() });
-		SetObjectBinding({ .Transform = transform });
-		DrawIndexed(indexCount);
 	}
 
 	void OpenGLCommandList::EndFrame() {

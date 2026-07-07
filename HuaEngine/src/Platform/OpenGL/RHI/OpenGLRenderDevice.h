@@ -20,13 +20,9 @@ namespace HE::Rendering {
 		void SetShaderProgram(ShaderProgram& shaderProgram) override;
 		void SetVertexBufferView(VertexBufferView& vertexBufferView) override;
 		void SetFrameBinding(const FrameBinding& binding) override;
-		void SetTexture(uint32_t slot, TextureResource& texture) override;
-		void SetMat4(const std::string& name, const glm::mat4& value) override;
 		void SetMaterialBinding(const MaterialBinding& binding) override;
 		void SetObjectBinding(const ObjectBinding& binding) override;
 		void DrawIndexed(uint32_t indexCount) override;
-		void DrawIndexed(uint32_t indexCount, const glm::mat4& transform) override;
-		void DrawIndexed(MaterialInstance& material, VertexArray& vertexArray, const glm::mat4& transform) override;
 		void EndFrame() override;
 		void EndRenderTarget() override;
 

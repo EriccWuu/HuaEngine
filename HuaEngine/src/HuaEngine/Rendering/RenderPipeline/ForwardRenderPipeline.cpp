@@ -84,11 +84,12 @@ namespace HE::Rendering {
 				context.Commands->DrawIndexed(resolvedItem.VertexBufferViewRef->GetDesc().IndexCount);
 			} else {
 				context.Diagnostics->push_back({
-					RenderDiagnosticCode::LegacyDrawFallbackUsed,
+					RenderDiagnosticCode::MissingRhiDrawResources,
 					item.SourceEntity,
-					"Render item used legacy draw fallback because resolved RHI draw resources were incomplete"
+					"Render item skipped because resolved RHI draw resources were incomplete"
 				});
-				context.Commands->DrawIndexed(*resolvedItem.MaterialInstanceRef, *resolvedItem.VertexArrayRef, item.Transform);
+				++context.Stats->SkippedItems;
+				continue;
 			}
 
 			++context.Stats->SubmittedItems;

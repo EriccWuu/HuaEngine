@@ -14,7 +14,6 @@
 #include "HuaEngine/Rendering/Material/Material.h"
 #include "HuaEngine/Rendering/RHI/ShaderProgram.h"
 #include "HuaEngine/Rendering/RHI/VertexBufferView.h"
-#include "HuaEngine/Rendering/VertexArray.h"
 #include "Module/Rendering/RenderingComponent.h"
 
 namespace HE::Rendering {
@@ -43,7 +42,7 @@ namespace HE::Rendering {
 		MissingBaseMaterial,
 		MissingShader,
 		FallbackResourceUsed,
-		LegacyDrawFallbackUsed
+		MissingRhiDrawResources
 	};
 
 	struct RenderDiagnostic {
@@ -78,7 +77,6 @@ namespace HE::Rendering {
 
 	struct ResolvedRenderItem {
 		const RenderItem* Source = nullptr;
-		Ref<VertexArray> VertexArrayRef;
 		Ref<VertexBufferView> VertexBufferViewRef;
 		Ref<ShaderProgram> ShaderProgramRef;
 		Ref<MaterialInstance> MaterialInstanceRef;

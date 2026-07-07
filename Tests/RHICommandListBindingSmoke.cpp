@@ -173,17 +173,6 @@ int main() {
 	commands.BeginRenderTarget(*renderTarget);
 	commands.ClearColor({ 0.1f, 0.1f, 0.1f, 1.0f });
 	commands.BeginFrame(camera);
-	commands.SetShaderProgram(*shaderProgram);
-	commands.SetVertexBufferView(*vertexBufferView);
-	commands.SetMaterialBinding(materialBinding);
-	commands.DrawIndexed(vertexBufferView->GetDesc().IndexCount, glm::mat4(1.0f));
-	commands.EndFrame();
-	commands.EndRenderTarget();
-	VerifyRenderTargetSamples(renderTarget);
-
-	commands.BeginRenderTarget(*renderTarget);
-	commands.ClearColor({ 0.1f, 0.1f, 0.1f, 1.0f });
-	commands.BeginFrame(camera);
 	commands.SetFrameBinding({ .ViewProjection = camera.GetViewProjection() });
 	commands.SetObjectBinding({ .Transform = glm::mat4(1.0f) });
 	commands.SetShaderProgram(*shaderProgram);
