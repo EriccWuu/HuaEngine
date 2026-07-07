@@ -3,6 +3,7 @@
 #include <fstream>
 #include <iostream>
 #include <string>
+#include <variant>
 
 #include "HuaEngine.h"
 #include "HuaEngine/Rendering/Material/MaterialSerializer.h"
@@ -10,7 +11,7 @@
 namespace {
 	class FakeShader final : public HE::Rendering::Shader {
 	public:
-		void Bind() override { BindCalled = true; }
+		void Bind() override {}
 		void Unbind() override {}
 
 		void SetInt(const std::string&, int) override { ++SetIntCalls; }
@@ -23,7 +24,6 @@ namespace {
 		void SetMat4(const std::string&, const glm::mat4) override {}
 		HE::Ref<HE::Rendering::ShaderProgram> GetShaderProgram() const override { return nullptr; }
 
-		bool BindCalled = false;
 		int SetIntCalls = 0;
 	};
 
@@ -94,11 +94,13 @@ int main() {
 	auto nullTextureMaterial = HE::Rendering::Material::Create("NullTextureMaterial", HE::Rendering::MaterialType::Custom);
 	nullTextureMaterial->SetShader(fakeShader);
 	nullTextureMaterial->AddParameter({ "u_NullTexture", HE::Rendering::MaterialParameterType::Texture2D, HE::Ref<HE::Rendering::Texture2D>() });
+	nullTextureMaterial->SetParameter("u_NullTexture", HE::Ref<HE::Rendering::Texture2D>());
 
-	HE::Rendering::MaterialInstance nullTextureInstance(nullTextureMaterial);
-	nullTextureInstance.Bind();
-	Require(fakeShader->BindCalled, "Expected material instance bind to bind the shader");
-	Require(fakeShader->SetIntCalls == 0, "Expected null texture parameter to skip sampler uniform binding");
+	const auto* nullTextureParameter = nullTextureMaterial->GetParameter("u_NullTexture");
+	Require(nullTextureParameter != nullptr, "Expected null texture material parameter to remain stored");
+	const auto* storedNullTexture = std::get_if<HE::Ref<HE::Rendering::Texture2D>>(&nullTextureParameter->Value);
+	Require(storedNullTexture != nullptr && !*storedNullTexture, "Expected null texture parameter value to remain stored");
+	Require(fakeShader->SetIntCalls == 0, "Expected material SetParameter not to write sampler uniform state");
 
 	std::error_code errorCode;
 	std::filesystem::remove_all(materialPath.parent_path(), errorCode);

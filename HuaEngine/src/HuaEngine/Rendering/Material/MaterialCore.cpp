@@ -53,22 +53,6 @@ namespace HE::Rendering {
 		return (it != m_TextureSlots.end()) ? it->second : 0;
 	}
 
-	void Material::Bind()
-	{
-		if (m_Shader)
-		{
-			m_Shader->Bind();
-		}
-	}
-
-	void Material::Unbind()
-	{
-		if (m_Shader)
-		{
-			m_Shader->Unbind();
-		}
-	}
-
 	void Material::SetParameter(const std::string& name, const MaterialParameterValue& value)
 	{
 		if (!HasParameter(name))
@@ -78,70 +62,6 @@ namespace HE::Rendering {
 		}
 
 		m_Parameters[name].Value = value;
-		ApplyParameter(name, value);
-	}
-
-	void Material::ApplyParameter(const std::string& name, const MaterialParameterValue& value)
-	{
-		if (!m_Shader)
-		{
-			HE_CORE_ERROR("No shader bound to material '{0}'", m_Name);
-			return;
-		}
-
-		std::visit([&](auto&& val) {
-			using T = std::decay_t<decltype(val)>;
-			
-			if constexpr (std::is_same_v<T, int>)
-			{
-				m_Shader->SetInt(name, val);
-			}
-			else if constexpr (std::is_same_v<T, float>)
-			{
-				m_Shader->SetFloat(name, val);
-			}
-			else if constexpr (std::is_same_v<T, glm::vec2>)
-			{
-				m_Shader->SetFloat2(name, val);
-			}
-			else if constexpr (std::is_same_v<T, glm::vec3>)
-			{
-				m_Shader->SetFloat3(name, val);
-			}
-			else if constexpr (std::is_same_v<T, glm::vec4>)
-			{
-				m_Shader->SetFloat4(name, val);
-			}
-			else if constexpr (std::is_same_v<T, glm::mat3>)
-			{
-				m_Shader->SetMat3(name, val);
-			}
-			else if constexpr (std::is_same_v<T, glm::mat4>)
-			{
-				m_Shader->SetMat4(name, val);
-			}
-			else if constexpr (std::is_same_v<T, Ref<Texture2D>>)
-			{
-				if (!val)
-				{
-					HE_CORE_WARN("Skipping null texture parameter '{0}' in material '{1}'", name, m_Name);
-					return;
-				}
-
-				uint32_t slot = GetTextureSlot(name);
-				val->Bind(slot);
-				m_Shader->SetInt(name, static_cast<int>(slot));
-			}
-			else if constexpr (std::is_same_v<T, std::vector<int>>)
-			{
-				m_Shader->SetIntArray(name, const_cast<int*>(val.data()), static_cast<uint32_t>(val.size()));
-			}
-			else if constexpr (std::is_same_v<T, std::vector<float>>)
-			{
-				// Note: Shader class needs SetFloatArray method
-				HE_CORE_WARN("Float array parameters not yet supported");
-			}
-		}, value);
 	}
 
 	Ref<MaterialInstance> Material::CreateInstance()
@@ -183,53 +103,6 @@ namespace HE::Rendering {
 	{
 		auto it = m_ParameterOverrides.find(name);
 		return (it != m_ParameterOverrides.end()) ? &it->second : nullptr;
-	}
-
-	void MaterialInstance::Bind()
-	{
-		if (!m_BaseMaterial)
-		{
-			HE_CORE_WARN("Cannot bind material instance without a base material");
-			return;
-		}
-
-		m_BaseMaterial->Bind();
-		ApplyParameters();
-	}
-
-	void MaterialInstance::Unbind()
-	{
-		if (!m_BaseMaterial)
-		{
-			return;
-		}
-
-		m_BaseMaterial->Unbind();
-	}
-
-	void MaterialInstance::ApplyParameters()
-	{
-		if (!m_BaseMaterial)
-		{
-			HE_CORE_WARN("Cannot apply material instance parameters without a base material");
-			return;
-		}
-
-		// First apply base material's default parameters
-		for (const auto& [name, param] : m_BaseMaterial->GetParameters())
-		{
-			// If instance hasn't overridden this parameter, use default value
-			if (!HasParameterOverride(name))
-			{
-				m_BaseMaterial->ApplyParameter(name, param.Value);
-			}
-		}
-
-		// Then apply instance's parameter overrides
-		for (const auto& [name, value] : m_ParameterOverrides)
-		{
-			m_BaseMaterial->ApplyParameter(name, value.Value);
-		}
 	}
 
 }
