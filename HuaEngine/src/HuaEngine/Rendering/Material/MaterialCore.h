@@ -79,7 +79,8 @@ namespace HE::Rendering {
 		void SetTextureSlots(const std::unordered_map<std::string, uint32_t>& slots) { m_TextureSlots = slots; }
 		void ClearTextureSlots() { m_TextureSlots.clear(); m_NextTextureSlot = 0; }
 
-		// Material operations
+		// Legacy compatibility path. Normal render passes should use RenderResourceResolver
+		// to build MaterialBinding and submit it through CommandList::SetMaterialBinding.
 		virtual void Bind();
 		virtual void Unbind();
 		virtual void SetParameter(const std::string& name, const MaterialParameterValue& value);
@@ -91,7 +92,8 @@ namespace HE::Rendering {
 		virtual void Serialize() {}
 		virtual void Deserialize() {}
 
-		// Apply parameter to shader (MaterialInstance needs access)
+		// Apply parameter to shader for legacy MaterialInstance paths.
+		// Normal render passes should submit MaterialBinding through CommandList.
 		void ApplyParameter(const std::string& name, const MaterialParameterValue& value);
 
 	protected:
@@ -124,7 +126,7 @@ namespace HE::Rendering {
 		void ClearParameterOverrides() { m_ParameterOverrides.clear(); }
 		void SetParameterOverrides(const std::unordered_map<std::string, MaterialParameter>& overrides) { m_ParameterOverrides = overrides; }
 
-		// Material operations
+		// Legacy compatibility path. Normal render passes should use MaterialBinding.
 		void Bind();
 		void Unbind();
 		void ApplyParameters();

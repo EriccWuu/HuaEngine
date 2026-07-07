@@ -46,6 +46,8 @@ namespace HE::Rendering {
 	public:
 		virtual ~FrameBuffer() = default;
 
+		// Legacy shell compatibility helper.
+		// New render passes should submit state through RHI CommandList.
 		virtual void Bind() = 0;
 		virtual void Unbind() = 0;
 

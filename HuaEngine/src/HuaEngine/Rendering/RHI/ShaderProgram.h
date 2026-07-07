@@ -16,10 +16,12 @@ namespace HE::Rendering {
 		virtual ~ShaderProgram() = default;
 
 		virtual const ShaderProgramDesc& GetDesc() const = 0;
-		// Compatibility helpers for the OpenGL migration period. New rendering code should bind programs and parameters through CommandList.
+		// Compatibility helper for backend and legacy wrappers.
+		// New rendering code must submit state through CommandList instead.
 		virtual void Bind() = 0;
 		virtual void Unbind() = 0;
-		// Temporary uniform API until MaterialBinding or parameter sets own shader parameters.
+		// Temporary uniform API for the OpenGL migration period.
+		// New material parameters should be submitted through CommandList::SetMaterialBinding.
 		virtual void SetInt(const std::string& name, int value) = 0;
 		virtual void SetIntArray(const std::string& name, int* values, uint32_t size) = 0;
 		virtual void SetFloat(const std::string& name, float value) = 0;

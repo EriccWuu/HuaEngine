@@ -25,14 +25,22 @@ namespace HE::Rendering {
 		virtual void ClearColor(const glm::vec4& color) = 0;
 		virtual void BeginFrame(Camera& camera) = 0;
 
+		// Normal render path state submission.
 		virtual void SetShaderProgram(ShaderProgram& shaderProgram) = 0;
+		// Normal render path state submission.
 		virtual void SetVertexBufferView(VertexBufferView& vertexBufferView) = 0;
+		// Temporary helper until frame/object/material parameter sets are introduced.
 		virtual void SetTexture(uint32_t slot, TextureResource& texture) = 0;
+		// Temporary helper until frame/object/material parameter sets are introduced.
 		virtual void SetMat4(const std::string& name, const glm::mat4& value) = 0;
+		// Normal render path state submission.
 		virtual void SetMaterialBinding(const MaterialBinding& binding) = 0;
+		// Normal render path state submission.
 		virtual void DrawIndexed(uint32_t indexCount, const glm::mat4& transform) = 0;
 
-		// Compatibility path for legacy MaterialInstance and VertexArray shells.
+		// Legacy fallback for old MaterialInstance and VertexArray shells.
+		// Remove after all render paths provide ShaderProgramRef, VertexBufferViewRef,
+		// and MaterialBindingRef.
 		virtual void DrawIndexed(MaterialInstance& material, VertexArray& vertexArray, const glm::mat4& transform) = 0;
 
 		virtual void EndFrame() = 0;

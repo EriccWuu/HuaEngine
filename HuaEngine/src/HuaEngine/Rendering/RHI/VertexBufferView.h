@@ -22,7 +22,8 @@ namespace HE::Rendering {
 		virtual ~VertexBufferView() = default;
 
 		virtual const VertexBufferViewDesc& GetDesc() const = 0;
-		// Compatibility helper for the OpenGL migration period. New rendering code should use CommandList::SetVertexBufferView.
+		// Compatibility helper for backend and legacy wrappers.
+		// New rendering code must submit state through CommandList instead.
 		virtual void Bind() = 0;
 		virtual void Unbind() = 0;
 	};

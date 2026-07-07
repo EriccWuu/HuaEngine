@@ -16,7 +16,8 @@ namespace HE::Rendering {
 		virtual uint32_t GetRenderID() const = 0;
 		virtual uint32_t GetWidth() const = 0;
 		virtual uint32_t GetHeight() const = 0;
-		// Compatibility helper for the OpenGL migration period. New rendering code should use CommandList::SetTexture.
+		// Compatibility helper for backend and legacy wrappers.
+		// New rendering code must submit state through CommandList instead.
 		virtual void Bind(uint32_t slot = 0) = 0;
 	};
 }

@@ -12,7 +12,8 @@ namespace HE::Rendering {
 		virtual ~RenderTarget() = default;
 
 		virtual const RenderTargetDesc& GetDesc() const = 0;
-		// Compatibility helper for legacy framebuffer shells. New rendering code should use CommandList::BeginRenderTarget.
+		// Compatibility helper for backend and legacy wrappers.
+		// New rendering code must submit state through CommandList instead.
 		virtual void Bind() = 0;
 		virtual void Unbind() = 0;
 		virtual void Resize(uint32_t width, uint32_t height) = 0;

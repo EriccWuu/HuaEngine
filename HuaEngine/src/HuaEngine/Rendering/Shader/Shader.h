@@ -6,6 +6,8 @@ namespace HE::Rendering {
 	class Shader {
 	public:
 		virtual ~Shader() = default;
+		// Legacy shell compatibility helper.
+		// New render passes should submit state through RHI CommandList.
 		virtual void Bind() = 0;
 		virtual void Unbind() = 0;
 
