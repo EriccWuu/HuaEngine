@@ -11,9 +11,6 @@
 namespace {
 	class FakeShader final : public HE::Rendering::Shader {
 	public:
-		void Bind() override {}
-		void Unbind() override {}
-
 		void SetInt(const std::string&, int) override { ++SetIntCalls; }
 		void SetIntArray(const std::string&, int*, uint32_t) override {}
 		void SetFloat(const std::string&, float) override {}

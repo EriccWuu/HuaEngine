@@ -80,7 +80,7 @@ namespace HE::Rendering {
 		return m_Height;
 	}
 
-	void OpenGLTexture2D::Bind(uint32_t slot) {
+	void OpenGLTexture2D::BindForCommandList(uint32_t slot) {
 		if (m_TextureResource) {
 			static_cast<OpenGLTextureResource&>(*m_TextureResource).BindForCommandList(slot);
 			return;

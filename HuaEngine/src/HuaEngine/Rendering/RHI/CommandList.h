@@ -6,7 +6,6 @@
 
 namespace HE::Rendering {
 	class Camera;
-	class FrameBuffer;
 	class MaterialBinding;
 	class RenderTarget;
 	class ShaderProgram;
@@ -16,7 +15,6 @@ namespace HE::Rendering {
 	public:
 		virtual ~CommandList() = default;
 
-		virtual void BeginRenderTarget(FrameBuffer& target) = 0;
 		virtual void BeginRenderTarget(RenderTarget& target) = 0;
 		virtual void ClearColor(const glm::vec4& color) = 0;
 		virtual void BeginFrame(Camera& camera) = 0;

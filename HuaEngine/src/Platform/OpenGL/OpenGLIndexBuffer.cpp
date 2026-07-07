@@ -25,7 +25,7 @@ namespace HE::Rendering {
 		glDeleteBuffers(1, &m_RenderID);
 	}
 
-	void OpenGLIndexBuffer::Bind() const {
+	void OpenGLIndexBuffer::BindForVertexArrayBuild() const {
 		if (m_GpuBuffer) {
 			static_cast<OpenGLGpuBuffer&>(*m_GpuBuffer).BindForCommandList();
 			return;
@@ -34,13 +34,8 @@ namespace HE::Rendering {
 		glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, m_RenderID);
 	}
 
-	void OpenGLIndexBuffer::Unbind() const {
-		if (m_GpuBuffer) {
-			static_cast<OpenGLGpuBuffer&>(*m_GpuBuffer).UnbindForCommandList();
-			return;
-		}
-
-		glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, 0);
+	void OpenGLIndexBuffer::BindForMeshDataRead() const {
+		BindForVertexArrayBuild();
 	}
 
 	uint32_t OpenGLIndexBuffer::GetCount() const {

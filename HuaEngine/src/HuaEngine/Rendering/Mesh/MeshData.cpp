@@ -38,7 +38,7 @@ namespace HE::Rendering {
         }
 
         // Bind and read vertex data
-        openglBuffer->Bind();
+        openglBuffer->BindForMeshDataRead();
 
         // Get buffer size
         GLint bufferSize;
@@ -74,7 +74,7 @@ namespace HE::Rendering {
         }
 
         // Bind and read index data
-        openglIndexBuffer->Bind();
+        openglIndexBuffer->BindForMeshDataRead();
         
         GLint indexBufferSize;
         glGetBufferParameteriv(GL_ELEMENT_ARRAY_BUFFER, GL_BUFFER_SIZE, &indexBufferSize);

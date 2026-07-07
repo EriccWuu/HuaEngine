@@ -203,7 +203,7 @@ namespace HE::Rendering {
 		glDeleteShader(m_FragShader);
 	}
 
-	void OpenGLShader::Bind() {
+	void OpenGLShader::BindForCommandList() {
 		if (m_ShaderProgram) {
 			static_cast<OpenGLShaderProgram&>(*m_ShaderProgram).BindForCommandList();
 			return;
@@ -212,7 +212,7 @@ namespace HE::Rendering {
 		glUseProgram(m_Program);
 	}
 
-	void OpenGLShader::Unbind() {
+	void OpenGLShader::UnbindForCommandList() {
 		if (m_ShaderProgram) {
 			static_cast<OpenGLShaderProgram&>(*m_ShaderProgram).UnbindForCommandList();
 		}

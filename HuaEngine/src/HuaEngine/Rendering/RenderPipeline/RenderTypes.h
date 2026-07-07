@@ -9,9 +9,9 @@
 #include "HuaEngine/Core/Core.h"
 #include "HuaEngine/ECS/Entity.h"
 #include "HuaEngine/Rendering/Camera.h"
-#include "HuaEngine/Rendering/FrameBuffer.h"
 #include "HuaEngine/Rendering/Material/MaterialBinding.h"
 #include "HuaEngine/Rendering/Material/Material.h"
+#include "HuaEngine/Rendering/RHI/RenderTarget.h"
 #include "HuaEngine/Rendering/RHI/ShaderProgram.h"
 #include "HuaEngine/Rendering/RHI/VertexBufferView.h"
 #include "Module/Rendering/RenderingComponent.h"
@@ -22,7 +22,7 @@ namespace HE::Rendering {
 
 	struct RenderView {
 		Ref<Camera> CameraRef;
-		Ref<FrameBuffer> Target;
+		Ref<RenderTarget> Target;
 		glm::vec4 ClearColor = { 0.1f, 0.1f, 0.1f, 1.0f };
 		bool ClearColorBuffer = true;
 	};

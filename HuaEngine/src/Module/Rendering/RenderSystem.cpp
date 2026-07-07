@@ -48,7 +48,7 @@ namespace HE {
 
 		Rendering::RenderView view;
 		view.CameraRef = CreateRef<Rendering::Camera>(camera);
-		view.Target = m_Framebuffer;
+		view.Target = m_Framebuffer->GetRenderTarget();
 
 		auto renderItems = m_Extractor.Extract(world);
 		m_LastRenderResult = m_RenderPipeline->Render(view, renderItems, m_ResourceResolver);

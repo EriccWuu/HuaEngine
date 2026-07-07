@@ -35,7 +35,7 @@ namespace HE::Rendering {
 		glDeleteVertexArrays(1, &m_RenderID);
 	}
 
-	void OpenGLVertexArray::Bind() {
+	void OpenGLVertexArray::BindForCommandList() {
 		if (m_VertexBufferView) {
 			static_cast<OpenGLVertexBufferView&>(*m_VertexBufferView).BindForCommandList();
 			return;
@@ -44,7 +44,7 @@ namespace HE::Rendering {
 		glBindVertexArray(m_RenderID);
 	}
 
-	void OpenGLVertexArray::Unbind() {
+	void OpenGLVertexArray::UnbindForCommandList() {
 		if (m_VertexBufferView) {
 			static_cast<OpenGLVertexBufferView&>(*m_VertexBufferView).UnbindForCommandList();
 			return;
@@ -56,7 +56,7 @@ namespace HE::Rendering {
 	void OpenGLVertexArray::AddVertexBuffer(const std::shared_ptr<VertexBuffer>& vertexBuffer) {
 		HE_CORE_ASSERT(vertexBuffer->GetLayout().GetElements().size(), "Vertex buffer layout not set!");
 		glBindVertexArray(m_RenderID);
-		vertexBuffer->Bind();
+		static_cast<OpenGLVertexBuffer&>(*vertexBuffer).BindForVertexArrayBuild();
 		
 		uint32_t idx = 0;
 		auto& layout = vertexBuffer->GetLayout();
@@ -77,7 +77,7 @@ namespace HE::Rendering {
 
 	void OpenGLVertexArray::SetIndexBuffer(const std::shared_ptr<IndexBuffer>& indexBuffer) {
 		glBindVertexArray(m_RenderID);
-		indexBuffer->Bind();
+		static_cast<OpenGLIndexBuffer&>(*indexBuffer).BindForVertexArrayBuild();
 
 		m_IndexBuffer = indexBuffer;
 		TryCreateVertexBufferView();

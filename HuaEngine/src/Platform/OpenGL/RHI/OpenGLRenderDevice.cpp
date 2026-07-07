@@ -314,11 +314,11 @@ namespace HE::Rendering {
 	}
 
 	void OpenGLRenderTarget::BeginForCommandList() {
-		m_FrameBuffer->Bind();
+		m_FrameBuffer->BeginForCommandList();
 	}
 
 	void OpenGLRenderTarget::EndForCommandList() {
-		m_FrameBuffer->Unbind();
+		m_FrameBuffer->EndForCommandList();
 	}
 
 	void OpenGLRenderTarget::Resize(uint32_t width, uint32_t height) {
@@ -366,7 +366,7 @@ namespace HE::Rendering {
 	}
 
 	void OpenGLTextureResource::BindForCommandList(uint32_t slot) {
-		m_Texture->Bind(slot);
+		m_Texture->BindForCommandList(slot);
 	}
 
 	OpenGLShaderProgram::OpenGLShaderProgram(const ShaderProgramDesc& desc)
@@ -377,11 +377,11 @@ namespace HE::Rendering {
 	}
 
 	void OpenGLShaderProgram::BindForCommandList() {
-		m_Shader->Bind();
+		m_Shader->BindForCommandList();
 	}
 
 	void OpenGLShaderProgram::UnbindForCommandList() {
-		m_Shader->Unbind();
+		m_Shader->UnbindForCommandList();
 	}
 
 	void OpenGLShaderProgram::SetInt(const std::string& name, int value) {
@@ -416,14 +416,7 @@ namespace HE::Rendering {
 		m_Shader->SetMat4(name, value);
 	}
 
-	void OpenGLCommandList::BeginRenderTarget(FrameBuffer& target) {
-		m_CurrentLegacyTarget = &target;
-		m_CurrentRenderTarget = nullptr;
-		target.Bind();
-	}
-
 	void OpenGLCommandList::BeginRenderTarget(RenderTarget& target) {
-		m_CurrentLegacyTarget = nullptr;
 		m_CurrentRenderTarget = &target;
 		static_cast<OpenGLRenderTarget&>(target).BeginForCommandList();
 	}
@@ -572,12 +565,8 @@ namespace HE::Rendering {
 		if (m_CurrentRenderTarget) {
 			static_cast<OpenGLRenderTarget*>(m_CurrentRenderTarget)->EndForCommandList();
 		}
-		else if (m_CurrentLegacyTarget) {
-			m_CurrentLegacyTarget->Unbind();
-		}
 
 		m_CurrentRenderTarget = nullptr;
-		m_CurrentLegacyTarget = nullptr;
 	}
 
 	OpenGLRenderDevice::OpenGLRenderDevice() {

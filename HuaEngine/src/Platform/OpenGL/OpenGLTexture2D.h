@@ -14,7 +14,7 @@ namespace HE::Rendering {
 		virtual uint32_t GetRenderID() const override;
 		virtual uint32_t GetWidth() const override;
 		virtual uint32_t GetHeight() const override;
-		virtual void Bind(uint32_t slot = 0) override;
+		void BindForCommandList(uint32_t slot = 0);
 		Ref<TextureResource> GetTextureResource() const override { return m_TextureResource; }
 
 	private:

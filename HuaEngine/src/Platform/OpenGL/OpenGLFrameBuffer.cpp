@@ -104,7 +104,7 @@ namespace HE::Rendering {
 		glDeleteTextures(1, &m_DepthAttachment);
 	}
 
-	void OpenGLFrameBuffer::Bind() {
+	void OpenGLFrameBuffer::BeginForCommandList() {
 		if (m_RenderTarget) {
 			static_cast<OpenGLRenderTarget&>(*m_RenderTarget).BeginForCommandList();
 			return;
@@ -114,7 +114,7 @@ namespace HE::Rendering {
 		glViewport(0, 0, m_Specification.Width, m_Specification.Height);
 	}
 
-	void OpenGLFrameBuffer::Unbind() {
+	void OpenGLFrameBuffer::EndForCommandList() {
 		if (m_RenderTarget) {
 			static_cast<OpenGLRenderTarget&>(*m_RenderTarget).EndForCommandList();
 			return;

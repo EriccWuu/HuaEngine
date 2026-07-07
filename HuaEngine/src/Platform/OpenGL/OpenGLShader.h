@@ -13,8 +13,8 @@ namespace HE::Rendering {
 		explicit OpenGLShader(Ref<ShaderProgram> shaderProgram);
 		~OpenGLShader();
 		
-		virtual void Bind() override;
-		virtual void Unbind() override;
+		void BindForCommandList();
+		void UnbindForCommandList();
 
 		virtual void SetInt(const std::string& name, int value) override;
 		virtual void SetIntArray(const std::string& name, int* values, uint32_t size) override;

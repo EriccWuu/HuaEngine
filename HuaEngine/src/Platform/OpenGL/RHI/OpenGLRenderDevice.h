@@ -5,7 +5,6 @@
 
 namespace HE::Rendering {
 	class Camera;
-	class FrameBuffer;
 	class MaterialBinding;
 	class OpenGLFrameBuffer;
 	class OpenGLShader;
@@ -13,7 +12,6 @@ namespace HE::Rendering {
 
 	class OpenGLCommandList final : public CommandList {
 	public:
-		void BeginRenderTarget(FrameBuffer& target) override;
 		void BeginRenderTarget(RenderTarget& target) override;
 		void ClearColor(const glm::vec4& color) override;
 		void BeginFrame(Camera& camera) override;
@@ -27,7 +25,6 @@ namespace HE::Rendering {
 		void EndRenderTarget() override;
 
 	private:
-		FrameBuffer* m_CurrentLegacyTarget = nullptr;
 		RenderTarget* m_CurrentRenderTarget = nullptr;
 		Camera* m_CurrentCamera = nullptr;
 		ShaderProgram* m_CurrentShaderProgram = nullptr;

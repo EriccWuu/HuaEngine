@@ -10,8 +10,8 @@ namespace HE::Rendering {
 		explicit OpenGLFrameBuffer(Ref<RenderTarget> renderTarget);
 		virtual ~OpenGLFrameBuffer();
 
-		virtual void Bind() override;
-		virtual void Unbind() override;
+		void BeginForCommandList();
+		void EndForCommandList();
 
 		virtual void Resize(uint32_t width, uint32_t height) override;
 
@@ -21,6 +21,7 @@ namespace HE::Rendering {
 		virtual uint32_t GetRenderID() const override;
 
 		virtual uint32_t GetColorAttachment(uint32_t index = 0) const override;
+		Ref<RenderTarget> GetRenderTarget() const override { return m_RenderTarget; }
 		virtual const FrameBufferSpecification& GetSpecification() const override;
 
 		void Invalidate();

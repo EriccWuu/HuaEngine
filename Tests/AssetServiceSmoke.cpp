@@ -17,7 +17,7 @@ namespace {
 		uint32_t GetRenderID() const override { return 0; }
 		uint32_t GetWidth() const override { return 1; }
 		uint32_t GetHeight() const override { return 1; }
-		void Bind(uint32_t slot = 0) override { (void)slot; }
+		HE::Ref<HE::Rendering::TextureResource> GetTextureResource() const override { return nullptr; }
 	};
 
 	void Require(bool condition, const std::string& message) {
