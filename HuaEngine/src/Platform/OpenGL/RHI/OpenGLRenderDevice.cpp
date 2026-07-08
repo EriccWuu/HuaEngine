@@ -4,18 +4,18 @@
 #include <filesystem>
 
 #include "glad/glad.h"
+#include "stb_image.h"
 
 #include "HuaEngine/Rendering/Camera.h"
-#include "HuaEngine/Rendering/FrameBuffer.h"
+#include "HuaEngine/Rendering/RHI/RenderTargetTypes.h"
 #include "HuaEngine/Rendering/Material/MaterialBinding.h"
 #include "HuaEngine/Rendering/Material/Material.h"
 #include "HuaEngine/Rendering/RHI/RenderTarget.h"
 #include "HuaEngine/Rendering/RHI/ShaderProgram.h"
 #include "HuaEngine/Rendering/RHI/TextureResource.h"
 #include "HuaEngine/Rendering/RHI/VertexBufferView.h"
-#include "Platform/OpenGL/OpenGLFrameBuffer.h"
+#include "Platform/OpenGL/OpenGLRenderTargetStorage.h"
 #include "Platform/OpenGL/OpenGLShader.h"
-#include "Platform/OpenGL/OpenGLTexture2D.h"
 
 namespace {
 	GLenum ToOpenGLBufferTarget(HE::Rendering::GpuBufferUsage usage) {
@@ -306,66 +306,105 @@ namespace HE::Rendering {
 	}
 
 	OpenGLRenderTarget::OpenGLRenderTarget(const RenderTargetDesc& desc)
-		: m_Desc(desc), m_BackendFramebuffer(CreateRef<OpenGLFrameBuffer>(desc.Specification)) {}
+		: m_Desc(desc), m_BackendStorage(CreateRef<OpenGLRenderTargetStorage>(desc.Specification)) {}
 
 	const RenderTargetDesc& OpenGLRenderTarget::GetDesc() const {
 		return m_Desc;
 	}
 
 	void OpenGLRenderTarget::BeginForCommandList() {
-		m_BackendFramebuffer->BeginForCommandList();
+		m_BackendStorage->BeginForCommandList();
 	}
 
 	void OpenGLRenderTarget::EndForCommandList() {
-		m_BackendFramebuffer->EndForCommandList();
+		m_BackendStorage->EndForCommandList();
 	}
 
 	void OpenGLRenderTarget::Resize(uint32_t width, uint32_t height) {
-		m_BackendFramebuffer->Resize(width, height);
-		m_Desc.Specification = m_BackendFramebuffer->GetSpecification();
+		m_BackendStorage->Resize(width, height);
+		m_Desc.Specification = m_BackendStorage->GetSpecification();
 	}
 
 	void OpenGLRenderTarget::ClearAttachment(uint32_t index, int value) {
-		m_BackendFramebuffer->ClearAttachment(index, value);
+		m_BackendStorage->ClearAttachment(index, value);
 	}
 
-	FrameBufferPixelRGBA8 OpenGLRenderTarget::ReadPixelRGBA8(uint32_t attachmentIndex, uint32_t x, uint32_t y) const {
-		return m_BackendFramebuffer->ReadPixelRGBA8(attachmentIndex, x, y);
+	RenderTargetPixelRGBA8 OpenGLRenderTarget::ReadPixelRGBA8(uint32_t attachmentIndex, uint32_t x, uint32_t y) const {
+		return m_BackendStorage->ReadPixelRGBA8(attachmentIndex, x, y);
 	}
 
 	uint32_t OpenGLRenderTarget::GetRenderID() const {
-		return m_BackendFramebuffer->GetRenderID();
+		return m_BackendStorage->GetRenderID();
 	}
 
 	uint32_t OpenGLRenderTarget::GetColorAttachment(uint32_t index) const {
-		return m_BackendFramebuffer->GetColorAttachment(index);
+		return m_BackendStorage->GetColorAttachment(index);
 	}
 
-	const FrameBufferSpecification& OpenGLRenderTarget::GetSpecification() const {
-		return m_BackendFramebuffer->GetSpecification();
+	const RenderTargetSpecification& OpenGLRenderTarget::GetSpecification() const {
+		return m_BackendStorage->GetSpecification();
 	}
 
 	OpenGLTextureResource::OpenGLTextureResource(const TextureDesc& desc)
-		: m_Desc(desc), m_Texture(CreateRef<OpenGLTexture2D>(desc.SourcePath)) {}
+		: m_Desc(desc) {
+		stbi_set_flip_vertically_on_load(true);
+		int width = 0;
+		int height = 0;
+		int channels = 0;
+		stbi_uc* data = stbi_load(m_Desc.SourcePath.c_str(), &width, &height, &channels, 0);
+		HE_CORE_ASSERT(data, "Failed to load image data");
+
+		m_Width = static_cast<uint32_t>(width);
+		m_Height = static_cast<uint32_t>(height);
+
+		GLenum internalFormat = 0;
+		GLenum format = 0;
+		switch (channels) {
+			case 3:
+				internalFormat = GL_RGB8;
+				format = GL_RGB;
+				break;
+			case 4:
+				internalFormat = GL_RGBA8;
+				format = GL_RGBA;
+				break;
+			default:
+				break;
+		}
+
+		HE_CORE_ASSERT(internalFormat != 0 && format != 0, "Image format not supported");
+
+		glCreateTextures(GL_TEXTURE_2D, 1, &m_RenderID);
+		glTextureStorage2D(m_RenderID, 1, internalFormat, m_Width, m_Height);
+		glTextureParameteri(m_RenderID, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+		glTextureParameteri(m_RenderID, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+		glTextureSubImage2D(m_RenderID, 0, 0, 0, m_Width, m_Height, format, GL_UNSIGNED_BYTE, data);
+
+		stbi_image_free(data);
+	}
+
+	OpenGLTextureResource::~OpenGLTextureResource() {
+		glDeleteTextures(1, &m_RenderID);
+	}
 
 	const TextureDesc& OpenGLTextureResource::GetDesc() const {
 		return m_Desc;
 	}
 
 	uint32_t OpenGLTextureResource::GetRenderID() const {
-		return m_Texture->GetRenderID();
+		return m_RenderID;
 	}
 
 	uint32_t OpenGLTextureResource::GetWidth() const {
-		return m_Texture->GetWidth();
+		return m_Width;
 	}
 
 	uint32_t OpenGLTextureResource::GetHeight() const {
-		return m_Texture->GetHeight();
+		return m_Height;
 	}
 
 	void OpenGLTextureResource::BindForCommandList(uint32_t slot) {
-		m_Texture->BindForCommandList(slot);
+		glBindTextureUnit(slot, m_RenderID);
 	}
 
 	OpenGLShaderProgram::OpenGLShaderProgram(const ShaderProgramDesc& desc)

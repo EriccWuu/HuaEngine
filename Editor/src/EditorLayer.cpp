@@ -1,4 +1,4 @@
-﻿#include "enginepch.h"
+#include "enginepch.h"
 #include "EditorLayer.h"
 
 #include <algorithm>
@@ -573,10 +573,10 @@ namespace HE {
     }
 
     bool EditorLayer::InitializeWorkbenchShell() {
-        FrameBufferSpecification spec;
+        RenderTargetSpecification spec;
         spec.Width = 1280;
         spec.Height = 720;
-        spec.Attachments = { FrameBufferTextureFormat::RGBA8, FrameBufferTextureFormat::DEPTH24_STENCIL8 };
+        spec.Attachments = { RenderTargetTextureFormat::RGBA8, RenderTargetTextureFormat::DEPTH24_STENCIL8 };
         m_RenderTarget = Rendering::RenderHardwareInterface::GetDevice().CreateRenderTarget({ .Specification = spec });
 
         if (m_SceneDocument.SceneRef) {

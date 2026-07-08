@@ -60,8 +60,8 @@ namespace {
 	}
 
 	bool PixelNear(
-		const HE::Rendering::FrameBufferPixelRGBA8& pixel,
-		const HE::Rendering::FrameBufferPixelRGBA8& expected,
+		const HE::Rendering::RenderTargetPixelRGBA8& pixel,
+		const HE::Rendering::RenderTargetPixelRGBA8& expected,
 		uint8_t tolerance) {
 		const auto nearChannel = [tolerance](uint8_t actual, uint8_t target) {
 			const int delta = static_cast<int>(actual) - static_cast<int>(target);
@@ -74,8 +74,8 @@ namespace {
 			&& nearChannel(pixel.A, expected.A);
 	}
 
-	bool IsClearColor(const HE::Rendering::FrameBufferPixelRGBA8& pixel) {
-		const HE::Rendering::FrameBufferPixelRGBA8 expectedClearColor{ 26, 26, 26, 255 };
+	bool IsClearColor(const HE::Rendering::RenderTargetPixelRGBA8& pixel) {
+		const HE::Rendering::RenderTargetPixelRGBA8 expectedClearColor{ 26, 26, 26, 255 };
 		return PixelNear(pixel, expectedClearColor, 1);
 	}
 
@@ -136,10 +136,10 @@ int main() {
 	auto createScene = operations.CreateScene("RenderingSmoke", scene);
 	Require(createScene.Succeeded() && scene, "Expected scene.create to succeed for rendering smoke");
 
-	HE::FrameBufferSpecification specification;
+	HE::RenderTargetSpecification specification;
 	specification.Width = 320;
 	specification.Height = 180;
-	specification.Attachments = { HE::FrameBufferTextureFormat::RGBA8, HE::FrameBufferTextureFormat::DEPTH24_STENCIL8 };
+	specification.Attachments = { HE::RenderTargetTextureFormat::RGBA8, HE::RenderTargetTextureFormat::DEPTH24_STENCIL8 };
 	auto renderTarget = HE::Rendering::RenderHardwareInterface::GetDevice().CreateRenderTarget({ .Specification = specification });
 	Require(static_cast<bool>(renderTarget), "Expected render target creation to succeed");
 
@@ -247,7 +247,7 @@ int main() {
 	Require(renderAssetRefScene.Payload.at("graph_outputs") == "1", "Expected typed asset-ref scene render graph to report one output");
 	Require(renderAssetRefScene.Payload.at("graph_diagnostics") == "0", "Expected typed asset-ref scene render to emit no render graph diagnostics");
 	Require(HasRenderedPixel(renderTarget), "Expected typed asset-ref render path to write a non-clear render target pixel");
-	const HE::Rendering::FrameBufferPixelRGBA8 expectedOverrideColor{ 230, 204, 51, 255 };
+	const HE::Rendering::RenderTargetPixelRGBA8 expectedOverrideColor{ 230, 204, 51, 255 };
 	const auto& typedSpec = renderTarget->GetSpecification();
 	bool hasOverrideColorPixel = false;
 	for (uint32_t y = typedSpec.Height / 8; y < typedSpec.Height; y += typedSpec.Height / 8) {

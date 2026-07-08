@@ -100,10 +100,10 @@ int main() {
 	auto matrixIntegerVertexBufferView = device.CreateVertexBufferView(matrixIntegerViewDesc);
 	Require(static_cast<bool>(matrixIntegerVertexBufferView), "Expected matrix/integer vertex buffer view creation to succeed");
 
-	HE::Rendering::FrameBufferSpecification frameBufferSpec;
+	HE::Rendering::RenderTargetSpecification frameBufferSpec;
 	frameBufferSpec.Width = 64;
 	frameBufferSpec.Height = 64;
-	frameBufferSpec.Attachments = { HE::Rendering::FrameBufferTextureFormat::RGBA8, HE::Rendering::FrameBufferTextureFormat::DEPTH24_STENCIL8 };
+	frameBufferSpec.Attachments = { HE::Rendering::RenderTargetTextureFormat::RGBA8, HE::Rendering::RenderTargetTextureFormat::DEPTH24_STENCIL8 };
 	auto renderTarget = device.CreateRenderTarget({ .Specification = frameBufferSpec });
 	Require(static_cast<bool>(renderTarget), "Expected render target creation to succeed");
 	Require(renderTarget->GetSpecification().Width == 64, "Expected render target width");

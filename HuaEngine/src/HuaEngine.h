@@ -18,9 +18,8 @@
 // Render
 #include "HuaEngine/Rendering/Renderer.h"
 #include "HuaEngine/Rendering/VertexLayout.h"
-#include "HuaEngine/Rendering/Texture.h"
-#include "HuaEngine/Rendering/FrameBuffer.h"
 #include "HuaEngine/Rendering/RHI/RenderTarget.h"
+#include "HuaEngine/Rendering/RHI/RenderTargetTypes.h"
 #include "HuaEngine/Rendering/RHI/TextureResource.h"
 #include "HuaEngine/Rendering/Material/Material.h"
 #include "HuaEngine/Rendering/Material/MaterialTypes.h"
@@ -67,14 +66,13 @@ namespace HE {
 	using BufferLayout = Rendering::BufferLayout;
 	using ShaderDataType = Rendering::ShaderDataType;
 
-	// Shader and texture
-	using Texture = Rendering::Texture;
+	// Texture
 	using TextureResource = Rendering::TextureResource;
 
-	// Framebuffer
-	using FrameBufferSpecification = Rendering::FrameBufferSpecification;
-	using FrameBufferTextureFormat = Rendering::FrameBufferTextureFormat;
+	// Render target
 	using RenderTarget = Rendering::RenderTarget;
+	using RenderTargetSpecification = Rendering::RenderTargetSpecification;
+	using RenderTargetTextureFormat = Rendering::RenderTargetTextureFormat;
 
 	// Material system
 	using Material = Rendering::Material;

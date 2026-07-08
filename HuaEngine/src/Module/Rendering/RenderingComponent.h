@@ -5,7 +5,7 @@
 #include "HuaEngine/Asset/AssetTypes.h"
 #include "HuaEngine/Rendering/Camera.h"
 #include "HuaEngine/Rendering/RHI/ShaderProgram.h"
-#include "HuaEngine/Rendering/Texture.h"
+#include "HuaEngine/Rendering/RHI/TextureResource.h"
 #include "HuaEngine/Rendering/Material/Material.h"
 #include "HuaEngine/Rendering/Mesh/Mesh.h"
 #include "HuaEngine/Reflection/Reflection.h"
@@ -75,11 +75,11 @@ namespace HE::Rendering {
 	// Legacy RendererComponent for backward compatibility (deprecated)
 	struct RendererComponent : Component {
 		RendererComponent() = default;
-		RendererComponent(const Ref<HE::Rendering::ShaderProgram>& shaderProgram, const Ref<HE::Rendering::Texture>& texture)
+		RendererComponent(const Ref<HE::Rendering::ShaderProgram>& shaderProgram, const Ref<HE::Rendering::TextureResource>& texture)
 			: ShaderProgram(shaderProgram), Texture(texture) {}
 
 		Ref<HE::Rendering::ShaderProgram> ShaderProgram;
-		Ref<HE::Rendering::Texture> Texture;
+		Ref<HE::Rendering::TextureResource> Texture;
 	};
 
 	HE_REFLECT_COMPONENT(DisplayName="Mesh", Category="Rendering")

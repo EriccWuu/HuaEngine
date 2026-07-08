@@ -6,9 +6,8 @@
 namespace HE::Rendering {
 	class Camera;
 	class MaterialBinding;
-	class OpenGLFrameBuffer;
+	class OpenGLRenderTargetStorage;
 	class OpenGLShader;
-	class OpenGLTexture2D;
 
 	class OpenGLCommandList final : public CommandList {
 	public:
@@ -79,19 +78,20 @@ namespace HE::Rendering {
 		void EndForCommandList();
 		void Resize(uint32_t width, uint32_t height) override;
 		void ClearAttachment(uint32_t index, int value) override;
-		FrameBufferPixelRGBA8 ReadPixelRGBA8(uint32_t attachmentIndex, uint32_t x, uint32_t y) const override;
+		RenderTargetPixelRGBA8 ReadPixelRGBA8(uint32_t attachmentIndex, uint32_t x, uint32_t y) const override;
 		uint32_t GetRenderID() const override;
 		uint32_t GetColorAttachment(uint32_t index = 0) const override;
-		const FrameBufferSpecification& GetSpecification() const override;
+		const RenderTargetSpecification& GetSpecification() const override;
 
 	private:
 		RenderTargetDesc m_Desc;
-		Ref<OpenGLFrameBuffer> m_BackendFramebuffer;
+		Ref<OpenGLRenderTargetStorage> m_BackendStorage;
 	};
 
 	class OpenGLTextureResource final : public TextureResource {
 	public:
 		explicit OpenGLTextureResource(const TextureDesc& desc);
+		~OpenGLTextureResource() override;
 		OpenGLTextureResource(const OpenGLTextureResource&) = delete;
 		OpenGLTextureResource& operator=(const OpenGLTextureResource&) = delete;
 
@@ -103,7 +103,9 @@ namespace HE::Rendering {
 
 	private:
 		TextureDesc m_Desc;
-		Ref<OpenGLTexture2D> m_Texture;
+		uint32_t m_RenderID = 0;
+		uint32_t m_Width = 0;
+		uint32_t m_Height = 0;
 	};
 
 	class OpenGLShaderProgram final : public ShaderProgram {

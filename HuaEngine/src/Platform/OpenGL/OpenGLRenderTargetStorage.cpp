@@ -1,5 +1,5 @@
 #include "enginepch.h"
-#include "OpenGLFrameBuffer.h"
+#include "OpenGLRenderTargetStorage.h"
 
 #include "glad/glad.h"
 
@@ -52,22 +52,22 @@ namespace HE::Rendering {
 			glFramebufferTexture2D(GL_FRAMEBUFFER, attachmentType, TextureTarget(multisampled), id, 0);
 		}
 
-		static bool IsDepthFormat(FrameBufferTextureFormat format)
+		static bool IsDepthFormat(RenderTargetTextureFormat format)
 		{
 			switch (format)
 			{
-				case FrameBufferTextureFormat::DEPTH24_STENCIL8:  return true;
+				case RenderTargetTextureFormat::DEPTH24_STENCIL8:  return true;
 			}
 
 			return false;
 		}
 
-		static GLenum TextureFormatToGL(FrameBufferTextureFormat format)
+		static GLenum TextureFormatToGL(RenderTargetTextureFormat format)
 		{
 			switch (format)
 			{
-				case FrameBufferTextureFormat::RGBA8:       return GL_RGBA8;
-				case FrameBufferTextureFormat::RED_INTEGER: return GL_RED_INTEGER;
+				case RenderTargetTextureFormat::RGBA8:       return GL_RGBA8;
+				case RenderTargetTextureFormat::RED_INTEGER: return GL_RED_INTEGER;
 			}
 
 			HE_CORE_ASSERT(false, "Unkonwn texture format");
@@ -75,7 +75,7 @@ namespace HE::Rendering {
 		}
 	}
 
-	OpenGLFrameBuffer::OpenGLFrameBuffer(const FrameBufferSpecification& specificationn)
+	OpenGLRenderTargetStorage::OpenGLRenderTargetStorage(const RenderTargetSpecification& specificationn)
 		: m_Specification(specificationn) {
 		for (auto spec : m_Specification.Attachments.Attachments) {
 			if (!Utils::IsDepthFormat(spec.Format))
@@ -87,37 +87,37 @@ namespace HE::Rendering {
 		Invalidate();
 	}
 
-	OpenGLFrameBuffer::~OpenGLFrameBuffer() {
+	OpenGLRenderTargetStorage::~OpenGLRenderTargetStorage() {
 		glDeleteFramebuffers(1, &m_RenderID);
 		glDeleteTextures(m_ColorAttachments.size(), m_ColorAttachments.data());
 		glDeleteTextures(1, &m_DepthAttachment);
 	}
 
-	void OpenGLFrameBuffer::BeginForCommandList() {
+	void OpenGLRenderTargetStorage::BeginForCommandList() {
 		glBindFramebuffer(GL_FRAMEBUFFER, m_RenderID);
 		glViewport(0, 0, m_Specification.Width, m_Specification.Height);
 	}
 
-	void OpenGLFrameBuffer::EndForCommandList() {
+	void OpenGLRenderTargetStorage::EndForCommandList() {
 		glBindFramebuffer(GL_FRAMEBUFFER, 0);
 	}
 
-	void OpenGLFrameBuffer::Resize(uint32_t width, uint32_t height) {
+	void OpenGLRenderTargetStorage::Resize(uint32_t width, uint32_t height) {
 		m_Specification.Width = width;
 		m_Specification.Height = height;
 		Invalidate();
 	}
 
-	void OpenGLFrameBuffer::ClearAttachment(uint32_t index, int value) {
+	void OpenGLRenderTargetStorage::ClearAttachment(uint32_t index, int value) {
 		HE_CORE_ASSERT(index < m_ColorAttachments.size(), "Color attahcment index out of range");
 		auto& spec = m_ColorAttachmentSpecifications[index];
 		glClearTexImage(m_ColorAttachments[index], 0, Utils::TextureFormatToGL(spec.Format), GL_INT, &value);
 	}
 
-	FrameBufferPixelRGBA8 OpenGLFrameBuffer::ReadPixelRGBA8(uint32_t attachmentIndex, uint32_t x, uint32_t y) const {
+	RenderTargetPixelRGBA8 OpenGLRenderTargetStorage::ReadPixelRGBA8(uint32_t attachmentIndex, uint32_t x, uint32_t y) const {
 		HE_CORE_ASSERT(attachmentIndex < m_ColorAttachments.size(), "Color attachment index out of range");
 		HE_CORE_ASSERT(x < m_Specification.Width && y < m_Specification.Height, "Framebuffer pixel coordinates out of bounds");
-		HE_CORE_ASSERT(m_ColorAttachmentSpecifications[attachmentIndex].Format == FrameBufferTextureFormat::RGBA8, "ReadPixelRGBA8 requires an RGBA8 attachment");
+		HE_CORE_ASSERT(m_ColorAttachmentSpecifications[attachmentIndex].Format == RenderTargetTextureFormat::RGBA8, "ReadPixelRGBA8 requires an RGBA8 attachment");
 
 		GLint previousReadFramebuffer = 0;
 		glGetIntegerv(GL_READ_FRAMEBUFFER_BINDING, &previousReadFramebuffer);
@@ -137,20 +137,20 @@ namespace HE::Rendering {
 		return { pixel[0], pixel[1], pixel[2], pixel[3] };
 	}
 
-	uint32_t OpenGLFrameBuffer::GetRenderID() const {
+	uint32_t OpenGLRenderTargetStorage::GetRenderID() const {
 		return m_RenderID;
 	}
 
-	uint32_t OpenGLFrameBuffer::GetColorAttachment(uint32_t index) const {
+	uint32_t OpenGLRenderTargetStorage::GetColorAttachment(uint32_t index) const {
 		HE_CORE_ASSERT(index < m_ColorAttachments.size(), "");
 		return m_ColorAttachments[index];
 	}
 
-	const FrameBufferSpecification& OpenGLFrameBuffer::GetSpecification() const {
+	const RenderTargetSpecification& OpenGLRenderTargetStorage::GetSpecification() const {
 		return m_Specification;
 	}
 
-	void OpenGLFrameBuffer::Invalidate() {
+	void OpenGLRenderTargetStorage::Invalidate() {
 		if (m_RenderID) {
 			glDeleteFramebuffers(1, &m_RenderID);
 			glDeleteTextures(m_ColorAttachments.size(), m_ColorAttachments.data());
@@ -175,11 +175,11 @@ namespace HE::Rendering {
 			for (size_t i = 0; i < m_ColorAttachments.size(); i++) {
 				glBindTexture(target, m_ColorAttachments[i]);
 				switch (m_ColorAttachmentSpecifications[i].Format) {
-					case FrameBufferTextureFormat::RGBA8:
+					case RenderTargetTextureFormat::RGBA8:
 						Utils::AttachColorTexture((uint32_t)m_ColorAttachments[i], m_Specification.Samples, GL_RGBA8, GL_RGBA, m_Specification.Width, m_Specification.Height, i);
 						break;
 
-					case FrameBufferTextureFormat::RED_INTEGER:
+					case RenderTargetTextureFormat::RED_INTEGER:
 						Utils::AttachColorTexture((uint32_t)m_ColorAttachments[i], m_Specification.Samples, GL_R32I, GL_RED_INTEGER, m_Specification.Width, m_Specification.Height, i);
 						break;
 				}
@@ -187,11 +187,11 @@ namespace HE::Rendering {
 		}
 
 		// Depth attachment
-		if (m_DepthAttachmentSpecification.Format != FrameBufferTextureFormat::None) {
+		if (m_DepthAttachmentSpecification.Format != RenderTargetTextureFormat::None) {
 			glCreateTextures(target, 1, &m_DepthAttachment);
 			glBindTexture(target, m_DepthAttachment);
 			switch (m_DepthAttachmentSpecification.Format) {
-				case FrameBufferTextureFormat::DEPTH24_STENCIL8:
+				case RenderTargetTextureFormat::DEPTH24_STENCIL8:
 					Utils::AttachDepthTexture(m_DepthAttachment, m_Specification.Samples, GL_DEPTH24_STENCIL8, GL_DEPTH_STENCIL_ATTACHMENT, m_Specification.Width, m_Specification.Height);
 					break;
 			}

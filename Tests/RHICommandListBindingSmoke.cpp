@@ -32,13 +32,13 @@ namespace {
 			: HE::Application(MakeApplicationSpecification()) {}
 	};
 
-	constexpr HE::Rendering::FrameBufferPixelRGBA8 kExpectedClearPixel{ 26, 26, 26, 255 };
-	constexpr HE::Rendering::FrameBufferPixelRGBA8 kExpectedFragmentPixel{ 230, 51, 26, 255 };
+	constexpr HE::Rendering::RenderTargetPixelRGBA8 kExpectedClearPixel{ 26, 26, 26, 255 };
+	constexpr HE::Rendering::RenderTargetPixelRGBA8 kExpectedFragmentPixel{ 230, 51, 26, 255 };
 	constexpr uint8_t kPixelTolerance = 3;
 
 	bool PixelNear(
-		const HE::Rendering::FrameBufferPixelRGBA8& pixel,
-		const HE::Rendering::FrameBufferPixelRGBA8& expected,
+		const HE::Rendering::RenderTargetPixelRGBA8& pixel,
+		const HE::Rendering::RenderTargetPixelRGBA8& expected,
 		uint8_t tolerance) {
 		const auto nearChannel = [tolerance](uint8_t actual, uint8_t target) {
 			const int delta = static_cast<int>(actual) - static_cast<int>(target);
@@ -117,12 +117,12 @@ int main() {
 	auto vertexBufferView = device.CreateVertexBufferView(viewDesc);
 	Require(static_cast<bool>(vertexBufferView), "Expected vertex buffer view creation to succeed");
 
-	HE::Rendering::FrameBufferSpecification targetSpec;
+	HE::Rendering::RenderTargetSpecification targetSpec;
 	targetSpec.Width = 64;
 	targetSpec.Height = 64;
 	targetSpec.Attachments = {
-		HE::Rendering::FrameBufferTextureFormat::RGBA8,
-		HE::Rendering::FrameBufferTextureFormat::DEPTH24_STENCIL8
+		HE::Rendering::RenderTargetTextureFormat::RGBA8,
+		HE::Rendering::RenderTargetTextureFormat::DEPTH24_STENCIL8
 	};
 	auto renderTarget = device.CreateRenderTarget({ .Specification = targetSpec });
 	Require(static_cast<bool>(renderTarget), "Expected render target creation to succeed");
