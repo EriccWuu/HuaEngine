@@ -9,7 +9,7 @@
 #include "HuaEngine/Project/ProjectContext.h"
 #include "HuaEngine/Rendering/Material/Material.h"
 #include "HuaEngine/Rendering/Mesh/MeshCore.h"
-#include "HuaEngine/Rendering/Texture.h"
+#include "HuaEngine/Rendering/RHI/TextureResource.h"
 
 namespace HE {
 	struct AssetValidationReport {
@@ -87,14 +87,14 @@ namespace HE {
 		[[nodiscard]] ResultEnvelope RegisterTextureAsset(
 			const ProjectContext& context,
 			std::string_view assetId,
-			const Ref<Rendering::Texture2D>& texture = nullptr,
+			const Ref<Rendering::TextureResource>& texture = nullptr,
 			AssetHandle* outHandle = nullptr);
 
 		[[nodiscard]] ResultEnvelope ResolveAsset(AssetHandle handle, AssetRecord& outRecord) const;
 		[[nodiscard]] ResultEnvelope ResolveAsset(std::string_view assetId, AssetRecord& outRecord) const;
 		[[nodiscard]] ResultEnvelope ResolveMeshAsset(AssetHandle handle, Ref<Rendering::Mesh>& outMesh) const;
 		[[nodiscard]] ResultEnvelope ResolveMaterialAsset(AssetHandle handle, Ref<Rendering::Material>& outMaterial) const;
-		[[nodiscard]] ResultEnvelope ResolveTextureAsset(AssetHandle handle, Ref<Rendering::Texture2D>& outTexture) const;
+		[[nodiscard]] ResultEnvelope ResolveTextureAsset(AssetHandle handle, Ref<Rendering::TextureResource>& outTexture) const;
 		[[nodiscard]] ResultEnvelope ValidateRegistry(const ProjectContext& context, AssetValidationReport* outReport = nullptr) const;
 
 		[[nodiscard]] const AssetRegistry& GetAssetRegistry() const { return m_Registry; }

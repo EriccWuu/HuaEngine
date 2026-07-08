@@ -267,7 +267,7 @@ namespace HE {
 		return ResultEnvelope::Success("asset.resolve_material", guid, "Material asset resolved");
 	}
 
-	ResultEnvelope AssetResolver::ResolveTexture(const AssetGuid& guid, Ref<Rendering::Texture2D>& outTexture) {
+	ResultEnvelope AssetResolver::ResolveTexture(const AssetGuid& guid, Ref<Rendering::TextureResource>& outTexture) {
 		outTexture = nullptr;
 		if (guid.empty()) {
 			return ResultEnvelope::Failure("asset.resolve_texture", {}, "Texture asset guid is empty");

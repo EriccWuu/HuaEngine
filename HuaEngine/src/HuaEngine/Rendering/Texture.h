@@ -17,8 +17,6 @@ namespace HE::Rendering{
 	public:
 		virtual Ref<TextureResource> GetTextureResource() const = 0;
 
-		static Ref<Texture2D> Create(const std::string& path);
-
 		std::string GetPath() const { return m_Path; }
 
 	protected:

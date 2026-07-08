@@ -445,7 +445,7 @@ namespace HE {
 	ResultEnvelope AssetService::RegisterTextureAsset(
 		const ProjectContext& context,
 		std::string_view assetId,
-		const Ref<Rendering::Texture2D>& texture,
+		const Ref<Rendering::TextureResource>& texture,
 		AssetHandle* outHandle) {
 		NormalizedAssetPath normalizedPath;
 		ResultEnvelope normalizeError;
@@ -578,7 +578,7 @@ namespace HE {
 		return result;
 	}
 
-	ResultEnvelope AssetService::ResolveTextureAsset(AssetHandle handle, Ref<Rendering::Texture2D>& outTexture) const {
+	ResultEnvelope AssetService::ResolveTextureAsset(AssetHandle handle, Ref<Rendering::TextureResource>& outTexture) const {
 		const auto* record = m_Registry.Find(handle);
 		if (!record) {
 			return MakeResolveFailure("asset.resolve_texture", HandleToString(handle), "Texture asset handle was not found");

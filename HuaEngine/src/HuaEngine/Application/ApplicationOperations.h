@@ -29,7 +29,7 @@ namespace HE {
 		class FrameBuffer;
 		class Mesh;
 		class Material;
-		class Texture2D;
+		class TextureResource;
 		struct CameraComponent;
 		struct MaterialComponent;
 		struct MeshComponent;
@@ -152,7 +152,7 @@ namespace HE {
 		[[nodiscard]] ResultEnvelope RegisterTextureAsset(
 			const ProjectContext& context,
 			std::string_view assetId,
-			const Ref<Rendering::Texture2D>& texture = nullptr,
+			const Ref<Rendering::TextureResource>& texture = nullptr,
 			AssetHandle* outHandle = nullptr);
 
 		[[nodiscard]] ResultEnvelope InitializeAssetManifest(const ProjectContext& context) const;
@@ -177,7 +177,7 @@ namespace HE {
 			AssetRecord& outRecord) const;
 		[[nodiscard]] ResultEnvelope ResolveMeshAsset(AssetHandle handle, Ref<Rendering::Mesh>& outMesh) const;
 		[[nodiscard]] ResultEnvelope ResolveMaterialAsset(AssetHandle handle, Ref<Rendering::Material>& outMaterial) const;
-		[[nodiscard]] ResultEnvelope ResolveTextureAsset(AssetHandle handle, Ref<Rendering::Texture2D>& outTexture) const;
+		[[nodiscard]] ResultEnvelope ResolveTextureAsset(AssetHandle handle, Ref<Rendering::TextureResource>& outTexture) const;
 		[[nodiscard]] ResultEnvelope ValidateAssets(const ProjectContext& context, AssetValidationReport* outReport = nullptr) const;
 
 		[[nodiscard]] ResultEnvelope AttachSceneViewportRenderer(

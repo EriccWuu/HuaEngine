@@ -20,6 +20,7 @@
 #include "HuaEngine/Rendering/VertexLayout.h"
 #include "HuaEngine/Rendering/Texture.h"
 #include "HuaEngine/Rendering/FrameBuffer.h"
+#include "HuaEngine/Rendering/RHI/TextureResource.h"
 #include "HuaEngine/Rendering/Material/Material.h"
 #include "HuaEngine/Rendering/Material/MaterialTypes.h"
 #include "HuaEngine/Rendering/Material/MaterialLibrary.h"
@@ -67,7 +68,7 @@ namespace HE {
 
 	// Shader and texture
 	using Texture = Rendering::Texture;
-	using Texture2D = Rendering::Texture2D;
+	using TextureResource = Rendering::TextureResource;
 
 	// Framebuffer
 	using FrameBuffer = Rendering::FrameBuffer;

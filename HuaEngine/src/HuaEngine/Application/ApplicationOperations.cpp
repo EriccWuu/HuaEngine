@@ -433,7 +433,7 @@ namespace HE {
 	ResultEnvelope ApplicationOperations::RegisterTextureAsset(
 		const ProjectContext& context,
 		std::string_view assetId,
-		const Ref<Rendering::Texture2D>& texture,
+		const Ref<Rendering::TextureResource>& texture,
 		AssetHandle* outHandle)
 	{
 		return m_Services->Assets().RegisterTextureAsset(context, assetId, texture, outHandle);
@@ -586,7 +586,7 @@ namespace HE {
 		return m_Services->Assets().ResolveMaterialAsset(handle, outMaterial);
 	}
 
-	ResultEnvelope ApplicationOperations::ResolveTextureAsset(AssetHandle handle, Ref<Rendering::Texture2D>& outTexture) const
+	ResultEnvelope ApplicationOperations::ResolveTextureAsset(AssetHandle handle, Ref<Rendering::TextureResource>& outTexture) const
 	{
 		return m_Services->Assets().ResolveTextureAsset(handle, outTexture);
 	}

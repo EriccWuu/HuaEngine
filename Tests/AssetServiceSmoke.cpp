@@ -12,12 +12,15 @@
 #include "HuaEngine/Project/ProjectService.h"
 
 namespace {
-	class FakeTexture2D final : public HE::Rendering::Texture2D {
+	class FakeTextureResource final : public HE::Rendering::TextureResource {
 	public:
+		const HE::Rendering::TextureDesc& GetDesc() const override { return m_Desc; }
 		uint32_t GetRenderID() const override { return 0; }
 		uint32_t GetWidth() const override { return 1; }
 		uint32_t GetHeight() const override { return 1; }
-		HE::Ref<HE::Rendering::TextureResource> GetTextureResource() const override { return nullptr; }
+
+	private:
+		HE::Rendering::TextureDesc m_Desc{ .SourcePath = "fake://asset-service-smoke" };
 	};
 
 	void Require(bool condition, const std::string& message) {
@@ -295,14 +298,14 @@ int main() {
 	Require(textureRecord.Kind == HE::AssetKind::Texture2D, "Expected texture asset kind to be Texture2D");
 	Require(textureRecord.ExistsOnDisk, "Expected texture asset to report source file presence");
 
-	HE::Ref<HE::Texture2D> unresolvedTexture;
+	HE::Ref<HE::TextureResource> unresolvedTexture;
 	auto resolveTextureResult = assetService.ResolveTextureAsset(textureHandle, unresolvedTexture);
 	Require(resolveTextureResult.RequiresManualIntervention(), "Expected metadata-only texture registration to require manual intervention for runtime resolve");
 	Require(!resolveTextureResult.Details.empty(), "Expected source-only texture resolve to include diagnostics");
 	Require(resolveTextureResult.Details.front().Code == "asset.texture.loader_unsupported", "Expected source-only texture resolve to report unsupported loader");
 
-	assetService.GetRuntimeCache().StoreTexture(textureRecord.Guid, HE::CreateRef<FakeTexture2D>());
-	HE::Ref<HE::Texture2D> cachedTexture;
+	assetService.GetRuntimeCache().StoreTexture(textureRecord.Guid, HE::CreateRef<FakeTextureResource>());
+	HE::Ref<HE::TextureResource> cachedTexture;
 	auto cachedTextureResult = resolver.ResolveTexture(textureRecord.Guid, cachedTexture);
 	Require(cachedTextureResult.Succeeded(), "Expected runtime cached texture resolve to succeed");
 	Require(static_cast<bool>(cachedTexture), "Expected cached texture runtime object");
@@ -318,7 +321,7 @@ int main() {
 	builtinTextureRecord.ImportState = HE::AssetImportState::Builtin;
 	Require(builtinTextureAssetService.GetAssetRegistry().Upsert(builtinTextureRecord) != 0, "Expected builtin texture metadata seed to succeed");
 	HE::AssetResolver builtinTextureResolver(builtinTextureAssetService);
-	HE::Ref<HE::Texture2D> unsupportedBuiltinTexture;
+	HE::Ref<HE::TextureResource> unsupportedBuiltinTexture;
 	auto unsupportedBuiltinTextureResult = builtinTextureResolver.ResolveTexture(builtinTextureRecord.Guid, unsupportedBuiltinTexture);
 	Require(unsupportedBuiltinTextureResult.RequiresManualIntervention(), "Expected unsupported builtin texture resolve to require manual intervention");
 	Require(!unsupportedBuiltinTextureResult.Details.empty(), "Expected unsupported builtin texture resolve to include diagnostics");
@@ -328,7 +331,7 @@ int main() {
 	Require(missingTextureResult.RequiresManualIntervention(), "Expected missing texture source file to require manual intervention");
 
 	HE::AssetHandle runtimeOnlyTextureHandle = 0;
-	auto runtimeOnlyTextureResult = assetService.RegisterTextureAsset(projectContext, "Textures/RuntimeOnlyTexture.txt", HE::CreateRef<FakeTexture2D>(), &runtimeOnlyTextureHandle);
+	auto runtimeOnlyTextureResult = assetService.RegisterTextureAsset(projectContext, "Textures/RuntimeOnlyTexture.txt", HE::CreateRef<FakeTextureResource>(), &runtimeOnlyTextureHandle);
 	Require(runtimeOnlyTextureResult.RequiresManualIntervention(), "Expected runtime-only texture registration to require manual intervention");
 	Require(runtimeOnlyTextureHandle == 0, "Expected runtime-only texture registration to avoid assigning a handle");
 
