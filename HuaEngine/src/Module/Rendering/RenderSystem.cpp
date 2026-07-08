@@ -41,14 +41,14 @@ namespace HE {
 
 	void RenderSystem::RenderSingleCamera(World& world, Rendering::Camera& camera) {
 		m_LastRenderResult = {};
-		if (!m_Framebuffer) {
-			HE_CORE_WARN("RenderSystem::RenderSingleCamera skipped because no framebuffer is attached");
+		if (!m_RenderTarget) {
+			HE_CORE_WARN("RenderSystem::RenderSingleCamera skipped because no render target is attached");
 			return;
 		}
 
 		Rendering::RenderView view;
 		view.CameraRef = CreateRef<Rendering::Camera>(camera);
-		view.Target = m_Framebuffer->GetRenderTarget();
+		view.Target = m_RenderTarget;
 
 		auto renderItems = m_Extractor.Extract(world);
 		m_LastRenderResult = m_RenderPipeline->Render(view, renderItems, m_ResourceResolver);

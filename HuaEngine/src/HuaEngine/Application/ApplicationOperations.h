@@ -26,7 +26,7 @@ namespace HE {
 
 	namespace Rendering {
 		class Camera;
-		class FrameBuffer;
+		class RenderTarget;
 		class Mesh;
 		class Material;
 		class TextureResource;
@@ -182,7 +182,7 @@ namespace HE {
 
 		[[nodiscard]] ResultEnvelope AttachSceneViewportRenderer(
 			const Ref<Scene>& scene,
-			const Ref<Rendering::FrameBuffer>& framebuffer) const;
+			const Ref<Rendering::RenderTarget>& renderTarget) const;
 		[[nodiscard]] ResultEnvelope RenderSceneViewport(
 			Scene& scene,
 			Rendering::Camera& camera) const;

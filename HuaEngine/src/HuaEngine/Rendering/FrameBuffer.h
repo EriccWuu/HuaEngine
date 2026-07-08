@@ -3,8 +3,6 @@
 #include "HuaEngine/Core/Core.h"
 
 namespace HE::Rendering {
-	class RenderTarget;
-
 	enum class FrameBufferTextureFormat {
 		None = 0,
 		RGBA8,
@@ -42,23 +40,5 @@ namespace HE::Rendering {
 		uint8_t G = 0;
 		uint8_t B = 0;
 		uint8_t A = 0;
-	};
-
-	class FrameBuffer {
-	public:
-		virtual ~FrameBuffer() = default;
-
-		virtual void Resize(uint32_t width, uint32_t height) = 0;
-
-		virtual uint32_t GetRenderID() const = 0;
-
-		virtual void ClearAttachment(uint32_t index, int value) = 0;
-		virtual FrameBufferPixelRGBA8 ReadPixelRGBA8(uint32_t attachmentIndex, uint32_t x, uint32_t y) const = 0;
-		virtual uint32_t GetColorAttachment(uint32_t index = 0) const = 0;
-		virtual Ref<RenderTarget> GetRenderTarget() const = 0;
-
-		virtual const FrameBufferSpecification& GetSpecification() const = 0;
-
-		static Ref<FrameBuffer> Create(const FrameBufferSpecification& specification);
 	};
 }

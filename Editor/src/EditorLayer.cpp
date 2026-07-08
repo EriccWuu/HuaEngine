@@ -11,6 +11,7 @@
 #include "HuaEngine/Asset/AssetTypes.h"
 #include "HuaEngine/Core/HostLaunch.h"
 #include "HuaEngine/Core/ResourcePaths.h"
+#include "HuaEngine/Rendering/RHI/RenderHardwareInterface.h"
 #include "Interaction/EditorSceneCommands.h"
 #include "imgui.h"
 #include <imgui_internal.h>
@@ -296,7 +297,7 @@ namespace HE {
             "editor.workbench.scene_document_ready",
             scenePath.empty() ? "scene:new" : scenePath.generic_string(),
             "Scene document is ready");
-        if (m_FrameBuffer) {
+        if (m_RenderTarget) {
             if (!BindSceneDocumentToShell()) {
                 m_WorkbenchReady = false;
             }
@@ -308,7 +309,7 @@ namespace HE {
         m_Mode = EditorWorkbenchMode::ProjectHub;
         m_WorkbenchReady = false;
         m_InteractionHost.Reset();
-        m_FrameBuffer.reset();
+        m_RenderTarget.reset();
         m_SceneViewportSize = { 0.0f, 0.0f };
         if (m_ProjectPanel) {
             m_ProjectPanel->SetProjectRoot({});
@@ -576,7 +577,7 @@ namespace HE {
         spec.Width = 1280;
         spec.Height = 720;
         spec.Attachments = { FrameBufferTextureFormat::RGBA8, FrameBufferTextureFormat::DEPTH24_STENCIL8 };
-        m_FrameBuffer = FrameBuffer::Create(spec);
+        m_RenderTarget = Rendering::RenderHardwareInterface::GetDevice().CreateRenderTarget({ .Specification = spec });
 
         if (m_SceneDocument.SceneRef) {
             return BindSceneDocumentToShell();
@@ -587,12 +588,12 @@ namespace HE {
     }
 
     bool EditorLayer::BindSceneDocumentToShell() {
-        if (!m_SceneDocument.SceneRef || !m_FrameBuffer) {
+        if (!m_SceneDocument.SceneRef || !m_RenderTarget) {
             return true;
         }
 
         auto& operations = Application::GetInstance().GetOperations();
-        CaptureOperationResult(operations.AttachSceneViewportRenderer(m_SceneDocument.SceneRef, m_FrameBuffer));
+        CaptureOperationResult(operations.AttachSceneViewportRenderer(m_SceneDocument.SceneRef, m_RenderTarget));
         if (!m_LastOperationResult.Succeeded()) {
             return false;
         }
@@ -1684,7 +1685,7 @@ namespace HE {
     }
 
     void EditorLayer::OnScenePanel() {
-        if (!m_FrameBuffer) {
+        if (!m_RenderTarget) {
             return;
         }
 
@@ -1707,11 +1708,11 @@ namespace HE {
 
         const glm::vec2 newViewportSize = { scenePanelSize.x, scenePanelSize.y };
         if (newViewportSize != m_SceneViewportSize) {
-            m_FrameBuffer->Resize((uint32_t)scenePanelSize.x, (uint32_t)scenePanelSize.y);
+            m_RenderTarget->Resize((uint32_t)scenePanelSize.x, (uint32_t)scenePanelSize.y);
             m_SceneViewportSize = newViewportSize;
         }
 
-        ImGui::Image(m_FrameBuffer->GetColorAttachment(),
+        ImGui::Image(m_RenderTarget->GetColorAttachment(),
             { m_SceneViewportSize.x , m_SceneViewportSize.y },
             { 0, 1 }, { 1, 0 });
         m_EditorCamera->SetViewport(m_SceneViewportSize.x, m_SceneViewportSize.y);

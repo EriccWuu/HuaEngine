@@ -117,7 +117,7 @@ namespace HE {
         std::filesystem::path m_WorkbenchRootPath;
         bool m_WorkbenchReady = false;
         bool m_DockLayoutInitialized = false;
-        Ref<FrameBuffer> m_FrameBuffer;
+        Ref<RenderTarget> m_RenderTarget;
         Ref<Rendering::EditorCamera> m_EditorCamera;
         Ref<Material> m_SandboxMaterial;
         Ref<ProjectPanel> m_ProjectPanel;

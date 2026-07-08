@@ -8,6 +8,7 @@
 #include "HuaEngine.h"
 #include "HuaEngine/Core/ResourcePaths.h"
 #include "HuaEngine/Rendering/RenderPipeline/RenderTypes.h"
+#include "HuaEngine/Rendering/RHI/RenderHardwareInterface.h"
 #include "Module/Rendering/RenderSystem.h"
 
 namespace {
@@ -78,8 +79,8 @@ namespace {
 		return PixelNear(pixel, expectedClearColor, 1);
 	}
 
-	bool HasRenderedPixel(const HE::Ref<HE::FrameBuffer>& framebuffer) {
-		const auto& specification = framebuffer->GetSpecification();
+	bool HasRenderedPixel(const HE::Ref<HE::RenderTarget>& renderTarget) {
+		const auto& specification = renderTarget->GetSpecification();
 		const uint32_t width = specification.Width;
 		const uint32_t height = specification.Height;
 		const uint32_t samplePoints[][2] = {
@@ -95,7 +96,7 @@ namespace {
 		};
 
 		for (const auto& point : samplePoints) {
-			const auto pixel = framebuffer->ReadPixelRGBA8(0, point[0], point[1]);
+			const auto pixel = renderTarget->ReadPixelRGBA8(0, point[0], point[1]);
 			if (!IsClearColor(pixel)) {
 				return true;
 			}
@@ -139,8 +140,8 @@ int main() {
 	specification.Width = 320;
 	specification.Height = 180;
 	specification.Attachments = { HE::FrameBufferTextureFormat::RGBA8, HE::FrameBufferTextureFormat::DEPTH24_STENCIL8 };
-	auto framebuffer = HE::FrameBuffer::Create(specification);
-	Require(static_cast<bool>(framebuffer), "Expected framebuffer creation to succeed");
+	auto renderTarget = HE::Rendering::RenderHardwareInterface::GetDevice().CreateRenderTarget({ .Specification = specification });
+	Require(static_cast<bool>(renderTarget), "Expected render target creation to succeed");
 
 	HE::Rendering::EditorCamera camera;
 	camera.SetViewport(320.0f, 180.0f);
@@ -148,11 +149,11 @@ int main() {
 	auto renderWithoutAttach = operations.RenderSceneViewport(*scene, camera);
 	Require(renderWithoutAttach.Failed(), "Expected rendering.render_scene_viewport to fail before attach");
 
-	auto attachRenderer = operations.AttachSceneViewportRenderer(scene, framebuffer);
+	auto attachRenderer = operations.AttachSceneViewportRenderer(scene, renderTarget);
 	Require(attachRenderer.Succeeded(), "Expected rendering.attach_scene_viewport to succeed");
 	Require(attachRenderer.Payload.contains("created_render_system"), "Expected rendering.attach_scene_viewport to report creation semantics");
 
-	auto attachRendererAgain = operations.AttachSceneViewportRenderer(scene, framebuffer);
+	auto attachRendererAgain = operations.AttachSceneViewportRenderer(scene, renderTarget);
 	Require(attachRendererAgain.Succeeded(), "Expected rendering.attach_scene_viewport to support reuse");
 	Require(attachRenderer.Payload.at("created_render_system") == "true", "Expected first attach to create a render system");
 	Require(attachRendererAgain.Payload.at("created_render_system") == "false", "Expected second attach to reuse the existing render system");
@@ -217,7 +218,7 @@ int main() {
 	assetRefMaterial.Overrides.SetVec4("u_Color", glm::vec4(0.9f, 0.8f, 0.2f, 1.0f));
 	Require(!assetRefMaterial.Overrides.Empty(), "Expected typed asset-ref renderable to carry material overrides");
 
-	auto attachAssetRefSceneRenderer = operations.AttachSceneViewportRenderer(assetRefScene, framebuffer);
+	auto attachAssetRefSceneRenderer = operations.AttachSceneViewportRenderer(assetRefScene, renderTarget);
 	Require(attachAssetRefSceneRenderer.Succeeded(), "Expected typed asset-ref scene renderer attach to succeed");
 	auto renderAssetRefScene = operations.RenderSceneViewport(*assetRefScene, camera);
 	Require(renderAssetRefScene.Succeeded(), "Expected typed asset-ref scene viewport render to succeed");
@@ -245,17 +246,17 @@ int main() {
 	Require(renderAssetRefScene.Payload.at("graph_external_inputs") == "3", "Expected typed asset-ref scene render graph to report three external inputs");
 	Require(renderAssetRefScene.Payload.at("graph_outputs") == "1", "Expected typed asset-ref scene render graph to report one output");
 	Require(renderAssetRefScene.Payload.at("graph_diagnostics") == "0", "Expected typed asset-ref scene render to emit no render graph diagnostics");
-	Require(HasRenderedPixel(framebuffer), "Expected typed asset-ref render path to write a non-clear framebuffer pixel");
+	Require(HasRenderedPixel(renderTarget), "Expected typed asset-ref render path to write a non-clear render target pixel");
 	const HE::Rendering::FrameBufferPixelRGBA8 expectedOverrideColor{ 230, 204, 51, 255 };
-	const auto& typedSpec = framebuffer->GetSpecification();
+	const auto& typedSpec = renderTarget->GetSpecification();
 	bool hasOverrideColorPixel = false;
 	for (uint32_t y = typedSpec.Height / 8; y < typedSpec.Height; y += typedSpec.Height / 8) {
 		for (uint32_t x = typedSpec.Width / 8; x < typedSpec.Width; x += typedSpec.Width / 8) {
-			const auto pixel = framebuffer->ReadPixelRGBA8(0, x, y);
+			const auto pixel = renderTarget->ReadPixelRGBA8(0, x, y);
 			hasOverrideColorPixel = hasOverrideColorPixel || PixelNear(pixel, expectedOverrideColor, 8);
 		}
 	}
-	Require(hasOverrideColorPixel, "Expected typed asset-ref material override color to be visible in the framebuffer");
+	Require(hasOverrideColorPixel, "Expected typed asset-ref material override color to be visible in the render target");
 
 	HE::Ref<HE::Scene> loadedScene;
 	const auto scenePath = HE::ResourcePaths::ResolveEngineResourcePath("SandboxScene.scene");
@@ -263,7 +264,7 @@ int main() {
 	Require(loadScene.Succeeded() && loadedScene, "Expected sandbox scene load to succeed");
 	Require(CountRenderableSubmissions(*loadedScene) == 3, "Expected loaded sandbox scene to expose three migrated builtin asset-ref renderables without project manifest fallback");
 
-	auto attachLoadedSceneRenderer = operations.AttachSceneViewportRenderer(loadedScene, framebuffer);
+	auto attachLoadedSceneRenderer = operations.AttachSceneViewportRenderer(loadedScene, renderTarget);
 	Require(attachLoadedSceneRenderer.Succeeded(), "Expected loaded scene renderer attach to succeed");
 	auto renderLoadedScene = operations.RenderSceneViewport(*loadedScene, camera);
 	Require(renderLoadedScene.Succeeded(), "Expected loaded sandbox scene viewport render to succeed");

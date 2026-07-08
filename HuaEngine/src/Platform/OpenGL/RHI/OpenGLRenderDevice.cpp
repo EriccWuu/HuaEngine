@@ -306,43 +306,43 @@ namespace HE::Rendering {
 	}
 
 	OpenGLRenderTarget::OpenGLRenderTarget(const RenderTargetDesc& desc)
-		: m_Desc(desc), m_FrameBuffer(CreateRef<OpenGLFrameBuffer>(desc.Specification)) {}
+		: m_Desc(desc), m_BackendFramebuffer(CreateRef<OpenGLFrameBuffer>(desc.Specification)) {}
 
 	const RenderTargetDesc& OpenGLRenderTarget::GetDesc() const {
 		return m_Desc;
 	}
 
 	void OpenGLRenderTarget::BeginForCommandList() {
-		m_FrameBuffer->BeginForCommandList();
+		m_BackendFramebuffer->BeginForCommandList();
 	}
 
 	void OpenGLRenderTarget::EndForCommandList() {
-		m_FrameBuffer->EndForCommandList();
+		m_BackendFramebuffer->EndForCommandList();
 	}
 
 	void OpenGLRenderTarget::Resize(uint32_t width, uint32_t height) {
-		m_FrameBuffer->Resize(width, height);
-		m_Desc.Specification = m_FrameBuffer->GetSpecification();
+		m_BackendFramebuffer->Resize(width, height);
+		m_Desc.Specification = m_BackendFramebuffer->GetSpecification();
 	}
 
 	void OpenGLRenderTarget::ClearAttachment(uint32_t index, int value) {
-		m_FrameBuffer->ClearAttachment(index, value);
+		m_BackendFramebuffer->ClearAttachment(index, value);
 	}
 
 	FrameBufferPixelRGBA8 OpenGLRenderTarget::ReadPixelRGBA8(uint32_t attachmentIndex, uint32_t x, uint32_t y) const {
-		return m_FrameBuffer->ReadPixelRGBA8(attachmentIndex, x, y);
+		return m_BackendFramebuffer->ReadPixelRGBA8(attachmentIndex, x, y);
 	}
 
 	uint32_t OpenGLRenderTarget::GetRenderID() const {
-		return m_FrameBuffer->GetRenderID();
+		return m_BackendFramebuffer->GetRenderID();
 	}
 
 	uint32_t OpenGLRenderTarget::GetColorAttachment(uint32_t index) const {
-		return m_FrameBuffer->GetColorAttachment(index);
+		return m_BackendFramebuffer->GetColorAttachment(index);
 	}
 
 	const FrameBufferSpecification& OpenGLRenderTarget::GetSpecification() const {
-		return m_FrameBuffer->GetSpecification();
+		return m_BackendFramebuffer->GetSpecification();
 	}
 
 	OpenGLTextureResource::OpenGLTextureResource(const TextureDesc& desc)

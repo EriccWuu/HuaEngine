@@ -86,7 +86,7 @@ namespace HE::Rendering {
 
 	private:
 		RenderTargetDesc m_Desc;
-		Ref<OpenGLFrameBuffer> m_FrameBuffer;
+		Ref<OpenGLFrameBuffer> m_BackendFramebuffer;
 	};
 
 	class OpenGLTextureResource final : public TextureResource {

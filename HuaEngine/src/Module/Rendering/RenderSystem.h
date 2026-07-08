@@ -5,7 +5,7 @@
 #include "HuaEngine/Rendering/Renderer.h"
 #include "HuaEngine/Rendering/RenderPipeline/RenderPipeline.h"
 #include "HuaEngine/Rendering/RenderPipeline/RenderResourceResolver.h"
-#include "HuaEngine/Rendering/FrameBuffer.h"
+#include "HuaEngine/Rendering/RHI/RenderTarget.h"
 #include "Module/Rendering/SceneRenderExtractor.h"
 
 namespace HE {
@@ -21,13 +21,13 @@ namespace HE {
 		void RenderSingleCamera(World& world, Rendering::Camera& camera);
 		[[nodiscard]] const Rendering::RenderResult& GetLastRenderResult() const { return m_LastRenderResult; }
 		void SetCamera(Ref<Rendering::Camera>& camera) { m_Camera = camera; };
-		void SetFrameBuffer(Ref<Rendering::FrameBuffer>& framebuffer) { m_Framebuffer = framebuffer; }
+		void SetRenderTarget(const Ref<Rendering::RenderTarget>& renderTarget) { m_RenderTarget = renderTarget; }
 		void SetAssetResolver(AssetResolver* resolver) { m_ResourceResolver.SetAssetResolver(resolver); }
 
 	private:
 		Ref<Scene> m_Scene;
 		Ref<Rendering::Camera> m_Camera;
-		Ref<Rendering::FrameBuffer> m_Framebuffer;
+		Ref<Rendering::RenderTarget> m_RenderTarget;
 		SceneRenderExtractor m_Extractor;
 		Rendering::RenderResourceResolver m_ResourceResolver;
 		Scope<Rendering::RenderPipeline> m_RenderPipeline;

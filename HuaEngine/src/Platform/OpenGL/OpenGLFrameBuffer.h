@@ -1,35 +1,31 @@
 #pragma once 
 
 #include "HuaEngine/Rendering/FrameBuffer.h"
-#include "HuaEngine/Rendering/RHI/RenderTarget.h"
 
 namespace HE::Rendering {
-	class OpenGLFrameBuffer : public FrameBuffer {
+	class OpenGLFrameBuffer {
 	public:
 		OpenGLFrameBuffer(const FrameBufferSpecification& specificationn);
-		explicit OpenGLFrameBuffer(Ref<RenderTarget> renderTarget);
-		virtual ~OpenGLFrameBuffer();
+		~OpenGLFrameBuffer();
 
 		void BeginForCommandList();
 		void EndForCommandList();
 
-		virtual void Resize(uint32_t width, uint32_t height) override;
+		void Resize(uint32_t width, uint32_t height);
 
-		virtual void ClearAttachment(uint32_t index, int value) override;
-		virtual FrameBufferPixelRGBA8 ReadPixelRGBA8(uint32_t attachmentIndex, uint32_t x, uint32_t y) const override;
+		void ClearAttachment(uint32_t index, int value);
+		FrameBufferPixelRGBA8 ReadPixelRGBA8(uint32_t attachmentIndex, uint32_t x, uint32_t y) const;
 
-		virtual uint32_t GetRenderID() const override;
+		uint32_t GetRenderID() const;
 
-		virtual uint32_t GetColorAttachment(uint32_t index = 0) const override;
-		Ref<RenderTarget> GetRenderTarget() const override { return m_RenderTarget; }
-		virtual const FrameBufferSpecification& GetSpecification() const override;
+		uint32_t GetColorAttachment(uint32_t index = 0) const;
+		const FrameBufferSpecification& GetSpecification() const;
 
 		void Invalidate();
 
 	private:
 		uint32_t m_RenderID = 0;
 		FrameBufferSpecification m_Specification;
-		Ref<RenderTarget> m_RenderTarget;
 
 		std::vector<FrameBufferTextureSpecification> m_ColorAttachmentSpecifications;
 		FrameBufferTextureSpecification m_DepthAttachmentSpecification = { FrameBufferTextureFormat::None };

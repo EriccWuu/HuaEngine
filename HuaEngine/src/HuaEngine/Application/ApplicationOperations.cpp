@@ -8,7 +8,7 @@
 #include "HuaEngine/Scene/Scene.h"
 #include "HuaEngine/Scene/SceneService.h"
 #include "HuaEngine/Asset/AssetService.h"
-#include "HuaEngine/Rendering/FrameBuffer.h"
+#include "HuaEngine/Rendering/RHI/RenderTarget.h"
 #include "HuaEngine/Validation/ValidationService.h"
 #include "Module/Rendering/RenderSystem.h"
 #include "Module/Rendering/RenderingComponent.h"
@@ -598,7 +598,7 @@ namespace HE {
 
 	ResultEnvelope ApplicationOperations::AttachSceneViewportRenderer(
 		const Ref<Scene>& scene,
-		const Ref<Rendering::FrameBuffer>& framebuffer) const
+		const Ref<Rendering::RenderTarget>& renderTarget) const
 	{
 		if (!scene) {
 			auto result = ResultEnvelope::Failure("rendering.attach_scene_viewport", {}, "Scene is not available");
@@ -606,9 +606,9 @@ namespace HE {
 			return result;
 		}
 
-		if (!framebuffer) {
-			auto result = ResultEnvelope::Failure("rendering.attach_scene_viewport", scene->GetName(), "Framebuffer is not available");
-			result.AddDetail({ DiagnosticSeverity::Error, "rendering.attach_scene_viewport.framebuffer_missing", "A target framebuffer is required", {} });
+		if (!renderTarget) {
+			auto result = ResultEnvelope::Failure("rendering.attach_scene_viewport", scene->GetName(), "Render target is not available");
+			result.AddDetail({ DiagnosticSeverity::Error, "rendering.attach_scene_viewport.render_target_missing", "A target render target is required", {} });
 			return result;
 		}
 
@@ -619,8 +619,7 @@ namespace HE {
 			scene->AddSystem(renderSystem);
 		}
 
-		auto framebufferBinding = framebuffer;
-		renderSystem->SetFrameBuffer(framebufferBinding);
+		renderSystem->SetRenderTarget(renderTarget);
 		renderSystem->SetAssetResolver(&m_Services->GetAssetResolver());
 
 		auto result = ResultEnvelope::Success("rendering.attach_scene_viewport", scene->GetName(), "Scene viewport renderer attached");
