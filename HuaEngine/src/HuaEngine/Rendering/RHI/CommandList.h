@@ -5,6 +5,7 @@
 #include "glm/glm.hpp"
 
 namespace HE::Rendering {
+	class BindGroup;
 	class Camera;
 	class MaterialBinding;
 	class PipelineState;
@@ -26,11 +27,13 @@ namespace HE::Rendering {
 		virtual void SetPipelineState(PipelineState& pipelineState) = 0;
 		// Normal render path state submission.
 		virtual void SetVertexBufferView(VertexBufferView& vertexBufferView) = 0;
-		// Normal render path frame/view parameter submission.
+		// Normal render path resource binding submission.
+		virtual void SetBindGroup(uint32_t slot, BindGroup& bindGroup) = 0;
+		// Compatibility path for the OpenGL migration period. Prefer SetBindGroup for frame/view data.
 		virtual void SetFrameBinding(const FrameBinding& binding) = 0;
-		// Normal render path state submission.
+		// Compatibility path for the OpenGL migration period. Prefer SetBindGroup for material data.
 		virtual void SetMaterialBinding(const MaterialBinding& binding) = 0;
-		// Normal render path per-object parameter submission.
+		// Compatibility path for the OpenGL migration period. Prefer SetBindGroup for per-object data.
 		virtual void SetObjectBinding(const ObjectBinding& binding) = 0;
 		// Normal render path draw. Frame and object bindings must be submitted first.
 		virtual void DrawIndexed(uint32_t indexCount) = 0;

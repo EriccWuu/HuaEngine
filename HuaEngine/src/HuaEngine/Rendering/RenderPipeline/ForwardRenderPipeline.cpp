@@ -75,11 +75,11 @@ namespace HE::Rendering {
 				continue;
 			}
 
-			if (resolvedItem.PipelineStateRef && resolvedItem.VertexBufferViewRef && resolvedItem.MaterialBindingRef) {
+			if (resolvedItem.PipelineStateRef && resolvedItem.VertexBufferViewRef && resolvedItem.MaterialBindGroupRef) {
 				context.Commands->SetPipelineState(*resolvedItem.PipelineStateRef);
 				context.Commands->SetFrameBinding({ .ViewProjection = context.View->CameraRef->GetViewProjection() });
 				context.Commands->SetVertexBufferView(*resolvedItem.VertexBufferViewRef);
-				context.Commands->SetMaterialBinding(*resolvedItem.MaterialBindingRef);
+				context.Commands->SetBindGroup(1, *resolvedItem.MaterialBindGroupRef);
 				context.Commands->SetObjectBinding({ .Transform = item.Transform });
 				context.Commands->DrawIndexed(resolvedItem.VertexBufferViewRef->GetDesc().IndexCount);
 			} else {

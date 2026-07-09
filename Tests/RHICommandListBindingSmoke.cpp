@@ -162,16 +162,87 @@ int main() {
 	HE::Rendering::EditorCamera camera;
 	camera.SetViewport(64.0f, 64.0f);
 
+	auto frameBindGroupLayout = device.CreateBindGroupLayout({
+		.Scope = HE::Rendering::BindGroupScope::Frame,
+		.Entries = {
+			{
+				.Name = "u_ViewProjection",
+				.Type = HE::Rendering::BindingValueType::Mat4,
+				.Binding = 0
+			}
+		}
+	});
+	Require(static_cast<bool>(frameBindGroupLayout), "Expected frame bind group layout creation to succeed");
+	auto frameBindGroup = device.CreateBindGroup({
+		.Layout = frameBindGroupLayout,
+		.Entries = {
+			{
+				.Name = "u_ViewProjection",
+				.Type = HE::Rendering::BindingValueType::Mat4,
+				.Value = camera.GetViewProjection(),
+				.Binding = 0
+			}
+		}
+	});
+	Require(static_cast<bool>(frameBindGroup), "Expected frame bind group creation to succeed");
+
+	auto materialBindGroupLayout = device.CreateBindGroupLayout({
+		.Scope = HE::Rendering::BindGroupScope::Material,
+		.Entries = {
+			{
+				.Name = "u_Color",
+				.Type = HE::Rendering::BindingValueType::Float4,
+				.Binding = 0
+			}
+		}
+	});
+	Require(static_cast<bool>(materialBindGroupLayout), "Expected material bind group layout creation to succeed");
+	auto materialBindGroup = device.CreateBindGroup({
+		.Layout = materialBindGroupLayout,
+		.Entries = {
+			{
+				.Name = "u_Color",
+				.Type = HE::Rendering::BindingValueType::Float4,
+				.Value = glm::vec4(0.9f, 0.2f, 0.1f, 1.0f),
+				.Binding = 0
+			}
+		}
+	});
+	Require(static_cast<bool>(materialBindGroup), "Expected material bind group creation to succeed");
+
+	auto objectBindGroupLayout = device.CreateBindGroupLayout({
+		.Scope = HE::Rendering::BindGroupScope::Object,
+		.Entries = {
+			{
+				.Name = "u_Transform",
+				.Type = HE::Rendering::BindingValueType::Mat4,
+				.Binding = 0
+			}
+		}
+	});
+	Require(static_cast<bool>(objectBindGroupLayout), "Expected object bind group layout creation to succeed");
+	auto objectBindGroup = device.CreateBindGroup({
+		.Layout = objectBindGroupLayout,
+		.Entries = {
+			{
+				.Name = "u_Transform",
+				.Type = HE::Rendering::BindingValueType::Mat4,
+				.Value = glm::mat4(1.0f),
+				.Binding = 0
+			}
+		}
+	});
+	Require(static_cast<bool>(objectBindGroup), "Expected object bind group creation to succeed");
+
 	auto& commands = device.GetImmediateCommandList();
 	commands.BeginRenderTarget(*renderTarget);
 	commands.ClearColor({ 0.1f, 0.1f, 0.1f, 1.0f });
 	commands.BeginFrame(camera);
 	commands.SetPipelineState(*pipelineState);
-	commands.SetFrameBinding({ .ViewProjection = camera.GetViewProjection() });
+	commands.SetBindGroup(0, *frameBindGroup);
 	commands.SetVertexBufferView(*vertexBufferView);
-	auto materialBinding = MakeColorBinding(glm::vec4(0.9f, 0.2f, 0.1f, 1.0f));
-	commands.SetMaterialBinding(materialBinding);
-	commands.SetObjectBinding({ .Transform = glm::mat4(1.0f) });
+	commands.SetBindGroup(1, *materialBindGroup);
+	commands.SetBindGroup(2, *objectBindGroup);
 	commands.DrawIndexed(vertexBufferView->GetDesc().IndexCount);
 	commands.EndFrame();
 	commands.EndRenderTarget();
@@ -180,11 +251,11 @@ int main() {
 	commands.BeginRenderTarget(*renderTarget);
 	commands.ClearColor({ 0.1f, 0.1f, 0.1f, 1.0f });
 	commands.BeginFrame(camera);
-	commands.SetFrameBinding({ .ViewProjection = camera.GetViewProjection() });
-	commands.SetObjectBinding({ .Transform = glm::mat4(1.0f) });
 	commands.SetPipelineState(*pipelineState);
+	commands.SetBindGroup(0, *frameBindGroup);
 	commands.SetVertexBufferView(*vertexBufferView);
-	commands.SetMaterialBinding(materialBinding);
+	commands.SetBindGroup(2, *objectBindGroup);
+	commands.SetBindGroup(1, *materialBindGroup);
 	commands.DrawIndexed(vertexBufferView->GetDesc().IndexCount);
 	commands.EndFrame();
 	commands.EndRenderTarget();

@@ -11,6 +11,7 @@
 #include "HuaEngine/Rendering/Camera.h"
 #include "HuaEngine/Rendering/Material/MaterialBinding.h"
 #include "HuaEngine/Rendering/Material/Material.h"
+#include "HuaEngine/Rendering/RHI/BindGroup.h"
 #include "HuaEngine/Rendering/RHI/PipelineState.h"
 #include "HuaEngine/Rendering/RHI/RenderTarget.h"
 #include "HuaEngine/Rendering/RHI/ShaderProgram.h"
@@ -84,6 +85,7 @@ namespace HE::Rendering {
 		Ref<ShaderProgram> ShaderProgramRef;
 		Ref<MaterialInstance> MaterialInstanceRef;
 		Ref<MaterialBinding> MaterialBindingRef;
+		Ref<BindGroup> MaterialBindGroupRef;
 	};
 
 	struct RenderStats {

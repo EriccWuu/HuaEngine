@@ -108,6 +108,34 @@ namespace {
 		return GL_TRIANGLES;
 	}
 
+	HE::Rendering::BindingValueType ToBindingValueType(HE::Rendering::MaterialParameterType type) {
+		switch (type) {
+			case HE::Rendering::MaterialParameterType::Int:
+				return HE::Rendering::BindingValueType::Int;
+			case HE::Rendering::MaterialParameterType::Float:
+				return HE::Rendering::BindingValueType::Float;
+			case HE::Rendering::MaterialParameterType::Vec2:
+				return HE::Rendering::BindingValueType::Float2;
+			case HE::Rendering::MaterialParameterType::Vec3:
+				return HE::Rendering::BindingValueType::Float3;
+			case HE::Rendering::MaterialParameterType::Vec4:
+				return HE::Rendering::BindingValueType::Float4;
+			case HE::Rendering::MaterialParameterType::Mat3:
+				return HE::Rendering::BindingValueType::Mat3;
+			case HE::Rendering::MaterialParameterType::Mat4:
+				return HE::Rendering::BindingValueType::Mat4;
+			case HE::Rendering::MaterialParameterType::IntArray:
+				return HE::Rendering::BindingValueType::IntArray;
+			case HE::Rendering::MaterialParameterType::Texture2D:
+			case HE::Rendering::MaterialParameterType::TextureCube:
+				return HE::Rendering::BindingValueType::Texture;
+			case HE::Rendering::MaterialParameterType::FloatArray:
+				break;
+		}
+
+		return HE::Rendering::BindingValueType::Float;
+	}
+
 	bool ValidateTextureFile(const std::string& path) {
 		std::error_code errorCode;
 		if (!std::filesystem::exists(path, errorCode)) {
@@ -313,6 +341,25 @@ namespace HE::Rendering {
 
 	void OpenGLVertexBufferView::UnbindForCommandList() {
 		glBindVertexArray(0);
+	}
+
+	OpenGLBindGroupLayout::OpenGLBindGroupLayout(const BindGroupLayoutDesc& desc)
+		: m_Desc(desc) {
+		HE_CORE_ASSERT(!m_Desc.Entries.empty(), "BindGroupLayout requires entries");
+	}
+
+	const BindGroupLayoutDesc& OpenGLBindGroupLayout::GetDesc() const {
+		return m_Desc;
+	}
+
+	OpenGLBindGroup::OpenGLBindGroup(const BindGroupDesc& desc)
+		: m_Desc(desc) {
+		HE_CORE_ASSERT(m_Desc.Layout, "BindGroup requires a layout");
+		HE_CORE_ASSERT(!m_Desc.Entries.empty(), "BindGroup requires entries");
+	}
+
+	const BindGroupDesc& OpenGLBindGroup::GetDesc() const {
+		return m_Desc;
 	}
 
 	OpenGLPipelineState::OpenGLPipelineState(const PipelineStateDesc& desc)
@@ -526,6 +573,64 @@ namespace HE::Rendering {
 		static_cast<OpenGLVertexBufferView&>(vertexBufferView).BindForCommandList();
 	}
 
+	void OpenGLCommandList::SetBindGroup(uint32_t slot, BindGroup& bindGroup) {
+		(void)slot;
+		if (!m_CurrentShaderProgram) {
+			HE_CORE_WARN("CommandList::SetBindGroup skipped because no shader program is bound");
+			return;
+		}
+
+		if (bindGroup.GetDesc().Layout) {
+			const auto scope = bindGroup.GetDesc().Layout->GetDesc().Scope;
+			if (scope == BindGroupScope::Frame) {
+				m_HasFrameBinding = true;
+			}
+			else if (scope == BindGroupScope::Object) {
+				m_HasObjectBinding = true;
+			}
+		}
+
+		for (const auto& entry : bindGroup.GetDesc().Entries) {
+			std::visit([&](auto&& value) {
+				using T = std::decay_t<decltype(value)>;
+
+				if constexpr (std::is_same_v<T, int>) {
+					m_CurrentShaderProgram->SetInt(entry.Name, value);
+				}
+				else if constexpr (std::is_same_v<T, float>) {
+					m_CurrentShaderProgram->SetFloat(entry.Name, value);
+				}
+				else if constexpr (std::is_same_v<T, glm::vec2>) {
+					m_CurrentShaderProgram->SetFloat2(entry.Name, value);
+				}
+				else if constexpr (std::is_same_v<T, glm::vec3>) {
+					m_CurrentShaderProgram->SetFloat3(entry.Name, value);
+				}
+				else if constexpr (std::is_same_v<T, glm::vec4>) {
+					m_CurrentShaderProgram->SetFloat4(entry.Name, value);
+				}
+				else if constexpr (std::is_same_v<T, glm::mat3>) {
+					m_CurrentShaderProgram->SetMat3(entry.Name, value);
+				}
+				else if constexpr (std::is_same_v<T, glm::mat4>) {
+					m_CurrentShaderProgram->SetMat4(entry.Name, value);
+				}
+				else if constexpr (std::is_same_v<T, std::vector<int>>) {
+					m_CurrentShaderProgram->SetIntArray(entry.Name, const_cast<int*>(value.data()), static_cast<uint32_t>(value.size()));
+				}
+				else if constexpr (std::is_same_v<T, Ref<TextureResource>>) {
+					if (!value) {
+						HE_CORE_WARN("CommandList::SetBindGroup skipped null texture binding '{0}'", entry.Name);
+						return;
+					}
+
+					static_cast<OpenGLTextureResource&>(*value).BindForCommandList(entry.TextureSlot);
+					m_CurrentShaderProgram->SetInt(entry.Name, static_cast<int>(entry.TextureSlot));
+				}
+			}, entry.Value);
+		}
+	}
+
 	void OpenGLCommandList::SetFrameBinding(const FrameBinding& binding) {
 		m_CurrentFrameBinding = binding;
 		m_HasFrameBinding = true;
@@ -535,44 +640,25 @@ namespace HE::Rendering {
 	}
 
 	void OpenGLCommandList::SetMaterialBinding(const MaterialBinding& binding) {
-		if (!m_CurrentShaderProgram) {
-			HE_CORE_WARN("CommandList::SetMaterialBinding skipped because no shader program is bound");
-			return;
-		}
-
+		std::vector<BindGroupEntry> entries;
+		entries.reserve(binding.Parameters.size() + binding.Textures.size());
 		for (const auto& parameter : binding.Parameters) {
 			std::visit([&](auto&& value) {
 				using T = std::decay_t<decltype(value)>;
 
-				if constexpr (std::is_same_v<T, int>) {
-					m_CurrentShaderProgram->SetInt(parameter.Name, value);
-				}
-				else if constexpr (std::is_same_v<T, float>) {
-					m_CurrentShaderProgram->SetFloat(parameter.Name, value);
-				}
-				else if constexpr (std::is_same_v<T, glm::vec2>) {
-					m_CurrentShaderProgram->SetFloat2(parameter.Name, value);
-				}
-				else if constexpr (std::is_same_v<T, glm::vec3>) {
-					m_CurrentShaderProgram->SetFloat3(parameter.Name, value);
-				}
-				else if constexpr (std::is_same_v<T, glm::vec4>) {
-					m_CurrentShaderProgram->SetFloat4(parameter.Name, value);
-				}
-				else if constexpr (std::is_same_v<T, glm::mat3>) {
-					m_CurrentShaderProgram->SetMat3(parameter.Name, value);
-				}
-				else if constexpr (std::is_same_v<T, glm::mat4>) {
-					m_CurrentShaderProgram->SetMat4(parameter.Name, value);
-				}
-				else if constexpr (std::is_same_v<T, std::vector<int>>) {
-					m_CurrentShaderProgram->SetIntArray(parameter.Name, const_cast<int*>(value.data()), static_cast<uint32_t>(value.size()));
-				}
-				else if constexpr (std::is_same_v<T, std::vector<float>>) {
+				if constexpr (std::is_same_v<T, std::vector<float>>) {
 					HE_CORE_WARN("CommandList::SetMaterialBinding skipped unsupported float array parameter '{0}'", parameter.Name);
 				}
 				else if constexpr (std::is_same_v<T, Ref<TextureResource>>) {
 					HE_CORE_WARN("CommandList::SetMaterialBinding received texture resource parameter '{0}' in scalar parameter list", parameter.Name);
+				}
+				else {
+					entries.push_back({
+						.Name = parameter.Name,
+						.Type = ToBindingValueType(parameter.Type),
+						.Value = value,
+						.Binding = static_cast<uint32_t>(entries.size())
+					});
 				}
 			}, parameter.Value);
 		}
@@ -583,9 +669,38 @@ namespace HE::Rendering {
 				continue;
 			}
 
-			static_cast<OpenGLTextureResource&>(*texture.Texture).BindForCommandList(texture.Slot);
-			m_CurrentShaderProgram->SetInt(texture.Name, static_cast<int>(texture.Slot));
+			entries.push_back({
+				.Name = texture.Name,
+				.Type = BindingValueType::Texture,
+				.Value = texture.Texture,
+				.Binding = static_cast<uint32_t>(entries.size()),
+				.TextureSlot = texture.Slot
+			});
 		}
+
+		if (entries.empty()) {
+			return;
+		}
+
+		std::vector<BindGroupLayoutEntry> layoutEntries;
+		layoutEntries.reserve(entries.size());
+		for (const auto& entry : entries) {
+			layoutEntries.push_back({
+				.Name = entry.Name,
+				.Type = entry.Type,
+				.Binding = entry.Binding
+			});
+		}
+
+		auto layout = CreateRef<OpenGLBindGroupLayout>(BindGroupLayoutDesc{
+			.Scope = BindGroupScope::Material,
+			.Entries = std::move(layoutEntries)
+		});
+		BindGroupDesc desc;
+		desc.Layout = layout;
+		desc.Entries = std::move(entries);
+		OpenGLBindGroup group(desc);
+		SetBindGroup(1, group);
 	}
 
 	void OpenGLCommandList::SetObjectBinding(const ObjectBinding& binding) {
@@ -729,6 +844,24 @@ namespace HE::Rendering {
 		}
 
 		return CreateRef<OpenGLPipelineState>(desc);
+	}
+
+	Ref<BindGroupLayout> OpenGLRenderDevice::CreateBindGroupLayout(const BindGroupLayoutDesc& desc) {
+		if (desc.Entries.empty()) {
+			HE_CORE_ERROR("Bind group layout must have at least one entry");
+			return nullptr;
+		}
+
+		return CreateRef<OpenGLBindGroupLayout>(desc);
+	}
+
+	Ref<BindGroup> OpenGLRenderDevice::CreateBindGroup(const BindGroupDesc& desc) {
+		if (!desc.Layout || desc.Entries.empty()) {
+			HE_CORE_ERROR("Invalid bind group description");
+			return nullptr;
+		}
+
+		return CreateRef<OpenGLBindGroup>(desc);
 	}
 
 }

@@ -17,7 +17,7 @@ namespace HE::Rendering {
 
 		virtual const ShaderProgramDesc& GetDesc() const = 0;
 		// Temporary uniform API for the OpenGL migration period.
-		// New material parameters should be submitted through CommandList::SetMaterialBinding.
+		// New parameters should be submitted through CommandList::SetBindGroup.
 		virtual void SetInt(const std::string& name, int value) = 0;
 		virtual void SetIntArray(const std::string& name, int* values, uint32_t size) = 0;
 		virtual void SetFloat(const std::string& name, float value) = 0;

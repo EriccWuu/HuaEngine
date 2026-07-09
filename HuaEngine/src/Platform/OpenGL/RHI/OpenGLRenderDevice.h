@@ -17,6 +17,7 @@ namespace HE::Rendering {
 		void SetShaderProgram(ShaderProgram& shaderProgram) override;
 		void SetPipelineState(PipelineState& pipelineState) override;
 		void SetVertexBufferView(VertexBufferView& vertexBufferView) override;
+		void SetBindGroup(uint32_t slot, BindGroup& bindGroup) override;
 		void SetFrameBinding(const FrameBinding& binding) override;
 		void SetMaterialBinding(const MaterialBinding& binding) override;
 		void SetObjectBinding(const ObjectBinding& binding) override;
@@ -67,6 +68,26 @@ namespace HE::Rendering {
 	private:
 		VertexBufferViewDesc m_Desc;
 		uint32_t m_RenderID = 0;
+	};
+
+	class OpenGLBindGroupLayout final : public BindGroupLayout {
+	public:
+		explicit OpenGLBindGroupLayout(const BindGroupLayoutDesc& desc);
+
+		const BindGroupLayoutDesc& GetDesc() const override;
+
+	private:
+		BindGroupLayoutDesc m_Desc;
+	};
+
+	class OpenGLBindGroup final : public BindGroup {
+	public:
+		explicit OpenGLBindGroup(const BindGroupDesc& desc);
+
+		const BindGroupDesc& GetDesc() const override;
+
+	private:
+		BindGroupDesc m_Desc;
 	};
 
 	class OpenGLPipelineState final : public PipelineState {
@@ -156,6 +177,8 @@ namespace HE::Rendering {
 		Ref<TextureResource> CreateTexture(const TextureDesc& desc) override;
 		Ref<ShaderProgram> CreateShaderProgram(const ShaderProgramDesc& desc) override;
 		Ref<PipelineState> CreatePipelineState(const PipelineStateDesc& desc) override;
+		Ref<BindGroupLayout> CreateBindGroupLayout(const BindGroupLayoutDesc& desc) override;
+		Ref<BindGroup> CreateBindGroup(const BindGroupDesc& desc) override;
 
 	private:
 		OpenGLCommandList m_ImmediateCommandList;

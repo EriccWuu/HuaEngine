@@ -144,6 +144,33 @@ int main() {
 	Require(pipelineState->GetDesc().Topology == HE::Rendering::PrimitiveTopology::TriangleList, "Expected triangle list pipeline topology");
 	Require(!device.CreatePipelineState({}), "Expected empty pipeline state creation to fail");
 
+	auto bindGroupLayout = device.CreateBindGroupLayout({
+		.Scope = HE::Rendering::BindGroupScope::Material,
+		.Entries = {
+			{
+				.Name = "u_Color",
+				.Type = HE::Rendering::BindingValueType::Float4,
+				.Binding = 0
+			}
+		}
+	});
+	Require(static_cast<bool>(bindGroupLayout), "Expected bind group layout creation to succeed");
+	auto bindGroup = device.CreateBindGroup({
+		.Layout = bindGroupLayout,
+		.Entries = {
+			{
+				.Name = "u_Color",
+				.Type = HE::Rendering::BindingValueType::Float4,
+				.Value = glm::vec4(1.0f),
+				.Binding = 0
+			}
+		}
+	});
+	Require(static_cast<bool>(bindGroup), "Expected bind group creation to succeed");
+	Require(bindGroup->GetDesc().Layout == bindGroupLayout, "Expected bind group layout to round-trip");
+	Require(!device.CreateBindGroupLayout({}), "Expected empty bind group layout creation to fail");
+	Require(!device.CreateBindGroup({}), "Expected empty bind group creation to fail");
+
 	HE::Rendering::GpuBufferDesc invalidBufferDesc;
 	invalidBufferDesc.Usage = HE::Rendering::GpuBufferUsage::Vertex;
 	invalidBufferDesc.Size = 0;
