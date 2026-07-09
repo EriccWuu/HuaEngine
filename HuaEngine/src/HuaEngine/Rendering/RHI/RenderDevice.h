@@ -16,10 +16,34 @@
 namespace HE::Rendering {
 	class CommandList;
 
+	enum class RenderBackendType : uint8_t {
+		OpenGL = 0,
+		Vulkan,
+		D3D12,
+		Metal,
+		Null
+	};
+
+	struct RenderDeviceDesc {
+		RenderBackendType Backend = RenderBackendType::OpenGL;
+		bool EnableDebug = false;
+		bool EnableValidation = false;
+	};
+
+	struct RenderDeviceCapabilities {
+		RenderBackendType Backend = RenderBackendType::OpenGL;
+		std::string BackendName = "OpenGL";
+		bool SupportsPipelineState = true;
+		bool SupportsBindGroups = true;
+		bool SupportsRenderGraphResources = true;
+	};
+
 	class RenderDevice {
 	public:
 		virtual ~RenderDevice() = default;
 
+		virtual const RenderDeviceDesc& GetDesc() const = 0;
+		virtual const RenderDeviceCapabilities& GetCapabilities() const = 0;
 		virtual CommandList& GetImmediateCommandList() = 0;
 
 		virtual Ref<GpuBuffer> CreateBuffer(const GpuBufferDesc& desc, const void* initialData) = 0;

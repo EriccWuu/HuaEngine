@@ -114,8 +114,7 @@ namespace HE::Rendering {
 		void Resize(uint32_t width, uint32_t height) override;
 		void ClearAttachment(uint32_t index, int value) override;
 		RenderTargetPixelRGBA8 ReadPixelRGBA8(uint32_t attachmentIndex, uint32_t x, uint32_t y) const override;
-		uint32_t GetRenderID() const override;
-		uint32_t GetColorAttachment(uint32_t index = 0) const override;
+		RenderTargetColorAttachmentView GetColorAttachmentView(uint32_t index = 0) const override;
 		const RenderTargetSpecification& GetSpecification() const override;
 
 	private:
@@ -131,7 +130,6 @@ namespace HE::Rendering {
 		OpenGLTextureResource& operator=(const OpenGLTextureResource&) = delete;
 
 		const TextureDesc& GetDesc() const override;
-		uint32_t GetRenderID() const override;
 		uint32_t GetWidth() const override;
 		uint32_t GetHeight() const override;
 		void BindForCommandList(uint32_t slot = 0);
@@ -169,7 +167,10 @@ namespace HE::Rendering {
 	class OpenGLRenderDevice final : public RenderDevice {
 	public:
 		OpenGLRenderDevice();
+		explicit OpenGLRenderDevice(const RenderDeviceDesc& desc);
 
+		const RenderDeviceDesc& GetDesc() const override;
+		const RenderDeviceCapabilities& GetCapabilities() const override;
 		CommandList& GetImmediateCommandList() override;
 		Ref<GpuBuffer> CreateBuffer(const GpuBufferDesc& desc, const void* initialData) override;
 		Ref<VertexBufferView> CreateVertexBufferView(const VertexBufferViewDesc& desc) override;
@@ -181,6 +182,8 @@ namespace HE::Rendering {
 		Ref<BindGroup> CreateBindGroup(const BindGroupDesc& desc) override;
 
 	private:
+		RenderDeviceDesc m_Desc;
+		RenderDeviceCapabilities m_Capabilities;
 		OpenGLCommandList m_ImmediateCommandList;
 	};
 }

@@ -15,7 +15,6 @@ namespace {
 	class FakeTextureResource final : public HE::Rendering::TextureResource {
 	public:
 		const HE::Rendering::TextureDesc& GetDesc() const override { return m_Desc; }
-		uint32_t GetRenderID() const override { return 0; }
 		uint32_t GetWidth() const override { return 1; }
 		uint32_t GetHeight() const override { return 1; }
 

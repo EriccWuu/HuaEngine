@@ -7,6 +7,10 @@ namespace HE::Rendering {
 		RenderTargetSpecification Specification;
 	};
 
+	struct RenderTargetColorAttachmentView {
+		uintptr_t NativeHandle = 0;
+	};
+
 	class RenderTarget {
 	public:
 		virtual ~RenderTarget() = default;
@@ -15,8 +19,7 @@ namespace HE::Rendering {
 		virtual void Resize(uint32_t width, uint32_t height) = 0;
 		virtual void ClearAttachment(uint32_t index, int value) = 0;
 		virtual RenderTargetPixelRGBA8 ReadPixelRGBA8(uint32_t attachmentIndex, uint32_t x, uint32_t y) const = 0;
-		virtual uint32_t GetRenderID() const = 0;
-		virtual uint32_t GetColorAttachment(uint32_t index = 0) const = 0;
+		virtual RenderTargetColorAttachmentView GetColorAttachmentView(uint32_t index = 0) const = 0;
 		virtual const RenderTargetSpecification& GetSpecification() const = 0;
 	};
 }

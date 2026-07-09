@@ -36,6 +36,11 @@ int main() {
 	application.Start();
 
 	auto& device = HE::Rendering::RenderHardwareInterface::GetDevice();
+	Require(device.GetDesc().Backend == HE::Rendering::RenderBackendType::OpenGL, "Expected default render backend to be OpenGL");
+	Require(device.GetCapabilities().Backend == HE::Rendering::RenderBackendType::OpenGL, "Expected OpenGL device capabilities");
+	Require(device.GetCapabilities().SupportsPipelineState, "Expected pipeline state support capability");
+	Require(device.GetCapabilities().SupportsBindGroups, "Expected bind group support capability");
+	Require(!HE::Rendering::RenderHardwareInterface::CreateRenderDevice({ .Backend = HE::Rendering::RenderBackendType::Null }), "Expected unimplemented null backend creation to fail");
 
 	float vertices[] = {
 		-0.5f, -0.5f, 0.0f,

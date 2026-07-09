@@ -1712,7 +1712,7 @@ namespace HE {
             m_SceneViewportSize = newViewportSize;
         }
 
-        ImGui::Image(m_RenderTarget->GetColorAttachment(),
+        ImGui::Image(m_RenderTarget->GetColorAttachmentView().NativeHandle,
             { m_SceneViewportSize.x , m_SceneViewportSize.y },
             { 0, 1 }, { 1, 0 });
         m_EditorCamera->SetViewport(m_SceneViewportSize.x, m_SceneViewportSize.y);

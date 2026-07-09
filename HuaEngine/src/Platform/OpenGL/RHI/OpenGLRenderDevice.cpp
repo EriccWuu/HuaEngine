@@ -408,12 +408,8 @@ namespace HE::Rendering {
 		return m_BackendStorage->ReadPixelRGBA8(attachmentIndex, x, y);
 	}
 
-	uint32_t OpenGLRenderTarget::GetRenderID() const {
-		return m_BackendStorage->GetRenderID();
-	}
-
-	uint32_t OpenGLRenderTarget::GetColorAttachment(uint32_t index) const {
-		return m_BackendStorage->GetColorAttachment(index);
+	RenderTargetColorAttachmentView OpenGLRenderTarget::GetColorAttachmentView(uint32_t index) const {
+		return { static_cast<uintptr_t>(m_BackendStorage->GetColorAttachment(index)) };
 	}
 
 	const RenderTargetSpecification& OpenGLRenderTarget::GetSpecification() const {
@@ -464,10 +460,6 @@ namespace HE::Rendering {
 
 	const TextureDesc& OpenGLTextureResource::GetDesc() const {
 		return m_Desc;
-	}
-
-	uint32_t OpenGLTextureResource::GetRenderID() const {
-		return m_RenderID;
 	}
 
 	uint32_t OpenGLTextureResource::GetWidth() const {
@@ -770,9 +762,26 @@ namespace HE::Rendering {
 		m_CurrentRenderTarget = nullptr;
 	}
 
-	OpenGLRenderDevice::OpenGLRenderDevice() {
+	OpenGLRenderDevice::OpenGLRenderDevice()
+		: OpenGLRenderDevice(RenderDeviceDesc{}) {}
+
+	OpenGLRenderDevice::OpenGLRenderDevice(const RenderDeviceDesc& desc)
+		: m_Desc(desc) {
+		m_Capabilities.Backend = RenderBackendType::OpenGL;
+		m_Capabilities.BackendName = "OpenGL";
+		m_Capabilities.SupportsPipelineState = true;
+		m_Capabilities.SupportsBindGroups = true;
+		m_Capabilities.SupportsRenderGraphResources = true;
 		glEnable(GL_BLEND);
 		glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+	}
+
+	const RenderDeviceDesc& OpenGLRenderDevice::GetDesc() const {
+		return m_Desc;
+	}
+
+	const RenderDeviceCapabilities& OpenGLRenderDevice::GetCapabilities() const {
+		return m_Capabilities;
 	}
 
 	CommandList& OpenGLRenderDevice::GetImmediateCommandList() {
