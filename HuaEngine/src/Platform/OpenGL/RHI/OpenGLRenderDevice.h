@@ -15,6 +15,7 @@ namespace HE::Rendering {
 		void ClearColor(const glm::vec4& color) override;
 		void BeginFrame(Camera& camera) override;
 		void SetShaderProgram(ShaderProgram& shaderProgram) override;
+		void SetPipelineState(PipelineState& pipelineState) override;
 		void SetVertexBufferView(VertexBufferView& vertexBufferView) override;
 		void SetFrameBinding(const FrameBinding& binding) override;
 		void SetMaterialBinding(const MaterialBinding& binding) override;
@@ -27,6 +28,7 @@ namespace HE::Rendering {
 		RenderTarget* m_CurrentRenderTarget = nullptr;
 		Camera* m_CurrentCamera = nullptr;
 		ShaderProgram* m_CurrentShaderProgram = nullptr;
+		PipelineState* m_CurrentPipelineState = nullptr;
 		VertexBufferView* m_CurrentVertexBufferView = nullptr;
 		FrameBinding m_CurrentFrameBinding;
 		ObjectBinding m_CurrentObjectBinding;
@@ -65,6 +67,18 @@ namespace HE::Rendering {
 	private:
 		VertexBufferViewDesc m_Desc;
 		uint32_t m_RenderID = 0;
+	};
+
+	class OpenGLPipelineState final : public PipelineState {
+	public:
+		explicit OpenGLPipelineState(const PipelineStateDesc& desc);
+
+		const PipelineStateDesc& GetDesc() const override;
+		ShaderProgram& GetShaderProgram() const;
+		PrimitiveTopology GetTopology() const;
+
+	private:
+		PipelineStateDesc m_Desc;
 	};
 
 	class OpenGLRenderTarget final : public RenderTarget {
@@ -141,6 +155,7 @@ namespace HE::Rendering {
 		Ref<RenderTarget> CreateRenderTarget(const RenderTargetDesc& desc) override;
 		Ref<TextureResource> CreateTexture(const TextureDesc& desc) override;
 		Ref<ShaderProgram> CreateShaderProgram(const ShaderProgramDesc& desc) override;
+		Ref<PipelineState> CreatePipelineState(const PipelineStateDesc& desc) override;
 
 	private:
 		OpenGLCommandList m_ImmediateCommandList;

@@ -11,6 +11,7 @@
 #include "HuaEngine/Rendering/Camera.h"
 #include "HuaEngine/Rendering/Material/MaterialBinding.h"
 #include "HuaEngine/Rendering/Material/Material.h"
+#include "HuaEngine/Rendering/RHI/PipelineState.h"
 #include "HuaEngine/Rendering/RHI/RenderTarget.h"
 #include "HuaEngine/Rendering/RHI/ShaderProgram.h"
 #include "HuaEngine/Rendering/RHI/VertexBufferView.h"
@@ -41,6 +42,7 @@ namespace HE::Rendering {
 		MissingMaterialInstance,
 		MissingBaseMaterial,
 		MissingShader,
+		MissingPipelineState,
 		FallbackResourceUsed,
 		MissingRhiDrawResources
 	};
@@ -78,6 +80,7 @@ namespace HE::Rendering {
 	struct ResolvedRenderItem {
 		const RenderItem* Source = nullptr;
 		Ref<VertexBufferView> VertexBufferViewRef;
+		Ref<PipelineState> PipelineStateRef;
 		Ref<ShaderProgram> ShaderProgramRef;
 		Ref<MaterialInstance> MaterialInstanceRef;
 		Ref<MaterialBinding> MaterialBindingRef;

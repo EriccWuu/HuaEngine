@@ -134,6 +134,16 @@ int main() {
 	});
 	Require(static_cast<bool>(shaderProgram), "Expected shader program creation to succeed");
 
+	auto pipelineState = device.CreatePipelineState({
+		.Shader = shaderProgram,
+		.VertexLayout = layout,
+		.Topology = HE::Rendering::PrimitiveTopology::TriangleList
+	});
+	Require(static_cast<bool>(pipelineState), "Expected pipeline state creation to succeed");
+	Require(pipelineState->GetDesc().Shader == shaderProgram, "Expected pipeline state shader");
+	Require(pipelineState->GetDesc().Topology == HE::Rendering::PrimitiveTopology::TriangleList, "Expected triangle list pipeline topology");
+	Require(!device.CreatePipelineState({}), "Expected empty pipeline state creation to fail");
+
 	HE::Rendering::GpuBufferDesc invalidBufferDesc;
 	invalidBufferDesc.Usage = HE::Rendering::GpuBufferUsage::Vertex;
 	invalidBufferDesc.Size = 0;

@@ -75,8 +75,8 @@ namespace HE::Rendering {
 				continue;
 			}
 
-			if (resolvedItem.ShaderProgramRef && resolvedItem.VertexBufferViewRef && resolvedItem.MaterialBindingRef) {
-				context.Commands->SetShaderProgram(*resolvedItem.ShaderProgramRef);
+			if (resolvedItem.PipelineStateRef && resolvedItem.VertexBufferViewRef && resolvedItem.MaterialBindingRef) {
+				context.Commands->SetPipelineState(*resolvedItem.PipelineStateRef);
 				context.Commands->SetFrameBinding({ .ViewProjection = context.View->CameraRef->GetViewProjection() });
 				context.Commands->SetVertexBufferView(*resolvedItem.VertexBufferViewRef);
 				context.Commands->SetMaterialBinding(*resolvedItem.MaterialBindingRef);

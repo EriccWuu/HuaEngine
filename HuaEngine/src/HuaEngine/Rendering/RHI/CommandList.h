@@ -7,6 +7,7 @@
 namespace HE::Rendering {
 	class Camera;
 	class MaterialBinding;
+	class PipelineState;
 	class RenderTarget;
 	class ShaderProgram;
 	class VertexBufferView;
@@ -19,8 +20,10 @@ namespace HE::Rendering {
 		virtual void ClearColor(const glm::vec4& color) = 0;
 		virtual void BeginFrame(Camera& camera) = 0;
 
-		// Normal render path state submission.
+		// Compatibility path for the OpenGL migration period. Prefer SetPipelineState for draw submission.
 		virtual void SetShaderProgram(ShaderProgram& shaderProgram) = 0;
+		// Normal render path pipeline state submission.
+		virtual void SetPipelineState(PipelineState& pipelineState) = 0;
 		// Normal render path state submission.
 		virtual void SetVertexBufferView(VertexBufferView& vertexBufferView) = 0;
 		// Normal render path frame/view parameter submission.

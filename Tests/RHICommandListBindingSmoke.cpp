@@ -152,6 +152,13 @@ int main() {
 	});
 	Require(static_cast<bool>(shaderProgram), "Expected shader program creation to succeed");
 
+	auto pipelineState = device.CreatePipelineState({
+		.Shader = shaderProgram,
+		.VertexLayout = layout,
+		.Topology = HE::Rendering::PrimitiveTopology::TriangleList
+	});
+	Require(static_cast<bool>(pipelineState), "Expected pipeline state creation to succeed");
+
 	HE::Rendering::EditorCamera camera;
 	camera.SetViewport(64.0f, 64.0f);
 
@@ -159,7 +166,7 @@ int main() {
 	commands.BeginRenderTarget(*renderTarget);
 	commands.ClearColor({ 0.1f, 0.1f, 0.1f, 1.0f });
 	commands.BeginFrame(camera);
-	commands.SetShaderProgram(*shaderProgram);
+	commands.SetPipelineState(*pipelineState);
 	commands.SetFrameBinding({ .ViewProjection = camera.GetViewProjection() });
 	commands.SetVertexBufferView(*vertexBufferView);
 	auto materialBinding = MakeColorBinding(glm::vec4(0.9f, 0.2f, 0.1f, 1.0f));
@@ -175,7 +182,7 @@ int main() {
 	commands.BeginFrame(camera);
 	commands.SetFrameBinding({ .ViewProjection = camera.GetViewProjection() });
 	commands.SetObjectBinding({ .Transform = glm::mat4(1.0f) });
-	commands.SetShaderProgram(*shaderProgram);
+	commands.SetPipelineState(*pipelineState);
 	commands.SetVertexBufferView(*vertexBufferView);
 	commands.SetMaterialBinding(materialBinding);
 	commands.DrawIndexed(vertexBufferView->GetDesc().IndexCount);

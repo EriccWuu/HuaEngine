@@ -98,6 +98,16 @@ namespace {
 		}
 	}
 
+	GLenum ToOpenGLPrimitiveTopology(HE::Rendering::PrimitiveTopology topology) {
+		switch (topology) {
+			case HE::Rendering::PrimitiveTopology::TriangleList:
+				return GL_TRIANGLES;
+		}
+
+		HE_CORE_ASSERT(false, "Unknown primitive topology");
+		return GL_TRIANGLES;
+	}
+
 	bool ValidateTextureFile(const std::string& path) {
 		std::error_code errorCode;
 		if (!std::filesystem::exists(path, errorCode)) {
@@ -305,6 +315,24 @@ namespace HE::Rendering {
 		glBindVertexArray(0);
 	}
 
+	OpenGLPipelineState::OpenGLPipelineState(const PipelineStateDesc& desc)
+		: m_Desc(desc) {
+		HE_CORE_ASSERT(m_Desc.Shader, "PipelineState requires a shader program");
+		HE_CORE_ASSERT(!m_Desc.VertexLayout.GetElements().empty(), "PipelineState requires vertex input layout");
+	}
+
+	const PipelineStateDesc& OpenGLPipelineState::GetDesc() const {
+		return m_Desc;
+	}
+
+	ShaderProgram& OpenGLPipelineState::GetShaderProgram() const {
+		return *m_Desc.Shader;
+	}
+
+	PrimitiveTopology OpenGLPipelineState::GetTopology() const {
+		return m_Desc.Topology;
+	}
+
 	OpenGLRenderTarget::OpenGLRenderTarget(const RenderTargetDesc& desc)
 		: m_Desc(desc), m_BackendStorage(CreateRef<OpenGLRenderTargetStorage>(desc.Specification)) {}
 
@@ -469,6 +497,20 @@ namespace HE::Rendering {
 	}
 
 	void OpenGLCommandList::SetShaderProgram(ShaderProgram& shaderProgram) {
+		m_CurrentPipelineState = nullptr;
+		m_CurrentShaderProgram = &shaderProgram;
+		static_cast<OpenGLShaderProgram&>(shaderProgram).BindForCommandList();
+		if (m_HasFrameBinding) {
+			m_CurrentShaderProgram->SetMat4("u_ViewProjection", m_CurrentFrameBinding.ViewProjection);
+		}
+		if (m_HasObjectBinding) {
+			m_CurrentShaderProgram->SetMat4("u_Transform", m_CurrentObjectBinding.Transform);
+		}
+	}
+
+	void OpenGLCommandList::SetPipelineState(PipelineState& pipelineState) {
+		m_CurrentPipelineState = &pipelineState;
+		auto& shaderProgram = static_cast<OpenGLPipelineState&>(pipelineState).GetShaderProgram();
 		m_CurrentShaderProgram = &shaderProgram;
 		static_cast<OpenGLShaderProgram&>(shaderProgram).BindForCommandList();
 		if (m_HasFrameBinding) {
@@ -586,12 +628,18 @@ namespace HE::Rendering {
 			return;
 		}
 
-		glDrawElements(GL_TRIANGLES, static_cast<GLsizei>(indexCount), GL_UNSIGNED_INT, nullptr);
+		GLenum topology = GL_TRIANGLES;
+		if (m_CurrentPipelineState) {
+			topology = ToOpenGLPrimitiveTopology(static_cast<OpenGLPipelineState&>(*m_CurrentPipelineState).GetTopology());
+		}
+
+		glDrawElements(topology, static_cast<GLsizei>(indexCount), GL_UNSIGNED_INT, nullptr);
 	}
 
 	void OpenGLCommandList::EndFrame() {
 		m_CurrentCamera = nullptr;
 		m_CurrentShaderProgram = nullptr;
+		m_CurrentPipelineState = nullptr;
 		m_CurrentVertexBufferView = nullptr;
 		m_CurrentFrameBinding = {};
 		m_CurrentObjectBinding = {};
@@ -672,6 +720,15 @@ namespace HE::Rendering {
 		}
 
 		return CreateRef<OpenGLShaderProgram>(desc);
+	}
+
+	Ref<PipelineState> OpenGLRenderDevice::CreatePipelineState(const PipelineStateDesc& desc) {
+		if (!desc.Shader || desc.VertexLayout.GetElements().empty()) {
+			HE_CORE_ERROR("Invalid pipeline state description");
+			return nullptr;
+		}
+
+		return CreateRef<OpenGLPipelineState>(desc);
 	}
 
 }

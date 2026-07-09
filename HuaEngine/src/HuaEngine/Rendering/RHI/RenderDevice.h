@@ -6,6 +6,7 @@
 #include "HuaEngine/Core/Core.h"
 #include "HuaEngine/Rendering/RHI/RenderTargetTypes.h"
 #include "HuaEngine/Rendering/RHI/GpuBuffer.h"
+#include "HuaEngine/Rendering/RHI/PipelineState.h"
 #include "HuaEngine/Rendering/RHI/RenderTarget.h"
 #include "HuaEngine/Rendering/RHI/ShaderProgram.h"
 #include "HuaEngine/Rendering/RHI/TextureResource.h"
@@ -25,5 +26,6 @@ namespace HE::Rendering {
 		virtual Ref<RenderTarget> CreateRenderTarget(const RenderTargetDesc& desc) = 0;
 		virtual Ref<TextureResource> CreateTexture(const TextureDesc& desc) = 0;
 		virtual Ref<ShaderProgram> CreateShaderProgram(const ShaderProgramDesc& desc) = 0;
+		virtual Ref<PipelineState> CreatePipelineState(const PipelineStateDesc& desc) = 0;
 	};
 }

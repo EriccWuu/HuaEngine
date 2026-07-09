@@ -3,6 +3,7 @@
 
 #include "HuaEngine/Asset/AssetResolver.h"
 #include "HuaEngine/Asset/AssetTypes.h"
+#include "HuaEngine/Rendering/RHI/RenderHardwareInterface.h"
 #include "Module/Rendering/RenderingComponent.h"
 
 namespace HE::Rendering {
@@ -156,6 +157,20 @@ namespace HE::Rendering {
 		outResolvedItem.MaterialBindingRef = BuildMaterialBinding(*materialInstance);
 		outResolvedItem.VertexBufferViewRef = mesh->GetVertexBufferView();
 		outResolvedItem.ShaderProgramRef = baseMaterial->GetShaderProgram();
+		outResolvedItem.PipelineStateRef = RenderHardwareInterface::GetDevice().CreatePipelineState({
+			.Shader = outResolvedItem.ShaderProgramRef,
+			.VertexLayout = outResolvedItem.VertexBufferViewRef->GetDesc().Layout,
+			.Topology = PrimitiveTopology::TriangleList
+		});
+		if (!outResolvedItem.PipelineStateRef) {
+			AddDiagnostic(
+				diagnostics,
+				RenderDiagnosticCode::MissingPipelineState,
+				item.SourceEntity,
+				"Render item pipeline state could not be created");
+			return false;
+		}
+
 		return true;
 	}
 }
