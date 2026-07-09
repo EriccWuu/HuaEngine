@@ -59,6 +59,26 @@ int main() {
 		HasDiagnostic(emptyResourceGraph.GetDiagnostics(), HE::Rendering::PassGraphDiagnosticCode::EmptyResourceName),
 		"Expected empty resource name diagnostic");
 
+	HE::Rendering::PassGraph invalidTypedResourceGraph;
+	invalidTypedResourceGraph.AddTransientResource({
+		.Name = "BadSceneColor",
+		.Kind = HE::Rendering::RenderGraphResourceKind::Texture,
+		.Texture = {
+			.Width = 0,
+			.Height = 64,
+			.Format = HE::Rendering::RenderTargetTextureFormat::RGBA8
+		}
+	});
+	invalidTypedResourceGraph.AddPass({
+		.Name = "BadTypedResource",
+		.Outputs = { "BadSceneColor" },
+		.Execute = [](HE::Rendering::RenderPassContext&) {}
+	});
+	Require(!invalidTypedResourceGraph.Compile(), "Expected invalid typed resource description to fail compile");
+	Require(
+		HasDiagnostic(invalidTypedResourceGraph.GetDiagnostics(), HE::Rendering::PassGraphDiagnosticCode::InvalidResourceDescription),
+		"Expected invalid typed resource description diagnostic");
+
 	HE::Rendering::PassGraph duplicateAccessGraph;
 	duplicateAccessGraph.AddPass({
 		.Name = "DuplicateAccess",
@@ -146,6 +166,42 @@ int main() {
 	Require(executionOrder.size() == 2, "Expected two passes to execute");
 	Require(executionOrder[0] == "ExtractedSceneInput", "Expected first pass execution order to be stable");
 	Require(executionOrder[1] == "ForwardOpaque", "Expected second pass execution order to be stable");
+
+	HE::Rendering::PassGraph typedGraph;
+	const auto importedTarget = typedGraph.AddImportedResource({
+		.Name = "RenderTarget",
+		.Kind = HE::Rendering::RenderGraphResourceKind::Texture,
+		.Texture = {
+			.Width = 64,
+			.Height = 64,
+			.Format = HE::Rendering::RenderTargetTextureFormat::RGBA8
+		}
+	});
+	const auto transientSceneColor = typedGraph.AddTransientResource({
+		.Name = "SceneColor",
+		.Kind = HE::Rendering::RenderGraphResourceKind::Texture,
+		.Texture = {
+			.Width = 64,
+			.Height = 64,
+			.Format = HE::Rendering::RenderTargetTextureFormat::RGBA8
+		}
+	});
+	Require(importedTarget.IsValid(), "Expected imported render target handle to be valid");
+	Require(transientSceneColor.IsValid(), "Expected transient scene color handle to be valid");
+	typedGraph.AddPass({
+		.Name = "ForwardOpaqueTyped",
+		.Inputs = { "RenderTarget" },
+		.Outputs = { "SceneColor" },
+		.Execute = [](HE::Rendering::RenderPassContext&) {}
+	});
+	Require(typedGraph.Compile(), "Expected typed graph compile to succeed");
+	const auto& typedStats = typedGraph.GetStats();
+	Require(typedStats.ImportedResourceCount == 1, "Expected one imported resource");
+	Require(typedStats.TransientResourceCount == 1, "Expected one transient resource");
+	const auto& lifetimes = typedGraph.GetResourceAllocator().GetLifetimes();
+	Require(lifetimes.size() == 2, "Expected lifetimes for imported and transient resources");
+	Require(lifetimes[0].FirstPassIndex == 0 && lifetimes[0].LastPassIndex == 0, "Expected imported resource lifetime to cover typed pass");
+	Require(lifetimes[1].FirstPassIndex == 0 && lifetimes[1].LastPassIndex == 0, "Expected transient resource lifetime to cover typed pass");
 
 	std::cout << "RenderPassGraphSmoke passed" << std::endl;
 	return 0;

@@ -60,6 +60,7 @@ namespace HE::Rendering {
 		DuplicatePassName,
 		MissingExecuteCallback,
 		EmptyResourceName,
+		InvalidResourceDescription,
 		DuplicateResourceAccess,
 		MissingResourceProducer,
 		DuplicateResourceWriter
