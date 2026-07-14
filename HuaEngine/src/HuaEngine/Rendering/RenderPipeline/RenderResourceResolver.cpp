@@ -3,6 +3,7 @@
 
 #include "HuaEngine/Asset/AssetResolver.h"
 #include "HuaEngine/Asset/AssetTypes.h"
+#include "HuaEngine/Rendering/RenderPipeline/RenderBindGroupBuilder.h"
 #include "HuaEngine/Rendering/RHI/RenderHardwareInterface.h"
 #include "Module/Rendering/RenderingComponent.h"
 
@@ -28,153 +29,6 @@ namespace HE::Rendering {
 				"Asset resolve failed for " + requestedGuid + "; using fallback " + fallbackGuid);
 		}
 
-		void AddMaterialBindingParameter(MaterialBinding& binding, const Material& material, const MaterialParameter& parameter) {
-			if (parameter.Type == MaterialParameterType::Texture2D) {
-				const auto* texture = std::get_if<Ref<TextureResource>>(&parameter.Value);
-				if (!texture || !*texture) {
-					return;
-				}
-
-				binding.Textures.push_back({
-					.Name = parameter.Name,
-					.Slot = material.GetTextureSlot(parameter.Name),
-					.Texture = *texture
-				});
-				return;
-			}
-
-			binding.Parameters.push_back({
-				.Name = parameter.Name,
-				.Type = parameter.Type,
-				.Value = parameter.Value
-			});
-		}
-
-		Ref<MaterialBinding> BuildMaterialBinding(const MaterialInstance& materialInstance) {
-			auto baseMaterial = materialInstance.GetBaseMaterial();
-			if (!baseMaterial) {
-				return nullptr;
-			}
-
-			auto binding = CreateRef<MaterialBinding>();
-			for (const auto& [name, parameter] : baseMaterial->GetParameters()) {
-				const auto* overrideParameter = materialInstance.GetParameterOverride(name);
-				AddMaterialBindingParameter(*binding, *baseMaterial, overrideParameter ? *overrideParameter : parameter);
-			}
-
-			for (const auto& [name, parameter] : materialInstance.GetParameterOverrides()) {
-				if (baseMaterial->HasParameter(name)) {
-					continue;
-				}
-
-				AddMaterialBindingParameter(*binding, *baseMaterial, parameter);
-			}
-
-			return binding;
-		}
-
-		BindingValueType ToBindingValueType(MaterialParameterType type) {
-			switch (type) {
-				case MaterialParameterType::Int:
-					return BindingValueType::Int;
-				case MaterialParameterType::Float:
-					return BindingValueType::Float;
-				case MaterialParameterType::Vec2:
-					return BindingValueType::Float2;
-				case MaterialParameterType::Vec3:
-					return BindingValueType::Float3;
-				case MaterialParameterType::Vec4:
-					return BindingValueType::Float4;
-				case MaterialParameterType::Mat3:
-					return BindingValueType::Mat3;
-				case MaterialParameterType::Mat4:
-					return BindingValueType::Mat4;
-				case MaterialParameterType::IntArray:
-					return BindingValueType::IntArray;
-				case MaterialParameterType::Texture2D:
-				case MaterialParameterType::TextureCube:
-					return BindingValueType::Texture;
-				case MaterialParameterType::FloatArray:
-					break;
-			}
-
-			return BindingValueType::Float;
-		}
-
-		void AddMaterialBindGroupEntry(std::vector<BindGroupEntry>& entries, const MaterialParameterValueResolved& parameter) {
-			if (parameter.Type == MaterialParameterType::FloatArray ||
-				parameter.Type == MaterialParameterType::Texture2D ||
-				parameter.Type == MaterialParameterType::TextureCube) {
-				return;
-			}
-
-			std::visit([&](auto&& value) {
-				using T = std::decay_t<decltype(value)>;
-
-				if constexpr (std::is_same_v<T, std::vector<float>> || std::is_same_v<T, Ref<TextureResource>>) {
-					return;
-				}
-				else {
-					entries.push_back({
-						.Name = parameter.Name,
-						.Type = ToBindingValueType(parameter.Type),
-						.Value = value,
-						.Binding = static_cast<uint32_t>(entries.size())
-					});
-				}
-			}, parameter.Value);
-		}
-
-		Ref<BindGroup> BuildMaterialBindGroup(const MaterialBinding& binding) {
-			std::vector<BindGroupEntry> entries;
-			entries.reserve(binding.Parameters.size() + binding.Textures.size());
-
-			for (const auto& parameter : binding.Parameters) {
-				AddMaterialBindGroupEntry(entries, parameter);
-			}
-
-			for (const auto& texture : binding.Textures) {
-				if (!texture.Texture) {
-					continue;
-				}
-
-				entries.push_back({
-					.Name = texture.Name,
-					.Type = BindingValueType::Texture,
-					.Value = texture.Texture,
-					.Binding = static_cast<uint32_t>(entries.size()),
-					.TextureSlot = texture.Slot
-				});
-			}
-
-			if (entries.empty()) {
-				return nullptr;
-			}
-
-			std::vector<BindGroupLayoutEntry> layoutEntries;
-			layoutEntries.reserve(entries.size());
-			for (const auto& entry : entries) {
-				layoutEntries.push_back({
-					.Name = entry.Name,
-					.Type = entry.Type,
-					.Binding = entry.Binding
-				});
-			}
-
-			auto& device = RenderHardwareInterface::GetDevice();
-			auto layout = device.CreateBindGroupLayout({
-				.Scope = BindGroupScope::Material,
-				.Entries = std::move(layoutEntries)
-			});
-			if (!layout) {
-				return nullptr;
-			}
-
-			return device.CreateBindGroup({
-				.Layout = layout,
-				.Entries = std::move(entries)
-			});
-		}
 	}
 
 	RenderResourceResolver::RenderResourceResolver(HE::AssetResolver& assetResolver)
@@ -257,10 +111,7 @@ namespace HE::Rendering {
 		}
 
 		outResolvedItem.MaterialInstanceRef = materialInstance;
-		outResolvedItem.MaterialBindingRef = BuildMaterialBinding(*materialInstance);
-		if (outResolvedItem.MaterialBindingRef) {
-			outResolvedItem.MaterialBindGroupRef = BuildMaterialBindGroup(*outResolvedItem.MaterialBindingRef);
-		}
+		outResolvedItem.MaterialBindGroupRef = CreateMaterialBindGroup(RenderHardwareInterface::GetDevice(), *materialInstance);
 		outResolvedItem.VertexBufferViewRef = mesh->GetVertexBufferView();
 		outResolvedItem.ShaderProgramRef = baseMaterial->GetShaderProgram();
 		outResolvedItem.PipelineStateRef = RenderHardwareInterface::GetDevice().CreatePipelineState({

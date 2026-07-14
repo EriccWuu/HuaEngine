@@ -9,7 +9,6 @@
 #include "HuaEngine/Core/Core.h"
 #include "HuaEngine/ECS/Entity.h"
 #include "HuaEngine/Rendering/Camera.h"
-#include "HuaEngine/Rendering/Material/MaterialBinding.h"
 #include "HuaEngine/Rendering/Material/Material.h"
 #include "HuaEngine/Rendering/RHI/BindGroup.h"
 #include "HuaEngine/Rendering/RHI/PipelineState.h"
@@ -85,7 +84,6 @@ namespace HE::Rendering {
 		Ref<PipelineState> PipelineStateRef;
 		Ref<ShaderProgram> ShaderProgramRef;
 		Ref<MaterialInstance> MaterialInstanceRef;
-		Ref<MaterialBinding> MaterialBindingRef;
 		Ref<BindGroup> MaterialBindGroupRef;
 	};
 

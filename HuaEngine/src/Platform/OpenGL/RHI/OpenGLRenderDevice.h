@@ -5,7 +5,6 @@
 
 namespace HE::Rendering {
 	class Camera;
-	class MaterialBinding;
 	class OpenGLRenderTargetStorage;
 	class OpenGLShader;
 
@@ -14,13 +13,9 @@ namespace HE::Rendering {
 		void BeginRenderTarget(RenderTarget& target) override;
 		void ClearColor(const glm::vec4& color) override;
 		void BeginFrame(Camera& camera) override;
-		void SetShaderProgram(ShaderProgram& shaderProgram) override;
 		void SetPipelineState(PipelineState& pipelineState) override;
 		void SetVertexBufferView(VertexBufferView& vertexBufferView) override;
 		void SetBindGroup(uint32_t slot, BindGroup& bindGroup) override;
-		void SetFrameBinding(const FrameBinding& binding) override;
-		void SetMaterialBinding(const MaterialBinding& binding) override;
-		void SetObjectBinding(const ObjectBinding& binding) override;
 		void DrawIndexed(uint32_t indexCount) override;
 		void EndFrame() override;
 		void EndRenderTarget() override;
@@ -31,10 +26,8 @@ namespace HE::Rendering {
 		ShaderProgram* m_CurrentShaderProgram = nullptr;
 		PipelineState* m_CurrentPipelineState = nullptr;
 		VertexBufferView* m_CurrentVertexBufferView = nullptr;
-		FrameBinding m_CurrentFrameBinding;
-		ObjectBinding m_CurrentObjectBinding;
-		bool m_HasFrameBinding = false;
-		bool m_HasObjectBinding = false;
+		bool m_HasFrameBindGroup = false;
+		bool m_HasObjectBindGroup = false;
 	};
 
 	class OpenGLGpuBuffer final : public GpuBuffer {
@@ -47,7 +40,6 @@ namespace HE::Rendering {
 		const GpuBufferDesc& GetDesc() const override;
 		void BindForCommandList() const;
 		void UnbindForCommandList() const;
-		uint32_t GetRenderID() const;
 
 	private:
 		GpuBufferDesc m_Desc;
@@ -150,14 +142,14 @@ namespace HE::Rendering {
 		const ShaderProgramDesc& GetDesc() const override;
 		void BindForCommandList();
 		void UnbindForCommandList();
-		void SetInt(const std::string& name, int value) override;
-		void SetIntArray(const std::string& name, int* values, uint32_t size) override;
-		void SetFloat(const std::string& name, float value) override;
-		void SetFloat2(const std::string& name, const glm::vec2 value) override;
-		void SetFloat3(const std::string& name, const glm::vec3 value) override;
-		void SetFloat4(const std::string& name, const glm::vec4 value) override;
-		void SetMat3(const std::string& name, const glm::mat3 value) override;
-		void SetMat4(const std::string& name, const glm::mat4 value) override;
+		void SetInt(const std::string& name, int value);
+		void SetIntArray(const std::string& name, int* values, uint32_t size);
+		void SetFloat(const std::string& name, float value);
+		void SetFloat2(const std::string& name, const glm::vec2 value);
+		void SetFloat3(const std::string& name, const glm::vec3 value);
+		void SetFloat4(const std::string& name, const glm::vec4 value);
+		void SetMat3(const std::string& name, const glm::mat3 value);
+		void SetMat4(const std::string& name, const glm::mat4 value);
 
 	private:
 		ShaderProgramDesc m_Desc;

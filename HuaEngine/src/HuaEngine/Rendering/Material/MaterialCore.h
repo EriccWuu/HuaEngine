@@ -84,7 +84,7 @@ namespace HE::Rendering {
 		void SetTextureSlots(const std::unordered_map<std::string, uint32_t>& slots) { m_TextureSlots = slots; }
 		void ClearTextureSlots() { m_TextureSlots.clear(); m_NextTextureSlot = 0; }
 
-		// Updates stored material parameter data only. GPU submission uses MaterialBinding.
+		// Updates stored material parameter data only. GPU submission uses BindGroup.
 		virtual void SetParameter(const std::string& name, const MaterialParameterValue& value);
 
 		// Create material instance

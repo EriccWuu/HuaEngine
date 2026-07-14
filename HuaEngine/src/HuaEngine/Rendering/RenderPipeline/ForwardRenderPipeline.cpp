@@ -1,9 +1,9 @@
 #include "enginepch.h"
 #include "ForwardRenderPipeline.h"
 
+#include "HuaEngine/Rendering/RenderPipeline/RenderBindGroupBuilder.h"
 #include "HuaEngine/Rendering/RenderPipeline/RenderResourceResolver.h"
 #include "HuaEngine/Rendering/RHI/CommandList.h"
-#include "HuaEngine/Rendering/RHI/FrameObjectBinding.h"
 #include "HuaEngine/Rendering/RHI/RenderHardwareInterface.h"
 
 namespace HE::Rendering {
@@ -70,6 +70,20 @@ namespace HE::Rendering {
 
 		++context.Stats->PassCount;
 
+		if (!context.View || !context.View->CameraRef) {
+			return;
+		}
+
+		auto frameBindGroup = CreateFrameBindGroup(RenderHardwareInterface::GetDevice(), context.View->CameraRef->GetViewProjection());
+		if (!frameBindGroup) {
+			context.Diagnostics->push_back({
+				RenderDiagnosticCode::MissingRhiDrawResources,
+				Entity{},
+				"Forward opaque pass skipped because the frame bind group could not be created"
+			});
+			return;
+		}
+
 		for (const auto& item : *context.RenderItems) {
 			ResolvedRenderItem resolvedItem;
 			if (!context.ResourceResolver->Resolve(item, resolvedItem, *context.Stats, *context.Diagnostics)) {
@@ -77,12 +91,14 @@ namespace HE::Rendering {
 				continue;
 			}
 
-			if (resolvedItem.PipelineStateRef && resolvedItem.VertexBufferViewRef && resolvedItem.MaterialBindGroupRef) {
+			auto objectBindGroup = CreateObjectBindGroup(RenderHardwareInterface::GetDevice(), item.Transform);
+
+			if (resolvedItem.PipelineStateRef && resolvedItem.VertexBufferViewRef && resolvedItem.MaterialBindGroupRef && objectBindGroup) {
 				context.Commands->SetPipelineState(*resolvedItem.PipelineStateRef);
-				context.Commands->SetFrameBinding({ .ViewProjection = context.View->CameraRef->GetViewProjection() });
+				context.Commands->SetBindGroup(0, *frameBindGroup);
 				context.Commands->SetVertexBufferView(*resolvedItem.VertexBufferViewRef);
 				context.Commands->SetBindGroup(1, *resolvedItem.MaterialBindGroupRef);
-				context.Commands->SetObjectBinding({ .Transform = item.Transform });
+				context.Commands->SetBindGroup(2, *objectBindGroup);
 				context.Commands->DrawIndexed(resolvedItem.VertexBufferViewRef->GetDesc().IndexCount);
 			} else {
 				context.Diagnostics->push_back({

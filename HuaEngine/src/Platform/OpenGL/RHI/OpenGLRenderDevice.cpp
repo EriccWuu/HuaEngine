@@ -8,7 +8,6 @@
 
 #include "HuaEngine/Rendering/Camera.h"
 #include "HuaEngine/Rendering/RHI/RenderTargetTypes.h"
-#include "HuaEngine/Rendering/Material/MaterialBinding.h"
 #include "HuaEngine/Rendering/Material/Material.h"
 #include "HuaEngine/Rendering/RHI/RenderTarget.h"
 #include "HuaEngine/Rendering/RHI/ShaderProgram.h"
@@ -106,34 +105,6 @@ namespace {
 
 		HE_CORE_ASSERT(false, "Unknown primitive topology");
 		return GL_TRIANGLES;
-	}
-
-	HE::Rendering::BindingValueType ToBindingValueType(HE::Rendering::MaterialParameterType type) {
-		switch (type) {
-			case HE::Rendering::MaterialParameterType::Int:
-				return HE::Rendering::BindingValueType::Int;
-			case HE::Rendering::MaterialParameterType::Float:
-				return HE::Rendering::BindingValueType::Float;
-			case HE::Rendering::MaterialParameterType::Vec2:
-				return HE::Rendering::BindingValueType::Float2;
-			case HE::Rendering::MaterialParameterType::Vec3:
-				return HE::Rendering::BindingValueType::Float3;
-			case HE::Rendering::MaterialParameterType::Vec4:
-				return HE::Rendering::BindingValueType::Float4;
-			case HE::Rendering::MaterialParameterType::Mat3:
-				return HE::Rendering::BindingValueType::Mat3;
-			case HE::Rendering::MaterialParameterType::Mat4:
-				return HE::Rendering::BindingValueType::Mat4;
-			case HE::Rendering::MaterialParameterType::IntArray:
-				return HE::Rendering::BindingValueType::IntArray;
-			case HE::Rendering::MaterialParameterType::Texture2D:
-			case HE::Rendering::MaterialParameterType::TextureCube:
-				return HE::Rendering::BindingValueType::Texture;
-			case HE::Rendering::MaterialParameterType::FloatArray:
-				break;
-		}
-
-		return HE::Rendering::BindingValueType::Float;
 	}
 
 	bool ValidateTextureFile(const std::string& path) {
@@ -254,10 +225,6 @@ namespace HE::Rendering {
 
 	void OpenGLGpuBuffer::UnbindForCommandList() const {
 		glBindBuffer(ToOpenGLBufferTarget(m_Desc.Usage), 0);
-	}
-
-	uint32_t OpenGLGpuBuffer::GetRenderID() const {
-		return m_RenderID;
 	}
 
 	OpenGLVertexBufferView::OpenGLVertexBufferView(const VertexBufferViewDesc& desc)
@@ -535,29 +502,13 @@ namespace HE::Rendering {
 		m_CurrentCamera = &camera;
 	}
 
-	void OpenGLCommandList::SetShaderProgram(ShaderProgram& shaderProgram) {
-		m_CurrentPipelineState = nullptr;
-		m_CurrentShaderProgram = &shaderProgram;
-		static_cast<OpenGLShaderProgram&>(shaderProgram).BindForCommandList();
-		if (m_HasFrameBinding) {
-			m_CurrentShaderProgram->SetMat4("u_ViewProjection", m_CurrentFrameBinding.ViewProjection);
-		}
-		if (m_HasObjectBinding) {
-			m_CurrentShaderProgram->SetMat4("u_Transform", m_CurrentObjectBinding.Transform);
-		}
-	}
-
 	void OpenGLCommandList::SetPipelineState(PipelineState& pipelineState) {
 		m_CurrentPipelineState = &pipelineState;
 		auto& shaderProgram = static_cast<OpenGLPipelineState&>(pipelineState).GetShaderProgram();
 		m_CurrentShaderProgram = &shaderProgram;
+		m_HasFrameBindGroup = false;
+		m_HasObjectBindGroup = false;
 		static_cast<OpenGLShaderProgram&>(shaderProgram).BindForCommandList();
-		if (m_HasFrameBinding) {
-			m_CurrentShaderProgram->SetMat4("u_ViewProjection", m_CurrentFrameBinding.ViewProjection);
-		}
-		if (m_HasObjectBinding) {
-			m_CurrentShaderProgram->SetMat4("u_Transform", m_CurrentObjectBinding.Transform);
-		}
 	}
 
 	void OpenGLCommandList::SetVertexBufferView(VertexBufferView& vertexBufferView) {
@@ -572,13 +523,15 @@ namespace HE::Rendering {
 			return;
 		}
 
+		auto& shaderProgram = static_cast<OpenGLShaderProgram&>(*m_CurrentShaderProgram);
+
 		if (bindGroup.GetDesc().Layout) {
 			const auto scope = bindGroup.GetDesc().Layout->GetDesc().Scope;
 			if (scope == BindGroupScope::Frame) {
-				m_HasFrameBinding = true;
+				m_HasFrameBindGroup = true;
 			}
 			else if (scope == BindGroupScope::Object) {
-				m_HasObjectBinding = true;
+				m_HasObjectBindGroup = true;
 			}
 		}
 
@@ -587,28 +540,28 @@ namespace HE::Rendering {
 				using T = std::decay_t<decltype(value)>;
 
 				if constexpr (std::is_same_v<T, int>) {
-					m_CurrentShaderProgram->SetInt(entry.Name, value);
+					shaderProgram.SetInt(entry.Name, value);
 				}
 				else if constexpr (std::is_same_v<T, float>) {
-					m_CurrentShaderProgram->SetFloat(entry.Name, value);
+					shaderProgram.SetFloat(entry.Name, value);
 				}
 				else if constexpr (std::is_same_v<T, glm::vec2>) {
-					m_CurrentShaderProgram->SetFloat2(entry.Name, value);
+					shaderProgram.SetFloat2(entry.Name, value);
 				}
 				else if constexpr (std::is_same_v<T, glm::vec3>) {
-					m_CurrentShaderProgram->SetFloat3(entry.Name, value);
+					shaderProgram.SetFloat3(entry.Name, value);
 				}
 				else if constexpr (std::is_same_v<T, glm::vec4>) {
-					m_CurrentShaderProgram->SetFloat4(entry.Name, value);
+					shaderProgram.SetFloat4(entry.Name, value);
 				}
 				else if constexpr (std::is_same_v<T, glm::mat3>) {
-					m_CurrentShaderProgram->SetMat3(entry.Name, value);
+					shaderProgram.SetMat3(entry.Name, value);
 				}
 				else if constexpr (std::is_same_v<T, glm::mat4>) {
-					m_CurrentShaderProgram->SetMat4(entry.Name, value);
+					shaderProgram.SetMat4(entry.Name, value);
 				}
 				else if constexpr (std::is_same_v<T, std::vector<int>>) {
-					m_CurrentShaderProgram->SetIntArray(entry.Name, const_cast<int*>(value.data()), static_cast<uint32_t>(value.size()));
+					shaderProgram.SetIntArray(entry.Name, const_cast<int*>(value.data()), static_cast<uint32_t>(value.size()));
 				}
 				else if constexpr (std::is_same_v<T, Ref<TextureResource>>) {
 					if (!value) {
@@ -617,89 +570,9 @@ namespace HE::Rendering {
 					}
 
 					static_cast<OpenGLTextureResource&>(*value).BindForCommandList(entry.TextureSlot);
-					m_CurrentShaderProgram->SetInt(entry.Name, static_cast<int>(entry.TextureSlot));
+					shaderProgram.SetInt(entry.Name, static_cast<int>(entry.TextureSlot));
 				}
 			}, entry.Value);
-		}
-	}
-
-	void OpenGLCommandList::SetFrameBinding(const FrameBinding& binding) {
-		m_CurrentFrameBinding = binding;
-		m_HasFrameBinding = true;
-		if (m_CurrentShaderProgram) {
-			m_CurrentShaderProgram->SetMat4("u_ViewProjection", binding.ViewProjection);
-		}
-	}
-
-	void OpenGLCommandList::SetMaterialBinding(const MaterialBinding& binding) {
-		std::vector<BindGroupEntry> entries;
-		entries.reserve(binding.Parameters.size() + binding.Textures.size());
-		for (const auto& parameter : binding.Parameters) {
-			std::visit([&](auto&& value) {
-				using T = std::decay_t<decltype(value)>;
-
-				if constexpr (std::is_same_v<T, std::vector<float>>) {
-					HE_CORE_WARN("CommandList::SetMaterialBinding skipped unsupported float array parameter '{0}'", parameter.Name);
-				}
-				else if constexpr (std::is_same_v<T, Ref<TextureResource>>) {
-					HE_CORE_WARN("CommandList::SetMaterialBinding received texture resource parameter '{0}' in scalar parameter list", parameter.Name);
-				}
-				else {
-					entries.push_back({
-						.Name = parameter.Name,
-						.Type = ToBindingValueType(parameter.Type),
-						.Value = value,
-						.Binding = static_cast<uint32_t>(entries.size())
-					});
-				}
-			}, parameter.Value);
-		}
-
-		for (const auto& texture : binding.Textures) {
-			if (!texture.Texture) {
-				HE_CORE_WARN("CommandList::SetMaterialBinding skipped null texture parameter '{0}'", texture.Name);
-				continue;
-			}
-
-			entries.push_back({
-				.Name = texture.Name,
-				.Type = BindingValueType::Texture,
-				.Value = texture.Texture,
-				.Binding = static_cast<uint32_t>(entries.size()),
-				.TextureSlot = texture.Slot
-			});
-		}
-
-		if (entries.empty()) {
-			return;
-		}
-
-		std::vector<BindGroupLayoutEntry> layoutEntries;
-		layoutEntries.reserve(entries.size());
-		for (const auto& entry : entries) {
-			layoutEntries.push_back({
-				.Name = entry.Name,
-				.Type = entry.Type,
-				.Binding = entry.Binding
-			});
-		}
-
-		auto layout = CreateRef<OpenGLBindGroupLayout>(BindGroupLayoutDesc{
-			.Scope = BindGroupScope::Material,
-			.Entries = std::move(layoutEntries)
-		});
-		BindGroupDesc desc;
-		desc.Layout = layout;
-		desc.Entries = std::move(entries);
-		OpenGLBindGroup group(desc);
-		SetBindGroup(1, group);
-	}
-
-	void OpenGLCommandList::SetObjectBinding(const ObjectBinding& binding) {
-		m_CurrentObjectBinding = binding;
-		m_HasObjectBinding = true;
-		if (m_CurrentShaderProgram) {
-			m_CurrentShaderProgram->SetMat4("u_Transform", binding.Transform);
 		}
 	}
 
@@ -714,13 +587,13 @@ namespace HE::Rendering {
 			return;
 		}
 
-		if (!m_HasFrameBinding) {
-			HE_CORE_WARN("CommandList::DrawIndexed skipped because no frame binding is active");
+		if (!m_HasFrameBindGroup) {
+			HE_CORE_WARN("CommandList::DrawIndexed skipped because no frame bind group is active");
 			return;
 		}
 
-		if (!m_HasObjectBinding) {
-			HE_CORE_WARN("CommandList::DrawIndexed skipped because no object binding is active");
+		if (!m_HasObjectBindGroup) {
+			HE_CORE_WARN("CommandList::DrawIndexed skipped because no object bind group is active");
 			return;
 		}
 
@@ -748,10 +621,8 @@ namespace HE::Rendering {
 		m_CurrentShaderProgram = nullptr;
 		m_CurrentPipelineState = nullptr;
 		m_CurrentVertexBufferView = nullptr;
-		m_CurrentFrameBinding = {};
-		m_CurrentObjectBinding = {};
-		m_HasFrameBinding = false;
-		m_HasObjectBinding = false;
+		m_HasFrameBindGroup = false;
+		m_HasObjectBindGroup = false;
 	}
 
 	void OpenGLCommandList::EndRenderTarget() {

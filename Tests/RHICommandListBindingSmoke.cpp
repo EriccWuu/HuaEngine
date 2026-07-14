@@ -4,10 +4,8 @@
 #include <string>
 
 #include "HuaEngine.h"
-#include "HuaEngine/Rendering/Material/MaterialBinding.h"
 #include "HuaEngine/Rendering/Camera.h"
 #include "HuaEngine/Rendering/RHI/CommandList.h"
-#include "HuaEngine/Rendering/RHI/FrameObjectBinding.h"
 #include "HuaEngine/Rendering/RHI/RenderHardwareInterface.h"
 
 namespace {
@@ -51,16 +49,6 @@ namespace {
 			&& nearChannel(pixel.A, expected.A);
 	}
 
-	HE::Rendering::MaterialBinding MakeColorBinding(const glm::vec4& color) {
-		HE::Rendering::MaterialBinding materialBinding;
-		materialBinding.Parameters.push_back({
-			.Name = "u_Color",
-			.Type = HE::Rendering::MaterialParameterType::Vec4,
-			.Value = color
-		});
-		return materialBinding;
-	}
-
 	void VerifyRenderTargetSamples(const HE::Ref<HE::Rendering::RenderTarget>& renderTarget) {
 		const auto& actualTargetSpec = renderTarget->GetSpecification();
 		const auto fragmentPixel = renderTarget->ReadPixelRGBA8(0, actualTargetSpec.Width / 2, actualTargetSpec.Height / 2);
@@ -72,6 +60,15 @@ namespace {
 		Require(
 			PixelNear(clearPixel, kExpectedClearPixel, kPixelTolerance),
 			"Expected sample outside the triangle to keep the clear color");
+	}
+
+	void VerifyRenderTargetCleared(const HE::Ref<HE::Rendering::RenderTarget>& renderTarget) {
+		const auto& actualTargetSpec = renderTarget->GetSpecification();
+		const auto centerPixel = renderTarget->ReadPixelRGBA8(0, actualTargetSpec.Width / 2, actualTargetSpec.Height / 2);
+
+		Require(
+			PixelNear(centerPixel, kExpectedClearPixel, kPixelTolerance),
+			"Expected pipeline switch without rebinding frame/object bind groups to skip drawing");
 	}
 }
 
@@ -247,6 +244,20 @@ int main() {
 	commands.EndFrame();
 	commands.EndRenderTarget();
 	VerifyRenderTargetSamples(renderTarget);
+
+	commands.BeginRenderTarget(*renderTarget);
+	commands.ClearColor({ 0.1f, 0.1f, 0.1f, 1.0f });
+	commands.BeginFrame(camera);
+	commands.SetPipelineState(*pipelineState);
+	commands.SetBindGroup(0, *frameBindGroup);
+	commands.SetVertexBufferView(*vertexBufferView);
+	commands.SetBindGroup(1, *materialBindGroup);
+	commands.SetBindGroup(2, *objectBindGroup);
+	commands.SetPipelineState(*pipelineState);
+	commands.DrawIndexed(vertexBufferView->GetDesc().IndexCount);
+	commands.EndFrame();
+	commands.EndRenderTarget();
+	VerifyRenderTargetCleared(renderTarget);
 
 	commands.BeginRenderTarget(*renderTarget);
 	commands.ClearColor({ 0.1f, 0.1f, 0.1f, 1.0f });
