@@ -10,6 +10,9 @@ namespace HE::Rendering {
 
 	class OpenGLCommandList final : public CommandList {
 	public:
+		void BeginRenderPass(const RenderPassDesc& desc) override;
+		void EndRenderPass() override;
+
 		void BeginRenderTarget(RenderTarget& target) override;
 		void ClearColor(const glm::vec4& color) override;
 		void BeginFrame(Camera& camera) override;

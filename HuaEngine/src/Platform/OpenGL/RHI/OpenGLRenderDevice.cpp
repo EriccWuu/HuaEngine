@@ -488,6 +488,73 @@ namespace HE::Rendering {
 		m_Shader->SetMat4(name, value);
 	}
 
+	void OpenGLCommandList::BeginRenderPass(const RenderPassDesc& desc) {
+		if (m_CurrentRenderTarget) {
+			HE_CORE_WARN("OpenGLCommandList::BeginRenderPass skipped because a render pass is already active");
+			return;
+		}
+
+		if (desc.ColorAttachments.empty() || !desc.ColorAttachments[0].Target) {
+			HE_CORE_WARN("OpenGLCommandList::BeginRenderPass skipped because the first color attachment target is null");
+			m_CurrentRenderTarget = nullptr;
+			return;
+		}
+
+		if (desc.ColorAttachments.size() > 1) {
+			HE_CORE_WARN("OpenGLCommandList::BeginRenderPass skipped because multiple color attachments are not supported yet");
+			m_CurrentRenderTarget = nullptr;
+			return;
+		}
+
+		const auto& colorAttachment = desc.ColorAttachments[0];
+		if (colorAttachment.AttachmentIndex != 0) {
+			HE_CORE_WARN("OpenGLCommandList::BeginRenderPass skipped because only color attachment index 0 is supported");
+			m_CurrentRenderTarget = nullptr;
+			return;
+		}
+
+		if (desc.DepthStencilAttachment) {
+			if (!desc.DepthStencilAttachment->Target) {
+				HE_CORE_WARN("OpenGLCommandList::BeginRenderPass skipped because depth/stencil attachment target is null");
+				m_CurrentRenderTarget = nullptr;
+				return;
+			}
+
+			if (desc.DepthStencilAttachment->Target != colorAttachment.Target) {
+				HE_CORE_WARN("OpenGLCommandList::BeginRenderPass skipped because independent depth/stencil targets are not supported yet");
+				m_CurrentRenderTarget = nullptr;
+				return;
+			}
+		}
+
+		m_CurrentRenderTarget = colorAttachment.Target.get();
+		static_cast<OpenGLRenderTarget&>(*m_CurrentRenderTarget).BeginForCommandList();
+
+		GLbitfield clearMask = 0;
+		if (colorAttachment.Load == LoadOp::Clear) {
+			const auto& clear = colorAttachment.ClearColor;
+			glClearColor(clear.r, clear.g, clear.b, clear.a);
+			clearMask |= GL_COLOR_BUFFER_BIT;
+		}
+
+		if (desc.DepthStencilAttachment && desc.DepthStencilAttachment->DepthLoad == LoadOp::Clear) {
+			glClearDepth(desc.DepthStencilAttachment->ClearDepth);
+			clearMask |= GL_DEPTH_BUFFER_BIT;
+		}
+
+		if (clearMask != 0) {
+			glClear(clearMask);
+		}
+	}
+
+	void OpenGLCommandList::EndRenderPass() {
+		if (m_CurrentRenderTarget) {
+			static_cast<OpenGLRenderTarget*>(m_CurrentRenderTarget)->EndForCommandList();
+		}
+
+		m_CurrentRenderTarget = nullptr;
+	}
+
 	void OpenGLCommandList::BeginRenderTarget(RenderTarget& target) {
 		m_CurrentRenderTarget = &target;
 		static_cast<OpenGLRenderTarget&>(target).BeginForCommandList();
@@ -626,11 +693,7 @@ namespace HE::Rendering {
 	}
 
 	void OpenGLCommandList::EndRenderTarget() {
-		if (m_CurrentRenderTarget) {
-			static_cast<OpenGLRenderTarget*>(m_CurrentRenderTarget)->EndForCommandList();
-		}
-
-		m_CurrentRenderTarget = nullptr;
+		EndRenderPass();
 	}
 
 	OpenGLRenderDevice::OpenGLRenderDevice()

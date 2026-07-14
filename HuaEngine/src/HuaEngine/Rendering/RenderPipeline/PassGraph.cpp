@@ -28,7 +28,7 @@ namespace HE::Rendering {
 		}
 	}
 
-	void PassGraph::AddPass(RenderPassDesc pass) {
+	void PassGraph::AddPass(PassGraphPassDesc pass) {
 		m_Passes.push_back(std::move(pass));
 		m_Compiled = false;
 	}

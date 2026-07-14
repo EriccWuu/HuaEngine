@@ -4,6 +4,7 @@
 #include "HuaEngine/Rendering/RenderPipeline/RenderBindGroupBuilder.h"
 #include "HuaEngine/Rendering/RenderPipeline/RenderResourceResolver.h"
 #include "HuaEngine/Rendering/RHI/CommandList.h"
+#include "HuaEngine/Rendering/RHI/RenderPass.h"
 #include "HuaEngine/Rendering/RHI/RenderHardwareInterface.h"
 
 namespace HE::Rendering {
@@ -40,7 +41,17 @@ namespace HE::Rendering {
 		}
 
 		++context.Stats->PassCount;
-		context.Commands->BeginRenderTarget(*context.View->Target);
+		context.Commands->BeginRenderPass({
+			.ColorAttachments = {
+				{
+					.Target = context.View->Target,
+					.AttachmentIndex = 0,
+					.Load = context.View->ClearColorBuffer ? LoadOp::Clear : LoadOp::Load,
+					.Store = StoreOp::Store,
+					.ClearColor = context.View->ClearColor
+				}
+			}
+		});
 	}
 
 	void ClearTargetPass::Execute(RenderPassContext& context) {
@@ -49,9 +60,6 @@ namespace HE::Rendering {
 		}
 
 		++context.Stats->PassCount;
-		if (context.View->ClearColorBuffer) {
-			context.Commands->ClearColor(context.View->ClearColor);
-		}
 	}
 
 	void BeginRendererPass::Execute(RenderPassContext& context) {
@@ -130,7 +138,7 @@ namespace HE::Rendering {
 		}
 
 		++context.Stats->PassCount;
-		context.Commands->EndRenderTarget();
+		context.Commands->EndRenderPass();
 	}
 
 	void ForwardRenderPipeline::BuildGraph() {

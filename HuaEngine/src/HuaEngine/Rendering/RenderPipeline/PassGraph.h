@@ -27,7 +27,7 @@ namespace HE::Rendering {
 		std::string Message;
 	};
 
-	struct RenderPassDesc {
+	struct PassGraphPassDesc {
 		std::string Name;
 		std::vector<std::string> Inputs;
 		std::vector<std::string> Outputs;
@@ -45,7 +45,7 @@ namespace HE::Rendering {
 
 	class PassGraph {
 	public:
-		void AddPass(RenderPassDesc pass);
+		void AddPass(PassGraphPassDesc pass);
 		void AddExternalInput(std::string resourceName);
 		RenderGraphResourceHandle AddImportedResource(RenderGraphResourceDesc desc);
 		RenderGraphResourceHandle AddTransientResource(RenderGraphResourceDesc desc);
@@ -53,7 +53,7 @@ namespace HE::Rendering {
 		[[nodiscard]] bool Execute(RenderPassContext& context);
 		void Reset();
 
-		[[nodiscard]] const std::vector<RenderPassDesc>& GetPasses() const { return m_Passes; }
+		[[nodiscard]] const std::vector<PassGraphPassDesc>& GetPasses() const { return m_Passes; }
 		[[nodiscard]] const std::vector<PassGraphDiagnostic>& GetDiagnostics() const { return m_Diagnostics; }
 		[[nodiscard]] bool IsCompiled() const { return m_Compiled; }
 		[[nodiscard]] const PassGraphStats& GetStats() const { return m_Stats; }
@@ -61,7 +61,7 @@ namespace HE::Rendering {
 		[[nodiscard]] const RenderGraphResourceAllocator& GetResourceAllocator() const { return m_ResourceAllocator; }
 
 	private:
-		std::vector<RenderPassDesc> m_Passes;
+		std::vector<PassGraphPassDesc> m_Passes;
 		std::vector<std::string> m_ExternalInputs;
 		RenderGraphResourceAllocator m_ResourceAllocator;
 		std::vector<PassGraphDiagnostic> m_Diagnostics;

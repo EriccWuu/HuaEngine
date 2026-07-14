@@ -2,6 +2,7 @@
 
 #include <cstdint>
 #include "glm/glm.hpp"
+#include "HuaEngine/Rendering/RHI/RenderPass.h"
 
 namespace HE::Rendering {
 	class BindGroup;
@@ -13,6 +14,9 @@ namespace HE::Rendering {
 	class CommandList {
 	public:
 		virtual ~CommandList() = default;
+
+		virtual void BeginRenderPass(const RenderPassDesc& desc) = 0;
+		virtual void EndRenderPass() = 0;
 
 		virtual void BeginRenderTarget(RenderTarget& target) = 0;
 		virtual void ClearColor(const glm::vec4& color) = 0;

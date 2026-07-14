@@ -6,6 +6,7 @@
 #include "HuaEngine.h"
 #include "HuaEngine/Rendering/Camera.h"
 #include "HuaEngine/Rendering/RHI/CommandList.h"
+#include "HuaEngine/Rendering/RHI/RenderPass.h"
 #include "HuaEngine/Rendering/RHI/RenderHardwareInterface.h"
 
 namespace {
@@ -232,8 +233,17 @@ int main() {
 	Require(static_cast<bool>(objectBindGroup), "Expected object bind group creation to succeed");
 
 	auto& commands = device.GetImmediateCommandList();
-	commands.BeginRenderTarget(*renderTarget);
-	commands.ClearColor({ 0.1f, 0.1f, 0.1f, 1.0f });
+	commands.BeginRenderPass({
+		.ColorAttachments = {
+			{
+				.Target = renderTarget,
+				.AttachmentIndex = 0,
+				.Load = HE::Rendering::LoadOp::Clear,
+				.Store = HE::Rendering::StoreOp::Store,
+				.ClearColor = { 0.1f, 0.1f, 0.1f, 1.0f }
+			}
+		}
+	});
 	commands.BeginFrame(camera);
 	commands.SetPipelineState(*pipelineState);
 	commands.SetBindGroup(0, *frameBindGroup);
@@ -242,11 +252,20 @@ int main() {
 	commands.SetBindGroup(2, *objectBindGroup);
 	commands.DrawIndexed(vertexBufferView->GetDesc().IndexCount);
 	commands.EndFrame();
-	commands.EndRenderTarget();
+	commands.EndRenderPass();
 	VerifyRenderTargetSamples(renderTarget);
 
-	commands.BeginRenderTarget(*renderTarget);
-	commands.ClearColor({ 0.1f, 0.1f, 0.1f, 1.0f });
+	commands.BeginRenderPass({
+		.ColorAttachments = {
+			{
+				.Target = renderTarget,
+				.AttachmentIndex = 0,
+				.Load = HE::Rendering::LoadOp::Clear,
+				.Store = HE::Rendering::StoreOp::Store,
+				.ClearColor = { 0.1f, 0.1f, 0.1f, 1.0f }
+			}
+		}
+	});
 	commands.BeginFrame(camera);
 	commands.SetPipelineState(*pipelineState);
 	commands.SetBindGroup(0, *frameBindGroup);
@@ -256,7 +275,7 @@ int main() {
 	commands.SetPipelineState(*pipelineState);
 	commands.DrawIndexed(vertexBufferView->GetDesc().IndexCount);
 	commands.EndFrame();
-	commands.EndRenderTarget();
+	commands.EndRenderPass();
 	VerifyRenderTargetCleared(renderTarget);
 
 	commands.BeginRenderTarget(*renderTarget);
