@@ -190,6 +190,32 @@ namespace HE::Rendering {
 		uint32_t m_Height = 0;
 	};
 
+	class OpenGLTextureView final : public TextureView {
+	public:
+		explicit OpenGLTextureView(const TextureViewDesc& desc);
+
+		const TextureViewDesc& GetDesc() const override;
+		void BindForCommandList(uint32_t slot = 0);
+
+	private:
+		TextureViewDesc m_Desc;
+	};
+
+	class OpenGLSampler final : public Sampler {
+	public:
+		explicit OpenGLSampler(const SamplerDesc& desc);
+		~OpenGLSampler() override;
+		OpenGLSampler(const OpenGLSampler&) = delete;
+		OpenGLSampler& operator=(const OpenGLSampler&) = delete;
+
+		const SamplerDesc& GetDesc() const override;
+		void BindForCommandList(uint32_t slot = 0);
+
+	private:
+		SamplerDesc m_Desc;
+		uint32_t m_RenderID = 0;
+	};
+
 	class OpenGLShaderProgram final : public ShaderProgram {
 	public:
 		explicit OpenGLShaderProgram(const ShaderProgramDesc& desc);
@@ -227,6 +253,8 @@ namespace HE::Rendering {
 		Ref<VertexBufferView> CreateVertexBufferView(const VertexBufferViewDesc& desc) override;
 		Ref<RenderTarget> CreateRenderTarget(const RenderTargetDesc& desc) override;
 		Ref<TextureResource> CreateTexture(const TextureDesc& desc) override;
+		Ref<TextureView> CreateTextureView(const TextureViewDesc& desc) override;
+		Ref<Sampler> CreateSampler(const SamplerDesc& desc) override;
 		Ref<ShaderProgram> CreateShaderProgram(const ShaderProgramDesc& desc) override;
 		Ref<PipelineState> CreatePipelineState(const PipelineStateDesc& desc) override;
 		Ref<BindGroupLayout> CreateBindGroupLayout(const BindGroupLayoutDesc& desc) override;

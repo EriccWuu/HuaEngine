@@ -61,4 +61,18 @@ namespace HE::Rendering {
 		virtual uint32_t GetWidth() const = 0;
 		virtual uint32_t GetHeight() const = 0;
 	};
+
+	class TextureView {
+	public:
+		virtual ~TextureView() = default;
+
+		virtual const TextureViewDesc& GetDesc() const = 0;
+	};
+
+	class Sampler {
+	public:
+		virtual ~Sampler() = default;
+
+		virtual const SamplerDesc& GetDesc() const = 0;
+	};
 }

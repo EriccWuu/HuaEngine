@@ -253,6 +253,28 @@ namespace {
 		return 0;
 	}
 
+	GLint ToOpenGLSamplerFilter(HE::Rendering::SamplerFilter filter) {
+		switch (filter) {
+			case HE::Rendering::SamplerFilter::Nearest:
+				return GL_NEAREST;
+			case HE::Rendering::SamplerFilter::Linear:
+				return GL_LINEAR;
+		}
+
+		return GL_LINEAR;
+	}
+
+	GLint ToOpenGLSamplerAddressMode(HE::Rendering::SamplerAddressMode mode) {
+		switch (mode) {
+			case HE::Rendering::SamplerAddressMode::Repeat:
+				return GL_REPEAT;
+			case HE::Rendering::SamplerAddressMode::ClampToEdge:
+				return GL_CLAMP_TO_EDGE;
+		}
+
+		return GL_REPEAT;
+	}
+
 	bool ValidateTextureDesc(const HE::Rendering::TextureDesc& desc) {
 		if (!desc.SourcePath.empty()) {
 			return ValidateTextureFile(desc.SourcePath);
@@ -666,6 +688,43 @@ namespace HE::Rendering {
 		glBindTextureUnit(slot, m_RenderID);
 	}
 
+	OpenGLTextureView::OpenGLTextureView(const TextureViewDesc& desc)
+		: m_Desc(desc) {}
+
+	const TextureViewDesc& OpenGLTextureView::GetDesc() const {
+		return m_Desc;
+	}
+
+	void OpenGLTextureView::BindForCommandList(uint32_t slot) {
+		if (!m_Desc.Texture) {
+			return;
+		}
+
+		static_cast<OpenGLTextureResource&>(*m_Desc.Texture).BindForCommandList(slot);
+	}
+
+	OpenGLSampler::OpenGLSampler(const SamplerDesc& desc)
+		: m_Desc(desc) {
+		glCreateSamplers(1, &m_RenderID);
+		glSamplerParameteri(m_RenderID, GL_TEXTURE_MIN_FILTER, ToOpenGLSamplerFilter(m_Desc.MinFilter));
+		glSamplerParameteri(m_RenderID, GL_TEXTURE_MAG_FILTER, ToOpenGLSamplerFilter(m_Desc.MagFilter));
+		glSamplerParameteri(m_RenderID, GL_TEXTURE_WRAP_S, ToOpenGLSamplerAddressMode(m_Desc.AddressU));
+		glSamplerParameteri(m_RenderID, GL_TEXTURE_WRAP_T, ToOpenGLSamplerAddressMode(m_Desc.AddressV));
+		glSamplerParameteri(m_RenderID, GL_TEXTURE_WRAP_R, ToOpenGLSamplerAddressMode(m_Desc.AddressW));
+	}
+
+	OpenGLSampler::~OpenGLSampler() {
+		glDeleteSamplers(1, &m_RenderID);
+	}
+
+	const SamplerDesc& OpenGLSampler::GetDesc() const {
+		return m_Desc;
+	}
+
+	void OpenGLSampler::BindForCommandList(uint32_t slot) {
+		glBindSampler(slot, m_RenderID);
+	}
+
 	OpenGLShaderProgram::OpenGLShaderProgram(const ShaderProgramDesc& desc)
 		: m_Desc(desc), m_Shader(CreateRef<OpenGLShader>(desc.VertexSource, desc.FragmentSource)) {}
 
@@ -928,6 +987,23 @@ namespace HE::Rendering {
 
 					static_cast<OpenGLTextureResource&>(*value).BindForCommandList(entry.TextureSlot);
 					shaderProgram.SetInt(entry.Name, static_cast<int>(entry.TextureSlot));
+				}
+				else if constexpr (std::is_same_v<T, Ref<TextureView>>) {
+					if (!value) {
+						HE_CORE_WARN("CommandList::SetBindGroup skipped null texture view binding '{0}'", entry.Name);
+						return;
+					}
+
+					static_cast<OpenGLTextureView&>(*value).BindForCommandList(entry.TextureSlot);
+					shaderProgram.SetInt(entry.Name, static_cast<int>(entry.TextureSlot));
+				}
+				else if constexpr (std::is_same_v<T, Ref<Sampler>>) {
+					if (!value) {
+						HE_CORE_WARN("CommandList::SetBindGroup skipped null sampler binding '{0}'", entry.Name);
+						return;
+					}
+
+					static_cast<OpenGLSampler&>(*value).BindForCommandList(entry.TextureSlot);
 				}
 			}, entry.Value);
 		}
@@ -1246,6 +1322,27 @@ namespace HE::Rendering {
 		}
 
 		return CreateRef<OpenGLTextureResource>(desc);
+	}
+
+	Ref<TextureView> OpenGLRenderDevice::CreateTextureView(const TextureViewDesc& desc) {
+		if (!desc.Texture) {
+			HE_CORE_ERROR("Texture view source texture must not be null");
+			return nullptr;
+		}
+
+		const auto format = desc.Format == RenderTargetTextureFormat::None ? desc.Texture->GetDesc().Format : desc.Format;
+		if (format == RenderTargetTextureFormat::None || desc.MipLevelCount == 0) {
+			HE_CORE_ERROR("Invalid texture view description");
+			return nullptr;
+		}
+
+		TextureViewDesc normalizedDesc = desc;
+		normalizedDesc.Format = format;
+		return CreateRef<OpenGLTextureView>(normalizedDesc);
+	}
+
+	Ref<Sampler> OpenGLRenderDevice::CreateSampler(const SamplerDesc& desc) {
+		return CreateRef<OpenGLSampler>(desc);
 	}
 
 	Ref<ShaderProgram> OpenGLRenderDevice::CreateShaderProgram(const ShaderProgramDesc& desc) {

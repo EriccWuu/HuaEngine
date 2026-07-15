@@ -54,6 +54,8 @@ namespace HE::Rendering {
 		virtual Ref<VertexBufferView> CreateVertexBufferView(const VertexBufferViewDesc& desc) = 0;
 		virtual Ref<RenderTarget> CreateRenderTarget(const RenderTargetDesc& desc) = 0;
 		virtual Ref<TextureResource> CreateTexture(const TextureDesc& desc) = 0;
+		virtual Ref<TextureView> CreateTextureView(const TextureViewDesc& desc) = 0;
+		virtual Ref<Sampler> CreateSampler(const SamplerDesc& desc) = 0;
 		virtual Ref<ShaderProgram> CreateShaderProgram(const ShaderProgramDesc& desc) = 0;
 		virtual Ref<PipelineState> CreatePipelineState(const PipelineStateDesc& desc) = 0;
 		virtual Ref<BindGroupLayout> CreateBindGroupLayout(const BindGroupLayoutDesc& desc) = 0;

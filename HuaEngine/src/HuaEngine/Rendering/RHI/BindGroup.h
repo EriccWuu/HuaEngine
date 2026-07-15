@@ -26,7 +26,9 @@ namespace HE::Rendering {
 		Mat3,
 		Mat4,
 		IntArray,
-		Texture
+		Texture,
+		TextureView,
+		Sampler
 	};
 
 	using BindingValue = std::variant<
@@ -38,7 +40,9 @@ namespace HE::Rendering {
 		glm::mat3,
 		glm::mat4,
 		std::vector<int>,
-		Ref<TextureResource>
+		Ref<TextureResource>,
+		Ref<TextureView>,
+		Ref<Sampler>
 	>;
 
 	struct BindGroupLayoutEntry {

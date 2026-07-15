@@ -194,6 +194,62 @@ int main() {
 		.Format = HE::Rendering::RenderTargetTextureFormat::RGBA8,
 		.Usage = HE::Rendering::TextureUsageNone
 	}), "Expected texture without usage flags to fail");
+	auto textureView = device.CreateTextureView({
+		.Texture = emptyTexture,
+		.Format = HE::Rendering::RenderTargetTextureFormat::RGBA8,
+		.BaseMipLevel = 0,
+		.MipLevelCount = 1
+	});
+	Require(static_cast<bool>(textureView), "Expected texture view creation to succeed");
+	Require(textureView->GetDesc().Texture == emptyTexture, "Expected texture view resource to round-trip");
+	Require(textureView->GetDesc().Format == HE::Rendering::RenderTargetTextureFormat::RGBA8, "Expected texture view format to round-trip");
+	auto sampler = device.CreateSampler({
+		.MinFilter = HE::Rendering::SamplerFilter::Nearest,
+		.MagFilter = HE::Rendering::SamplerFilter::Linear,
+		.AddressU = HE::Rendering::SamplerAddressMode::ClampToEdge,
+		.AddressV = HE::Rendering::SamplerAddressMode::Repeat,
+		.AddressW = HE::Rendering::SamplerAddressMode::Repeat
+	});
+	Require(static_cast<bool>(sampler), "Expected sampler creation to succeed");
+	Require(sampler->GetDesc().MinFilter == HE::Rendering::SamplerFilter::Nearest, "Expected sampler min filter to round-trip");
+	Require(sampler->GetDesc().AddressU == HE::Rendering::SamplerAddressMode::ClampToEdge, "Expected sampler address mode to round-trip");
+	auto sampledTextureLayout = device.CreateBindGroupLayout({
+		.Scope = HE::Rendering::BindGroupScope::Material,
+		.Entries = {
+			{
+				.Name = "u_Texture",
+				.Type = HE::Rendering::BindingValueType::TextureView,
+				.Binding = 0
+			},
+			{
+				.Name = "u_TextureSampler",
+				.Type = HE::Rendering::BindingValueType::Sampler,
+				.Binding = 1
+			}
+		}
+	});
+	Require(static_cast<bool>(sampledTextureLayout), "Expected texture view/sampler layout creation to succeed");
+	auto sampledTextureBindGroup = device.CreateBindGroup({
+		.Layout = sampledTextureLayout,
+		.Entries = {
+			{
+				.Name = "u_Texture",
+				.Type = HE::Rendering::BindingValueType::TextureView,
+				.Value = textureView,
+				.Binding = 0,
+				.TextureSlot = 0
+			},
+			{
+				.Name = "u_TextureSampler",
+				.Type = HE::Rendering::BindingValueType::Sampler,
+				.Value = sampler,
+				.Binding = 1,
+				.TextureSlot = 0
+			}
+		}
+	});
+	Require(static_cast<bool>(sampledTextureBindGroup), "Expected texture view/sampler bind group creation to succeed");
+	Require(!device.CreateTextureView({}), "Expected empty texture view creation to fail");
 	device.GetImmediateCommandList().ResourceBarrier({
 		.Texture = texture,
 		.Before = HE::Rendering::ResourceState::Undefined,

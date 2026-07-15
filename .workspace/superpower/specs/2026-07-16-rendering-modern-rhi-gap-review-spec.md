@@ -418,3 +418,12 @@ P46 RenderTarget attachment aggregation
 - OpenGL backend 的 `ResourceBarrier()` 仍是 no-op 语义，但调用路径和 state tracking 已可被 smoke 覆盖。
 - `RHIResourceCreationSmoke` 已覆盖 graph execute 发出 `Undefined -> ShaderRead` barrier，以及重复 execute 不发重复 barrier。
 - `RenderingOperationsSmoke`、`RHICommandListBindingSmoke`、`RHIResourceCreationSmoke`、`RenderPassGraphSmoke` 已通过。
+
+### P42 实现结果
+
+- 新增 `TextureView` 与 `Sampler` RHI 对象，`RenderDevice` 已暴露 `CreateTextureView()` 与 `CreateSampler()`。
+- OpenGL backend 已新增 `OpenGLTextureView` 与 `OpenGLSampler`，sampler filter/address state 映射到 GL sampler object。
+- `BindingValueType` 与 `BindingValue` 已支持 `TextureView` 与 `Sampler`，并保留旧 `TextureResource` binding 作为兼容路径。
+- OpenGL `SetBindGroup()` 已支持绑定 texture view 与 sampler；texture view 当前复用底层 texture storage，不引入 `glTextureView`。
+- `RHIResourceCreationSmoke` 已覆盖 texture view 创建、sampler 创建、texture view + sampler bind group，以及空 texture view desc 拒绝路径。
+- `RenderingOperationsSmoke`、`RHICommandListBindingSmoke`、`RHIResourceCreationSmoke`、`RenderPassGraphSmoke` 已通过。
