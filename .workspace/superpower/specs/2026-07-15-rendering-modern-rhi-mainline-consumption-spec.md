@@ -350,3 +350,12 @@ P33 不应该同时做：
 - 旧 file-backed texture 路径继续可用，并会在创建后补齐 desc 中的尺寸、格式和 usage 信息。
 - `RHIResourceCreationSmoke` 已覆盖 file-backed texture、non-file-backed texture、空 desc、无 format、无 usage 等路径。
 - `RenderingOperationsSmoke`、`RHICommandListBindingSmoke`、`RHIResourceCreationSmoke`、`RenderPassGraphSmoke` 已通过。
+
+### P37 实现结果
+
+- `PassGraph` 已新增 `PassGraphBarrierExecutor` 与 `SetBarrierExecutor()`，作为 barrier plan 执行 hook。
+- `PassGraph::Execute()` 已按 pass index 在 pass callback 前执行匹配的 `PassGraphResourceBarrier`。
+- 当前阶段仍不伪造真实 `TextureResource` barrier；graph resource name 到真实 runtime resource 的映射留给后续资源生命周期阶段。
+- barrier executor 为空时保持 no-op 兼容，现有 graph 执行路径不受影响。
+- `RenderPassGraphSmoke` 已覆盖 barrier execution order。
+- `RenderingOperationsSmoke`、`RHICommandListBindingSmoke`、`RHIResourceCreationSmoke`、`RenderPassGraphSmoke` 已通过。

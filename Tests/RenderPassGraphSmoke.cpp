@@ -212,6 +212,35 @@ int main() {
 	Require(lifetimes[0].FirstPassIndex == 0 && lifetimes[0].LastPassIndex == 0, "Expected imported resource lifetime to cover typed pass");
 	Require(lifetimes[1].FirstPassIndex == 0 && lifetimes[1].LastPassIndex == 0, "Expected transient resource lifetime to cover typed pass");
 
+	std::vector<std::string> barrierExecutionOrder;
+	HE::Rendering::PassGraph barrierExecutionGraph;
+	barrierExecutionGraph.AddImportedResource({
+		.Name = "ImportedColor",
+		.Kind = HE::Rendering::RenderGraphResourceKind::Texture,
+		.Texture = {
+			.Width = 64,
+			.Height = 64,
+			.Format = HE::Rendering::RenderTargetTextureFormat::RGBA8
+		}
+	});
+	barrierExecutionGraph.AddPass({
+		.Name = "BarrierBeforePass",
+		.Inputs = { "ImportedColor" },
+		.Execute = [&](HE::Rendering::RenderPassContext&) {
+			barrierExecutionOrder.push_back("pass:BarrierBeforePass");
+		}
+	});
+	barrierExecutionGraph.SetBarrierExecutor([&](
+		const HE::Rendering::PassGraphResourceBarrier& barrier,
+		HE::Rendering::RenderPassContext&) {
+		barrierExecutionOrder.push_back("barrier:" + barrier.ResourceName);
+	});
+	HE::Rendering::RenderPassContext barrierExecutionContext;
+	Require(barrierExecutionGraph.Execute(barrierExecutionContext), "Expected graph with barrier executor to execute");
+	Require(barrierExecutionOrder.size() == 2, "Expected one barrier and one pass event");
+	Require(barrierExecutionOrder[0] == "barrier:ImportedColor", "Expected barrier to execute before pass");
+	Require(barrierExecutionOrder[1] == "pass:BarrierBeforePass", "Expected pass to execute after barrier");
+
 	std::cout << "RenderPassGraphSmoke passed" << std::endl;
 	return 0;
 }

@@ -52,10 +52,13 @@ namespace HE::Rendering {
 		ResourceState After = ResourceState::Undefined;
 	};
 
+	using PassGraphBarrierExecutor = std::function<void(const PassGraphResourceBarrier&, RenderPassContext&)>;
+
 	class PassGraph {
 	public:
 		void AddPass(PassGraphPassDesc pass);
 		void AddExternalInput(std::string resourceName);
+		void SetBarrierExecutor(PassGraphBarrierExecutor executor);
 		RenderGraphResourceHandle AddImportedResource(RenderGraphResourceDesc desc);
 		RenderGraphResourceHandle AddTransientResource(RenderGraphResourceDesc desc);
 		[[nodiscard]] bool Compile();
@@ -76,6 +79,7 @@ namespace HE::Rendering {
 		RenderGraphResourceAllocator m_ResourceAllocator;
 		std::vector<PassGraphDiagnostic> m_Diagnostics;
 		std::vector<PassGraphResourceBarrier> m_BarrierPlan;
+		PassGraphBarrierExecutor m_BarrierExecutor;
 		PassGraphStats m_Stats;
 		bool m_Compiled = false;
 	};

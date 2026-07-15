@@ -38,6 +38,10 @@ namespace HE::Rendering {
 		m_Compiled = false;
 	}
 
+	void PassGraph::SetBarrierExecutor(PassGraphBarrierExecutor executor) {
+		m_BarrierExecutor = std::move(executor);
+	}
+
 	RenderGraphResourceHandle PassGraph::AddImportedResource(RenderGraphResourceDesc desc) {
 		AddExternalInput(desc.Name);
 		const auto handle = m_ResourceAllocator.AddImportedResource(std::move(desc));
@@ -272,8 +276,16 @@ namespace HE::Rendering {
 			return false;
 		}
 
-		for (const auto& pass : m_Passes) {
-			pass.Execute(context);
+		for (uint32_t passIndex = 0; passIndex < m_Passes.size(); ++passIndex) {
+			if (m_BarrierExecutor) {
+				for (const auto& barrier : m_BarrierPlan) {
+					if (barrier.PassIndex == passIndex) {
+						m_BarrierExecutor(barrier, context);
+					}
+				}
+			}
+
+			m_Passes[passIndex].Execute(context);
 		}
 
 		return true;
@@ -285,6 +297,7 @@ namespace HE::Rendering {
 		m_ResourceAllocator.Reset();
 		m_Diagnostics.clear();
 		m_BarrierPlan.clear();
+		m_BarrierExecutor = nullptr;
 		m_Stats = {};
 		m_Compiled = false;
 	}
