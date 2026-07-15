@@ -545,7 +545,9 @@ int main() {
 	Require(unfinishedCommandBuffer->Begin(), "Expected unfinished command buffer begin to succeed");
 	Require(unfinishedCommandBuffer->IsRecording(), "Expected unfinished command buffer to report recording state");
 	Require(!unfinishedCommandBuffer->IsExecutable(), "Expected unfinished command buffer to not be executable");
-	Require(!device.GetGraphicsQueue().Submit(*unfinishedCommandBuffer), "Expected recording command buffer submit to fail");
+	const auto unfinishedSubmit = device.GetGraphicsQueue().Submit(*unfinishedCommandBuffer);
+	Require(!unfinishedSubmit, "Expected recording command buffer submit to fail");
+	Require(unfinishedSubmit.SignalValue == 0, "Expected failed submit to have no signal value");
 	unfinishedCommandBuffer->Reset();
 	Require(!unfinishedCommandBuffer->IsRecording(), "Expected reset command buffer to clear recording state");
 	Require(!unfinishedCommandBuffer->IsExecutable(), "Expected reset command buffer to clear executable state");
@@ -587,7 +589,16 @@ int main() {
 	Require(recordedCommandBuffer->End(), "Expected recorded command buffer end to succeed");
 	Require(!recordedCommandBuffer->IsRecording(), "Expected ended command buffer to clear recording state");
 	Require(recordedCommandBuffer->IsExecutable(), "Expected ended command buffer to be executable");
-	Require(device.GetGraphicsQueue().Submit(*recordedCommandBuffer), "Expected executable command buffer submit to succeed");
+	const auto firstSubmit = device.GetGraphicsQueue().Submit(*recordedCommandBuffer);
+	Require(firstSubmit, "Expected executable command buffer submit to succeed");
+	Require(firstSubmit.SignalValue > 0, "Expected successful submit to return a signal value");
+	Require(firstSubmit.SignalFence != nullptr, "Expected successful submit to return a signal fence");
+	Require(firstSubmit.SignalFence->GetCompletedValue() == firstSubmit.SignalValue, "Expected fence completed value to match submitted signal value");
+	const auto secondSubmit = device.GetGraphicsQueue().Submit(*recordedCommandBuffer);
+	Require(secondSubmit, "Expected repeated executable command buffer submit to succeed");
+	Require(secondSubmit.SignalValue == firstSubmit.SignalValue + 1, "Expected queue signal value to increase monotonically");
+	Require(secondSubmit.SignalFence == firstSubmit.SignalFence, "Expected graphics queue to reuse its timeline fence");
+	Require(secondSubmit.SignalFence->GetCompletedValue() == secondSubmit.SignalValue, "Expected fence completed value to track the latest signal value");
 	VerifyRenderTargetSamples(renderTarget);
 	recordedCommandBuffer->Reset();
 	Require(!recordedCommandBuffer->IsExecutable(), "Expected reset recorded command buffer to clear executable state");

@@ -41,10 +41,38 @@ namespace HE::Rendering {
 		virtual bool RecordDrawIndexed(uint32_t indexCount) = 0;
 	};
 
+	class Fence {
+	public:
+		virtual ~Fence() = default;
+
+		virtual uint64_t GetCompletedValue() const = 0;
+	};
+
+	struct QueueSubmitDesc {
+		CommandBuffer* CommandBufferPtr = nullptr;
+	};
+
+	struct QueueSubmitResult {
+		bool Succeeded = false;
+		uint64_t SignalValue = 0;
+		Fence* SignalFence = nullptr;
+
+		operator bool() const { return Succeeded; }
+	};
+
 	class RenderQueue {
 	public:
 		virtual ~RenderQueue() = default;
 
-		virtual bool Submit(CommandBuffer& commandBuffer) = 0;
+		virtual QueueSubmitResult Submit(CommandBuffer& commandBuffer) = 0;
+		virtual QueueSubmitResult Submit(const QueueSubmitDesc& desc) {
+			if (!desc.CommandBufferPtr) {
+				return {};
+			}
+
+			return Submit(*desc.CommandBufferPtr);
+		}
+
+		virtual Fence& GetTimelineFence() = 0;
 	};
 }

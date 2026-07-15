@@ -81,10 +81,22 @@ namespace HE::Rendering {
 	public:
 		explicit OpenGLRenderQueue(CommandList* immediateCommandList = nullptr);
 
-		bool Submit(CommandBuffer& commandBuffer) override;
+		QueueSubmitResult Submit(CommandBuffer& commandBuffer) override;
+		Fence& GetTimelineFence() override;
 
 	private:
+		class OpenGLFence final : public Fence {
+		public:
+			uint64_t GetCompletedValue() const override { return m_CompletedValue; }
+			void Signal(uint64_t value) { m_CompletedValue = value; }
+
+		private:
+			uint64_t m_CompletedValue = 0;
+		};
+
 		CommandList* m_ImmediateCommandList = nullptr;
+		OpenGLFence m_TimelineFence;
+		uint64_t m_NextSignalValue = 0;
 	};
 
 	class OpenGLGpuBuffer final : public GpuBuffer {

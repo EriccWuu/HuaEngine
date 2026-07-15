@@ -446,3 +446,13 @@ P46 RenderTarget attachment aggregation
 - pipeline cache entry 已改用 material schema signature，不再依赖临时 layout entries。
 - `RHIResourceCreationSmoke` 已覆盖 schema 排序、binding 编号、signature 与 override 稳定性。
 - `RenderingOperationsSmoke`、`RHICommandListBindingSmoke`、`RHIResourceCreationSmoke`、`RenderPassGraphSmoke` 已通过。
+
+### P45 实现结果
+
+- 新增 `Fence`、`QueueSubmitDesc` 与 `QueueSubmitResult`。
+- `RenderQueue::Submit(CommandBuffer&)` 已返回 `QueueSubmitResult`，并通过隐式 `operator bool()` 保持旧 success/failure 判断兼容。
+- `RenderQueue` 已提供 `Submit(const QueueSubmitDesc&)` convenience path 和 `GetTimelineFence()`。
+- OpenGL graphics queue 已使用 CPU-side timeline fence 模拟同步；成功 submit 会递增 signal value 并更新 completed value。
+- invalid/recording/non-executable submit 会返回失败结果，signal value 为 0。
+- `RHICommandListBindingSmoke` 已覆盖失败 submit、成功 submit、连续 submit signal 递增，以及 fence completed value。
+- `RenderingOperationsSmoke`、`RHICommandListBindingSmoke`、`RHIResourceCreationSmoke`、`RenderPassGraphSmoke` 已通过。

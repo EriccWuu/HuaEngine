@@ -1382,30 +1382,40 @@ namespace HE::Rendering {
 	OpenGLRenderQueue::OpenGLRenderQueue(CommandList* immediateCommandList)
 		: m_ImmediateCommandList(immediateCommandList) {}
 
-	bool OpenGLRenderQueue::Submit(CommandBuffer& commandBuffer) {
+	QueueSubmitResult OpenGLRenderQueue::Submit(CommandBuffer& commandBuffer) {
 		if (commandBuffer.GetDesc().Usage != CommandBufferUsage::Graphics) {
 			HE_CORE_WARN("OpenGL graphics queue skipped non-graphics command buffer");
-			return false;
+			return {};
 		}
 
 		if (!commandBuffer.IsExecutable()) {
 			HE_CORE_WARN("OpenGL graphics queue skipped non-executable command buffer");
-			return false;
+			return {};
 		}
 
 		if (!m_ImmediateCommandList) {
 			HE_CORE_WARN("OpenGL graphics queue skipped command buffer because no immediate command list is available");
-			return false;
+			return {};
 		}
 
 		auto* openGLCommandBuffer = dynamic_cast<OpenGLCommandBuffer*>(&commandBuffer);
 		if (!openGLCommandBuffer) {
 			HE_CORE_WARN("OpenGL graphics queue skipped incompatible command buffer");
-			return false;
+			return {};
 		}
 
 		openGLCommandBuffer->Replay(*m_ImmediateCommandList);
-		return true;
+		const uint64_t signalValue = ++m_NextSignalValue;
+		m_TimelineFence.Signal(signalValue);
+		return {
+			.Succeeded = true,
+			.SignalValue = signalValue,
+			.SignalFence = &m_TimelineFence
+		};
+	}
+
+	Fence& OpenGLRenderQueue::GetTimelineFence() {
+		return m_TimelineFence;
 	}
 
 	OpenGLRenderDevice::OpenGLRenderDevice()
