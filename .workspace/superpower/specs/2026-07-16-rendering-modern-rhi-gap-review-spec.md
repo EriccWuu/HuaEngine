@@ -436,3 +436,13 @@ P46 RenderTarget attachment aggregation
 - Forward `BindTargetPass` 已绑定 depth/stencil attachment 并清 depth，使默认 depth pipeline state 在主路径真实生效。
 - `RHICommandListBindingSmoke` 已覆盖 GL state query，以及 color target format mismatch 不写入 render target。
 - `RenderingOperationsSmoke`、`RHICommandListBindingSmoke`、`RHIResourceCreationSmoke`、`RenderPassGraphSmoke` 已通过。
+
+### P44 实现结果
+
+- 新增 `MaterialBindingSchema` 与 `MaterialBindingSchemaEntry`，作为 material bind group layout 的稳定描述。
+- `Material::GetBindingSchema()` 已按参数名稳定排序并生成 schema signature；material instance override value 不改变 base material schema signature。
+- `RenderBindGroupBuilder` 已支持基于 schema 创建 material bind group layout，并支持使用 cached layout 创建 bind group。
+- `RenderResourceResolver` 已新增 material bind group layout cache，cache key 使用 schema signature。
+- pipeline cache entry 已改用 material schema signature，不再依赖临时 layout entries。
+- `RHIResourceCreationSmoke` 已覆盖 schema 排序、binding 编号、signature 与 override 稳定性。
+- `RenderingOperationsSmoke`、`RHICommandListBindingSmoke`、`RHIResourceCreationSmoke`、`RenderPassGraphSmoke` 已通过。

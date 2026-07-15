@@ -2,7 +2,16 @@
 #include "Material.h"
 #include "HuaEngine/Core/Log.h"
 
+#include <algorithm>
+#include <sstream>
+
 namespace HE::Rendering {
+	namespace {
+		bool IsSchemaParameterType(MaterialParameterType type)
+		{
+			return type != MaterialParameterType::FloatArray;
+		}
+	}
 
 	// Material implementation
 	Material::Material(const std::string& name, MaterialType type)
@@ -40,6 +49,46 @@ namespace HE::Rendering {
 	{
 		auto it = m_Parameters.find(name);
 		return (it != m_Parameters.end()) ? &it->second : nullptr;
+	}
+
+	MaterialBindingSchema Material::GetBindingSchema() const
+	{
+		std::vector<const MaterialParameter*> parameters;
+		parameters.reserve(m_Parameters.size());
+		for (const auto& [name, parameter] : m_Parameters)
+		{
+			if (IsSchemaParameterType(parameter.Type))
+			{
+				parameters.push_back(&parameter);
+			}
+		}
+
+		std::sort(parameters.begin(), parameters.end(), [](const MaterialParameter* lhs, const MaterialParameter* rhs) {
+			return lhs->Name < rhs->Name;
+		});
+
+		MaterialBindingSchema schema;
+		schema.Entries.reserve(parameters.size());
+		std::ostringstream signature;
+		for (const auto* parameter : parameters)
+		{
+			const uint32_t binding = static_cast<uint32_t>(schema.Entries.size());
+			const uint32_t textureSlot = GetTextureSlot(parameter->Name);
+			schema.Entries.push_back({
+				.Name = parameter->Name,
+				.Type = parameter->Type,
+				.Binding = binding,
+				.TextureSlot = textureSlot
+			});
+			signature
+				<< parameter->Name << '#'
+				<< static_cast<uint32_t>(parameter->Type) << '#'
+				<< binding << '#'
+				<< textureSlot << ';';
+		}
+
+		schema.Signature = signature.str();
+		return schema;
 	}
 
 	void Material::SetTextureSlot(const std::string& name, uint32_t slot)

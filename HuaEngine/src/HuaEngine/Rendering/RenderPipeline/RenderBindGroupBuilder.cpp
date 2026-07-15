@@ -79,6 +79,7 @@ namespace HE::Rendering {
 		void AddMaterialParameterEntry(
 			std::vector<BindGroupEntry>& entries,
 			const MaterialParameter& parameter,
+			uint32_t binding,
 			uint32_t textureSlot) {
 			if (parameter.Type == MaterialParameterType::FloatArray) {
 				return;
@@ -94,7 +95,7 @@ namespace HE::Rendering {
 					.Name = parameter.Name,
 					.Type = BindingValueType::Texture,
 					.Value = *texture,
-					.Binding = static_cast<uint32_t>(entries.size()),
+					.Binding = binding,
 					.TextureSlot = textureSlot
 				});
 				return;
@@ -111,7 +112,7 @@ namespace HE::Rendering {
 						.Name = parameter.Name,
 						.Type = ToBindingValueType(parameter.Type),
 						.Value = value,
-						.Binding = static_cast<uint32_t>(entries.size())
+						.Binding = binding
 					});
 				}
 			}, parameter.Value);
@@ -134,48 +135,58 @@ namespace HE::Rendering {
 		return CreateSingleMat4BindGroup(device, CreateObjectBindGroupLayout(device), "u_Transform", transform);
 	}
 
+	Ref<BindGroupLayout> CreateMaterialBindGroupLayout(RenderDevice& device, const MaterialBindingSchema& schema) {
+		if (schema.Entries.empty()) {
+			return nullptr;
+		}
+
+		std::vector<BindGroupLayoutEntry> layoutEntries;
+		layoutEntries.reserve(schema.Entries.size());
+		for (const auto& entry : schema.Entries) {
+			layoutEntries.push_back({
+				.Name = entry.Name,
+				.Type = ToBindingValueType(entry.Type),
+				.Binding = entry.Binding
+			});
+		}
+
+		return device.CreateBindGroupLayout({
+			.Scope = BindGroupScope::Material,
+			.Entries = std::move(layoutEntries)
+		});
+	}
+
 	Ref<BindGroup> CreateMaterialBindGroup(RenderDevice& device, const MaterialInstance& materialInstance) {
 		auto baseMaterial = materialInstance.GetBaseMaterial();
 		if (!baseMaterial) {
 			return nullptr;
 		}
 
-		std::vector<BindGroupEntry> entries;
-		entries.reserve(baseMaterial->GetParameters().size() + materialInstance.GetParameterOverrides().size());
+		return CreateMaterialBindGroup(device, materialInstance, CreateMaterialBindGroupLayout(device, baseMaterial->GetBindingSchema()));
+	}
 
-		for (const auto& [name, parameter] : baseMaterial->GetParameters()) {
-			const auto* overrideParameter = materialInstance.GetParameterOverride(name);
-			const auto& selectedParameter = overrideParameter ? *overrideParameter : parameter;
-			AddMaterialParameterEntry(entries, selectedParameter, baseMaterial->GetTextureSlot(name));
-		}
-
-		for (const auto& [name, parameter] : materialInstance.GetParameterOverrides()) {
-			if (baseMaterial->HasParameter(name)) {
-				continue;
-			}
-
-			AddMaterialParameterEntry(entries, parameter, baseMaterial->GetTextureSlot(name));
-		}
-
-		if (entries.empty()) {
+	Ref<BindGroup> CreateMaterialBindGroup(RenderDevice& device, const MaterialInstance& materialInstance, Ref<BindGroupLayout> layout) {
+		auto baseMaterial = materialInstance.GetBaseMaterial();
+		if (!baseMaterial || !layout) {
 			return nullptr;
 		}
 
-		std::vector<BindGroupLayoutEntry> layoutEntries;
-		layoutEntries.reserve(entries.size());
-		for (const auto& entry : entries) {
-			layoutEntries.push_back({
-				.Name = entry.Name,
-				.Type = entry.Type,
-				.Binding = entry.Binding
-			});
+		const auto schema = baseMaterial->GetBindingSchema();
+		std::vector<BindGroupEntry> entries;
+		entries.reserve(schema.Entries.size());
+
+		for (const auto& schemaEntry : schema.Entries) {
+			const auto* baseParameter = baseMaterial->GetParameter(schemaEntry.Name);
+			if (!baseParameter) {
+				continue;
+			}
+
+			const auto* overrideParameter = materialInstance.GetParameterOverride(schemaEntry.Name);
+			const auto& selectedParameter = overrideParameter ? *overrideParameter : *baseParameter;
+			AddMaterialParameterEntry(entries, selectedParameter, schemaEntry.Binding, schemaEntry.TextureSlot);
 		}
 
-		auto layout = device.CreateBindGroupLayout({
-			.Scope = BindGroupScope::Material,
-			.Entries = std::move(layoutEntries)
-		});
-		if (!layout) {
+		if (entries.empty()) {
 			return nullptr;
 		}
 

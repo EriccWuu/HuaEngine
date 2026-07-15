@@ -68,6 +68,21 @@ int main() {
 	Require(device.GetCapabilities().SupportsCommandSubmission, "Expected command submission support capability");
 	Require(!HE::Rendering::RenderHardwareInterface::CreateRenderDevice({ .Backend = HE::Rendering::RenderBackendType::Null }), "Expected unimplemented null backend creation to fail");
 
+	auto schemaMaterial = HE::Rendering::Material::Create("SchemaMaterial", HE::Rendering::MaterialType::Custom);
+	Require(static_cast<bool>(schemaMaterial), "Expected schema material creation to succeed");
+	schemaMaterial->AddParameter({ "u_Roughness", HE::Rendering::MaterialParameterType::Float, 0.5f });
+	schemaMaterial->AddParameter({ "u_BaseColor", HE::Rendering::MaterialParameterType::Vec4, glm::vec4(1.0f) });
+	const auto schema = schemaMaterial->GetBindingSchema();
+	Require(schema.Entries.size() == 2, "Expected material binding schema entries");
+	Require(schema.Entries[0].Name == "u_BaseColor", "Expected material binding schema to be sorted by name");
+	Require(schema.Entries[0].Binding == 0, "Expected first material schema binding");
+	Require(schema.Entries[1].Name == "u_Roughness", "Expected second material binding schema entry");
+	Require(!schema.Signature.empty(), "Expected material binding schema signature");
+	auto schemaInstance = schemaMaterial->CreateInstance();
+	Require(static_cast<bool>(schemaInstance), "Expected schema material instance creation to succeed");
+	schemaInstance->SetParameter("u_BaseColor", glm::vec4(0.25f, 0.5f, 0.75f, 1.0f));
+	Require(schemaMaterial->GetBindingSchema().Signature == schema.Signature, "Expected instance overrides to preserve base material schema signature");
+
 	float vertices[] = {
 		-0.5f, -0.5f, 0.0f,
 		 0.5f, -0.5f, 0.0f,

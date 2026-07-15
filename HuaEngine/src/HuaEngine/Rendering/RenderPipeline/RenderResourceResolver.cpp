@@ -49,23 +49,6 @@ namespace HE::Rendering {
 			return true;
 		}
 
-		bool BindGroupLayoutEntriesMatch(
-			const std::vector<BindGroupLayoutEntry>& lhs,
-			const std::vector<BindGroupLayoutEntry>& rhs) {
-			if (lhs.size() != rhs.size()) {
-				return false;
-			}
-
-			for (size_t index = 0; index < lhs.size(); ++index) {
-				if (lhs[index].Name != rhs[index].Name
-					|| lhs[index].Type != rhs[index].Type
-					|| lhs[index].Binding != rhs[index].Binding) {
-					return false;
-				}
-			}
-
-			return true;
-		}
 	}
 
 	RenderResourceResolver::RenderResourceResolver(HE::AssetResolver& assetResolver)
@@ -93,23 +76,50 @@ namespace HE::Rendering {
 		return m_ObjectBindGroupLayoutCache;
 	}
 
+	Ref<BindGroupLayout> RenderResourceResolver::GetMaterialBindGroupLayout(
+		RenderDevice& device,
+		const MaterialBindingSchema& schema,
+		RenderStats& stats) const {
+		if (schema.Signature.empty()) {
+			return nullptr;
+		}
+
+		for (const auto& entry : m_MaterialBindGroupLayoutCache) {
+			if (entry.SchemaSignature == schema.Signature) {
+				++stats.BindGroupLayoutCacheHits;
+				return entry.Layout;
+			}
+		}
+
+		++stats.BindGroupLayoutCacheMisses;
+		auto layout = CreateMaterialBindGroupLayout(device, schema);
+		if (layout) {
+			m_MaterialBindGroupLayoutCache.push_back({
+				.SchemaSignature = schema.Signature,
+				.Layout = layout
+			});
+		}
+
+		return layout;
+	}
+
 	Ref<PipelineState> RenderResourceResolver::GetPipelineState(
 		RenderDevice& device,
 		Ref<ShaderProgram> shaderProgram,
 		const BufferLayout& vertexLayout,
+		const std::string& materialSchemaSignature,
 		Ref<BindGroupLayout> frameBindGroupLayout,
 		Ref<BindGroupLayout> materialBindGroupLayout,
 		Ref<BindGroupLayout> objectBindGroupLayout,
 		RenderStats& stats) const {
-		if (!shaderProgram || !frameBindGroupLayout || !materialBindGroupLayout || !objectBindGroupLayout) {
+		if (!shaderProgram || materialSchemaSignature.empty() || !frameBindGroupLayout || !materialBindGroupLayout || !objectBindGroupLayout) {
 			return nullptr;
 		}
 
-		const auto& materialEntries = materialBindGroupLayout->GetDesc().Entries;
 		for (const auto& entry : m_PipelineStateCache) {
 			if (entry.Shader == shaderProgram
 				&& BufferLayoutsMatch(entry.VertexLayout, vertexLayout)
-				&& BindGroupLayoutEntriesMatch(entry.MaterialLayoutEntries, materialEntries)) {
+				&& entry.MaterialSchemaSignature == materialSchemaSignature) {
 				++stats.PipelineStateCacheHits;
 				return entry.PipelineState;
 			}
@@ -139,7 +149,7 @@ namespace HE::Rendering {
 			m_PipelineStateCache.push_back({
 				.Shader = shaderProgram,
 				.VertexLayout = vertexLayout,
-				.MaterialLayoutEntries = materialEntries,
+				.MaterialSchemaSignature = materialSchemaSignature,
 				.MaterialLayout = materialBindGroupLayout,
 				.PipelineState = pipelineState
 			});
@@ -227,9 +237,11 @@ namespace HE::Rendering {
 		auto& device = RenderHardwareInterface::GetDevice();
 		auto frameBindGroupLayout = GetFrameBindGroupLayout(device, stats);
 		auto objectBindGroupLayout = GetObjectBindGroupLayout(device, stats);
+		const auto materialBindingSchema = baseMaterial->GetBindingSchema();
+		auto materialBindGroupLayout = GetMaterialBindGroupLayout(device, materialBindingSchema, stats);
 
 		outResolvedItem.MaterialInstanceRef = materialInstance;
-		outResolvedItem.MaterialBindGroupRef = CreateMaterialBindGroup(device, *materialInstance);
+		outResolvedItem.MaterialBindGroupRef = CreateMaterialBindGroup(device, *materialInstance, materialBindGroupLayout);
 		if (!outResolvedItem.MaterialBindGroupRef || !outResolvedItem.MaterialBindGroupRef->GetDesc().Layout) {
 			AddDiagnostic(
 				diagnostics,
@@ -257,6 +269,7 @@ namespace HE::Rendering {
 			device,
 			outResolvedItem.ShaderProgramRef,
 			outResolvedItem.VertexBufferViewRef->GetDesc().Layout,
+			materialBindingSchema.Signature,
 			frameBindGroupLayout,
 			outResolvedItem.MaterialBindGroupRef->GetDesc().Layout,
 			objectBindGroupLayout,
