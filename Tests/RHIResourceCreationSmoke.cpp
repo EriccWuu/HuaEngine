@@ -138,6 +138,39 @@ int main() {
 	auto texture = device.CreateTexture({ .SourcePath = texturePath.generic_string() });
 	Require(static_cast<bool>(texture), "Expected texture resource creation to succeed");
 	Require(texture->GetWidth() > 0 && texture->GetHeight() > 0, "Expected texture dimensions");
+	Require(texture->GetDesc().Width == texture->GetWidth(), "Expected file-backed texture desc width to round-trip");
+	Require(texture->GetDesc().Height == texture->GetHeight(), "Expected file-backed texture desc height to round-trip");
+	Require(texture->GetDesc().Format == HE::Rendering::RenderTargetTextureFormat::RGBA8, "Expected file-backed texture format");
+	Require((texture->GetDesc().Usage & HE::Rendering::TextureUsageSampled) != 0, "Expected file-backed texture sampled usage");
+
+	auto emptyTexture = device.CreateTexture({
+		.Width = 32,
+		.Height = 16,
+		.Format = HE::Rendering::RenderTargetTextureFormat::RGBA8,
+		.Usage = HE::Rendering::TextureUsageSampled | HE::Rendering::TextureUsageCopyDst,
+		.MipLevels = 1,
+		.Samples = 1
+	});
+	Require(static_cast<bool>(emptyTexture), "Expected non-file-backed texture creation to succeed");
+	Require(emptyTexture->GetWidth() == 32, "Expected non-file-backed texture width");
+	Require(emptyTexture->GetHeight() == 16, "Expected non-file-backed texture height");
+	Require(emptyTexture->GetDesc().Format == HE::Rendering::RenderTargetTextureFormat::RGBA8, "Expected non-file-backed texture format");
+	Require((emptyTexture->GetDesc().Usage & HE::Rendering::TextureUsageCopyDst) != 0, "Expected non-file-backed texture usage");
+	Require(emptyTexture->GetDesc().MipLevels == 1, "Expected non-file-backed texture mip levels");
+	Require(emptyTexture->GetDesc().Samples == 1, "Expected non-file-backed texture sample count");
+	Require(!device.CreateTexture({}), "Expected empty texture description to fail");
+	Require(!device.CreateTexture({
+		.Width = 32,
+		.Height = 16,
+		.Format = HE::Rendering::RenderTargetTextureFormat::None,
+		.Usage = HE::Rendering::TextureUsageSampled
+	}), "Expected texture without a concrete format to fail");
+	Require(!device.CreateTexture({
+		.Width = 32,
+		.Height = 16,
+		.Format = HE::Rendering::RenderTargetTextureFormat::RGBA8,
+		.Usage = HE::Rendering::TextureUsageNone
+	}), "Expected texture without usage flags to fail");
 	device.GetImmediateCommandList().ResourceBarrier({
 		.Texture = texture,
 		.Before = HE::Rendering::ResourceState::Undefined,

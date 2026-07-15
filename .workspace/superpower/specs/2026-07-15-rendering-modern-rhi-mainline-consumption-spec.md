@@ -340,3 +340,13 @@ P33 不应该同时做：
 - `RHIResourceCreationSmoke` 已覆盖默认 contract、显式 contract round-trip 和非法 format 拒绝。
 - 本阶段只完成 contract 建模和创建期校验，暂不做 render pass active target 与 pipeline format 的 draw-time mismatch 检查。
 - `RenderingOperationsSmoke`、`RHICommandListBindingSmoke`、`RHIResourceCreationSmoke`、`RenderPassGraphSmoke` 已通过。
+
+### P36 实现结果
+
+- `TextureDesc` 已从单一 `SourcePath` 扩展为包含 `Width`、`Height`、`Format`、`Usage`、`MipLevels`、`Samples` 的 texture resource 描述。
+- 新增 `TextureUsageFlags`，覆盖 sampled、color attachment、depth/stencil attachment、copy src、copy dst 等基础用途。
+- 新增轻量 `TextureViewDesc` 与 `SamplerDesc`，作为后续 view/sampler 创建 API 的类型基础。
+- OpenGL `CreateTexture` 已支持无文件来源的 GPU texture storage 创建。
+- 旧 file-backed texture 路径继续可用，并会在创建后补齐 desc 中的尺寸、格式和 usage 信息。
+- `RHIResourceCreationSmoke` 已覆盖 file-backed texture、non-file-backed texture、空 desc、无 format、无 usage 等路径。
+- `RenderingOperationsSmoke`、`RHICommandListBindingSmoke`、`RHIResourceCreationSmoke`、`RenderPassGraphSmoke` 已通过。

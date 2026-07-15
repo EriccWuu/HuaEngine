@@ -238,6 +238,49 @@ namespace {
 		return true;
 	}
 
+	GLenum ToOpenGLTextureInternalFormat(HE::Rendering::RenderTargetTextureFormat format) {
+		switch (format) {
+			case HE::Rendering::RenderTargetTextureFormat::RGBA8:
+				return GL_RGBA8;
+			case HE::Rendering::RenderTargetTextureFormat::RED_INTEGER:
+				return GL_R32I;
+			case HE::Rendering::RenderTargetTextureFormat::DEPTH24_STENCIL8:
+				return GL_DEPTH24_STENCIL8;
+			case HE::Rendering::RenderTargetTextureFormat::None:
+				return 0;
+		}
+
+		return 0;
+	}
+
+	bool ValidateTextureDesc(const HE::Rendering::TextureDesc& desc) {
+		if (!desc.SourcePath.empty()) {
+			return ValidateTextureFile(desc.SourcePath);
+		}
+
+		if (desc.Width == 0 || desc.Height == 0) {
+			HE_CORE_ERROR("Texture dimensions must be greater than zero");
+			return false;
+		}
+
+		if (desc.Format == HE::Rendering::RenderTargetTextureFormat::None || ToOpenGLTextureInternalFormat(desc.Format) == 0) {
+			HE_CORE_ERROR("Texture format must be concrete and supported");
+			return false;
+		}
+
+		if (desc.Usage == HE::Rendering::TextureUsageNone) {
+			HE_CORE_ERROR("Texture usage flags must not be empty");
+			return false;
+		}
+
+		if (desc.MipLevels == 0 || desc.Samples == 0) {
+			HE_CORE_ERROR("Texture mip levels and samples must be greater than zero");
+			return false;
+		}
+
+		return true;
+	}
+
 	bool IsColorTargetFormat(HE::Rendering::RenderTargetTextureFormat format) {
 		switch (format) {
 			case HE::Rendering::RenderTargetTextureFormat::RGBA8:
@@ -562,40 +605,45 @@ namespace HE::Rendering {
 
 	OpenGLTextureResource::OpenGLTextureResource(const TextureDesc& desc)
 		: m_Desc(desc) {
-		stbi_set_flip_vertically_on_load(true);
-		int width = 0;
-		int height = 0;
-		int channels = 0;
-		stbi_uc* data = stbi_load(m_Desc.SourcePath.c_str(), &width, &height, &channels, 0);
-		HE_CORE_ASSERT(data, "Failed to load image data");
+		if (!m_Desc.SourcePath.empty()) {
+			stbi_set_flip_vertically_on_load(true);
+			int width = 0;
+			int height = 0;
+			int channels = 0;
+			stbi_uc* data = stbi_load(m_Desc.SourcePath.c_str(), &width, &height, &channels, 4);
+			HE_CORE_ASSERT(data, "Failed to load image data");
 
-		m_Width = static_cast<uint32_t>(width);
-		m_Height = static_cast<uint32_t>(height);
+			m_Width = static_cast<uint32_t>(width);
+			m_Height = static_cast<uint32_t>(height);
+			m_Desc.Width = m_Width;
+			m_Desc.Height = m_Height;
+			m_Desc.Format = RenderTargetTextureFormat::RGBA8;
+			m_Desc.Usage = TextureUsageSampled;
+			m_Desc.MipLevels = 1;
+			m_Desc.Samples = 1;
 
-		GLenum internalFormat = 0;
-		GLenum format = 0;
-		switch (channels) {
-			case 3:
-				internalFormat = GL_RGB8;
-				format = GL_RGB;
-				break;
-			case 4:
-				internalFormat = GL_RGBA8;
-				format = GL_RGBA;
-				break;
-			default:
-				break;
+			glCreateTextures(GL_TEXTURE_2D, 1, &m_RenderID);
+			glTextureStorage2D(m_RenderID, 1, GL_RGBA8, m_Width, m_Height);
+			glTextureParameteri(m_RenderID, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+			glTextureParameteri(m_RenderID, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+			glTextureSubImage2D(m_RenderID, 0, 0, 0, m_Width, m_Height, GL_RGBA, GL_UNSIGNED_BYTE, data);
+
+			stbi_image_free(data);
+			return;
 		}
 
-		HE_CORE_ASSERT(internalFormat != 0 && format != 0, "Image format not supported");
+		m_Width = m_Desc.Width;
+		m_Height = m_Desc.Height;
 
 		glCreateTextures(GL_TEXTURE_2D, 1, &m_RenderID);
-		glTextureStorage2D(m_RenderID, 1, internalFormat, m_Width, m_Height);
+		glTextureStorage2D(
+			m_RenderID,
+			static_cast<GLsizei>(m_Desc.MipLevels),
+			ToOpenGLTextureInternalFormat(m_Desc.Format),
+			static_cast<GLsizei>(m_Width),
+			static_cast<GLsizei>(m_Height));
 		glTextureParameteri(m_RenderID, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
 		glTextureParameteri(m_RenderID, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
-		glTextureSubImage2D(m_RenderID, 0, 0, 0, m_Width, m_Height, format, GL_UNSIGNED_BYTE, data);
-
-		stbi_image_free(data);
 	}
 
 	OpenGLTextureResource::~OpenGLTextureResource() {
@@ -1042,12 +1090,7 @@ namespace HE::Rendering {
 	}
 
 	Ref<TextureResource> OpenGLRenderDevice::CreateTexture(const TextureDesc& desc) {
-		if (desc.SourcePath.empty()) {
-			HE_CORE_ERROR("Texture source path must not be empty");
-			return nullptr;
-		}
-
-		if (!ValidateTextureFile(desc.SourcePath)) {
+		if (!ValidateTextureDesc(desc)) {
 			return nullptr;
 		}
 
