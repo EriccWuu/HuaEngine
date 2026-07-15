@@ -418,6 +418,61 @@ int main() {
 	commands.EndRenderPass();
 	VerifyRenderTargetCleared(renderTarget);
 
+	auto unfinishedCommandBuffer = device.CreateCommandBuffer({
+		.Usage = HE::Rendering::CommandBufferUsage::Graphics,
+		.DebugName = "RHICommandListBindingSmoke unfinished recorded commands"
+	});
+	Require(static_cast<bool>(unfinishedCommandBuffer), "Expected unfinished command buffer creation to succeed");
+	Require(unfinishedCommandBuffer->Begin(), "Expected unfinished command buffer begin to succeed");
+	Require(unfinishedCommandBuffer->IsRecording(), "Expected unfinished command buffer to report recording state");
+	Require(!unfinishedCommandBuffer->IsExecutable(), "Expected unfinished command buffer to not be executable");
+	Require(!device.GetGraphicsQueue().Submit(*unfinishedCommandBuffer), "Expected recording command buffer submit to fail");
+	unfinishedCommandBuffer->Reset();
+	Require(!unfinishedCommandBuffer->IsRecording(), "Expected reset command buffer to clear recording state");
+	Require(!unfinishedCommandBuffer->IsExecutable(), "Expected reset command buffer to clear executable state");
+
+	auto recordedCommandBuffer = device.CreateCommandBuffer({
+		.Usage = HE::Rendering::CommandBufferUsage::Graphics,
+		.DebugName = "RHICommandListBindingSmoke recorded draw"
+	});
+	Require(static_cast<bool>(recordedCommandBuffer), "Expected recorded command buffer creation to succeed");
+	Require(recordedCommandBuffer->Begin(), "Expected recorded command buffer begin to succeed");
+	Require(recordedCommandBuffer->RecordBeginRenderPass({
+		.ColorAttachments = {
+			{
+				.Target = renderTarget,
+				.AttachmentIndex = 0,
+				.Load = HE::Rendering::LoadOp::Clear,
+				.Store = HE::Rendering::StoreOp::Store,
+				.ClearColor = { 0.1f, 0.1f, 0.1f, 1.0f }
+			}
+		}
+	}), "Expected command buffer to record render pass begin");
+	Require(recordedCommandBuffer->RecordSetPipelineState(*pipelineState), "Expected command buffer to record pipeline state");
+	Require(recordedCommandBuffer->RecordSetVertexBuffer(0, {
+		.Buffer = vertexBuffer,
+		.Offset = 0,
+		.Stride = 3 * sizeof(float)
+	}), "Expected command buffer to record vertex buffer binding");
+	Require(recordedCommandBuffer->RecordSetIndexBuffer({
+		.Buffer = indexBuffer,
+		.Offset = 0,
+		.Format = HE::Rendering::IndexFormat::UInt32,
+		.IndexCount = 3
+	}), "Expected command buffer to record index buffer binding");
+	Require(recordedCommandBuffer->RecordSetBindGroup(0, *frameBindGroup), "Expected command buffer to record frame bind group");
+	Require(recordedCommandBuffer->RecordSetBindGroup(1, *materialBindGroup), "Expected command buffer to record material bind group");
+	Require(recordedCommandBuffer->RecordSetBindGroup(2, *objectBindGroup), "Expected command buffer to record object bind group");
+	Require(recordedCommandBuffer->RecordDrawIndexed(3), "Expected command buffer to record indexed draw");
+	Require(recordedCommandBuffer->RecordEndRenderPass(), "Expected command buffer to record render pass end");
+	Require(recordedCommandBuffer->End(), "Expected recorded command buffer end to succeed");
+	Require(!recordedCommandBuffer->IsRecording(), "Expected ended command buffer to clear recording state");
+	Require(recordedCommandBuffer->IsExecutable(), "Expected ended command buffer to be executable");
+	Require(device.GetGraphicsQueue().Submit(*recordedCommandBuffer), "Expected executable command buffer submit to succeed");
+	VerifyRenderTargetSamples(renderTarget);
+	recordedCommandBuffer->Reset();
+	Require(!recordedCommandBuffer->IsExecutable(), "Expected reset recorded command buffer to clear executable state");
+
 	std::cout << "RHICommandListBindingSmoke passed" << std::endl;
 	return 0;
 }

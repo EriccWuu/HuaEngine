@@ -1010,18 +1010,169 @@ namespace HE::Rendering {
 		return m_Desc;
 	}
 
-	void OpenGLRenderQueue::Submit(CommandBuffer& commandBuffer) {
+	bool OpenGLCommandBuffer::Begin() {
+		if (m_IsRecording) {
+			HE_CORE_WARN("OpenGLCommandBuffer::Begin skipped because command buffer is already recording");
+			return false;
+		}
+
+		m_Commands.clear();
+		m_IsRecording = true;
+		m_IsExecutable = false;
+		return true;
+	}
+
+	bool OpenGLCommandBuffer::End() {
+		if (!m_IsRecording) {
+			HE_CORE_WARN("OpenGLCommandBuffer::End skipped because command buffer is not recording");
+			return false;
+		}
+
+		m_IsRecording = false;
+		m_IsExecutable = true;
+		return true;
+	}
+
+	void OpenGLCommandBuffer::Reset() {
+		m_Commands.clear();
+		m_IsRecording = false;
+		m_IsExecutable = false;
+	}
+
+	bool OpenGLCommandBuffer::IsRecording() const {
+		return m_IsRecording;
+	}
+
+	bool OpenGLCommandBuffer::IsExecutable() const {
+		return m_IsExecutable;
+	}
+
+	bool OpenGLCommandBuffer::CanRecord() const {
+		if (!m_IsRecording) {
+			HE_CORE_WARN("OpenGLCommandBuffer record skipped because command buffer is not recording");
+			return false;
+		}
+
+		return true;
+	}
+
+	bool OpenGLCommandBuffer::RecordBeginRenderPass(const RenderPassDesc& desc) {
+		if (!CanRecord()) {
+			return false;
+		}
+
+		m_Commands.push_back([desc](CommandList& commandList) {
+			commandList.BeginRenderPass(desc);
+		});
+		return true;
+	}
+
+	bool OpenGLCommandBuffer::RecordEndRenderPass() {
+		if (!CanRecord()) {
+			return false;
+		}
+
+		m_Commands.push_back([](CommandList& commandList) {
+			commandList.EndRenderPass();
+		});
+		return true;
+	}
+
+	bool OpenGLCommandBuffer::RecordSetPipelineState(PipelineState& pipelineState) {
+		if (!CanRecord()) {
+			return false;
+		}
+
+		m_Commands.push_back([pipelineStatePtr = &pipelineState](CommandList& commandList) {
+			commandList.SetPipelineState(*pipelineStatePtr);
+		});
+		return true;
+	}
+
+	bool OpenGLCommandBuffer::RecordSetVertexBuffer(uint32_t slot, const VertexBufferBinding& binding) {
+		if (!CanRecord()) {
+			return false;
+		}
+
+		m_Commands.push_back([slot, binding](CommandList& commandList) {
+			commandList.SetVertexBuffer(slot, binding);
+		});
+		return true;
+	}
+
+	bool OpenGLCommandBuffer::RecordSetIndexBuffer(const IndexBufferBinding& binding) {
+		if (!CanRecord()) {
+			return false;
+		}
+
+		m_Commands.push_back([binding](CommandList& commandList) {
+			commandList.SetIndexBuffer(binding);
+		});
+		return true;
+	}
+
+	bool OpenGLCommandBuffer::RecordSetBindGroup(uint32_t slot, BindGroup& bindGroup) {
+		if (!CanRecord()) {
+			return false;
+		}
+
+		m_Commands.push_back([slot, bindGroupPtr = &bindGroup](CommandList& commandList) {
+			commandList.SetBindGroup(slot, *bindGroupPtr);
+		});
+		return true;
+	}
+
+	bool OpenGLCommandBuffer::RecordDrawIndexed(uint32_t indexCount) {
+		if (!CanRecord()) {
+			return false;
+		}
+
+		m_Commands.push_back([indexCount](CommandList& commandList) {
+			commandList.DrawIndexed(indexCount);
+		});
+		return true;
+	}
+
+	void OpenGLCommandBuffer::Replay(CommandList& commandList) {
+		for (const auto& command : m_Commands) {
+			command(commandList);
+		}
+	}
+
+	OpenGLRenderQueue::OpenGLRenderQueue(CommandList* immediateCommandList)
+		: m_ImmediateCommandList(immediateCommandList) {}
+
+	bool OpenGLRenderQueue::Submit(CommandBuffer& commandBuffer) {
 		if (commandBuffer.GetDesc().Usage != CommandBufferUsage::Graphics) {
 			HE_CORE_WARN("OpenGL graphics queue skipped non-graphics command buffer");
-			return;
+			return false;
 		}
+
+		if (!commandBuffer.IsExecutable()) {
+			HE_CORE_WARN("OpenGL graphics queue skipped non-executable command buffer");
+			return false;
+		}
+
+		if (!m_ImmediateCommandList) {
+			HE_CORE_WARN("OpenGL graphics queue skipped command buffer because no immediate command list is available");
+			return false;
+		}
+
+		auto* openGLCommandBuffer = dynamic_cast<OpenGLCommandBuffer*>(&commandBuffer);
+		if (!openGLCommandBuffer) {
+			HE_CORE_WARN("OpenGL graphics queue skipped incompatible command buffer");
+			return false;
+		}
+
+		openGLCommandBuffer->Replay(*m_ImmediateCommandList);
+		return true;
 	}
 
 	OpenGLRenderDevice::OpenGLRenderDevice()
 		: OpenGLRenderDevice(RenderDeviceDesc{}) {}
 
 	OpenGLRenderDevice::OpenGLRenderDevice(const RenderDeviceDesc& desc)
-		: m_Desc(desc) {
+		: m_Desc(desc), m_GraphicsQueue(&m_ImmediateCommandList) {
 		m_Capabilities.Backend = RenderBackendType::OpenGL;
 		m_Capabilities.BackendName = "OpenGL";
 		m_Capabilities.SupportsPipelineState = true;

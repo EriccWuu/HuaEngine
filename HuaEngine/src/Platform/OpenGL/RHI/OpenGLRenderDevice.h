@@ -1,5 +1,6 @@
 #pragma once
 
+#include <functional>
 #include <vector>
 
 #include "HuaEngine/Rendering/RHI/CommandList.h"
@@ -50,14 +51,40 @@ namespace HE::Rendering {
 		explicit OpenGLCommandBuffer(const CommandBufferDesc& desc);
 
 		const CommandBufferDesc& GetDesc() const override;
+		bool Begin() override;
+		bool End() override;
+		void Reset() override;
+		bool IsRecording() const override;
+		bool IsExecutable() const override;
+
+		bool RecordBeginRenderPass(const RenderPassDesc& desc) override;
+		bool RecordEndRenderPass() override;
+		bool RecordSetPipelineState(PipelineState& pipelineState) override;
+		bool RecordSetVertexBuffer(uint32_t slot, const VertexBufferBinding& binding) override;
+		bool RecordSetIndexBuffer(const IndexBufferBinding& binding) override;
+		bool RecordSetBindGroup(uint32_t slot, BindGroup& bindGroup) override;
+		bool RecordDrawIndexed(uint32_t indexCount) override;
+		void Replay(CommandList& commandList);
 
 	private:
+		using RecordedCommand = std::function<void(CommandList&)>;
+
+		bool CanRecord() const;
+
 		CommandBufferDesc m_Desc;
+		std::vector<RecordedCommand> m_Commands;
+		bool m_IsRecording = false;
+		bool m_IsExecutable = false;
 	};
 
 	class OpenGLRenderQueue final : public RenderQueue {
 	public:
-		void Submit(CommandBuffer& commandBuffer) override;
+		explicit OpenGLRenderQueue(CommandList* immediateCommandList = nullptr);
+
+		bool Submit(CommandBuffer& commandBuffer) override;
+
+	private:
+		CommandList* m_ImmediateCommandList = nullptr;
 	};
 
 	class OpenGLGpuBuffer final : public GpuBuffer {
