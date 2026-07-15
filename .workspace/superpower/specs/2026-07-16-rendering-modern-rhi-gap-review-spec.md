@@ -408,3 +408,13 @@ P46 RenderTarget attachment aggregation
 - 纯图 `RenderPassGraphSmoke` 不提供 device，因此保持无 GL context 兼容。
 - `RHIResourceCreationSmoke` 已覆盖 imported runtime texture binding 与 transient texture allocation。
 - `RenderingOperationsSmoke`、`RHICommandListBindingSmoke`、`RHIResourceCreationSmoke`、`RenderPassGraphSmoke` 已通过。
+
+### P41 实现结果
+
+- 新增 `ResourceStateTracker`，按 texture runtime identity 记录当前 resource state。
+- `ResourceStateTracker::Transition()` 会在状态变化时生成 `ResourceBarrier`，同状态重复 transition 不发 barrier。
+- `RenderPassContext` 已新增 `ResourceStateTracker* ResourceStates`。
+- `PassGraph::Execute()` 已能从 barrier plan 和 runtime resource table 解析真实 texture，并调用 `CommandList::ResourceBarrier()`。
+- OpenGL backend 的 `ResourceBarrier()` 仍是 no-op 语义，但调用路径和 state tracking 已可被 smoke 覆盖。
+- `RHIResourceCreationSmoke` 已覆盖 graph execute 发出 `Undefined -> ShaderRead` barrier，以及重复 execute 不发重复 barrier。
+- `RenderingOperationsSmoke`、`RHICommandListBindingSmoke`、`RHIResourceCreationSmoke`、`RenderPassGraphSmoke` 已通过。

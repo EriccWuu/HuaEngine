@@ -5,6 +5,9 @@
 #include <unordered_map>
 #include <unordered_set>
 
+#include "HuaEngine/Rendering/RHI/CommandList.h"
+#include "HuaEngine/Rendering/RHI/ResourceStateTracker.h"
+
 namespace HE::Rendering {
 	namespace {
 		void AddDiagnostic(
@@ -281,9 +284,20 @@ namespace HE::Rendering {
 		}
 
 		for (uint32_t passIndex = 0; passIndex < m_Passes.size(); ++passIndex) {
-			if (m_BarrierExecutor) {
-				for (const auto& barrier : m_BarrierPlan) {
-					if (barrier.PassIndex == passIndex) {
+			for (const auto& barrier : m_BarrierPlan) {
+				if (barrier.PassIndex == passIndex) {
+					if (context.Commands && context.ResourceStates) {
+						const auto handle = m_ResourceAllocator.FindByName(barrier.ResourceName);
+						const auto* runtimeResource = m_ResourceAllocator.GetRuntimeResource(handle);
+						if (runtimeResource && runtimeResource->Texture) {
+							ResourceBarrier emittedBarrier;
+							if (context.ResourceStates->Transition(runtimeResource->Texture, barrier.After, emittedBarrier)) {
+								context.Commands->ResourceBarrier(emittedBarrier);
+							}
+						}
+					}
+
+					if (m_BarrierExecutor) {
 						m_BarrierExecutor(barrier, context);
 					}
 				}

@@ -22,6 +22,7 @@ namespace HE::Rendering {
 	class CommandList;
 	class RenderDevice;
 	class RenderResourceResolver;
+	class ResourceStateTracker;
 
 	struct RenderView {
 		Ref<Camera> CameraRef;
@@ -111,6 +112,7 @@ namespace HE::Rendering {
 		const RenderResourceResolver* ResourceResolver = nullptr;
 		CommandList* Commands = nullptr;
 		RenderDevice* Device = nullptr;
+		ResourceStateTracker* ResourceStates = nullptr;
 		RenderStats* Stats = nullptr;
 		std::vector<RenderDiagnostic>* Diagnostics = nullptr;
 	};

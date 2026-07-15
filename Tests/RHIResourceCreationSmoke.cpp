@@ -1,12 +1,14 @@
 #include <cstdlib>
 #include <iostream>
 #include <string>
+#include <vector>
 
 #include "HuaEngine.h"
 #include "HuaEngine/Core/ResourcePaths.h"
 #include "HuaEngine/Rendering/RenderPipeline/PassGraph.h"
 #include "HuaEngine/Rendering/RHI/CommandList.h"
 #include "HuaEngine/Rendering/RHI/ResourceBarrier.h"
+#include "HuaEngine/Rendering/RHI/ResourceStateTracker.h"
 #include "HuaEngine/Rendering/RHI/RenderHardwareInterface.h"
 
 namespace {
@@ -29,6 +31,26 @@ namespace {
 	public:
 		SmokeApplication()
 			: HE::Application(MakeApplicationSpecification()) {}
+	};
+
+	class BarrierCaptureCommandList final : public HE::Rendering::CommandList {
+	public:
+		std::vector<HE::Rendering::ResourceBarrier> Barriers;
+
+		void BeginRenderPass(const HE::Rendering::RenderPassDesc&) override {}
+		void EndRenderPass() override {}
+		void ResourceBarrier(const HE::Rendering::ResourceBarrier& barrier) override { Barriers.push_back(barrier); }
+		void BeginRenderTarget(HE::Rendering::RenderTarget&) override {}
+		void ClearColor(const glm::vec4&) override {}
+		void BeginFrame() override {}
+		void SetPipelineState(HE::Rendering::PipelineState&) override {}
+		void SetVertexBuffer(uint32_t, const HE::Rendering::VertexBufferBinding&) override {}
+		void SetIndexBuffer(const HE::Rendering::IndexBufferBinding&) override {}
+		void SetVertexBufferView(HE::Rendering::VertexBufferView&) override {}
+		void SetBindGroup(uint32_t, HE::Rendering::BindGroup&) override {}
+		void DrawIndexed(uint32_t) override {}
+		void EndFrame() override {}
+		void EndRenderTarget() override {}
 	};
 }
 
@@ -215,6 +237,37 @@ int main() {
 	Require(transientRuntimeResource->Texture->GetDesc().Width == 16, "Expected transient graph texture width");
 	Require(transientRuntimeResource->Texture->GetDesc().Height == 8, "Expected transient graph texture height");
 	Require(transientRuntimeResource->Texture->GetDesc().Format == HE::Rendering::RenderTargetTextureFormat::RGBA8, "Expected transient graph texture format");
+
+	HE::Rendering::PassGraph stateTrackedGraph;
+	stateTrackedGraph.AddImportedResource({
+		.Name = "TrackedImportedTexture",
+		.Kind = HE::Rendering::RenderGraphResourceKind::Texture,
+		.Texture = {
+			.Width = emptyTexture->GetDesc().Width,
+			.Height = emptyTexture->GetDesc().Height,
+			.Format = emptyTexture->GetDesc().Format
+		},
+		.RuntimeTexture = emptyTexture
+	});
+	stateTrackedGraph.AddPass({
+		.Name = "ReadTrackedImportedTexture",
+		.Inputs = { "TrackedImportedTexture" },
+		.Execute = [](HE::Rendering::RenderPassContext&) {}
+	});
+	Require(stateTrackedGraph.Compile(), "Expected state tracked graph compile to succeed");
+	BarrierCaptureCommandList barrierCaptureCommands;
+	HE::Rendering::ResourceStateTracker resourceStates;
+	HE::Rendering::RenderPassContext stateTrackedContext;
+	stateTrackedContext.Device = &device;
+	stateTrackedContext.Commands = &barrierCaptureCommands;
+	stateTrackedContext.ResourceStates = &resourceStates;
+	Require(stateTrackedGraph.Execute(stateTrackedContext), "Expected state tracked graph execute to succeed");
+	Require(barrierCaptureCommands.Barriers.size() == 1, "Expected first graph execute to emit one resource barrier");
+	Require(barrierCaptureCommands.Barriers[0].Texture == emptyTexture, "Expected emitted barrier to reference imported runtime texture");
+	Require(barrierCaptureCommands.Barriers[0].Before == HE::Rendering::ResourceState::Undefined, "Expected first barrier before state");
+	Require(barrierCaptureCommands.Barriers[0].After == HE::Rendering::ResourceState::ShaderRead, "Expected first barrier after state");
+	Require(stateTrackedGraph.Execute(stateTrackedContext), "Expected repeated state tracked graph execute to succeed");
+	Require(barrierCaptureCommands.Barriers.size() == 1, "Expected repeated graph execute to avoid duplicate same-state barrier");
 
 	const std::string vertexSource = R"(
 		#version 330 core
