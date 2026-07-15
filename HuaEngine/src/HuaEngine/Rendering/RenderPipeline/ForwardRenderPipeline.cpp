@@ -50,6 +50,12 @@ namespace HE::Rendering {
 					.Store = StoreOp::Store,
 					.ClearColor = context.View->ClearColor
 				}
+			},
+			.DepthStencilAttachment = RenderPassDepthStencilAttachment{
+				.Target = context.View->Target,
+				.DepthLoad = context.View->ClearColorBuffer ? LoadOp::Clear : LoadOp::Load,
+				.DepthStore = StoreOp::Store,
+				.ClearDepth = 1.0f
 			}
 		});
 	}

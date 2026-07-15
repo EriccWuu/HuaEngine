@@ -427,3 +427,12 @@ P46 RenderTarget attachment aggregation
 - OpenGL `SetBindGroup()` 已支持绑定 texture view 与 sampler；texture view 当前复用底层 texture storage，不引入 `glTextureView`。
 - `RHIResourceCreationSmoke` 已覆盖 texture view 创建、sampler 创建、texture view + sampler bind group，以及空 texture view desc 拒绝路径。
 - `RenderingOperationsSmoke`、`RHICommandListBindingSmoke`、`RHIResourceCreationSmoke`、`RenderPassGraphSmoke` 已通过。
+
+### P43 实现结果
+
+- `OpenGLCommandList::SetPipelineState()` 已应用 raster/depth/blend/color write mask backend state。
+- `OpenGLCommandList::DrawIndexed()` 已在 draw 前校验当前 render target color/depth-stencil format 与 pipeline target contract。
+- render pass clear 与 `ClearColor()` 已显式恢复 color/depth write mask，避免 pipeline state 泄漏影响 clear 行为。
+- Forward `BindTargetPass` 已绑定 depth/stencil attachment 并清 depth，使默认 depth pipeline state 在主路径真实生效。
+- `RHICommandListBindingSmoke` 已覆盖 GL state query，以及 color target format mismatch 不写入 render target。
+- `RenderingOperationsSmoke`、`RHICommandListBindingSmoke`、`RHIResourceCreationSmoke`、`RenderPassGraphSmoke` 已通过。

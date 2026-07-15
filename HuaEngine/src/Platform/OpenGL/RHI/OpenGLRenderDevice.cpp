@@ -275,6 +275,75 @@ namespace {
 		return GL_REPEAT;
 	}
 
+	GLenum ToOpenGLBlendFactor(HE::Rendering::BlendFactor factor) {
+		switch (factor) {
+			case HE::Rendering::BlendFactor::Zero:
+				return GL_ZERO;
+			case HE::Rendering::BlendFactor::One:
+				return GL_ONE;
+			case HE::Rendering::BlendFactor::SrcAlpha:
+				return GL_SRC_ALPHA;
+			case HE::Rendering::BlendFactor::OneMinusSrcAlpha:
+				return GL_ONE_MINUS_SRC_ALPHA;
+		}
+
+		return GL_ONE;
+	}
+
+	GLenum ToOpenGLBlendOp(HE::Rendering::BlendOp op) {
+		switch (op) {
+			case HE::Rendering::BlendOp::Add:
+				return GL_FUNC_ADD;
+		}
+
+		return GL_FUNC_ADD;
+	}
+
+	GLenum ToOpenGLCompareOp(HE::Rendering::CompareOp op) {
+		switch (op) {
+			case HE::Rendering::CompareOp::Never:
+				return GL_NEVER;
+			case HE::Rendering::CompareOp::Less:
+				return GL_LESS;
+			case HE::Rendering::CompareOp::Equal:
+				return GL_EQUAL;
+			case HE::Rendering::CompareOp::LessEqual:
+				return GL_LEQUAL;
+			case HE::Rendering::CompareOp::Greater:
+				return GL_GREATER;
+			case HE::Rendering::CompareOp::NotEqual:
+				return GL_NOTEQUAL;
+			case HE::Rendering::CompareOp::GreaterEqual:
+				return GL_GEQUAL;
+			case HE::Rendering::CompareOp::Always:
+				return GL_ALWAYS;
+		}
+
+		return GL_LEQUAL;
+	}
+
+	GLenum ToOpenGLFrontFace(HE::Rendering::FrontFace frontFace) {
+		switch (frontFace) {
+			case HE::Rendering::FrontFace::CounterClockwise:
+				return GL_CCW;
+			case HE::Rendering::FrontFace::Clockwise:
+				return GL_CW;
+		}
+
+		return GL_CCW;
+	}
+
+	GLenum ToOpenGLPolygonMode(HE::Rendering::FillMode fillMode) {
+		switch (fillMode) {
+			case HE::Rendering::FillMode::Solid:
+				return GL_FILL;
+			case HE::Rendering::FillMode::Wireframe:
+				return GL_LINE;
+		}
+
+		return GL_FILL;
+	}
+
 	bool ValidateTextureDesc(const HE::Rendering::TextureDesc& desc) {
 		if (!desc.SourcePath.empty()) {
 			return ValidateTextureFile(desc.SourcePath);
@@ -344,6 +413,48 @@ namespace {
 
 		if (!IsDepthStencilFormat(desc.DepthStencil.Format)) {
 			HE_CORE_ERROR("Pipeline state depth/stencil format is invalid");
+			return false;
+		}
+
+		return true;
+	}
+
+	HE::Rendering::RenderTargetTextureFormat GetRenderTargetDepthStencilFormat(const HE::Rendering::RenderTarget& target) {
+		for (const auto& attachment : target.GetSpecification().Attachments.Attachments) {
+			if (attachment.Format != HE::Rendering::RenderTargetTextureFormat::None && IsDepthStencilFormat(attachment.Format)) {
+				return attachment.Format;
+			}
+		}
+
+		return HE::Rendering::RenderTargetTextureFormat::None;
+	}
+
+	bool PipelineMatchesCurrentRenderTarget(
+		const HE::Rendering::PipelineStateDesc& pipelineDesc,
+		const HE::Rendering::RenderTarget& renderTarget) {
+		const auto& targetAttachments = renderTarget.GetSpecification().Attachments.Attachments;
+		if (targetAttachments.empty()) {
+			HE_CORE_WARN("CommandList::DrawIndexed skipped because current render target has no attachments");
+			return false;
+		}
+
+		if (pipelineDesc.ColorTargets.size() != 1) {
+			HE_CORE_WARN("CommandList::DrawIndexed skipped because OpenGL backend currently supports exactly one pipeline color target");
+			return false;
+		}
+
+		const auto targetColorFormat = targetAttachments[0].Format;
+		const auto pipelineColorFormat = pipelineDesc.ColorTargets[0].Format;
+		if (targetColorFormat != pipelineColorFormat) {
+			HE_CORE_WARN("CommandList::DrawIndexed skipped because pipeline color target format does not match current render target");
+			return false;
+		}
+
+		const auto targetDepthStencilFormat = GetRenderTargetDepthStencilFormat(renderTarget);
+		const auto pipelineDepthStencilFormat = pipelineDesc.DepthStencil.Format;
+		if (pipelineDepthStencilFormat != HE::Rendering::RenderTargetTextureFormat::None
+			&& targetDepthStencilFormat != pipelineDepthStencilFormat) {
+			HE_CORE_WARN("CommandList::DrawIndexed skipped because pipeline depth/stencil format does not match current render target");
 			return false;
 		}
 
@@ -817,11 +928,13 @@ namespace HE::Rendering {
 		GLbitfield clearMask = 0;
 		if (colorAttachment.Load == LoadOp::Clear) {
 			const auto& clear = colorAttachment.ClearColor;
+			glColorMask(GL_TRUE, GL_TRUE, GL_TRUE, GL_TRUE);
 			glClearColor(clear.r, clear.g, clear.b, clear.a);
 			clearMask |= GL_COLOR_BUFFER_BIT;
 		}
 
 		if (desc.DepthStencilAttachment && desc.DepthStencilAttachment->DepthLoad == LoadOp::Clear) {
+			glDepthMask(GL_TRUE);
 			glClearDepth(desc.DepthStencilAttachment->ClearDepth);
 			clearMask |= GL_DEPTH_BUFFER_BIT;
 		}
@@ -852,6 +965,7 @@ namespace HE::Rendering {
 	}
 
 	void OpenGLCommandList::ClearColor(const glm::vec4& color) {
+		glColorMask(GL_TRUE, GL_TRUE, GL_TRUE, GL_TRUE);
 		glClearColor(color.r, color.g, color.b, color.a);
 		glClear(GL_COLOR_BUFFER_BIT);
 	}
@@ -861,9 +975,50 @@ namespace HE::Rendering {
 
 	void OpenGLCommandList::SetPipelineState(PipelineState& pipelineState) {
 		m_CurrentPipelineState = &pipelineState;
-		auto& shaderProgram = static_cast<OpenGLPipelineState&>(pipelineState).GetShaderProgram();
+		auto& openGLPipelineState = static_cast<OpenGLPipelineState&>(pipelineState);
+		const auto& pipelineDesc = openGLPipelineState.GetDesc();
+		auto& shaderProgram = openGLPipelineState.GetShaderProgram();
 		m_CurrentShaderProgram = &shaderProgram;
 		m_BoundBindGroupSlots.clear();
+
+		if (pipelineDesc.Raster.Cull == CullMode::None) {
+			glDisable(GL_CULL_FACE);
+		}
+		else {
+			glEnable(GL_CULL_FACE);
+			glCullFace(pipelineDesc.Raster.Cull == CullMode::Front ? GL_FRONT : GL_BACK);
+		}
+		glFrontFace(ToOpenGLFrontFace(pipelineDesc.Raster.FrontFaceMode));
+		glPolygonMode(GL_FRONT_AND_BACK, ToOpenGLPolygonMode(pipelineDesc.Raster.Fill));
+
+		if (pipelineDesc.DepthStencil.DepthTestEnabled) {
+			glEnable(GL_DEPTH_TEST);
+		}
+		else {
+			glDisable(GL_DEPTH_TEST);
+		}
+		glDepthMask(pipelineDesc.DepthStencil.DepthWriteEnabled ? GL_TRUE : GL_FALSE);
+		glDepthFunc(ToOpenGLCompareOp(pipelineDesc.DepthStencil.DepthCompare));
+
+		const auto& colorTarget = pipelineDesc.ColorTargets[0];
+		if (colorTarget.BlendEnabled) {
+			glEnable(GL_BLEND);
+			glBlendFuncSeparate(
+				ToOpenGLBlendFactor(colorTarget.SrcColor),
+				ToOpenGLBlendFactor(colorTarget.DstColor),
+				ToOpenGLBlendFactor(colorTarget.SrcAlpha),
+				ToOpenGLBlendFactor(colorTarget.DstAlpha));
+			glBlendEquationSeparate(ToOpenGLBlendOp(colorTarget.ColorOp), ToOpenGLBlendOp(colorTarget.AlphaOp));
+		}
+		else {
+			glDisable(GL_BLEND);
+		}
+		glColorMask(
+			(colorTarget.WriteMask & ColorWriteMaskRed) ? GL_TRUE : GL_FALSE,
+			(colorTarget.WriteMask & ColorWriteMaskGreen) ? GL_TRUE : GL_FALSE,
+			(colorTarget.WriteMask & ColorWriteMaskBlue) ? GL_TRUE : GL_FALSE,
+			(colorTarget.WriteMask & ColorWriteMaskAlpha) ? GL_TRUE : GL_FALSE);
+
 		static_cast<OpenGLShaderProgram&>(shaderProgram).BindForCommandList();
 		RebuildExplicitVertexArray();
 	}
@@ -1023,6 +1178,15 @@ namespace HE::Rendering {
 
 		if (!m_CurrentPipelineState) {
 			HE_CORE_WARN("CommandList::DrawIndexed skipped because no pipeline state is bound");
+			return;
+		}
+
+		if (!m_CurrentRenderTarget) {
+			HE_CORE_WARN("CommandList::DrawIndexed skipped because no render target is active");
+			return;
+		}
+
+		if (!PipelineMatchesCurrentRenderTarget(m_CurrentPipelineState->GetDesc(), *m_CurrentRenderTarget)) {
 			return;
 		}
 

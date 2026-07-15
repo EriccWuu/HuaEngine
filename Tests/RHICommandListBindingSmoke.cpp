@@ -6,6 +6,8 @@
 #include <sstream>
 #include <string>
 
+#include <glad/glad.h>
+
 #include "HuaEngine.h"
 #include "HuaEngine/Rendering/Camera.h"
 #include "HuaEngine/Rendering/RHI/CommandList.h"
@@ -73,6 +75,13 @@ namespace {
 		Require(
 			PixelNear(centerPixel, kExpectedClearPixel, kPixelTolerance),
 			"Expected pipeline switch without rebinding frame/object bind groups to skip drawing");
+	}
+
+	void VerifyRenderTargetCenterCleared(const HE::Ref<HE::Rendering::RenderTarget>& renderTarget, const std::string& message) {
+		const auto& actualTargetSpec = renderTarget->GetSpecification();
+		const auto centerPixel = renderTarget->ReadPixelRGBA8(0, actualTargetSpec.Width / 2, actualTargetSpec.Height / 2);
+
+		Require(PixelNear(centerPixel, kExpectedClearPixel, kPixelTolerance), message);
 	}
 
 	std::string ReadSourceFile(const std::filesystem::path& path) {
@@ -288,6 +297,11 @@ int main() {
 		.Shader = shaderProgram,
 		.VertexLayout = layout,
 		.Topology = HE::Rendering::PrimitiveTopology::TriangleList,
+		.DepthStencil = {
+			.Format = HE::Rendering::RenderTargetTextureFormat::None,
+			.DepthTestEnabled = false,
+			.DepthWriteEnabled = false
+		},
 		.BindGroupLayouts = {
 			{
 				.Slot = 0,
@@ -305,7 +319,90 @@ int main() {
 	});
 	Require(static_cast<bool>(pipelineState), "Expected pipeline state creation to succeed");
 
+	auto renderStateBackendPipeline = device.CreatePipelineState({
+		.Shader = shaderProgram,
+		.VertexLayout = layout,
+		.Topology = HE::Rendering::PrimitiveTopology::TriangleList,
+		.ColorTargets = {
+			{
+				.Format = HE::Rendering::RenderTargetTextureFormat::RGBA8,
+				.BlendEnabled = true,
+				.SrcColor = HE::Rendering::BlendFactor::SrcAlpha,
+				.DstColor = HE::Rendering::BlendFactor::OneMinusSrcAlpha,
+				.SrcAlpha = HE::Rendering::BlendFactor::One,
+				.DstAlpha = HE::Rendering::BlendFactor::Zero,
+				.WriteMask = HE::Rendering::ColorWriteMaskRed | HE::Rendering::ColorWriteMaskAlpha
+			}
+		},
+		.DepthStencil = {
+			.Format = HE::Rendering::RenderTargetTextureFormat::DEPTH24_STENCIL8,
+			.DepthTestEnabled = false,
+			.DepthWriteEnabled = false,
+			.DepthCompare = HE::Rendering::CompareOp::Always
+		},
+		.Raster = {
+			.Cull = HE::Rendering::CullMode::None,
+			.FrontFaceMode = HE::Rendering::FrontFace::Clockwise,
+			.Fill = HE::Rendering::FillMode::Wireframe
+		}
+	});
+	Require(static_cast<bool>(renderStateBackendPipeline), "Expected backend render state pipeline creation to succeed");
+
+	auto mismatchedColorTargetPipeline = device.CreatePipelineState({
+		.Shader = shaderProgram,
+		.VertexLayout = layout,
+		.Topology = HE::Rendering::PrimitiveTopology::TriangleList,
+		.ColorTargets = {
+			{
+				.Format = HE::Rendering::RenderTargetTextureFormat::RED_INTEGER
+			}
+		},
+		.BindGroupLayouts = {
+			{
+				.Slot = 0,
+				.Layout = frameBindGroupLayout
+			},
+			{
+				.Slot = 1,
+				.Layout = materialBindGroupLayout
+			},
+			{
+				.Slot = 2,
+				.Layout = objectBindGroupLayout
+			}
+		}
+	});
+	Require(static_cast<bool>(mismatchedColorTargetPipeline), "Expected mismatched color target pipeline creation to succeed");
+
 	auto& commands = device.GetImmediateCommandList();
+	commands.BeginFrame();
+	commands.SetPipelineState(*renderStateBackendPipeline);
+	Require(!glIsEnabled(GL_CULL_FACE), "Expected pipeline cull none to disable GL_CULL_FACE");
+	Require(!glIsEnabled(GL_DEPTH_TEST), "Expected pipeline depth disabled to disable GL_DEPTH_TEST");
+	Require(glIsEnabled(GL_BLEND), "Expected pipeline blend enabled to enable GL_BLEND");
+
+	GLboolean depthWriteMask = GL_TRUE;
+	glGetBooleanv(GL_DEPTH_WRITEMASK, &depthWriteMask);
+	Require(depthWriteMask == GL_FALSE, "Expected pipeline depth write disabled to clear GL_DEPTH_WRITEMASK");
+
+	GLboolean colorWriteMask[4] = { GL_TRUE, GL_TRUE, GL_TRUE, GL_TRUE };
+	glGetBooleanv(GL_COLOR_WRITEMASK, colorWriteMask);
+	Require(
+		colorWriteMask[0] == GL_TRUE
+			&& colorWriteMask[1] == GL_FALSE
+			&& colorWriteMask[2] == GL_FALSE
+			&& colorWriteMask[3] == GL_TRUE,
+		"Expected pipeline color write mask to map to GL_COLOR_WRITEMASK");
+
+	GLint frontFace = 0;
+	glGetIntegerv(GL_FRONT_FACE, &frontFace);
+	Require(frontFace == GL_CW, "Expected pipeline front face to map to GL_FRONT_FACE");
+
+	GLint polygonMode[2] = { 0, 0 };
+	glGetIntegerv(GL_POLYGON_MODE, polygonMode);
+	Require(polygonMode[0] == GL_LINE && polygonMode[1] == GL_LINE, "Expected pipeline fill mode to map to GL_POLYGON_MODE");
+	commands.EndFrame();
+
 	commands.BeginRenderPass({
 		.ColorAttachments = {
 			{
@@ -327,6 +424,28 @@ int main() {
 	commands.EndFrame();
 	commands.EndRenderPass();
 	VerifyRenderTargetSamples(renderTarget);
+
+	commands.BeginRenderPass({
+		.ColorAttachments = {
+			{
+				.Target = renderTarget,
+				.AttachmentIndex = 0,
+				.Load = HE::Rendering::LoadOp::Clear,
+				.Store = HE::Rendering::StoreOp::Store,
+				.ClearColor = { 0.1f, 0.1f, 0.1f, 1.0f }
+			}
+		}
+	});
+	commands.BeginFrame();
+	commands.SetPipelineState(*mismatchedColorTargetPipeline);
+	commands.SetBindGroup(0, *frameBindGroup);
+	commands.SetVertexBufferView(*vertexBufferView);
+	commands.SetBindGroup(1, *materialBindGroup);
+	commands.SetBindGroup(2, *objectBindGroup);
+	commands.DrawIndexed(vertexBufferView->GetDesc().IndexCount);
+	commands.EndFrame();
+	commands.EndRenderPass();
+	VerifyRenderTargetCenterCleared(renderTarget, "Expected color target format mismatch to skip draw");
 
 	commands.BeginRenderPass({
 		.ColorAttachments = {
