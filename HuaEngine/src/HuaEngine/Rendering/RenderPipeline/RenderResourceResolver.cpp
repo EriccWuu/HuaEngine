@@ -110,14 +110,41 @@ namespace HE::Rendering {
 			++stats.FallbackItems;
 		}
 
+		auto& device = RenderHardwareInterface::GetDevice();
+		auto frameBindGroupLayout = CreateFrameBindGroupLayout(device);
+		auto objectBindGroupLayout = CreateObjectBindGroupLayout(device);
+
 		outResolvedItem.MaterialInstanceRef = materialInstance;
-		outResolvedItem.MaterialBindGroupRef = CreateMaterialBindGroup(RenderHardwareInterface::GetDevice(), *materialInstance);
+		outResolvedItem.MaterialBindGroupRef = CreateMaterialBindGroup(device, *materialInstance);
+		if (!outResolvedItem.MaterialBindGroupRef || !outResolvedItem.MaterialBindGroupRef->GetDesc().Layout) {
+			AddDiagnostic(
+				diagnostics,
+				RenderDiagnosticCode::MissingMaterialInstance,
+				item.SourceEntity,
+				"Render item material bind group could not be created");
+			return false;
+		}
+
 		outResolvedItem.VertexBufferViewRef = mesh->GetVertexBufferView();
 		outResolvedItem.ShaderProgramRef = baseMaterial->GetShaderProgram();
-		outResolvedItem.PipelineStateRef = RenderHardwareInterface::GetDevice().CreatePipelineState({
+		outResolvedItem.PipelineStateRef = device.CreatePipelineState({
 			.Shader = outResolvedItem.ShaderProgramRef,
 			.VertexLayout = outResolvedItem.VertexBufferViewRef->GetDesc().Layout,
-			.Topology = PrimitiveTopology::TriangleList
+			.Topology = PrimitiveTopology::TriangleList,
+			.BindGroupLayouts = {
+				{
+					.Slot = 0,
+					.Layout = frameBindGroupLayout
+				},
+				{
+					.Slot = 1,
+					.Layout = outResolvedItem.MaterialBindGroupRef->GetDesc().Layout
+				},
+				{
+					.Slot = 2,
+					.Layout = objectBindGroupLayout
+				}
+			}
 		});
 		if (!outResolvedItem.PipelineStateRef) {
 			AddDiagnostic(

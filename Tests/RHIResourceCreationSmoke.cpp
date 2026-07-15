@@ -173,6 +173,50 @@ int main() {
 	});
 	Require(static_cast<bool>(bindGroup), "Expected bind group creation to succeed");
 	Require(bindGroup->GetDesc().Layout == bindGroupLayout, "Expected bind group layout to round-trip");
+
+	auto contractedPipelineState = device.CreatePipelineState({
+		.Shader = shaderProgram,
+		.VertexLayout = layout,
+		.Topology = HE::Rendering::PrimitiveTopology::TriangleList,
+		.BindGroupLayouts = {
+			{
+				.Slot = 1,
+				.Layout = bindGroupLayout
+			}
+		}
+	});
+	Require(static_cast<bool>(contractedPipelineState), "Expected contracted pipeline state creation to succeed");
+	Require(contractedPipelineState->GetDesc().BindGroupLayouts.size() == 1, "Expected pipeline bind group layout contract");
+	Require(contractedPipelineState->GetDesc().BindGroupLayouts[0].Slot == 1, "Expected material bind group slot contract");
+	Require(contractedPipelineState->GetDesc().BindGroupLayouts[0].Layout == bindGroupLayout, "Expected material bind group layout contract");
+
+	Require(!device.CreatePipelineState({
+		.Shader = shaderProgram,
+		.VertexLayout = layout,
+		.Topology = HE::Rendering::PrimitiveTopology::TriangleList,
+		.BindGroupLayouts = {
+			{
+				.Slot = 1,
+				.Layout = bindGroupLayout
+			},
+			{
+				.Slot = 1,
+				.Layout = bindGroupLayout
+			}
+		}
+	}), "Expected duplicate pipeline bind group layout slots to fail");
+	Require(!device.CreatePipelineState({
+		.Shader = shaderProgram,
+		.VertexLayout = layout,
+		.Topology = HE::Rendering::PrimitiveTopology::TriangleList,
+		.BindGroupLayouts = {
+			{
+				.Slot = 1,
+				.Layout = nullptr
+			}
+		}
+	}), "Expected null pipeline bind group layout to fail");
+
 	Require(!device.CreateBindGroupLayout({}), "Expected empty bind group layout creation to fail");
 	Require(!device.CreateBindGroup({}), "Expected empty bind group creation to fail");
 

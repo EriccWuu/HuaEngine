@@ -1,6 +1,7 @@
 #include "enginepch.h"
 #include "OpenGLRenderDevice.h"
 
+#include <algorithm>
 #include <filesystem>
 
 #include "glad/glad.h"
@@ -200,6 +201,43 @@ namespace {
 		glDeleteShader(fragmentShader);
 		return true;
 	}
+
+	bool BindGroupLayoutEntriesMatch(const HE::Rendering::BindGroupLayoutDesc& expected, const HE::Rendering::BindGroupLayoutDesc& actual) {
+		if (expected.Scope != actual.Scope || expected.Entries.size() != actual.Entries.size()) {
+			return false;
+		}
+
+		for (size_t i = 0; i < expected.Entries.size(); ++i) {
+			const auto& expectedEntry = expected.Entries[i];
+			const auto& actualEntry = actual.Entries[i];
+			if (expectedEntry.Name != actualEntry.Name || expectedEntry.Type != actualEntry.Type || expectedEntry.Binding != actualEntry.Binding) {
+				return false;
+			}
+		}
+
+		return true;
+	}
+
+	bool ValidatePipelineBindGroupLayouts(const HE::Rendering::PipelineStateDesc& desc) {
+		std::vector<uint32_t> slots;
+		slots.reserve(desc.BindGroupLayouts.size());
+
+		for (const auto& layoutRef : desc.BindGroupLayouts) {
+			if (!layoutRef.Layout) {
+				HE_CORE_ERROR("Pipeline state bind group layout slot {0} is null", layoutRef.Slot);
+				return false;
+			}
+
+			if (std::find(slots.begin(), slots.end(), layoutRef.Slot) != slots.end()) {
+				HE_CORE_ERROR("Pipeline state bind group layout slot {0} is duplicated", layoutRef.Slot);
+				return false;
+			}
+
+			slots.push_back(layoutRef.Slot);
+		}
+
+		return true;
+	}
 }
 
 namespace HE::Rendering {
@@ -333,6 +371,7 @@ namespace HE::Rendering {
 		: m_Desc(desc) {
 		HE_CORE_ASSERT(m_Desc.Shader, "PipelineState requires a shader program");
 		HE_CORE_ASSERT(!m_Desc.VertexLayout.GetElements().empty(), "PipelineState requires vertex input layout");
+		HE_CORE_ASSERT(ValidatePipelineBindGroupLayouts(m_Desc), "PipelineState bind group layout contract is invalid");
 	}
 
 	const PipelineStateDesc& OpenGLPipelineState::GetDesc() const {
@@ -584,9 +623,35 @@ namespace HE::Rendering {
 	}
 
 	void OpenGLCommandList::SetBindGroup(uint32_t slot, BindGroup& bindGroup) {
-		(void)slot;
 		if (!m_CurrentShaderProgram) {
 			HE_CORE_WARN("CommandList::SetBindGroup skipped because no shader program is bound");
+			return;
+		}
+
+		if (!m_CurrentPipelineState) {
+			HE_CORE_WARN("CommandList::SetBindGroup skipped because no pipeline state is bound");
+			return;
+		}
+
+		const auto& pipelineDesc = m_CurrentPipelineState->GetDesc();
+		const auto layoutIt = std::find_if(
+			pipelineDesc.BindGroupLayouts.begin(),
+			pipelineDesc.BindGroupLayouts.end(),
+			[slot](const PipelineBindGroupLayoutRef& layoutRef) {
+				return layoutRef.Slot == slot;
+			});
+		if (layoutIt == pipelineDesc.BindGroupLayouts.end()) {
+			HE_CORE_WARN("CommandList::SetBindGroup skipped because slot {0} is not declared by the current pipeline state", slot);
+			return;
+		}
+
+		if (!layoutIt->Layout || !bindGroup.GetDesc().Layout) {
+			HE_CORE_WARN("CommandList::SetBindGroup skipped because slot {0} has a null layout", slot);
+			return;
+		}
+
+		if (!BindGroupLayoutEntriesMatch(layoutIt->Layout->GetDesc(), bindGroup.GetDesc().Layout->GetDesc())) {
+			HE_CORE_WARN("CommandList::SetBindGroup skipped because slot {0} layout does not match the current pipeline state", slot);
 			return;
 		}
 
@@ -781,7 +846,7 @@ namespace HE::Rendering {
 	}
 
 	Ref<PipelineState> OpenGLRenderDevice::CreatePipelineState(const PipelineStateDesc& desc) {
-		if (!desc.Shader || desc.VertexLayout.GetElements().empty()) {
+		if (!desc.Shader || desc.VertexLayout.GetElements().empty() || !ValidatePipelineBindGroupLayouts(desc)) {
 			HE_CORE_ERROR("Invalid pipeline state description");
 			return nullptr;
 		}

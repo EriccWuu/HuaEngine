@@ -150,13 +150,6 @@ int main() {
 	});
 	Require(static_cast<bool>(shaderProgram), "Expected shader program creation to succeed");
 
-	auto pipelineState = device.CreatePipelineState({
-		.Shader = shaderProgram,
-		.VertexLayout = layout,
-		.Topology = HE::Rendering::PrimitiveTopology::TriangleList
-	});
-	Require(static_cast<bool>(pipelineState), "Expected pipeline state creation to succeed");
-
 	HE::Rendering::EditorCamera camera;
 	camera.SetViewport(64.0f, 64.0f);
 
@@ -232,6 +225,51 @@ int main() {
 	});
 	Require(static_cast<bool>(objectBindGroup), "Expected object bind group creation to succeed");
 
+	auto wrongObjectBindGroupLayout = device.CreateBindGroupLayout({
+		.Scope = HE::Rendering::BindGroupScope::Material,
+		.Entries = {
+			{
+				.Name = "u_Transform",
+				.Type = HE::Rendering::BindingValueType::Mat4,
+				.Binding = 0
+			}
+		}
+	});
+	Require(static_cast<bool>(wrongObjectBindGroupLayout), "Expected wrong object bind group layout creation to succeed");
+	auto wrongObjectBindGroup = device.CreateBindGroup({
+		.Layout = wrongObjectBindGroupLayout,
+		.Entries = {
+			{
+				.Name = "u_Transform",
+				.Type = HE::Rendering::BindingValueType::Mat4,
+				.Value = glm::mat4(1.0f),
+				.Binding = 0
+			}
+		}
+	});
+	Require(static_cast<bool>(wrongObjectBindGroup), "Expected wrong object bind group creation to succeed");
+
+	auto pipelineState = device.CreatePipelineState({
+		.Shader = shaderProgram,
+		.VertexLayout = layout,
+		.Topology = HE::Rendering::PrimitiveTopology::TriangleList,
+		.BindGroupLayouts = {
+			{
+				.Slot = 0,
+				.Layout = frameBindGroupLayout
+			},
+			{
+				.Slot = 1,
+				.Layout = materialBindGroupLayout
+			},
+			{
+				.Slot = 2,
+				.Layout = objectBindGroupLayout
+			}
+		}
+	});
+	Require(static_cast<bool>(pipelineState), "Expected pipeline state creation to succeed");
+
 	auto& commands = device.GetImmediateCommandList();
 	commands.BeginRenderPass({
 		.ColorAttachments = {
@@ -290,6 +328,28 @@ int main() {
 	commands.EndFrame();
 	commands.EndRenderTarget();
 	VerifyRenderTargetSamples(renderTarget);
+
+	commands.BeginRenderPass({
+		.ColorAttachments = {
+			{
+				.Target = renderTarget,
+				.AttachmentIndex = 0,
+				.Load = HE::Rendering::LoadOp::Clear,
+				.Store = HE::Rendering::StoreOp::Store,
+				.ClearColor = { 0.1f, 0.1f, 0.1f, 1.0f }
+			}
+		}
+	});
+	commands.BeginFrame(camera);
+	commands.SetPipelineState(*pipelineState);
+	commands.SetBindGroup(0, *frameBindGroup);
+	commands.SetVertexBufferView(*vertexBufferView);
+	commands.SetBindGroup(1, *materialBindGroup);
+	commands.SetBindGroup(2, *wrongObjectBindGroup);
+	commands.DrawIndexed(vertexBufferView->GetDesc().IndexCount);
+	commands.EndFrame();
+	commands.EndRenderPass();
+	VerifyRenderTargetCleared(renderTarget);
 
 	std::cout << "RHICommandListBindingSmoke passed" << std::endl;
 	return 0;

@@ -40,19 +40,9 @@ namespace HE::Rendering {
 
 		Ref<BindGroup> CreateSingleMat4BindGroup(
 			RenderDevice& device,
-			BindGroupScope scope,
+			Ref<BindGroupLayout> layout,
 			const char* name,
 			const glm::mat4& value) {
-			auto layout = device.CreateBindGroupLayout({
-				.Scope = scope,
-				.Entries = {
-					{
-						.Name = name,
-						.Type = BindingValueType::Mat4,
-						.Binding = 0
-					}
-				}
-			});
 			if (!layout) {
 				return nullptr;
 			}
@@ -64,6 +54,22 @@ namespace HE::Rendering {
 						.Name = name,
 						.Type = BindingValueType::Mat4,
 						.Value = value,
+						.Binding = 0
+					}
+				}
+			});
+		}
+
+		Ref<BindGroupLayout> CreateSingleMat4BindGroupLayout(
+			RenderDevice& device,
+			BindGroupScope scope,
+			const char* name) {
+			return device.CreateBindGroupLayout({
+				.Scope = scope,
+				.Entries = {
+					{
+						.Name = name,
+						.Type = BindingValueType::Mat4,
 						.Binding = 0
 					}
 				}
@@ -112,12 +118,20 @@ namespace HE::Rendering {
 		}
 	}
 
+	Ref<BindGroupLayout> CreateFrameBindGroupLayout(RenderDevice& device) {
+		return CreateSingleMat4BindGroupLayout(device, BindGroupScope::Frame, "u_ViewProjection");
+	}
+
+	Ref<BindGroupLayout> CreateObjectBindGroupLayout(RenderDevice& device) {
+		return CreateSingleMat4BindGroupLayout(device, BindGroupScope::Object, "u_Transform");
+	}
+
 	Ref<BindGroup> CreateFrameBindGroup(RenderDevice& device, const glm::mat4& viewProjection) {
-		return CreateSingleMat4BindGroup(device, BindGroupScope::Frame, "u_ViewProjection", viewProjection);
+		return CreateSingleMat4BindGroup(device, CreateFrameBindGroupLayout(device), "u_ViewProjection", viewProjection);
 	}
 
 	Ref<BindGroup> CreateObjectBindGroup(RenderDevice& device, const glm::mat4& transform) {
-		return CreateSingleMat4BindGroup(device, BindGroupScope::Object, "u_Transform", transform);
+		return CreateSingleMat4BindGroup(device, CreateObjectBindGroupLayout(device), "u_Transform", transform);
 	}
 
 	Ref<BindGroup> CreateMaterialBindGroup(RenderDevice& device, const MaterialInstance& materialInstance) {
