@@ -1,10 +1,11 @@
 #pragma once
 
+#include <vector>
+
 #include "HuaEngine/Rendering/RHI/CommandList.h"
 #include "HuaEngine/Rendering/RHI/RenderDevice.h"
 
 namespace HE::Rendering {
-	class Camera;
 	class OpenGLRenderTargetStorage;
 	class OpenGLShader;
 
@@ -18,7 +19,7 @@ namespace HE::Rendering {
 
 		void BeginRenderTarget(RenderTarget& target) override;
 		void ClearColor(const glm::vec4& color) override;
-		void BeginFrame(Camera& camera) override;
+		void BeginFrame() override;
 		void SetPipelineState(PipelineState& pipelineState) override;
 		void SetVertexBuffer(uint32_t slot, const VertexBufferBinding& binding) override;
 		void SetIndexBuffer(const IndexBufferBinding& binding) override;
@@ -33,17 +34,15 @@ namespace HE::Rendering {
 		void ReleaseExplicitVertexArray();
 
 		RenderTarget* m_CurrentRenderTarget = nullptr;
-		Camera* m_CurrentCamera = nullptr;
 		ShaderProgram* m_CurrentShaderProgram = nullptr;
 		PipelineState* m_CurrentPipelineState = nullptr;
 		VertexBufferView* m_CurrentVertexBufferView = nullptr;
+		std::vector<uint32_t> m_BoundBindGroupSlots;
 		VertexBufferBinding m_CurrentVertexBufferBinding;
 		IndexBufferBinding m_CurrentIndexBufferBinding;
 		uint32_t m_ExplicitVertexArray = 0;
 		bool m_HasExplicitVertexBuffer = false;
 		bool m_HasExplicitIndexBuffer = false;
-		bool m_HasFrameBindGroup = false;
-		bool m_HasObjectBindGroup = false;
 	};
 
 	class OpenGLCommandBuffer final : public CommandBuffer {

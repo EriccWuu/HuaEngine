@@ -1,6 +1,9 @@
 #include <cstdint>
 #include <cstdlib>
+#include <filesystem>
+#include <fstream>
 #include <iostream>
+#include <sstream>
 #include <string>
 
 #include "HuaEngine.h"
@@ -71,6 +74,37 @@ namespace {
 			PixelNear(centerPixel, kExpectedClearPixel, kPixelTolerance),
 			"Expected pipeline switch without rebinding frame/object bind groups to skip drawing");
 	}
+
+	std::string ReadSourceFile(const std::filesystem::path& path) {
+		std::ifstream stream(path);
+		if (!stream) {
+			return {};
+		}
+
+		std::stringstream buffer;
+		buffer << stream.rdbuf();
+		return buffer.str();
+	}
+
+	bool CommandListAvoidsRendererSpecificState() {
+		const auto root = std::filesystem::current_path();
+		const auto commandList = ReadSourceFile(root / "HuaEngine" / "src" / "HuaEngine" / "Rendering" / "RHI" / "CommandList.h");
+		const auto openGLCommandListHeader = ReadSourceFile(root / "HuaEngine" / "src" / "Platform" / "OpenGL" / "RHI" / "OpenGLRenderDevice.h");
+		const auto openGLCommandListSource = ReadSourceFile(root / "HuaEngine" / "src" / "Platform" / "OpenGL" / "RHI" / "OpenGLRenderDevice.cpp");
+
+		return !commandList.empty()
+			&& !openGLCommandListHeader.empty()
+			&& !openGLCommandListSource.empty()
+			&& commandList.find("Camera") == std::string::npos
+			&& commandList.find("BeginFrame(Camera") == std::string::npos
+			&& commandList.find("BeginFrame()") != std::string::npos
+			&& openGLCommandListHeader.find("m_HasFrameBindGroup") == std::string::npos
+			&& openGLCommandListHeader.find("m_HasObjectBindGroup") == std::string::npos
+			&& openGLCommandListSource.find("m_HasFrameBindGroup") == std::string::npos
+			&& openGLCommandListSource.find("m_HasObjectBindGroup") == std::string::npos
+			&& openGLCommandListSource.find("BindGroupScope::Frame") == std::string::npos
+			&& openGLCommandListSource.find("BindGroupScope::Object") == std::string::npos;
+	}
 }
 
 int main() {
@@ -78,6 +112,7 @@ int main() {
 
 	SmokeApplication application;
 	application.Start();
+	Require(CommandListAvoidsRendererSpecificState(), "Expected CommandList to avoid camera and frame/object-specific bind group state");
 
 	auto& device = HE::Rendering::RenderHardwareInterface::GetDevice();
 
@@ -282,7 +317,7 @@ int main() {
 			}
 		}
 	});
-	commands.BeginFrame(camera);
+	commands.BeginFrame();
 	commands.SetPipelineState(*pipelineState);
 	commands.SetBindGroup(0, *frameBindGroup);
 	commands.SetVertexBufferView(*vertexBufferView);
@@ -304,7 +339,7 @@ int main() {
 			}
 		}
 	});
-	commands.BeginFrame(camera);
+	commands.BeginFrame();
 	commands.SetPipelineState(*pipelineState);
 	commands.SetVertexBuffer(0, {
 		.Buffer = vertexBuffer,
@@ -336,7 +371,7 @@ int main() {
 			}
 		}
 	});
-	commands.BeginFrame(camera);
+	commands.BeginFrame();
 	commands.SetPipelineState(*pipelineState);
 	commands.SetBindGroup(0, *frameBindGroup);
 	commands.SetVertexBufferView(*vertexBufferView);
@@ -350,7 +385,7 @@ int main() {
 
 	commands.BeginRenderTarget(*renderTarget);
 	commands.ClearColor({ 0.1f, 0.1f, 0.1f, 1.0f });
-	commands.BeginFrame(camera);
+	commands.BeginFrame();
 	commands.SetPipelineState(*pipelineState);
 	commands.SetBindGroup(0, *frameBindGroup);
 	commands.SetVertexBufferView(*vertexBufferView);
@@ -372,7 +407,7 @@ int main() {
 			}
 		}
 	});
-	commands.BeginFrame(camera);
+	commands.BeginFrame();
 	commands.SetPipelineState(*pipelineState);
 	commands.SetBindGroup(0, *frameBindGroup);
 	commands.SetVertexBufferView(*vertexBufferView);

@@ -126,6 +126,18 @@ namespace HE::Rendering {
 		}
 
 		outResolvedItem.VertexBufferViewRef = mesh->GetVertexBufferView();
+		const auto& vertexBufferViewDesc = outResolvedItem.VertexBufferViewRef->GetDesc();
+		outResolvedItem.VertexBinding = {
+			.Buffer = vertexBufferViewDesc.VertexBuffer,
+			.Offset = 0,
+			.Stride = vertexBufferViewDesc.VertexBuffer ? vertexBufferViewDesc.VertexBuffer->GetDesc().Stride : 0
+		};
+		outResolvedItem.IndexBinding = {
+			.Buffer = vertexBufferViewDesc.IndexBuffer,
+			.Offset = 0,
+			.Format = vertexBufferViewDesc.IndexFormatValue,
+			.IndexCount = vertexBufferViewDesc.IndexCount
+		};
 		outResolvedItem.ShaderProgramRef = baseMaterial->GetShaderProgram();
 		outResolvedItem.PipelineStateRef = device.CreatePipelineState({
 			.Shader = outResolvedItem.ShaderProgramRef,

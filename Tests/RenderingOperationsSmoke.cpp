@@ -1,6 +1,7 @@
 #include <cstdlib>
 #include <cstdint>
 #include <filesystem>
+#include <fstream>
 #include <iostream>
 #include <algorithm>
 #include <string>
@@ -120,6 +121,20 @@ namespace {
 			return diagnostic.Code == code;
 		}));
 	}
+
+	bool ForwardPipelineUsesExplicitVertexIndexBinding() {
+		const std::filesystem::path sourcePath =
+			std::filesystem::current_path() / "HuaEngine" / "src" / "HuaEngine" / "Rendering" / "RenderPipeline" / "ForwardRenderPipeline.cpp";
+		std::ifstream source(sourcePath);
+		if (!source.is_open()) {
+			return false;
+		}
+
+		const std::string content((std::istreambuf_iterator<char>(source)), std::istreambuf_iterator<char>());
+		return content.find("SetVertexBufferView") == std::string::npos
+			&& content.find("SetVertexBuffer(") != std::string::npos
+			&& content.find("SetIndexBuffer(") != std::string::npos;
+	}
 }
 
 int main() {
@@ -127,6 +142,7 @@ int main() {
 
 	SmokeApplication application;
 	application.Start();
+	Require(ForwardPipelineUsesExplicitVertexIndexBinding(), "Expected ForwardRenderPipeline main draw path to use explicit vertex/index binding");
 
 	auto& operations = application.GetOperations();
 	Require(operations.Supports("rendering.attach_scene_viewport"), "Expected rendering.attach_scene_viewport to be registered");

@@ -7,7 +7,6 @@
 #include "glad/glad.h"
 #include "stb_image.h"
 
-#include "HuaEngine/Rendering/Camera.h"
 #include "HuaEngine/Rendering/RHI/RenderTargetTypes.h"
 #include "HuaEngine/Rendering/Material/Material.h"
 #include "HuaEngine/Rendering/RHI/RenderTarget.h"
@@ -234,6 +233,53 @@ namespace {
 			}
 
 			slots.push_back(layoutRef.Slot);
+		}
+
+		return true;
+	}
+
+	bool IsColorTargetFormat(HE::Rendering::RenderTargetTextureFormat format) {
+		switch (format) {
+			case HE::Rendering::RenderTargetTextureFormat::RGBA8:
+			case HE::Rendering::RenderTargetTextureFormat::RED_INTEGER:
+				return true;
+			case HE::Rendering::RenderTargetTextureFormat::None:
+			case HE::Rendering::RenderTargetTextureFormat::DEPTH24_STENCIL8:
+				return false;
+		}
+
+		return false;
+	}
+
+	bool IsDepthStencilFormat(HE::Rendering::RenderTargetTextureFormat format) {
+		switch (format) {
+			case HE::Rendering::RenderTargetTextureFormat::None:
+			case HE::Rendering::RenderTargetTextureFormat::DEPTH24_STENCIL8:
+				return true;
+			case HE::Rendering::RenderTargetTextureFormat::RGBA8:
+			case HE::Rendering::RenderTargetTextureFormat::RED_INTEGER:
+				return false;
+		}
+
+		return false;
+	}
+
+	bool ValidatePipelineRenderState(const HE::Rendering::PipelineStateDesc& desc) {
+		if (desc.ColorTargets.empty()) {
+			HE_CORE_ERROR("Pipeline state must declare at least one color target");
+			return false;
+		}
+
+		for (const auto& colorTarget : desc.ColorTargets) {
+			if (!IsColorTargetFormat(colorTarget.Format)) {
+				HE_CORE_ERROR("Pipeline state color target format is invalid");
+				return false;
+			}
+		}
+
+		if (!IsDepthStencilFormat(desc.DepthStencil.Format)) {
+			HE_CORE_ERROR("Pipeline state depth/stencil format is invalid");
+			return false;
 		}
 
 		return true;
@@ -703,16 +749,14 @@ namespace HE::Rendering {
 		glClear(GL_COLOR_BUFFER_BIT);
 	}
 
-	void OpenGLCommandList::BeginFrame(Camera& camera) {
-		m_CurrentCamera = &camera;
+	void OpenGLCommandList::BeginFrame() {
 	}
 
 	void OpenGLCommandList::SetPipelineState(PipelineState& pipelineState) {
 		m_CurrentPipelineState = &pipelineState;
 		auto& shaderProgram = static_cast<OpenGLPipelineState&>(pipelineState).GetShaderProgram();
 		m_CurrentShaderProgram = &shaderProgram;
-		m_HasFrameBindGroup = false;
-		m_HasObjectBindGroup = false;
+		m_BoundBindGroupSlots.clear();
 		static_cast<OpenGLShaderProgram&>(shaderProgram).BindForCommandList();
 		RebuildExplicitVertexArray();
 	}
@@ -796,14 +840,8 @@ namespace HE::Rendering {
 
 		auto& shaderProgram = static_cast<OpenGLShaderProgram&>(*m_CurrentShaderProgram);
 
-		if (bindGroup.GetDesc().Layout) {
-			const auto scope = bindGroup.GetDesc().Layout->GetDesc().Scope;
-			if (scope == BindGroupScope::Frame) {
-				m_HasFrameBindGroup = true;
-			}
-			else if (scope == BindGroupScope::Object) {
-				m_HasObjectBindGroup = true;
-			}
+		if (std::find(m_BoundBindGroupSlots.begin(), m_BoundBindGroupSlots.end(), slot) == m_BoundBindGroupSlots.end()) {
+			m_BoundBindGroupSlots.push_back(slot);
 		}
 
 		for (const auto& entry : bindGroup.GetDesc().Entries) {
@@ -859,14 +897,16 @@ namespace HE::Rendering {
 			return;
 		}
 
-		if (!m_HasFrameBindGroup) {
-			HE_CORE_WARN("CommandList::DrawIndexed skipped because no frame bind group is active");
+		if (!m_CurrentPipelineState) {
+			HE_CORE_WARN("CommandList::DrawIndexed skipped because no pipeline state is bound");
 			return;
 		}
 
-		if (!m_HasObjectBindGroup) {
-			HE_CORE_WARN("CommandList::DrawIndexed skipped because no object bind group is active");
-			return;
+		for (const auto& layoutRef : m_CurrentPipelineState->GetDesc().BindGroupLayouts) {
+			if (std::find(m_BoundBindGroupSlots.begin(), m_BoundBindGroupSlots.end(), layoutRef.Slot) == m_BoundBindGroupSlots.end()) {
+				HE_CORE_WARN("CommandList::DrawIndexed skipped because bind group slot {0} is not active", layoutRef.Slot);
+				return;
+			}
 		}
 
 		const uint32_t availableIndexCount = m_CurrentVertexBufferView
@@ -899,16 +939,14 @@ namespace HE::Rendering {
 
 	void OpenGLCommandList::EndFrame() {
 		ReleaseExplicitVertexArray();
-		m_CurrentCamera = nullptr;
 		m_CurrentShaderProgram = nullptr;
 		m_CurrentPipelineState = nullptr;
 		m_CurrentVertexBufferView = nullptr;
+		m_BoundBindGroupSlots.clear();
 		m_CurrentVertexBufferBinding = {};
 		m_CurrentIndexBufferBinding = {};
 		m_HasExplicitVertexBuffer = false;
 		m_HasExplicitIndexBuffer = false;
-		m_HasFrameBindGroup = false;
-		m_HasObjectBindGroup = false;
 	}
 
 	void OpenGLCommandList::EndRenderTarget() {
@@ -1030,7 +1068,10 @@ namespace HE::Rendering {
 	}
 
 	Ref<PipelineState> OpenGLRenderDevice::CreatePipelineState(const PipelineStateDesc& desc) {
-		if (!desc.Shader || desc.VertexLayout.GetElements().empty() || !ValidatePipelineBindGroupLayouts(desc)) {
+		if (!desc.Shader
+			|| desc.VertexLayout.GetElements().empty()
+			|| !ValidatePipelineBindGroupLayouts(desc)
+			|| !ValidatePipelineRenderState(desc)) {
 			HE_CORE_ERROR("Invalid pipeline state description");
 			return nullptr;
 		}

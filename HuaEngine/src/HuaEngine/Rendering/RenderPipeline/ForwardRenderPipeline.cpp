@@ -68,7 +68,7 @@ namespace HE::Rendering {
 		}
 
 		++context.Stats->PassCount;
-		context.Commands->BeginFrame(*context.View->CameraRef);
+		context.Commands->BeginFrame();
 	}
 
 	void ForwardOpaquePass::Execute(RenderPassContext& context) {
@@ -101,13 +101,19 @@ namespace HE::Rendering {
 
 			auto objectBindGroup = CreateObjectBindGroup(RenderHardwareInterface::GetDevice(), item.Transform);
 
-			if (resolvedItem.PipelineStateRef && resolvedItem.VertexBufferViewRef && resolvedItem.MaterialBindGroupRef && objectBindGroup) {
+			if (resolvedItem.PipelineStateRef
+				&& resolvedItem.VertexBinding.Buffer
+				&& resolvedItem.IndexBinding.Buffer
+				&& resolvedItem.IndexBinding.IndexCount > 0
+				&& resolvedItem.MaterialBindGroupRef
+				&& objectBindGroup) {
 				context.Commands->SetPipelineState(*resolvedItem.PipelineStateRef);
 				context.Commands->SetBindGroup(0, *frameBindGroup);
-				context.Commands->SetVertexBufferView(*resolvedItem.VertexBufferViewRef);
+				context.Commands->SetVertexBuffer(0, resolvedItem.VertexBinding);
+				context.Commands->SetIndexBuffer(resolvedItem.IndexBinding);
 				context.Commands->SetBindGroup(1, *resolvedItem.MaterialBindGroupRef);
 				context.Commands->SetBindGroup(2, *objectBindGroup);
-				context.Commands->DrawIndexed(resolvedItem.VertexBufferViewRef->GetDesc().IndexCount);
+				context.Commands->DrawIndexed(resolvedItem.IndexBinding.IndexCount);
 			} else {
 				context.Diagnostics->push_back({
 					RenderDiagnosticCode::MissingRhiDrawResources,

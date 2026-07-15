@@ -14,6 +14,7 @@
 #include "HuaEngine/Rendering/RHI/PipelineState.h"
 #include "HuaEngine/Rendering/RHI/RenderTarget.h"
 #include "HuaEngine/Rendering/RHI/ShaderProgram.h"
+#include "HuaEngine/Rendering/RHI/VertexInputBinding.h"
 #include "HuaEngine/Rendering/RHI/VertexBufferView.h"
 #include "Module/Rendering/RenderingComponent.h"
 
@@ -81,6 +82,8 @@ namespace HE::Rendering {
 	struct ResolvedRenderItem {
 		const RenderItem* Source = nullptr;
 		Ref<VertexBufferView> VertexBufferViewRef;
+		VertexBufferBinding VertexBinding;
+		IndexBufferBinding IndexBinding;
 		Ref<PipelineState> PipelineStateRef;
 		Ref<ShaderProgram> ShaderProgramRef;
 		Ref<MaterialInstance> MaterialInstanceRef;

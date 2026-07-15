@@ -172,6 +172,11 @@ int main() {
 	Require(static_cast<bool>(pipelineState), "Expected pipeline state creation to succeed");
 	Require(pipelineState->GetDesc().Shader == shaderProgram, "Expected pipeline state shader");
 	Require(pipelineState->GetDesc().Topology == HE::Rendering::PrimitiveTopology::TriangleList, "Expected triangle list pipeline topology");
+	Require(pipelineState->GetDesc().ColorTargets.size() == 1, "Expected default pipeline color target contract");
+	Require(pipelineState->GetDesc().ColorTargets[0].Format == HE::Rendering::RenderTargetTextureFormat::RGBA8, "Expected default pipeline color target format");
+	Require(!pipelineState->GetDesc().ColorTargets[0].BlendEnabled, "Expected default pipeline blend disabled");
+	Require(pipelineState->GetDesc().DepthStencil.Format == HE::Rendering::RenderTargetTextureFormat::DEPTH24_STENCIL8, "Expected default pipeline depth/stencil format");
+	Require(pipelineState->GetDesc().Raster.Cull == HE::Rendering::CullMode::Back, "Expected default pipeline raster cull mode");
 	Require(!device.CreatePipelineState({}), "Expected empty pipeline state creation to fail");
 
 	auto bindGroupLayout = device.CreateBindGroupLayout({
@@ -225,6 +230,69 @@ int main() {
 	Require(contractedPipelineState->GetDesc().BindGroupLayouts.size() == 1, "Expected pipeline bind group layout contract");
 	Require(contractedPipelineState->GetDesc().BindGroupLayouts[0].Slot == 1, "Expected material bind group slot contract");
 	Require(contractedPipelineState->GetDesc().BindGroupLayouts[0].Layout == bindGroupLayout, "Expected material bind group layout contract");
+
+	auto renderStatePipeline = device.CreatePipelineState({
+		.Shader = shaderProgram,
+		.VertexLayout = layout,
+		.Topology = HE::Rendering::PrimitiveTopology::TriangleList,
+		.ColorTargets = {
+			{
+				.Format = HE::Rendering::RenderTargetTextureFormat::RGBA8,
+				.BlendEnabled = true,
+				.WriteMask = HE::Rendering::ColorWriteMaskAll
+			}
+		},
+		.DepthStencil = {
+			.Format = HE::Rendering::RenderTargetTextureFormat::DEPTH24_STENCIL8,
+			.DepthTestEnabled = true,
+			.DepthWriteEnabled = true,
+			.DepthCompare = HE::Rendering::CompareOp::LessEqual
+		},
+		.Raster = {
+			.Cull = HE::Rendering::CullMode::None,
+			.FrontFaceMode = HE::Rendering::FrontFace::CounterClockwise,
+			.Fill = HE::Rendering::FillMode::Solid
+		}
+	});
+	Require(static_cast<bool>(renderStatePipeline), "Expected explicit render state pipeline creation to succeed");
+	Require(renderStatePipeline->GetDesc().ColorTargets[0].BlendEnabled, "Expected pipeline blend state to round-trip");
+	Require(renderStatePipeline->GetDesc().DepthStencil.DepthCompare == HE::Rendering::CompareOp::LessEqual, "Expected depth compare state to round-trip");
+	Require(renderStatePipeline->GetDesc().Raster.Cull == HE::Rendering::CullMode::None, "Expected raster state to round-trip");
+
+	Require(!device.CreatePipelineState({
+		.Shader = shaderProgram,
+		.VertexLayout = layout,
+		.Topology = HE::Rendering::PrimitiveTopology::TriangleList,
+		.ColorTargets = {}
+	}), "Expected pipeline without color targets to fail");
+	Require(!device.CreatePipelineState({
+		.Shader = shaderProgram,
+		.VertexLayout = layout,
+		.Topology = HE::Rendering::PrimitiveTopology::TriangleList,
+		.ColorTargets = {
+			{
+				.Format = HE::Rendering::RenderTargetTextureFormat::None
+			}
+		}
+	}), "Expected pipeline with empty color target format to fail");
+	Require(!device.CreatePipelineState({
+		.Shader = shaderProgram,
+		.VertexLayout = layout,
+		.Topology = HE::Rendering::PrimitiveTopology::TriangleList,
+		.ColorTargets = {
+			{
+				.Format = HE::Rendering::RenderTargetTextureFormat::DEPTH24_STENCIL8
+			}
+		}
+	}), "Expected pipeline with depth format as color target to fail");
+	Require(!device.CreatePipelineState({
+		.Shader = shaderProgram,
+		.VertexLayout = layout,
+		.Topology = HE::Rendering::PrimitiveTopology::TriangleList,
+		.DepthStencil = {
+			.Format = HE::Rendering::RenderTargetTextureFormat::RGBA8
+		}
+	}), "Expected pipeline with color format as depth/stencil target to fail");
 
 	Require(!device.CreatePipelineState({
 		.Shader = shaderProgram,
