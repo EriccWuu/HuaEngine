@@ -29,10 +29,124 @@ namespace HE::Rendering {
 				"Asset resolve failed for " + requestedGuid + "; using fallback " + fallbackGuid);
 		}
 
+		bool BufferLayoutsMatch(const BufferLayout& lhs, const BufferLayout& rhs) {
+			if (lhs.GetStride() != rhs.GetStride() || lhs.GetElements().size() != rhs.GetElements().size()) {
+				return false;
+			}
+
+			for (size_t index = 0; index < lhs.GetElements().size(); ++index) {
+				const auto& left = lhs.GetElements()[index];
+				const auto& right = rhs.GetElements()[index];
+				if (left.Type != right.Type
+					|| left.Name != right.Name
+					|| left.Size != right.Size
+					|| left.Offset != right.Offset
+					|| left.Normalized != right.Normalized) {
+					return false;
+				}
+			}
+
+			return true;
+		}
+
+		bool BindGroupLayoutEntriesMatch(
+			const std::vector<BindGroupLayoutEntry>& lhs,
+			const std::vector<BindGroupLayoutEntry>& rhs) {
+			if (lhs.size() != rhs.size()) {
+				return false;
+			}
+
+			for (size_t index = 0; index < lhs.size(); ++index) {
+				if (lhs[index].Name != rhs[index].Name
+					|| lhs[index].Type != rhs[index].Type
+					|| lhs[index].Binding != rhs[index].Binding) {
+					return false;
+				}
+			}
+
+			return true;
+		}
 	}
 
 	RenderResourceResolver::RenderResourceResolver(HE::AssetResolver& assetResolver)
 		: m_AssetResolver(&assetResolver) {}
+
+	Ref<BindGroupLayout> RenderResourceResolver::GetFrameBindGroupLayout(RenderDevice& device, RenderStats& stats) const {
+		if (m_FrameBindGroupLayoutCache) {
+			++stats.BindGroupLayoutCacheHits;
+			return m_FrameBindGroupLayoutCache;
+		}
+
+		++stats.BindGroupLayoutCacheMisses;
+		m_FrameBindGroupLayoutCache = CreateFrameBindGroupLayout(device);
+		return m_FrameBindGroupLayoutCache;
+	}
+
+	Ref<BindGroupLayout> RenderResourceResolver::GetObjectBindGroupLayout(RenderDevice& device, RenderStats& stats) const {
+		if (m_ObjectBindGroupLayoutCache) {
+			++stats.BindGroupLayoutCacheHits;
+			return m_ObjectBindGroupLayoutCache;
+		}
+
+		++stats.BindGroupLayoutCacheMisses;
+		m_ObjectBindGroupLayoutCache = CreateObjectBindGroupLayout(device);
+		return m_ObjectBindGroupLayoutCache;
+	}
+
+	Ref<PipelineState> RenderResourceResolver::GetPipelineState(
+		RenderDevice& device,
+		Ref<ShaderProgram> shaderProgram,
+		const BufferLayout& vertexLayout,
+		Ref<BindGroupLayout> frameBindGroupLayout,
+		Ref<BindGroupLayout> materialBindGroupLayout,
+		Ref<BindGroupLayout> objectBindGroupLayout,
+		RenderStats& stats) const {
+		if (!shaderProgram || !frameBindGroupLayout || !materialBindGroupLayout || !objectBindGroupLayout) {
+			return nullptr;
+		}
+
+		const auto& materialEntries = materialBindGroupLayout->GetDesc().Entries;
+		for (const auto& entry : m_PipelineStateCache) {
+			if (entry.Shader == shaderProgram
+				&& BufferLayoutsMatch(entry.VertexLayout, vertexLayout)
+				&& BindGroupLayoutEntriesMatch(entry.MaterialLayoutEntries, materialEntries)) {
+				++stats.PipelineStateCacheHits;
+				return entry.PipelineState;
+			}
+		}
+
+		++stats.PipelineStateCacheMisses;
+		auto pipelineState = device.CreatePipelineState({
+			.Shader = shaderProgram,
+			.VertexLayout = vertexLayout,
+			.Topology = PrimitiveTopology::TriangleList,
+			.BindGroupLayouts = {
+				{
+					.Slot = 0,
+					.Layout = frameBindGroupLayout
+				},
+				{
+					.Slot = 1,
+					.Layout = materialBindGroupLayout
+				},
+				{
+					.Slot = 2,
+					.Layout = objectBindGroupLayout
+				}
+			}
+		});
+		if (pipelineState) {
+			m_PipelineStateCache.push_back({
+				.Shader = shaderProgram,
+				.VertexLayout = vertexLayout,
+				.MaterialLayoutEntries = materialEntries,
+				.MaterialLayout = materialBindGroupLayout,
+				.PipelineState = pipelineState
+			});
+		}
+
+		return pipelineState;
+	}
 
 	bool RenderResourceResolver::Resolve(
 		const RenderItem& item,
@@ -111,8 +225,8 @@ namespace HE::Rendering {
 		}
 
 		auto& device = RenderHardwareInterface::GetDevice();
-		auto frameBindGroupLayout = CreateFrameBindGroupLayout(device);
-		auto objectBindGroupLayout = CreateObjectBindGroupLayout(device);
+		auto frameBindGroupLayout = GetFrameBindGroupLayout(device, stats);
+		auto objectBindGroupLayout = GetObjectBindGroupLayout(device, stats);
 
 		outResolvedItem.MaterialInstanceRef = materialInstance;
 		outResolvedItem.MaterialBindGroupRef = CreateMaterialBindGroup(device, *materialInstance);
@@ -139,25 +253,14 @@ namespace HE::Rendering {
 			.IndexCount = vertexBufferViewDesc.IndexCount
 		};
 		outResolvedItem.ShaderProgramRef = baseMaterial->GetShaderProgram();
-		outResolvedItem.PipelineStateRef = device.CreatePipelineState({
-			.Shader = outResolvedItem.ShaderProgramRef,
-			.VertexLayout = outResolvedItem.VertexBufferViewRef->GetDesc().Layout,
-			.Topology = PrimitiveTopology::TriangleList,
-			.BindGroupLayouts = {
-				{
-					.Slot = 0,
-					.Layout = frameBindGroupLayout
-				},
-				{
-					.Slot = 1,
-					.Layout = outResolvedItem.MaterialBindGroupRef->GetDesc().Layout
-				},
-				{
-					.Slot = 2,
-					.Layout = objectBindGroupLayout
-				}
-			}
-		});
+		outResolvedItem.PipelineStateRef = GetPipelineState(
+			device,
+			outResolvedItem.ShaderProgramRef,
+			outResolvedItem.VertexBufferViewRef->GetDesc().Layout,
+			frameBindGroupLayout,
+			outResolvedItem.MaterialBindGroupRef->GetDesc().Layout,
+			objectBindGroupLayout,
+			stats);
 		if (!outResolvedItem.PipelineStateRef) {
 			AddDiagnostic(
 				diagnostics,

@@ -98,6 +98,10 @@ namespace HE::Rendering {
 		uint32_t VisibleItems = 0;
 		uint32_t PassCount = 0;
 		uint32_t FallbackItems = 0;
+		uint32_t BindGroupLayoutCacheHits = 0;
+		uint32_t BindGroupLayoutCacheMisses = 0;
+		uint32_t PipelineStateCacheHits = 0;
+		uint32_t PipelineStateCacheMisses = 0;
 	};
 
 	struct RenderPassContext {

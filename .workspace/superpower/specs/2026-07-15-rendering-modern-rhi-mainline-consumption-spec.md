@@ -359,3 +359,12 @@ P33 不应该同时做：
 - barrier executor 为空时保持 no-op 兼容，现有 graph 执行路径不受影响。
 - `RenderPassGraphSmoke` 已覆盖 barrier execution order。
 - `RenderingOperationsSmoke`、`RHICommandListBindingSmoke`、`RHIResourceCreationSmoke`、`RenderPassGraphSmoke` 已通过。
+
+### P38 实现结果
+
+- `RenderStats` 已新增 bind group layout / pipeline state cache hit/miss 计数。
+- `RenderResourceResolver` 已缓存 frame/object 标准 bind group layout，避免每个 render item 重复创建。
+- `RenderResourceResolver` 已缓存 pipeline state，cache key 使用 shader program、vertex layout 和 material layout signature。
+- material bind group 暂不缓存，保留 material override 的逐 item 语义。
+- `RenderingOperationsSmoke` 已在多 render item 场景验证 bind group layout cache hit 与 pipeline state cache hit。
+- `RenderingOperationsSmoke`、`RHICommandListBindingSmoke`、`RHIResourceCreationSmoke`、`RenderPassGraphSmoke` 已通过。

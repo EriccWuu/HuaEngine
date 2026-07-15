@@ -308,6 +308,11 @@ int main() {
 	Require(renderLoadedScene.Payload.at("graph_external_inputs") == "3", "Expected loaded sandbox scene render graph to report three external inputs");
 	Require(renderLoadedScene.Payload.at("graph_outputs") == "1", "Expected loaded sandbox scene render graph to report one output");
 	Require(renderLoadedScene.Payload.at("graph_diagnostics") == "0", "Expected loaded sandbox scene render to emit no render graph diagnostics");
+	auto loadedRenderSystem = loadedScene->FindSystem<HE::RenderSystem>();
+	Require(static_cast<bool>(loadedRenderSystem), "Expected loaded scene render system to remain attached");
+	const auto& loadedRenderStats = loadedRenderSystem->GetLastRenderResult().Stats;
+	Require(loadedRenderStats.BindGroupLayoutCacheHits > 0, "Expected multi-item render to reuse standard bind group layouts");
+	Require(loadedRenderStats.PipelineStateCacheHits > 0, "Expected multi-item render to reuse pipeline state");
 
 	std::cout << "RenderingOperationsSmoke passed" << std::endl;
 	return 0;
