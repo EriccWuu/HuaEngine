@@ -397,3 +397,14 @@ P46 RenderTarget attachment aggregation
 - 未 `End()` 的 command buffer submit 会返回 false；已 `End()` 的 command buffer submit 能执行 recorded draw。
 - `RHICommandListBindingSmoke` 已覆盖 recorded command buffer draw path。
 - `RenderingOperationsSmoke`、`RHICommandListBindingSmoke`、`RHIResourceCreationSmoke`、`RenderPassGraphSmoke` 已通过。
+
+### P40 实现结果
+
+- `RenderGraphResourceDesc` 已支持 imported `RuntimeTexture`。
+- `RenderGraphResourceAllocator` 已维护 runtime resource allocation table，并提供 `GetRuntimeResource()` 查询。
+- `PassGraph::Execute()` 在 `RenderPassContext::Device` 存在时准备 runtime resources。
+- imported texture resource 会保留传入的真实 `TextureResource`。
+- transient texture resource 会通过 `RenderDevice::CreateTexture()` 创建真实 texture。
+- 纯图 `RenderPassGraphSmoke` 不提供 device，因此保持无 GL context 兼容。
+- `RHIResourceCreationSmoke` 已覆盖 imported runtime texture binding 与 transient texture allocation。
+- `RenderingOperationsSmoke`、`RHICommandListBindingSmoke`、`RHIResourceCreationSmoke`、`RenderPassGraphSmoke` 已通过。

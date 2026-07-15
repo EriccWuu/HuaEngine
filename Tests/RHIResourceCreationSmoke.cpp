@@ -4,6 +4,7 @@
 
 #include "HuaEngine.h"
 #include "HuaEngine/Core/ResourcePaths.h"
+#include "HuaEngine/Rendering/RenderPipeline/PassGraph.h"
 #include "HuaEngine/Rendering/RHI/CommandList.h"
 #include "HuaEngine/Rendering/RHI/ResourceBarrier.h"
 #include "HuaEngine/Rendering/RHI/RenderHardwareInterface.h"
@@ -176,6 +177,44 @@ int main() {
 		.Before = HE::Rendering::ResourceState::Undefined,
 		.After = HE::Rendering::ResourceState::ShaderRead
 	});
+
+	HE::Rendering::PassGraph runtimeResourceGraph;
+	const auto importedGraphTexture = runtimeResourceGraph.AddImportedResource({
+		.Name = "ImportedTexture",
+		.Kind = HE::Rendering::RenderGraphResourceKind::Texture,
+		.Texture = {
+			.Width = emptyTexture->GetDesc().Width,
+			.Height = emptyTexture->GetDesc().Height,
+			.Format = emptyTexture->GetDesc().Format
+		},
+		.RuntimeTexture = emptyTexture
+	});
+	const auto transientGraphTexture = runtimeResourceGraph.AddTransientResource({
+		.Name = "TransientTexture",
+		.Kind = HE::Rendering::RenderGraphResourceKind::Texture,
+		.Texture = {
+			.Width = 16,
+			.Height = 8,
+			.Format = HE::Rendering::RenderTargetTextureFormat::RGBA8
+		}
+	});
+	runtimeResourceGraph.AddPass({
+		.Name = "RuntimeResourcePass",
+		.Inputs = { "ImportedTexture" },
+		.Outputs = { "TransientTexture" },
+		.Execute = [](HE::Rendering::RenderPassContext&) {}
+	});
+	Require(runtimeResourceGraph.Compile(), "Expected runtime resource graph compile to succeed");
+	HE::Rendering::RenderPassContext runtimeResourceContext;
+	runtimeResourceContext.Device = &device;
+	Require(runtimeResourceGraph.Execute(runtimeResourceContext), "Expected runtime resource graph execute to succeed");
+	const auto* importedRuntimeResource = runtimeResourceGraph.GetResourceAllocator().GetRuntimeResource(importedGraphTexture);
+	Require(importedRuntimeResource && importedRuntimeResource->Texture == emptyTexture, "Expected imported graph texture to preserve runtime texture binding");
+	const auto* transientRuntimeResource = runtimeResourceGraph.GetResourceAllocator().GetRuntimeResource(transientGraphTexture);
+	Require(transientRuntimeResource && transientRuntimeResource->Texture, "Expected transient graph texture to allocate a runtime texture");
+	Require(transientRuntimeResource->Texture->GetDesc().Width == 16, "Expected transient graph texture width");
+	Require(transientRuntimeResource->Texture->GetDesc().Height == 8, "Expected transient graph texture height");
+	Require(transientRuntimeResource->Texture->GetDesc().Format == HE::Rendering::RenderTargetTextureFormat::RGBA8, "Expected transient graph texture format");
 
 	const std::string vertexSource = R"(
 		#version 330 core

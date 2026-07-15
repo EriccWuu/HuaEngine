@@ -6,9 +6,13 @@
 #include <unordered_map>
 #include <vector>
 
+#include "HuaEngine/Core/Core.h"
 #include "HuaEngine/Rendering/RHI/RenderTargetTypes.h"
+#include "HuaEngine/Rendering/RHI/TextureResource.h"
 
 namespace HE::Rendering {
+	class RenderDevice;
+
 	enum class RenderGraphResourceKind : uint8_t {
 		Texture = 0,
 		Buffer
@@ -44,6 +48,7 @@ namespace HE::Rendering {
 		RenderGraphResourceStorage Storage = RenderGraphResourceStorage::Transient;
 		RenderGraphTextureDesc Texture;
 		RenderGraphBufferDesc Buffer;
+		Ref<TextureResource> RuntimeTexture;
 	};
 
 	struct RenderGraphResourceLifetime {
@@ -54,24 +59,34 @@ namespace HE::Rendering {
 		RenderGraphResourceStorage Storage = RenderGraphResourceStorage::Transient;
 	};
 
+	struct RenderGraphRuntimeResource {
+		RenderGraphResourceHandle Handle;
+		std::string Name;
+		Ref<TextureResource> Texture;
+	};
+
 	class RenderGraphResourceAllocator {
 	public:
 		RenderGraphResourceHandle AddImportedResource(RenderGraphResourceDesc desc);
 		RenderGraphResourceHandle AddTransientResource(RenderGraphResourceDesc desc);
 		void Reset();
 		void ClearLifetimes();
+		bool PrepareRuntimeResources(RenderDevice& device);
 		void SetLifetime(RenderGraphResourceHandle handle, uint32_t firstPassIndex, uint32_t lastPassIndex);
 
 		[[nodiscard]] const RenderGraphResourceDesc* GetDesc(RenderGraphResourceHandle handle) const;
+		[[nodiscard]] const RenderGraphRuntimeResource* GetRuntimeResource(RenderGraphResourceHandle handle) const;
 		[[nodiscard]] RenderGraphResourceHandle FindByName(const std::string& name) const;
 		[[nodiscard]] const std::vector<RenderGraphResourceDesc>& GetResources() const { return m_Resources; }
 		[[nodiscard]] const std::vector<RenderGraphResourceLifetime>& GetLifetimes() const { return m_Lifetimes; }
+		[[nodiscard]] const std::vector<RenderGraphRuntimeResource>& GetRuntimeResources() const { return m_RuntimeResources; }
 
 	private:
 		RenderGraphResourceHandle AddResource(RenderGraphResourceDesc desc, RenderGraphResourceStorage storage);
 
 		std::vector<RenderGraphResourceDesc> m_Resources;
 		std::vector<RenderGraphResourceLifetime> m_Lifetimes;
+		std::vector<RenderGraphRuntimeResource> m_RuntimeResources;
 		std::unordered_map<std::string, uint32_t> m_NameToIndex;
 	};
 }

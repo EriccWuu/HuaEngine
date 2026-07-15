@@ -276,6 +276,10 @@ namespace HE::Rendering {
 			return false;
 		}
 
+		if (context.Device && !m_ResourceAllocator.PrepareRuntimeResources(*context.Device)) {
+			return false;
+		}
+
 		for (uint32_t passIndex = 0; passIndex < m_Passes.size(); ++passIndex) {
 			if (m_BarrierExecutor) {
 				for (const auto& barrier : m_BarrierPlan) {

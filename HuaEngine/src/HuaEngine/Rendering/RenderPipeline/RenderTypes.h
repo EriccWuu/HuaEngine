@@ -20,6 +20,7 @@
 
 namespace HE::Rendering {
 	class CommandList;
+	class RenderDevice;
 	class RenderResourceResolver;
 
 	struct RenderView {
@@ -109,6 +110,7 @@ namespace HE::Rendering {
 		const std::vector<RenderItem>* RenderItems = nullptr;
 		const RenderResourceResolver* ResourceResolver = nullptr;
 		CommandList* Commands = nullptr;
+		RenderDevice* Device = nullptr;
 		RenderStats* Stats = nullptr;
 		std::vector<RenderDiagnostic>* Diagnostics = nullptr;
 	};
