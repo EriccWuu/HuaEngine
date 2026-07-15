@@ -10,13 +10,18 @@ namespace HE::Rendering {
 
 	class OpenGLCommandList final : public CommandList {
 	public:
+		~OpenGLCommandList() override;
+
 		void BeginRenderPass(const RenderPassDesc& desc) override;
 		void EndRenderPass() override;
+		void ResourceBarrier(const HE::Rendering::ResourceBarrier& barrier) override;
 
 		void BeginRenderTarget(RenderTarget& target) override;
 		void ClearColor(const glm::vec4& color) override;
 		void BeginFrame(Camera& camera) override;
 		void SetPipelineState(PipelineState& pipelineState) override;
+		void SetVertexBuffer(uint32_t slot, const VertexBufferBinding& binding) override;
+		void SetIndexBuffer(const IndexBufferBinding& binding) override;
 		void SetVertexBufferView(VertexBufferView& vertexBufferView) override;
 		void SetBindGroup(uint32_t slot, BindGroup& bindGroup) override;
 		void DrawIndexed(uint32_t indexCount) override;
@@ -24,13 +29,36 @@ namespace HE::Rendering {
 		void EndRenderTarget() override;
 
 	private:
+		void RebuildExplicitVertexArray();
+		void ReleaseExplicitVertexArray();
+
 		RenderTarget* m_CurrentRenderTarget = nullptr;
 		Camera* m_CurrentCamera = nullptr;
 		ShaderProgram* m_CurrentShaderProgram = nullptr;
 		PipelineState* m_CurrentPipelineState = nullptr;
 		VertexBufferView* m_CurrentVertexBufferView = nullptr;
+		VertexBufferBinding m_CurrentVertexBufferBinding;
+		IndexBufferBinding m_CurrentIndexBufferBinding;
+		uint32_t m_ExplicitVertexArray = 0;
+		bool m_HasExplicitVertexBuffer = false;
+		bool m_HasExplicitIndexBuffer = false;
 		bool m_HasFrameBindGroup = false;
 		bool m_HasObjectBindGroup = false;
+	};
+
+	class OpenGLCommandBuffer final : public CommandBuffer {
+	public:
+		explicit OpenGLCommandBuffer(const CommandBufferDesc& desc);
+
+		const CommandBufferDesc& GetDesc() const override;
+
+	private:
+		CommandBufferDesc m_Desc;
+	};
+
+	class OpenGLRenderQueue final : public RenderQueue {
+	public:
+		void Submit(CommandBuffer& commandBuffer) override;
 	};
 
 	class OpenGLGpuBuffer final : public GpuBuffer {
@@ -167,6 +195,8 @@ namespace HE::Rendering {
 		const RenderDeviceDesc& GetDesc() const override;
 		const RenderDeviceCapabilities& GetCapabilities() const override;
 		CommandList& GetImmediateCommandList() override;
+		Ref<CommandBuffer> CreateCommandBuffer(const CommandBufferDesc& desc) override;
+		RenderQueue& GetGraphicsQueue() override;
 		Ref<GpuBuffer> CreateBuffer(const GpuBufferDesc& desc, const void* initialData) override;
 		Ref<VertexBufferView> CreateVertexBufferView(const VertexBufferViewDesc& desc) override;
 		Ref<RenderTarget> CreateRenderTarget(const RenderTargetDesc& desc) override;
@@ -180,5 +210,6 @@ namespace HE::Rendering {
 		RenderDeviceDesc m_Desc;
 		RenderDeviceCapabilities m_Capabilities;
 		OpenGLCommandList m_ImmediateCommandList;
+		OpenGLRenderQueue m_GraphicsQueue;
 	};
 }

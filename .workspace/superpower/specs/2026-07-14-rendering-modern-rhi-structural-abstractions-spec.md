@@ -572,3 +572,32 @@ cmake --build build --config Debug --target RHICommandListBindingSmoke RHIResour
 .uildin\Debug-Windows-x64\smoke\RHICommandListBindingSmoke.exe
 .uildin\Debug-Windows-x64\smoke\RHIResourceCreationSmoke.exe
 ```
+
+### P30 实现结果
+
+- RHI 已新增 `CommandBuffer`、`CommandBufferDesc`、`CommandBufferUsage` 与 `RenderQueue`。
+- `RenderDevice` 已暴露 `CreateCommandBuffer` 与 `GetGraphicsQueue`。
+- OpenGL backend 已提供 immediate-backed command buffer/queue 最小实现；当前提交空 graphics command buffer 是同步 no-op。
+- 现有 `GetImmediateCommandList()` 与 Forward 主路径保持不变。
+- `RHIResourceCreationSmoke` 已覆盖 command submission capability、graphics command buffer 创建、空提交和 invalid usage 拒绝。
+- 已验证 `RHICommandListBindingSmoke`、`RHIResourceCreationSmoke`、`RenderingOperationsSmoke` 均通过。
+
+### P31 实现结果
+
+- RHI 已新增 `ResourceState` 与 `ResourceBarrier`。
+- `CommandList` 已新增 `ResourceBarrier` 接口，OpenGL backend 当前接受 texture barrier 并 no-op。
+- `PassGraph` compile 阶段会基于现有 `Inputs` / `Outputs` 生成最小 barrier plan。
+- 当前 barrier plan 映射规则：input -> `ShaderRead`，output -> `RenderTarget`。
+- `RenderPassGraphSmoke` 已覆盖 typed graph 的 input/output barrier plan。
+- `RHIResourceCreationSmoke` 已覆盖 immediate command list 接受 texture barrier。
+- 本轮未实现真实 GPU barrier、transient resource 创建、读写冲突自动排序或 Vulkan/D3D12 状态转换。
+
+### P32 实现结果
+
+- RHI 已新增 `VertexBufferBinding` 与 `IndexBufferBinding`。
+- `CommandList` 已新增 `SetVertexBuffer` 与 `SetIndexBuffer`。
+- OpenGL backend 已支持 explicit vertex/index binding path，并保留 `SetVertexBufferView` compatibility path。
+- explicit binding path 当前使用当前 pipeline 的 `VertexLayout` 建立内部 VAO；支持 slot 0 vertex buffer 与 `UInt32` index buffer。
+- Forward 主路径暂未迁移，仍使用 `VertexBufferView`。
+- `RHICommandListBindingSmoke` 已覆盖 explicit binding path 绘制。
+- `RHIResourceCreationSmoke` 已覆盖 binding desc 的字段 round-trip。

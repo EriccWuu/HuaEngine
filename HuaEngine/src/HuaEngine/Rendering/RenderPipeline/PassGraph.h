@@ -7,6 +7,7 @@
 
 #include "HuaEngine/Rendering/RenderPipeline/RenderGraphResource.h"
 #include "HuaEngine/Rendering/RenderPipeline/RenderTypes.h"
+#include "HuaEngine/Rendering/RHI/ResourceBarrier.h"
 
 namespace HE::Rendering {
 	enum class PassGraphDiagnosticCode {
@@ -43,6 +44,14 @@ namespace HE::Rendering {
 		std::uint32_t TransientResourceCount = 0;
 	};
 
+	struct PassGraphResourceBarrier {
+		std::string PassName;
+		std::string ResourceName;
+		uint32_t PassIndex = 0;
+		ResourceState Before = ResourceState::Undefined;
+		ResourceState After = ResourceState::Undefined;
+	};
+
 	class PassGraph {
 	public:
 		void AddPass(PassGraphPassDesc pass);
@@ -59,12 +68,14 @@ namespace HE::Rendering {
 		[[nodiscard]] const PassGraphStats& GetStats() const { return m_Stats; }
 		[[nodiscard]] const std::vector<std::string>& GetExternalInputs() const { return m_ExternalInputs; }
 		[[nodiscard]] const RenderGraphResourceAllocator& GetResourceAllocator() const { return m_ResourceAllocator; }
+		[[nodiscard]] const std::vector<PassGraphResourceBarrier>& GetBarrierPlan() const { return m_BarrierPlan; }
 
 	private:
 		std::vector<PassGraphPassDesc> m_Passes;
 		std::vector<std::string> m_ExternalInputs;
 		RenderGraphResourceAllocator m_ResourceAllocator;
 		std::vector<PassGraphDiagnostic> m_Diagnostics;
+		std::vector<PassGraphResourceBarrier> m_BarrierPlan;
 		PassGraphStats m_Stats;
 		bool m_Compiled = false;
 	};

@@ -4,6 +4,8 @@
 
 #include "HuaEngine.h"
 #include "HuaEngine/Core/ResourcePaths.h"
+#include "HuaEngine/Rendering/RHI/CommandList.h"
+#include "HuaEngine/Rendering/RHI/ResourceBarrier.h"
 #include "HuaEngine/Rendering/RHI/RenderHardwareInterface.h"
 
 namespace {
@@ -40,6 +42,7 @@ int main() {
 	Require(device.GetCapabilities().Backend == HE::Rendering::RenderBackendType::OpenGL, "Expected OpenGL device capabilities");
 	Require(device.GetCapabilities().SupportsPipelineState, "Expected pipeline state support capability");
 	Require(device.GetCapabilities().SupportsBindGroups, "Expected bind group support capability");
+	Require(device.GetCapabilities().SupportsCommandSubmission, "Expected command submission support capability");
 	Require(!HE::Rendering::RenderHardwareInterface::CreateRenderDevice({ .Backend = HE::Rendering::RenderBackendType::Null }), "Expected unimplemented null backend creation to fail");
 
 	float vertices[] = {
@@ -76,6 +79,23 @@ int main() {
 	auto vertexBufferView = device.CreateVertexBufferView(viewDesc);
 	Require(static_cast<bool>(vertexBufferView), "Expected vertex buffer view creation to succeed");
 	Require(vertexBufferView->GetDesc().IndexCount == 3, "Expected vertex buffer view index count");
+
+	HE::Rendering::VertexBufferBinding vertexBinding{
+		.Buffer = vertexBuffer,
+		.Offset = 0,
+		.Stride = 3 * sizeof(float)
+	};
+	Require(vertexBinding.Buffer == vertexBuffer, "Expected vertex binding buffer to round-trip");
+	Require(vertexBinding.Stride == 3 * sizeof(float), "Expected vertex binding stride");
+
+	HE::Rendering::IndexBufferBinding indexBinding{
+		.Buffer = indexBuffer,
+		.Offset = 0,
+		.Format = HE::Rendering::IndexFormat::UInt32,
+		.IndexCount = 3
+	};
+	Require(indexBinding.Buffer == indexBuffer, "Expected index binding buffer to round-trip");
+	Require(indexBinding.IndexCount == 3, "Expected index binding count");
 
 	struct MatrixIntegerVertex {
 		float Transform[16];
@@ -118,6 +138,11 @@ int main() {
 	auto texture = device.CreateTexture({ .SourcePath = texturePath.generic_string() });
 	Require(static_cast<bool>(texture), "Expected texture resource creation to succeed");
 	Require(texture->GetWidth() > 0 && texture->GetHeight() > 0, "Expected texture dimensions");
+	device.GetImmediateCommandList().ResourceBarrier({
+		.Texture = texture,
+		.Before = HE::Rendering::ResourceState::Undefined,
+		.After = HE::Rendering::ResourceState::ShaderRead
+	});
 
 	const std::string vertexSource = R"(
 		#version 330 core
@@ -173,6 +198,17 @@ int main() {
 	});
 	Require(static_cast<bool>(bindGroup), "Expected bind group creation to succeed");
 	Require(bindGroup->GetDesc().Layout == bindGroupLayout, "Expected bind group layout to round-trip");
+
+	auto commandBuffer = device.CreateCommandBuffer({
+		.Usage = HE::Rendering::CommandBufferUsage::Graphics,
+		.DebugName = "RHIResourceCreationSmoke empty command buffer"
+	});
+	Require(static_cast<bool>(commandBuffer), "Expected command buffer creation to succeed");
+	Require(commandBuffer->GetDesc().Usage == HE::Rendering::CommandBufferUsage::Graphics, "Expected graphics command buffer usage");
+	Require(commandBuffer->GetDesc().DebugName == "RHIResourceCreationSmoke empty command buffer", "Expected command buffer debug name");
+	device.GetGraphicsQueue().Submit(*commandBuffer);
+
+	Require(!device.CreateCommandBuffer({ .Usage = HE::Rendering::CommandBufferUsage::Invalid }), "Expected invalid command buffer creation to fail");
 
 	auto contractedPipelineState = device.CreatePipelineState({
 		.Shader = shaderProgram,

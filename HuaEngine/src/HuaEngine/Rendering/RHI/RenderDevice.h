@@ -5,6 +5,7 @@
 
 #include "HuaEngine/Core/Core.h"
 #include "HuaEngine/Rendering/RHI/BindGroup.h"
+#include "HuaEngine/Rendering/RHI/CommandSubmission.h"
 #include "HuaEngine/Rendering/RHI/RenderTargetTypes.h"
 #include "HuaEngine/Rendering/RHI/GpuBuffer.h"
 #include "HuaEngine/Rendering/RHI/PipelineState.h"
@@ -35,6 +36,7 @@ namespace HE::Rendering {
 		std::string BackendName = "OpenGL";
 		bool SupportsPipelineState = true;
 		bool SupportsBindGroups = true;
+		bool SupportsCommandSubmission = true;
 		bool SupportsRenderGraphResources = true;
 	};
 
@@ -45,6 +47,8 @@ namespace HE::Rendering {
 		virtual const RenderDeviceDesc& GetDesc() const = 0;
 		virtual const RenderDeviceCapabilities& GetCapabilities() const = 0;
 		virtual CommandList& GetImmediateCommandList() = 0;
+		virtual Ref<CommandBuffer> CreateCommandBuffer(const CommandBufferDesc& desc) = 0;
+		virtual RenderQueue& GetGraphicsQueue() = 0;
 
 		virtual Ref<GpuBuffer> CreateBuffer(const GpuBufferDesc& desc, const void* initialData) = 0;
 		virtual Ref<VertexBufferView> CreateVertexBufferView(const VertexBufferViewDesc& desc) = 0;

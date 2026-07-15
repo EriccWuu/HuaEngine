@@ -241,6 +241,98 @@ namespace {
 }
 
 namespace HE::Rendering {
+	OpenGLCommandList::~OpenGLCommandList() {
+		ReleaseExplicitVertexArray();
+	}
+
+	void OpenGLCommandList::ReleaseExplicitVertexArray() {
+		if (m_ExplicitVertexArray != 0) {
+			glDeleteVertexArrays(1, &m_ExplicitVertexArray);
+			m_ExplicitVertexArray = 0;
+		}
+	}
+
+	void OpenGLCommandList::RebuildExplicitVertexArray() {
+		ReleaseExplicitVertexArray();
+
+		if (!m_CurrentPipelineState || !m_HasExplicitVertexBuffer || !m_HasExplicitIndexBuffer) {
+			return;
+		}
+
+		if (!m_CurrentVertexBufferBinding.Buffer || !m_CurrentIndexBufferBinding.Buffer) {
+			return;
+		}
+
+		if (m_CurrentVertexBufferBinding.Buffer->GetDesc().Usage != GpuBufferUsage::Vertex
+			|| m_CurrentIndexBufferBinding.Buffer->GetDesc().Usage != GpuBufferUsage::Index) {
+			HE_CORE_WARN("CommandList explicit vertex/index binding skipped because buffer usage does not match");
+			return;
+		}
+
+		const auto& layout = m_CurrentPipelineState->GetDesc().VertexLayout;
+		if (layout.GetElements().empty()) {
+			return;
+		}
+
+		GLint previousVertexArray = 0;
+		glGetIntegerv(GL_VERTEX_ARRAY_BINDING, &previousVertexArray);
+		GLint previousArrayBuffer = 0;
+		glGetIntegerv(GL_ARRAY_BUFFER_BINDING, &previousArrayBuffer);
+
+		glGenVertexArrays(1, &m_ExplicitVertexArray);
+		glBindVertexArray(m_ExplicitVertexArray);
+		static_cast<OpenGLGpuBuffer&>(*m_CurrentVertexBufferBinding.Buffer).BindForCommandList();
+
+		uint32_t index = 0;
+		const auto stride = m_CurrentVertexBufferBinding.Stride != 0 ? m_CurrentVertexBufferBinding.Stride : layout.GetStride();
+		for (const auto& element : layout) {
+			const auto offset = static_cast<std::uintptr_t>(m_CurrentVertexBufferBinding.Offset + element.Offset);
+			if (element.Type == ShaderDataType::Mat3 || element.Type == ShaderDataType::Mat4) {
+				const uint32_t columnCount = element.Type == ShaderDataType::Mat3 ? 3 : 4;
+				const uint32_t componentCount = VertexAttribComponentCount(element.Type);
+				const uint32_t columnSize = static_cast<uint32_t>(sizeof(float)) * componentCount;
+
+				for (uint32_t column = 0; column < columnCount; ++column) {
+					glEnableVertexAttribArray(index);
+					glVertexAttribPointer(
+						index,
+						componentCount,
+						GL_FLOAT,
+						element.Normalized ? GL_TRUE : GL_FALSE,
+						stride,
+						reinterpret_cast<const void*>(offset + columnSize * column));
+					++index;
+				}
+
+				continue;
+			}
+
+			glEnableVertexAttribArray(index);
+			if (IsIntegerVertexAttrib(element.Type)) {
+				glVertexAttribIPointer(
+					index,
+					VertexAttribComponentCount(element.Type),
+					ToOpenGLType(element.Type),
+					stride,
+					reinterpret_cast<const void*>(offset));
+			}
+			else {
+				glVertexAttribPointer(
+					index,
+					VertexAttribComponentCount(element.Type),
+					ToOpenGLType(element.Type),
+					element.Normalized ? GL_TRUE : GL_FALSE,
+					stride,
+					reinterpret_cast<const void*>(offset));
+			}
+			++index;
+		}
+
+		static_cast<OpenGLGpuBuffer&>(*m_CurrentIndexBufferBinding.Buffer).BindForCommandList();
+		glBindBuffer(GL_ARRAY_BUFFER, previousArrayBuffer);
+		glBindVertexArray(previousVertexArray);
+	}
+
 	OpenGLGpuBuffer::OpenGLGpuBuffer(const GpuBufferDesc& desc, const void* initialData)
 		: m_Desc(desc) {
 		HE_CORE_ASSERT(m_Desc.Size > 0, "GPU buffer size must be greater than zero");
@@ -594,6 +686,13 @@ namespace HE::Rendering {
 		m_CurrentRenderTarget = nullptr;
 	}
 
+	void OpenGLCommandList::ResourceBarrier(const HE::Rendering::ResourceBarrier& barrier) {
+		if (!barrier.Texture) {
+			HE_CORE_WARN("OpenGLCommandList::ResourceBarrier skipped null texture barrier");
+			return;
+		}
+	}
+
 	void OpenGLCommandList::BeginRenderTarget(RenderTarget& target) {
 		m_CurrentRenderTarget = &target;
 		static_cast<OpenGLRenderTarget&>(target).BeginForCommandList();
@@ -615,9 +714,49 @@ namespace HE::Rendering {
 		m_HasFrameBindGroup = false;
 		m_HasObjectBindGroup = false;
 		static_cast<OpenGLShaderProgram&>(shaderProgram).BindForCommandList();
+		RebuildExplicitVertexArray();
+	}
+
+	void OpenGLCommandList::SetVertexBuffer(uint32_t slot, const VertexBufferBinding& binding) {
+		if (slot != 0) {
+			HE_CORE_WARN("CommandList::SetVertexBuffer skipped because only slot 0 is supported");
+			return;
+		}
+
+		if (!binding.Buffer || binding.Buffer->GetDesc().Usage != GpuBufferUsage::Vertex) {
+			HE_CORE_WARN("CommandList::SetVertexBuffer skipped invalid vertex buffer binding");
+			return;
+		}
+
+		m_CurrentVertexBufferView = nullptr;
+		m_CurrentVertexBufferBinding = binding;
+		m_HasExplicitVertexBuffer = true;
+		RebuildExplicitVertexArray();
+	}
+
+	void OpenGLCommandList::SetIndexBuffer(const IndexBufferBinding& binding) {
+		if (!binding.Buffer || binding.Buffer->GetDesc().Usage != GpuBufferUsage::Index || binding.IndexCount == 0) {
+			HE_CORE_WARN("CommandList::SetIndexBuffer skipped invalid index buffer binding");
+			return;
+		}
+
+		if (binding.Format != IndexFormat::UInt32) {
+			HE_CORE_WARN("CommandList::SetIndexBuffer skipped unsupported index format");
+			return;
+		}
+
+		m_CurrentVertexBufferView = nullptr;
+		m_CurrentIndexBufferBinding = binding;
+		m_HasExplicitIndexBuffer = true;
+		RebuildExplicitVertexArray();
 	}
 
 	void OpenGLCommandList::SetVertexBufferView(VertexBufferView& vertexBufferView) {
+		ReleaseExplicitVertexArray();
+		m_HasExplicitVertexBuffer = false;
+		m_HasExplicitIndexBuffer = false;
+		m_CurrentVertexBufferBinding = {};
+		m_CurrentIndexBufferBinding = {};
 		m_CurrentVertexBufferView = &vertexBufferView;
 		static_cast<OpenGLVertexBufferView&>(vertexBufferView).BindForCommandList();
 	}
@@ -714,8 +853,9 @@ namespace HE::Rendering {
 			return;
 		}
 
-		if (!m_CurrentVertexBufferView) {
-			HE_CORE_WARN("CommandList::DrawIndexed skipped because no vertex buffer view is bound");
+		const bool hasVertexBinding = m_CurrentVertexBufferView || m_ExplicitVertexArray != 0;
+		if (!hasVertexBinding) {
+			HE_CORE_WARN("CommandList::DrawIndexed skipped because no vertex/index binding is active");
 			return;
 		}
 
@@ -729,7 +869,9 @@ namespace HE::Rendering {
 			return;
 		}
 
-		const uint32_t availableIndexCount = m_CurrentVertexBufferView->GetDesc().IndexCount;
+		const uint32_t availableIndexCount = m_CurrentVertexBufferView
+			? m_CurrentVertexBufferView->GetDesc().IndexCount
+			: m_CurrentIndexBufferBinding.IndexCount;
 		if (indexCount == 0) {
 			HE_CORE_WARN("CommandList::DrawIndexed skipped because index count is zero");
 			return;
@@ -745,20 +887,48 @@ namespace HE::Rendering {
 			topology = ToOpenGLPrimitiveTopology(static_cast<OpenGLPipelineState&>(*m_CurrentPipelineState).GetTopology());
 		}
 
-		glDrawElements(topology, static_cast<GLsizei>(indexCount), GL_UNSIGNED_INT, nullptr);
+		if (m_ExplicitVertexArray != 0) {
+			glBindVertexArray(m_ExplicitVertexArray);
+		}
+
+		const auto indexOffset = m_CurrentVertexBufferView
+			? 0
+			: static_cast<std::uintptr_t>(m_CurrentIndexBufferBinding.Offset);
+		glDrawElements(topology, static_cast<GLsizei>(indexCount), GL_UNSIGNED_INT, reinterpret_cast<const void*>(indexOffset));
 	}
 
 	void OpenGLCommandList::EndFrame() {
+		ReleaseExplicitVertexArray();
 		m_CurrentCamera = nullptr;
 		m_CurrentShaderProgram = nullptr;
 		m_CurrentPipelineState = nullptr;
 		m_CurrentVertexBufferView = nullptr;
+		m_CurrentVertexBufferBinding = {};
+		m_CurrentIndexBufferBinding = {};
+		m_HasExplicitVertexBuffer = false;
+		m_HasExplicitIndexBuffer = false;
 		m_HasFrameBindGroup = false;
 		m_HasObjectBindGroup = false;
 	}
 
 	void OpenGLCommandList::EndRenderTarget() {
 		EndRenderPass();
+	}
+
+	OpenGLCommandBuffer::OpenGLCommandBuffer(const CommandBufferDesc& desc)
+		: m_Desc(desc) {
+		HE_CORE_ASSERT(m_Desc.Usage == CommandBufferUsage::Graphics, "OpenGL command buffer requires graphics usage");
+	}
+
+	const CommandBufferDesc& OpenGLCommandBuffer::GetDesc() const {
+		return m_Desc;
+	}
+
+	void OpenGLRenderQueue::Submit(CommandBuffer& commandBuffer) {
+		if (commandBuffer.GetDesc().Usage != CommandBufferUsage::Graphics) {
+			HE_CORE_WARN("OpenGL graphics queue skipped non-graphics command buffer");
+			return;
+		}
 	}
 
 	OpenGLRenderDevice::OpenGLRenderDevice()
@@ -770,6 +940,7 @@ namespace HE::Rendering {
 		m_Capabilities.BackendName = "OpenGL";
 		m_Capabilities.SupportsPipelineState = true;
 		m_Capabilities.SupportsBindGroups = true;
+		m_Capabilities.SupportsCommandSubmission = true;
 		m_Capabilities.SupportsRenderGraphResources = true;
 		glEnable(GL_BLEND);
 		glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
@@ -785,6 +956,19 @@ namespace HE::Rendering {
 
 	CommandList& OpenGLRenderDevice::GetImmediateCommandList() {
 		return m_ImmediateCommandList;
+	}
+
+	Ref<CommandBuffer> OpenGLRenderDevice::CreateCommandBuffer(const CommandBufferDesc& desc) {
+		if (desc.Usage != CommandBufferUsage::Graphics) {
+			HE_CORE_ERROR("Invalid command buffer description");
+			return nullptr;
+		}
+
+		return CreateRef<OpenGLCommandBuffer>(desc);
+	}
+
+	RenderQueue& OpenGLRenderDevice::GetGraphicsQueue() {
+		return m_GraphicsQueue;
 	}
 
 	Ref<GpuBuffer> OpenGLRenderDevice::CreateBuffer(const GpuBufferDesc& desc, const void* initialData) {

@@ -53,6 +53,7 @@ namespace HE::Rendering {
 
 	bool PassGraph::Compile() {
 		m_Diagnostics.clear();
+		m_BarrierPlan.clear();
 		m_Stats = {};
 		m_ResourceAllocator.ClearLifetimes();
 
@@ -74,6 +75,7 @@ namespace HE::Rendering {
 		std::unordered_map<std::string, std::string> resourceWriters;
 		std::unordered_map<std::string, uint32_t> firstUsePass;
 		std::unordered_map<std::string, uint32_t> lastUsePass;
+		std::unordered_map<std::string, ResourceState> resourceStates;
 		std::uint32_t inputEdgeCount = 0;
 
 		for (const auto& desc : m_ResourceAllocator.GetResources()) {
@@ -165,6 +167,17 @@ namespace HE::Rendering {
 					firstUsePass.emplace(input, passIndex);
 				}
 				lastUsePass[input] = passIndex;
+				const auto before = resourceStates.contains(input) ? resourceStates[input] : ResourceState::Undefined;
+				if (before != ResourceState::ShaderRead) {
+					m_BarrierPlan.push_back({
+						.PassName = pass.Name,
+						.ResourceName = input,
+						.PassIndex = passIndex,
+						.Before = before,
+						.After = ResourceState::ShaderRead
+					});
+					resourceStates[input] = ResourceState::ShaderRead;
+				}
 				++inputEdgeCount;
 			}
 
@@ -191,6 +204,17 @@ namespace HE::Rendering {
 					firstUsePass.emplace(output, passIndex);
 				}
 				lastUsePass[output] = passIndex;
+				const auto before = resourceStates.contains(output) ? resourceStates[output] : ResourceState::Undefined;
+				if (before != ResourceState::RenderTarget) {
+					m_BarrierPlan.push_back({
+						.PassName = pass.Name,
+						.ResourceName = output,
+						.PassIndex = passIndex,
+						.Before = before,
+						.After = ResourceState::RenderTarget
+					});
+					resourceStates[output] = ResourceState::RenderTarget;
+				}
 				const auto [writer, inserted] = resourceWriters.emplace(output, pass.Name);
 				if (!inserted) {
 					AddDiagnostic(
@@ -260,6 +284,7 @@ namespace HE::Rendering {
 		m_ExternalInputs.clear();
 		m_ResourceAllocator.Reset();
 		m_Diagnostics.clear();
+		m_BarrierPlan.clear();
 		m_Stats = {};
 		m_Compiled = false;
 	}

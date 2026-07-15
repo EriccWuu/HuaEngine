@@ -306,6 +306,38 @@ int main() {
 	});
 	commands.BeginFrame(camera);
 	commands.SetPipelineState(*pipelineState);
+	commands.SetVertexBuffer(0, {
+		.Buffer = vertexBuffer,
+		.Offset = 0,
+		.Stride = 3 * sizeof(float)
+	});
+	commands.SetIndexBuffer({
+		.Buffer = indexBuffer,
+		.Offset = 0,
+		.Format = HE::Rendering::IndexFormat::UInt32,
+		.IndexCount = 3
+	});
+	commands.SetBindGroup(0, *frameBindGroup);
+	commands.SetBindGroup(1, *materialBindGroup);
+	commands.SetBindGroup(2, *objectBindGroup);
+	commands.DrawIndexed(3);
+	commands.EndFrame();
+	commands.EndRenderPass();
+	VerifyRenderTargetSamples(renderTarget);
+
+	commands.BeginRenderPass({
+		.ColorAttachments = {
+			{
+				.Target = renderTarget,
+				.AttachmentIndex = 0,
+				.Load = HE::Rendering::LoadOp::Clear,
+				.Store = HE::Rendering::StoreOp::Store,
+				.ClearColor = { 0.1f, 0.1f, 0.1f, 1.0f }
+			}
+		}
+	});
+	commands.BeginFrame(camera);
+	commands.SetPipelineState(*pipelineState);
 	commands.SetBindGroup(0, *frameBindGroup);
 	commands.SetVertexBufferView(*vertexBufferView);
 	commands.SetBindGroup(1, *materialBindGroup);

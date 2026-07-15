@@ -195,6 +195,15 @@ int main() {
 		.Execute = [](HE::Rendering::RenderPassContext&) {}
 	});
 	Require(typedGraph.Compile(), "Expected typed graph compile to succeed");
+	const auto& barrierPlan = typedGraph.GetBarrierPlan();
+	Require(barrierPlan.size() == 2, "Expected typed graph barrier plan for input and output resources");
+	Require(barrierPlan[0].PassName == "ForwardOpaqueTyped", "Expected first barrier pass name");
+	Require(barrierPlan[0].ResourceName == "RenderTarget", "Expected imported input resource barrier");
+	Require(barrierPlan[0].Before == HE::Rendering::ResourceState::Undefined, "Expected imported input barrier before state");
+	Require(barrierPlan[0].After == HE::Rendering::ResourceState::ShaderRead, "Expected imported input shader-read state");
+	Require(barrierPlan[1].ResourceName == "SceneColor", "Expected transient output resource barrier");
+	Require(barrierPlan[1].Before == HE::Rendering::ResourceState::Undefined, "Expected transient output barrier before state");
+	Require(barrierPlan[1].After == HE::Rendering::ResourceState::RenderTarget, "Expected transient output render-target state");
 	const auto& typedStats = typedGraph.GetStats();
 	Require(typedStats.ImportedResourceCount == 1, "Expected one imported resource");
 	Require(typedStats.TransientResourceCount == 1, "Expected one transient resource");
