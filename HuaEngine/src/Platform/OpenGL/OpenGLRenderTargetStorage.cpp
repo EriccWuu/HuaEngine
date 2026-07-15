@@ -146,6 +146,10 @@ namespace HE::Rendering {
 		return m_ColorAttachments[index];
 	}
 
+	uint32_t OpenGLRenderTargetStorage::GetDepthAttachment() const {
+		return m_DepthAttachment;
+	}
+
 	const RenderTargetSpecification& OpenGLRenderTargetStorage::GetSpecification() const {
 		return m_Specification;
 	}

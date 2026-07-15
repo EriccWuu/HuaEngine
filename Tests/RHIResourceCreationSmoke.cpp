@@ -171,6 +171,17 @@ int main() {
 	Require(static_cast<bool>(renderTarget), "Expected render target creation to succeed");
 	Require(renderTarget->GetSpecification().Width == 64, "Expected render target width");
 	Require(renderTarget->GetSpecification().Height == 64, "Expected render target height");
+	const auto colorAttachmentView = renderTarget->GetColorAttachmentView(0);
+	Require(colorAttachmentView.NativeHandle != 0, "Expected color attachment native handle");
+	Require(colorAttachmentView.Format == HE::Rendering::RenderTargetTextureFormat::RGBA8, "Expected color attachment format metadata");
+	Require(colorAttachmentView.Width == 64 && colorAttachmentView.Height == 64, "Expected color attachment size metadata");
+	Require(colorAttachmentView.Samples == 1, "Expected color attachment sample metadata");
+	Require(colorAttachmentView.AttachmentIndex == 0, "Expected color attachment index metadata");
+	const auto depthAttachmentView = renderTarget->GetDepthStencilAttachmentView();
+	Require(depthAttachmentView.NativeHandle != 0, "Expected depth/stencil attachment native handle");
+	Require(depthAttachmentView.Format == HE::Rendering::RenderTargetTextureFormat::DEPTH24_STENCIL8, "Expected depth/stencil attachment format metadata");
+	Require(depthAttachmentView.Width == 64 && depthAttachmentView.Height == 64, "Expected depth/stencil attachment size metadata");
+	Require(depthAttachmentView.Samples == 1, "Expected depth/stencil attachment sample metadata");
 
 	const auto texturePath = HE::ResourcePaths::ResolveEngineResourcePath("ret.png");
 	auto texture = device.CreateTexture({ .SourcePath = texturePath.generic_string() });

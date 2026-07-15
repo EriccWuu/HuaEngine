@@ -176,6 +176,7 @@ namespace HE::Rendering {
 		void ClearAttachment(uint32_t index, int value) override;
 		RenderTargetPixelRGBA8 ReadPixelRGBA8(uint32_t attachmentIndex, uint32_t x, uint32_t y) const override;
 		RenderTargetColorAttachmentView GetColorAttachmentView(uint32_t index = 0) const override;
+		RenderTargetColorAttachmentView GetDepthStencilAttachmentView() const override;
 		const RenderTargetSpecification& GetSpecification() const override;
 
 	private:

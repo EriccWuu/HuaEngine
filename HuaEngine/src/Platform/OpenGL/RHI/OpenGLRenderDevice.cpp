@@ -729,7 +729,36 @@ namespace HE::Rendering {
 	}
 
 	RenderTargetColorAttachmentView OpenGLRenderTarget::GetColorAttachmentView(uint32_t index) const {
-		return { static_cast<uintptr_t>(m_BackendStorage->GetColorAttachment(index)) };
+		const auto& specification = m_BackendStorage->GetSpecification();
+		HE_CORE_ASSERT(index < specification.Attachments.Attachments.size(), "Color attachment index out of range");
+		return {
+			.NativeHandle = static_cast<uintptr_t>(m_BackendStorage->GetColorAttachment(index)),
+			.Format = specification.Attachments.Attachments[index].Format,
+			.Width = specification.Width,
+			.Height = specification.Height,
+			.Samples = specification.Samples,
+			.AttachmentIndex = index
+		};
+	}
+
+	RenderTargetColorAttachmentView OpenGLRenderTarget::GetDepthStencilAttachmentView() const {
+		const auto& specification = m_BackendStorage->GetSpecification();
+		RenderTargetTextureFormat format = RenderTargetTextureFormat::None;
+		for (const auto& attachment : specification.Attachments.Attachments) {
+			if (attachment.Format == RenderTargetTextureFormat::DEPTH24_STENCIL8) {
+				format = attachment.Format;
+				break;
+			}
+		}
+
+		return {
+			.NativeHandle = static_cast<uintptr_t>(m_BackendStorage->GetDepthAttachment()),
+			.Format = format,
+			.Width = specification.Width,
+			.Height = specification.Height,
+			.Samples = specification.Samples,
+			.AttachmentIndex = 0
+		};
 	}
 
 	const RenderTargetSpecification& OpenGLRenderTarget::GetSpecification() const {

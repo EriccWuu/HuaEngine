@@ -19,6 +19,7 @@ namespace HE::Rendering {
 		uint32_t GetRenderID() const;
 
 		uint32_t GetColorAttachment(uint32_t index = 0) const;
+		uint32_t GetDepthAttachment() const;
 		const RenderTargetSpecification& GetSpecification() const;
 
 		void Invalidate();

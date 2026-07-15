@@ -456,3 +456,12 @@ P46 RenderTarget attachment aggregation
 - invalid/recording/non-executable submit 会返回失败结果，signal value 为 0。
 - `RHICommandListBindingSmoke` 已覆盖失败 submit、成功 submit、连续 submit signal 递增，以及 fence completed value。
 - `RenderingOperationsSmoke`、`RHICommandListBindingSmoke`、`RHIResourceCreationSmoke`、`RenderPassGraphSmoke` 已通过。
+
+### P46 实现结果
+
+- `RenderTargetColorAttachmentView` 已扩展 native handle、format、width、height、samples、attachment index metadata。
+- `RenderTarget` 已新增 `GetDepthStencilAttachmentView()`。
+- OpenGL render target storage 已暴露 depth attachment native handle。
+- OpenGL render target color/depth view accessor 已返回 attachment metadata。
+- `RHIResourceCreationSmoke` 已覆盖 color/depth attachment view metadata 与 native handle。
+- `RenderingOperationsSmoke`、`RHICommandListBindingSmoke`、`RHIResourceCreationSmoke`、`RenderPassGraphSmoke` 已通过。
