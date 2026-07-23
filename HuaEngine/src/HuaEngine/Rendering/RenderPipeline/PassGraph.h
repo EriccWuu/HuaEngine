@@ -35,6 +35,16 @@ namespace HE::Rendering {
 		ResourceState State = ResourceState::Undefined;
 	};
 
+	enum class PassGraphRenderPassAttachmentKind : uint8_t {
+		Color = 0,
+		DepthStencil
+	};
+
+	struct PassGraphRenderPassAttachment {
+		RenderGraphResourceHandle Resource;
+		PassGraphRenderPassAttachmentKind Kind = PassGraphRenderPassAttachmentKind::Color;
+	};
+
 	struct PassGraphPassDesc {
 		std::string Name;
 		std::vector<std::string> Inputs;
@@ -42,6 +52,7 @@ namespace HE::Rendering {
 		std::vector<RenderGraphResourceHandle> InputResources;
 		std::vector<RenderGraphResourceHandle> OutputResources;
 		std::vector<PassGraphResourceUsage> ResourceUsages;
+		std::vector<PassGraphRenderPassAttachment> RenderPassAttachments;
 		std::function<void(RenderPassContext&)> Execute;
 	};
 

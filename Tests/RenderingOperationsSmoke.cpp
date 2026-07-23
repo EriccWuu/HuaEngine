@@ -137,7 +137,8 @@ namespace {
 			&& content.find("AddExternalInput(\"RenderTarget\")") == std::string::npos
 			&& content.find("BoundRenderTarget") == std::string::npos
 			&& content.find("ClearedSceneColor") == std::string::npos
-			&& content.find(".ResourceUsages = { { .Resource = viewportColorHandle, .State = ResourceState::RenderTarget } }") != std::string::npos;
+			&& content.find(".RenderPassAttachments = std::move(bindTargetAttachments)") != std::string::npos
+			&& content.find("ViewportDepthAttachment") != std::string::npos;
 	}
 }
 
@@ -216,10 +217,10 @@ int main() {
 	Require(renderViewport.Payload.at("visible_items") == "1", "Expected invalid renderable resources to count one visible item");
 	Require(renderViewport.Payload.at("fallback_items") == "1", "Expected invalid renderable resources to count one fallback item");
 	Require(renderViewport.Payload.at("diagnostics") == "2", "Expected invalid renderable resources to emit mesh and material fallback diagnostics");
-	Require(renderViewport.Payload.at("graph_resources") == "4", "Expected forward render graph to report four resources");
-	Require(renderViewport.Payload.at("graph_edges") == "6", "Expected forward render graph to report six edges");
-	Require(renderViewport.Payload.at("graph_external_inputs") == "3", "Expected forward render graph to report three external inputs");
-	Require(renderViewport.Payload.at("graph_outputs") == "1", "Expected forward render graph to report one output");
+	Require(renderViewport.Payload.at("graph_resources") == "5", "Expected forward render graph to report five resources");
+	Require(renderViewport.Payload.at("graph_edges") == "7", "Expected forward render graph to report seven edges");
+	Require(renderViewport.Payload.at("graph_external_inputs") == "4", "Expected forward render graph to report four external inputs");
+	Require(renderViewport.Payload.at("graph_outputs") == "2", "Expected forward render graph to report two outputs");
 	Require(renderViewport.Payload.at("graph_diagnostics") == "0", "Expected forward render graph to emit no diagnostics");
 
 	PrepareSandboxAssets();
@@ -261,10 +262,10 @@ int main() {
 	Require(renderAssetRefScene.Payload.at("pass_count") == "6", "Expected typed asset-ref scene render to execute six render passes");
 	Require(renderAssetRefScene.Payload.at("visible_items") == "1", "Expected typed asset-ref scene render to count one visible item");
 	Require(renderAssetRefScene.Payload.at("diagnostics") == "0", "Expected typed asset-ref scene render to emit no resolver diagnostics");
-	Require(renderAssetRefScene.Payload.at("graph_resources") == "4", "Expected typed asset-ref scene render graph to report four resources");
-	Require(renderAssetRefScene.Payload.at("graph_edges") == "6", "Expected typed asset-ref scene render graph to report six edges");
-	Require(renderAssetRefScene.Payload.at("graph_external_inputs") == "3", "Expected typed asset-ref scene render graph to report three external inputs");
-	Require(renderAssetRefScene.Payload.at("graph_outputs") == "1", "Expected typed asset-ref scene render graph to report one output");
+	Require(renderAssetRefScene.Payload.at("graph_resources") == "5", "Expected typed asset-ref scene render graph to report five resources");
+	Require(renderAssetRefScene.Payload.at("graph_edges") == "7", "Expected typed asset-ref scene render graph to report seven edges");
+	Require(renderAssetRefScene.Payload.at("graph_external_inputs") == "4", "Expected typed asset-ref scene render graph to report four external inputs");
+	Require(renderAssetRefScene.Payload.at("graph_outputs") == "2", "Expected typed asset-ref scene render graph to report two outputs");
 	Require(renderAssetRefScene.Payload.at("graph_diagnostics") == "0", "Expected typed asset-ref scene render to emit no render graph diagnostics");
 	Require(HasRenderedPixel(renderTarget), "Expected typed asset-ref render path to write a non-clear render target pixel");
 	const HE::Rendering::RenderTargetPixelRGBA8 expectedOverrideColor{ 230, 204, 51, 255 };
@@ -307,10 +308,10 @@ int main() {
 	Require(renderLoadedScene.Payload.at("pass_count") == "6", "Expected loaded sandbox scene render to execute six render passes");
 	Require(renderLoadedScene.Payload.at("visible_items") == "4", "Expected loaded sandbox scene render to count four visible items");
 	Require(renderLoadedScene.Payload.at("diagnostics") == "1", "Expected loaded sandbox scene render to emit one fallback diagnostic for the unmigrated custom mesh");
-	Require(renderLoadedScene.Payload.at("graph_resources") == "4", "Expected loaded sandbox scene render graph to report four resources");
-	Require(renderLoadedScene.Payload.at("graph_edges") == "6", "Expected loaded sandbox scene render graph to report six edges");
-	Require(renderLoadedScene.Payload.at("graph_external_inputs") == "3", "Expected loaded sandbox scene render graph to report three external inputs");
-	Require(renderLoadedScene.Payload.at("graph_outputs") == "1", "Expected loaded sandbox scene render graph to report one output");
+	Require(renderLoadedScene.Payload.at("graph_resources") == "5", "Expected loaded sandbox scene render graph to report five resources");
+	Require(renderLoadedScene.Payload.at("graph_edges") == "7", "Expected loaded sandbox scene render graph to report seven edges");
+	Require(renderLoadedScene.Payload.at("graph_external_inputs") == "4", "Expected loaded sandbox scene render graph to report four external inputs");
+	Require(renderLoadedScene.Payload.at("graph_outputs") == "2", "Expected loaded sandbox scene render graph to report two outputs");
 	Require(renderLoadedScene.Payload.at("graph_diagnostics") == "0", "Expected loaded sandbox scene render to emit no render graph diagnostics");
 	auto loadedRenderSystem = loadedScene->FindSystem<HE::RenderSystem>();
 	Require(static_cast<bool>(loadedRenderSystem), "Expected loaded scene render system to remain attached");

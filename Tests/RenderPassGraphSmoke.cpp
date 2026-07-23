@@ -102,7 +102,9 @@ int main() {
 	});
 	explicitUsageGraph.AddPass({
 		.Name = "WriteExplicitUsage",
-		.ResourceUsages = { { .Resource = explicitUsageTexture, .State = HE::Rendering::ResourceState::RenderTarget } },
+		.RenderPassAttachments = {
+			{ .Resource = explicitUsageTexture, .Kind = HE::Rendering::PassGraphRenderPassAttachmentKind::Color }
+		},
 		.Execute = [](HE::Rendering::RenderPassContext&) {}
 	});
 	explicitUsageGraph.AddPass({

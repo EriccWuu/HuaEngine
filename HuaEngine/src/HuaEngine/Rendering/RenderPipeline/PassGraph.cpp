@@ -144,6 +144,14 @@ namespace HE::Rendering {
 			const auto& pass = m_Passes[passIndex];
 			const auto inputResources = resolveResourceNames(pass.Inputs, pass.InputResources, pass.Name);
 			const auto outputResources = resolveResourceNames(pass.Outputs, pass.OutputResources, pass.Name);
+			auto resourceUsages = pass.ResourceUsages;
+			resourceUsages.reserve(resourceUsages.size() + pass.RenderPassAttachments.size());
+			for (const auto& attachment : pass.RenderPassAttachments) {
+				resourceUsages.push_back({
+					.Resource = attachment.Resource,
+					.State = ResourceState::RenderTarget
+				});
+			}
 			std::unordered_set<std::string> typedOutputs;
 			for (const auto handle : pass.OutputResources) {
 				if (const auto* resource = m_ResourceAllocator.GetDesc(handle)) {
@@ -273,7 +281,7 @@ namespace HE::Rendering {
 				}
 			}
 
-			for (const auto& usage : pass.ResourceUsages) {
+			for (const auto& usage : resourceUsages) {
 				const auto* resource = m_ResourceAllocator.GetDesc(usage.Resource);
 				if (!resource) {
 					AddDiagnostic(

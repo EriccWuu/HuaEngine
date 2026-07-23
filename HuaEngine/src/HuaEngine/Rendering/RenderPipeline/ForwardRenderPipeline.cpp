@@ -169,18 +169,40 @@ namespace HE::Rendering {
 			},
 			.RuntimeTexture = viewportColor
 		});
+		const auto viewportDepth = view.Target->GetDepthStencilAttachmentTexture();
+		const auto viewportDepthHandle = viewportDepth
+			? m_Graph.AddImportedResource({
+				.Name = "ViewportDepthAttachment",
+				.Kind = RenderGraphResourceKind::Texture,
+				.Texture = {
+					.Width = viewportDepth->GetWidth(),
+					.Height = viewportDepth->GetHeight(),
+					.Format = viewportDepth->GetDesc().Format
+				},
+				.RuntimeTexture = viewportDepth
+			})
+			: RenderGraphResourceHandle{};
+		std::vector<PassGraphRenderPassAttachment> bindTargetAttachments = {
+			{ .Resource = viewportColorHandle, .Kind = PassGraphRenderPassAttachmentKind::Color }
+		};
+		if (viewportDepthHandle.IsValid()) {
+			bindTargetAttachments.push_back({
+				.Resource = viewportDepthHandle,
+				.Kind = PassGraphRenderPassAttachmentKind::DepthStencil
+			});
+		}
 		m_Graph.AddExternalInput("CameraView");
 		m_Graph.AddExternalInput("SceneItems");
 		m_Graph.AddPass({
 			.Name = "BindTarget",
-			.ResourceUsages = { { .Resource = viewportColorHandle, .State = ResourceState::RenderTarget } },
+			.RenderPassAttachments = std::move(bindTargetAttachments),
 			.Execute = [this](RenderPassContext& context) {
 				m_BindTargetPass.Execute(context);
 			}
 		});
 		m_Graph.AddPass({
 			.Name = "ClearTarget",
-			.ResourceUsages = { { .Resource = viewportColorHandle, .State = ResourceState::RenderTarget } },
+			.RenderPassAttachments = { { .Resource = viewportColorHandle, .Kind = PassGraphRenderPassAttachmentKind::Color } },
 			.Execute = [this](RenderPassContext& context) {
 				m_ClearTargetPass.Execute(context);
 			}
@@ -196,7 +218,7 @@ namespace HE::Rendering {
 		m_Graph.AddPass({
 			.Name = "ForwardOpaque",
 			.Inputs = { "CameraView", "SceneItems", "RendererFrame" },
-			.ResourceUsages = { { .Resource = viewportColorHandle, .State = ResourceState::RenderTarget } },
+			.RenderPassAttachments = { { .Resource = viewportColorHandle, .Kind = PassGraphRenderPassAttachmentKind::Color } },
 			.Execute = [this](RenderPassContext& context) {
 				m_OpaquePass.Execute(context);
 			}

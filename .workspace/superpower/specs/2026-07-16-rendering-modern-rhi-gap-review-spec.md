@@ -641,3 +641,29 @@ P46 RenderTarget attachment aggregation
 - Forward BindTarget、ClearTarget、ForwardOpaque 已以同一 viewport attachment handle 声明 `RenderTarget` usage，不再依赖 typed output 的多 writer 兼容规则。
 - `RenderPassGraphSmoke` 已覆盖 explicit `Undefined -> RenderTarget -> ShaderRead` barrier，以及不支持 usage state 的 compile diagnostic。
 - `RenderingOperationsSmoke` 主渲染路径保持通过。
+
+### P54：Graph RenderPass Attachment Declaration
+
+#### 目标
+
+让 graph pass 以 attachment handle 声明 render pass 的 color/depth-stencil 写入资源，并由 compiler 自动推导 `RenderTarget` usage。
+
+#### 约束
+
+- attachment 声明只支持 typed `RenderGraphResourceHandle`。
+- compiler 将每个 attachment 转换为 `RenderTarget` usage，沿用 explicit usage 的 barrier/lifetime 处理。
+- Forward 不再直接书写 viewport attachment 的 `ResourceState`；BindTarget 需声明 color/depth，Clear/Opaque 声明 color。
+
+#### 验收
+
+- graph render pass attachment writer 后的 explicit sampled read 产生 `Undefined -> RenderTarget -> ShaderRead`。
+- Forward 每帧同时导入 color/depth attachment 并在 graph pass attachment 字段声明其写入。
+- `RenderingOperationsSmoke` 图统计与 fallback draw 继续通过。
+
+#### 实现结果
+
+- `PassGraphPassDesc` 已新增 `RenderPassAttachments`，以 typed handle 和 color/depth-stencil role 描述 render pass attachment。
+- compiler 自动将 attachment 声明转换为 `RenderTarget` usage，复用 existing barrier/lifetime 计算。
+- Forward 每帧导入 `ViewportColorAttachment` 和可用时的 `ViewportDepthAttachment`；BindTarget 声明 color/depth，ClearTarget 与 ForwardOpaque 声明 color。
+- `RenderPassGraphSmoke` 已用 attachment writer 验证自动 `Undefined -> RenderTarget -> ShaderRead` barrier。
+- `RenderingOperationsSmoke` 已更新为真实 color/depth imported resource 图统计，并保持 fallback draw 通过。
