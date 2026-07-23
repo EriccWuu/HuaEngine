@@ -10,9 +10,11 @@
 
 #include "HuaEngine.h"
 #include "HuaEngine/Rendering/Camera.h"
+#include "HuaEngine/Rendering/RenderPipeline/PassGraph.h"
 #include "HuaEngine/Rendering/RHI/CommandList.h"
 #include "HuaEngine/Rendering/RHI/RenderPass.h"
 #include "HuaEngine/Rendering/RHI/RenderHardwareInterface.h"
+#include "HuaEngine/Rendering/RHI/ResourceStateTracker.h"
 
 namespace {
 	void Require(bool condition, const std::string& message) {
@@ -374,7 +376,170 @@ int main() {
 	});
 	Require(static_cast<bool>(mismatchedColorTargetPipeline), "Expected mismatched color target pipeline creation to succeed");
 
+	HE::Rendering::RenderTargetSpecification samplingTargetSpec;
+	samplingTargetSpec.Width = 64;
+	samplingTargetSpec.Height = 64;
+	samplingTargetSpec.Attachments = { HE::Rendering::RenderTargetTextureFormat::RGBA8 };
+	auto samplingSourceTarget = device.CreateRenderTarget({ .Specification = samplingTargetSpec });
+	auto samplingDestinationTarget = device.CreateRenderTarget({ .Specification = samplingTargetSpec });
+	Require(static_cast<bool>(samplingSourceTarget) && static_cast<bool>(samplingDestinationTarget), "Expected sampling source and destination targets to succeed");
+
+	const std::string samplingVertexSource = R"(
+		#version 330 core
+		layout(location = 0) in vec3 a_Position;
+		void main() {
+			gl_Position = vec4(a_Position, 1.0);
+		}
+	)";
+	const std::string samplingFragmentSource = R"(
+		#version 330 core
+		layout(location = 0) out vec4 color;
+		uniform sampler2D u_SourceTexture;
+		void main() {
+			color = texture(u_SourceTexture, vec2(0.5, 0.5));
+		}
+	)";
+	auto samplingShaderProgram = device.CreateShaderProgram({
+		.VertexSource = samplingVertexSource,
+		.FragmentSource = samplingFragmentSource
+	});
+	Require(static_cast<bool>(samplingShaderProgram), "Expected attachment sampling shader creation to succeed");
+	auto samplingBindGroupLayout = device.CreateBindGroupLayout({
+		.Scope = HE::Rendering::BindGroupScope::Material,
+		.Entries = {
+			{
+				.Name = "u_SourceTexture",
+				.Type = HE::Rendering::BindingValueType::TextureView,
+				.Binding = 0
+			},
+			{
+				.Name = "u_SourceSampler",
+				.Type = HE::Rendering::BindingValueType::Sampler,
+				.Binding = 1
+			}
+		}
+	});
+	Require(static_cast<bool>(samplingBindGroupLayout), "Expected attachment sampling bind group layout creation to succeed");
+	auto samplingPipeline = device.CreatePipelineState({
+		.Shader = samplingShaderProgram,
+		.VertexLayout = layout,
+		.Topology = HE::Rendering::PrimitiveTopology::TriangleList,
+		.DepthStencil = {
+			.Format = HE::Rendering::RenderTargetTextureFormat::None,
+			.DepthTestEnabled = false,
+			.DepthWriteEnabled = false
+		},
+		.BindGroupLayouts = {
+			{
+				.Slot = 0,
+				.Layout = samplingBindGroupLayout
+			}
+		}
+	});
+	Require(static_cast<bool>(samplingPipeline), "Expected attachment sampling pipeline creation to succeed");
+
 	auto& commands = device.GetImmediateCommandList();
+	const glm::vec4 sampledSourceClearColor{ 0.25f, 0.5f, 0.75f, 1.0f };
+	const HE::Rendering::RenderTargetPixelRGBA8 expectedSampledPixel{ 64, 128, 191, 255 };
+	HE::Rendering::PassGraph attachmentSamplingGraph;
+	attachmentSamplingGraph.AddImportedResource({
+		.Name = "SourceAttachment",
+		.Kind = HE::Rendering::RenderGraphResourceKind::Texture,
+		.Texture = {
+			.Width = samplingSourceTarget->GetColorAttachmentTexture()->GetWidth(),
+			.Height = samplingSourceTarget->GetColorAttachmentTexture()->GetHeight(),
+			.Format = samplingSourceTarget->GetColorAttachmentTexture()->GetDesc().Format
+		},
+		.RuntimeTexture = samplingSourceTarget->GetColorAttachmentTexture()
+	});
+	bool readerBoundRuntimeAttachment = false;
+	attachmentSamplingGraph.AddPass({
+		.Name = "WriteSourceAttachment",
+		.Outputs = { "SourceAttachment" },
+		.Execute = [&](HE::Rendering::RenderPassContext& context) {
+			context.Commands->BeginRenderPass({
+				.ColorAttachments = {
+					{
+						.View = samplingSourceTarget->GetColorAttachmentTextureView(),
+						.Load = HE::Rendering::LoadOp::Clear,
+						.Store = HE::Rendering::StoreOp::Store,
+						.ClearColor = sampledSourceClearColor
+					}
+				}
+			});
+			context.Commands->EndRenderPass();
+		}
+	});
+	attachmentSamplingGraph.AddPass({
+		.Name = "SampleSourceAttachment",
+		.Inputs = { "SourceAttachment" },
+		.Execute = [&](HE::Rendering::RenderPassContext& context) {
+			const auto handle = context.GraphResources->FindByName("SourceAttachment");
+			const auto* runtimeResource = context.GraphResources->GetRuntimeResource(handle);
+			if (!runtimeResource || !runtimeResource->Texture) {
+				return;
+			}
+
+			auto sampledView = context.Device->CreateTextureView({ .Texture = runtimeResource->Texture });
+			auto sampledSampler = context.Device->CreateSampler({
+				.AddressU = HE::Rendering::SamplerAddressMode::ClampToEdge,
+				.AddressV = HE::Rendering::SamplerAddressMode::ClampToEdge
+			});
+			auto sampledBindGroup = context.Device->CreateBindGroup({
+				.Layout = samplingBindGroupLayout,
+				.Entries = {
+					{
+						.Name = "u_SourceTexture",
+						.Type = HE::Rendering::BindingValueType::TextureView,
+						.Value = sampledView,
+						.Binding = 0,
+						.TextureSlot = 0
+					},
+					{
+						.Name = "u_SourceSampler",
+						.Type = HE::Rendering::BindingValueType::Sampler,
+						.Value = sampledSampler,
+						.Binding = 1,
+						.TextureSlot = 0
+					}
+				}
+			});
+			if (!sampledView || !sampledSampler || !sampledBindGroup) {
+				return;
+			}
+
+			readerBoundRuntimeAttachment = sampledView->GetDesc().Texture == runtimeResource->Texture;
+			context.Commands->BeginRenderPass({
+				.ColorAttachments = {
+					{
+						.View = samplingDestinationTarget->GetColorAttachmentTextureView(),
+						.Load = HE::Rendering::LoadOp::Clear,
+						.Store = HE::Rendering::StoreOp::Store,
+						.ClearColor = { 0.0f, 0.0f, 0.0f, 1.0f }
+					}
+				}
+			});
+			context.Commands->BeginFrame();
+			context.Commands->SetPipelineState(*samplingPipeline);
+			context.Commands->SetVertexBufferView(*vertexBufferView);
+			context.Commands->SetBindGroup(0, *sampledBindGroup);
+			context.Commands->DrawIndexed(vertexBufferView->GetDesc().IndexCount);
+			context.Commands->EndFrame();
+			context.Commands->EndRenderPass();
+		}
+	});
+	Require(attachmentSamplingGraph.Compile(), "Expected attachment sampling graph compile to succeed");
+	HE::Rendering::ResourceStateTracker attachmentSamplingResourceStates;
+	HE::Rendering::RenderPassContext attachmentSamplingContext;
+	attachmentSamplingContext.Device = &device;
+	attachmentSamplingContext.Commands = &commands;
+	attachmentSamplingContext.ResourceStates = &attachmentSamplingResourceStates;
+	Require(attachmentSamplingGraph.Execute(attachmentSamplingContext), "Expected attachment sampling graph execute to succeed");
+	Require(readerBoundRuntimeAttachment, "Expected reader pass to bind the graph runtime attachment texture");
+	Require(attachmentSamplingResourceStates.GetState(samplingSourceTarget->GetColorAttachmentTexture()) == HE::Rendering::ResourceState::ShaderRead, "Expected sampled source attachment state");
+	const auto sampledPixel = samplingDestinationTarget->ReadPixelRGBA8(0, samplingTargetSpec.Width / 2, samplingTargetSpec.Height / 2);
+	Require(PixelNear(sampledPixel, expectedSampledPixel, kPixelTolerance), "Expected destination center pixel to match sampled source attachment color");
+
 	commands.BeginFrame();
 	commands.SetPipelineState(*renderStateBackendPipeline);
 	Require(!glIsEnabled(GL_CULL_FACE), "Expected pipeline cull none to disable GL_CULL_FACE");

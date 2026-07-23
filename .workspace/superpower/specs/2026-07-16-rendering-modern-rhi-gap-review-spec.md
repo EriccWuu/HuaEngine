@@ -538,3 +538,28 @@ P46 RenderTarget attachment aggregation
 - `RHIResourceCreationSmoke` 已将 RenderTarget color attachment 作为 imported runtime texture。
 - writer pass 使用 attachment view 建立 render pass；reader pass 通过 `GraphResources` 解析同一 texture 并创建 sampled view。
 - smoke 已验证 `Undefined -> RenderTarget -> ShaderRead` barrier plan、最终 state 和 attachment texture identity。
+
+### P50：Graph Pass 中真实 Attachment Sampling Draw
+
+#### 目标
+
+在 graph reader pass 中将上一 pass 写入的 attachment texture 绑定到 sampler，并通过真实 shader draw 将采样结果写入独立 render target。
+
+#### 约束
+
+- source attachment 与 destination render target 必须不同，避免 OpenGL feedback loop。
+- reader 必须从 `RenderPassContext::GraphResources` 解析 source texture，而非捕获 source view 作为采样输入。
+- 验收依赖 destination readback 的像素值，不只验证 bind group 对象创建。
+
+#### 验收
+
+- writer pass 清除 source attachment，reader pass 对 source texture 创建 view/sampler/bind group 并完成 draw。
+- destination center pixel 接近 source clear color。
+- graph state tracker 的 source texture 最终状态为 `ShaderRead`。
+
+#### 实现结果
+
+- `RHICommandListBindingSmoke` 新增 source/destination 两个 RGBA8 render target，规避 source attachment 的 feedback loop。
+- writer graph pass 清除 source attachment；reader graph pass 仅从 `GraphResources` 解析 runtime texture，再创建 texture view、sampler 与 bind group。
+- reader pass 使用 sampler2D shader 将 source attachment 采样结果 draw 到 destination attachment。
+- destination center readback 已验证匹配 source clear color，source resource 最终状态为 `ShaderRead`。
