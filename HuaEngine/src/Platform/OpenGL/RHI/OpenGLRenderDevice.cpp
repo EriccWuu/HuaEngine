@@ -419,41 +419,24 @@ namespace {
 		return true;
 	}
 
-	HE::Rendering::RenderTargetTextureFormat GetRenderTargetDepthStencilFormat(const HE::Rendering::RenderTarget& target) {
-		for (const auto& attachment : target.GetSpecification().Attachments.Attachments) {
-			if (attachment.Format != HE::Rendering::RenderTargetTextureFormat::None && IsDepthStencilFormat(attachment.Format)) {
-				return attachment.Format;
-			}
-		}
-
-		return HE::Rendering::RenderTargetTextureFormat::None;
-	}
-
-	bool PipelineMatchesCurrentRenderTarget(
+	bool PipelineMatchesCurrentAttachmentFormats(
 		const HE::Rendering::PipelineStateDesc& pipelineDesc,
-		const HE::Rendering::RenderTarget& renderTarget) {
-		const auto& targetAttachments = renderTarget.GetSpecification().Attachments.Attachments;
-		if (targetAttachments.empty()) {
-			HE_CORE_WARN("CommandList::DrawIndexed skipped because current render target has no attachments");
-			return false;
-		}
-
+		HE::Rendering::RenderTargetTextureFormat colorFormat,
+		HE::Rendering::RenderTargetTextureFormat depthStencilFormat) {
 		if (pipelineDesc.ColorTargets.size() != 1) {
 			HE_CORE_WARN("CommandList::DrawIndexed skipped because OpenGL backend currently supports exactly one pipeline color target");
 			return false;
 		}
 
-		const auto targetColorFormat = targetAttachments[0].Format;
 		const auto pipelineColorFormat = pipelineDesc.ColorTargets[0].Format;
-		if (targetColorFormat != pipelineColorFormat) {
+		if (colorFormat != pipelineColorFormat) {
 			HE_CORE_WARN("CommandList::DrawIndexed skipped because pipeline color target format does not match current render target");
 			return false;
 		}
 
-		const auto targetDepthStencilFormat = GetRenderTargetDepthStencilFormat(renderTarget);
 		const auto pipelineDepthStencilFormat = pipelineDesc.DepthStencil.Format;
 		if (pipelineDepthStencilFormat != HE::Rendering::RenderTargetTextureFormat::None
-			&& targetDepthStencilFormat != pipelineDepthStencilFormat) {
+			&& depthStencilFormat != pipelineDepthStencilFormat) {
 			HE_CORE_WARN("CommandList::DrawIndexed skipped because pipeline depth/stencil format does not match current render target");
 			return false;
 		}
@@ -738,6 +721,10 @@ namespace HE::Rendering {
 		m_BackendStorage->EndForCommandList();
 	}
 
+	OpenGLRenderTargetStorage* OpenGLRenderTarget::GetAttachmentStorage() const {
+		return m_BackendStorage.get();
+	}
+
 	void OpenGLRenderTarget::Resize(uint32_t width, uint32_t height) {
 		m_BackendStorage->Resize(width, height);
 		m_Desc.Specification = m_BackendStorage->GetSpecification();
@@ -905,6 +892,10 @@ namespace HE::Rendering {
 		m_Height = desc.Height;
 	}
 
+	OpenGLRenderTargetStorage* OpenGLTextureResource::GetAttachmentStorage() const {
+		return m_AttachmentStorage.get();
+	}
+
 	OpenGLTextureView::OpenGLTextureView(const TextureViewDesc& desc)
 		: m_Desc(desc) {}
 
@@ -990,46 +981,60 @@ namespace HE::Rendering {
 	}
 
 	void OpenGLCommandList::BeginRenderPass(const RenderPassDesc& desc) {
-		if (m_CurrentRenderTarget) {
+		if (m_CurrentRenderTargetStorage) {
 			HE_CORE_WARN("OpenGLCommandList::BeginRenderPass skipped because a render pass is already active");
 			return;
 		}
 
-		if (desc.ColorAttachments.empty() || !desc.ColorAttachments[0].Target) {
-			HE_CORE_WARN("OpenGLCommandList::BeginRenderPass skipped because the first color attachment target is null");
-			m_CurrentRenderTarget = nullptr;
+		if (desc.ColorAttachments.empty()) {
+			HE_CORE_WARN("OpenGLCommandList::BeginRenderPass skipped because no color attachment was provided");
 			return;
 		}
 
 		if (desc.ColorAttachments.size() > 1) {
 			HE_CORE_WARN("OpenGLCommandList::BeginRenderPass skipped because multiple color attachments are not supported yet");
-			m_CurrentRenderTarget = nullptr;
 			return;
 		}
 
 		const auto& colorAttachment = desc.ColorAttachments[0];
-		if (colorAttachment.AttachmentIndex != 0) {
-			HE_CORE_WARN("OpenGLCommandList::BeginRenderPass skipped because only color attachment index 0 is supported");
-			m_CurrentRenderTarget = nullptr;
+		const auto colorView = colorAttachment.View
+			? colorAttachment.View
+			: (colorAttachment.Target ? colorAttachment.Target->GetColorAttachmentTextureView(colorAttachment.AttachmentIndex) : nullptr);
+		if (!colorView || !colorView->GetDesc().Texture) {
+			HE_CORE_WARN("OpenGLCommandList::BeginRenderPass skipped because the first color attachment view is null");
 			return;
 		}
 
+		auto& colorTexture = static_cast<OpenGLTextureResource&>(*colorView->GetDesc().Texture);
+		auto* colorStorage = colorTexture.GetAttachmentStorage();
+		if (!colorStorage) {
+			HE_CORE_WARN("OpenGLCommandList::BeginRenderPass skipped because the color attachment view is not render-target backed");
+			return;
+		}
+
+		Ref<TextureView> depthStencilView;
 		if (desc.DepthStencilAttachment) {
-			if (!desc.DepthStencilAttachment->Target) {
-				HE_CORE_WARN("OpenGLCommandList::BeginRenderPass skipped because depth/stencil attachment target is null");
-				m_CurrentRenderTarget = nullptr;
+			const auto& depthAttachment = *desc.DepthStencilAttachment;
+			depthStencilView = depthAttachment.View
+				? depthAttachment.View
+				: (depthAttachment.Target ? depthAttachment.Target->GetDepthStencilAttachmentTextureView() : nullptr);
+			if (!depthStencilView || !depthStencilView->GetDesc().Texture) {
+				HE_CORE_WARN("OpenGLCommandList::BeginRenderPass skipped because the depth/stencil attachment view is null");
 				return;
 			}
 
-			if (desc.DepthStencilAttachment->Target != colorAttachment.Target) {
+			auto& depthTexture = static_cast<OpenGLTextureResource&>(*depthStencilView->GetDesc().Texture);
+			if (depthTexture.GetAttachmentStorage() != colorStorage) {
 				HE_CORE_WARN("OpenGLCommandList::BeginRenderPass skipped because independent depth/stencil targets are not supported yet");
-				m_CurrentRenderTarget = nullptr;
 				return;
 			}
 		}
 
 		m_CurrentRenderTarget = colorAttachment.Target.get();
-		static_cast<OpenGLRenderTarget&>(*m_CurrentRenderTarget).BeginForCommandList();
+		m_CurrentRenderTargetStorage = colorStorage;
+		m_CurrentColorAttachmentFormat = colorView->GetDesc().Format;
+		m_CurrentDepthStencilAttachmentFormat = depthStencilView ? depthStencilView->GetDesc().Format : RenderTargetTextureFormat::None;
+		m_CurrentRenderTargetStorage->BeginForCommandList();
 
 		GLbitfield clearMask = 0;
 		if (colorAttachment.Load == LoadOp::Clear) {
@@ -1051,11 +1056,14 @@ namespace HE::Rendering {
 	}
 
 	void OpenGLCommandList::EndRenderPass() {
-		if (m_CurrentRenderTarget) {
-			static_cast<OpenGLRenderTarget*>(m_CurrentRenderTarget)->EndForCommandList();
+		if (m_CurrentRenderTargetStorage) {
+			m_CurrentRenderTargetStorage->EndForCommandList();
 		}
 
 		m_CurrentRenderTarget = nullptr;
+		m_CurrentRenderTargetStorage = nullptr;
+		m_CurrentColorAttachmentFormat = RenderTargetTextureFormat::None;
+		m_CurrentDepthStencilAttachmentFormat = RenderTargetTextureFormat::None;
 	}
 
 	void OpenGLCommandList::ResourceBarrier(const HE::Rendering::ResourceBarrier& barrier) {
@@ -1067,6 +1075,10 @@ namespace HE::Rendering {
 
 	void OpenGLCommandList::BeginRenderTarget(RenderTarget& target) {
 		m_CurrentRenderTarget = &target;
+		m_CurrentRenderTargetStorage = static_cast<OpenGLRenderTarget&>(target).GetAttachmentStorage();
+		m_CurrentColorAttachmentFormat = target.GetColorAttachmentTextureView()->GetDesc().Format;
+		const auto depthStencilView = target.GetDepthStencilAttachmentTextureView();
+		m_CurrentDepthStencilAttachmentFormat = depthStencilView ? depthStencilView->GetDesc().Format : RenderTargetTextureFormat::None;
 		static_cast<OpenGLRenderTarget&>(target).BeginForCommandList();
 	}
 
@@ -1287,12 +1299,15 @@ namespace HE::Rendering {
 			return;
 		}
 
-		if (!m_CurrentRenderTarget) {
+		if (!m_CurrentRenderTargetStorage) {
 			HE_CORE_WARN("CommandList::DrawIndexed skipped because no render target is active");
 			return;
 		}
 
-		if (!PipelineMatchesCurrentRenderTarget(m_CurrentPipelineState->GetDesc(), *m_CurrentRenderTarget)) {
+		if (!PipelineMatchesCurrentAttachmentFormats(
+			m_CurrentPipelineState->GetDesc(),
+			m_CurrentColorAttachmentFormat,
+			m_CurrentDepthStencilAttachmentFormat)) {
 			return;
 		}
 

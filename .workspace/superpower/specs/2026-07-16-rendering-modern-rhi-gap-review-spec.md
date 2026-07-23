@@ -485,3 +485,31 @@ P46 RenderTarget attachment aggregation
 - `GetColorAttachmentTextureView()` 与 `GetDepthStencilAttachmentTextureView()` 返回以对应 attachment texture 为源的默认 view。
 - attachment texture 可用于创建 bind group 的 texture view binding。
 - resize 后既有 attachment resource/view 仍可解析并绑定新的 GL attachment，且 metadata 与 texture desc 更新。
+
+### P48：RenderPass Attachment View Contract
+
+#### 目标
+
+使 `RenderPassDesc` 直接使用 `TextureView` 描述 color/depth-stencil attachment，并让 OpenGL backend 从 attachment-backed view 解析 framebuffer storage。
+
+#### 约束
+
+- `RenderPassColorAttachment::View` 和 `RenderPassDepthStencilAttachment::View` 是主契约。
+- 既有 `Target` 与 `AttachmentIndex` 仅作为过渡兼容路径。
+- OpenGL 仅接受来自同一 attachment-backed render target storage 的 color/depth view；普通 sampled texture view 不能直接作为 render pass output。
+- pipeline target format 校验必须使用当前 attachment view 的 format，而不是依赖 legacy target。
+
+#### 验收
+
+- 不提供 `Target` 的 view-only render pass 可以完成 draw 并写入 render target。
+- Forward 主路径以 color/depth attachment view 创建 render pass。
+- legacy target-only render pass smoke 继续通过。
+
+#### 实现结果
+
+- `RenderPassColorAttachment` 与 `RenderPassDepthStencilAttachment` 已新增 `View`，并保留 `Target`/`AttachmentIndex` 作为兼容回退。
+- OpenGL command list 已从 attachment-backed texture view 解析 framebuffer storage、color/depth format，并拒绝将普通 sampled texture view 作为 render pass output。
+- pipeline target contract 现在基于已解析的 attachment view format 校验。
+- Forward `BindTargetPass` 已使用 color/depth attachment view 构建 render pass。
+- `RHICommandListBindingSmoke` 已覆盖不携带 legacy target 的 view-only render pass draw；legacy render pass smoke 保持通过。
+- `RenderingOperationsSmoke`、`RHICommandListBindingSmoke`、`RHIResourceCreationSmoke`、`RenderPassGraphSmoke` 已通过。

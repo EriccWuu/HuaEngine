@@ -8,6 +8,7 @@
 
 namespace HE::Rendering {
 	class RenderTarget;
+	class TextureView;
 
 	enum class LoadOp : uint8_t {
 		Load = 0,
@@ -21,6 +22,8 @@ namespace HE::Rendering {
 	};
 
 	struct RenderPassColorAttachment {
+		Ref<TextureView> View;
+		// Legacy render-target path retained while callers migrate to View.
 		Ref<RenderTarget> Target;
 		uint32_t AttachmentIndex = 0;
 		LoadOp Load = LoadOp::Clear;
@@ -29,6 +32,8 @@ namespace HE::Rendering {
 	};
 
 	struct RenderPassDepthStencilAttachment {
+		Ref<TextureView> View;
+		// Legacy render-target path retained while callers migrate to View.
 		Ref<RenderTarget> Target;
 		LoadOp DepthLoad = LoadOp::Clear;
 		StoreOp DepthStore = StoreOp::Store;

@@ -428,8 +428,7 @@ int main() {
 	commands.BeginRenderPass({
 		.ColorAttachments = {
 			{
-				.Target = renderTarget,
-				.AttachmentIndex = 0,
+				.View = renderTarget->GetColorAttachmentTextureView(0),
 				.Load = HE::Rendering::LoadOp::Clear,
 				.Store = HE::Rendering::StoreOp::Store,
 				.ClearColor = { 0.1f, 0.1f, 0.1f, 1.0f }

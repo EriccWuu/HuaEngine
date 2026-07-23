@@ -44,15 +44,14 @@ namespace HE::Rendering {
 		context.Commands->BeginRenderPass({
 			.ColorAttachments = {
 				{
-					.Target = context.View->Target,
-					.AttachmentIndex = 0,
+					.View = context.View->Target->GetColorAttachmentTextureView(0),
 					.Load = context.View->ClearColorBuffer ? LoadOp::Clear : LoadOp::Load,
 					.Store = StoreOp::Store,
 					.ClearColor = context.View->ClearColor
 				}
 			},
 			.DepthStencilAttachment = RenderPassDepthStencilAttachment{
-				.Target = context.View->Target,
+				.View = context.View->Target->GetDepthStencilAttachmentTextureView(),
 				.DepthLoad = context.View->ClearColorBuffer ? LoadOp::Clear : LoadOp::Load,
 				.DepthStore = StoreOp::Store,
 				.ClearDepth = 1.0f

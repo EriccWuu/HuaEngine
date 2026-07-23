@@ -35,6 +35,9 @@ namespace HE::Rendering {
 		void ReleaseExplicitVertexArray();
 
 		RenderTarget* m_CurrentRenderTarget = nullptr;
+		OpenGLRenderTargetStorage* m_CurrentRenderTargetStorage = nullptr;
+		RenderTargetTextureFormat m_CurrentColorAttachmentFormat = RenderTargetTextureFormat::None;
+		RenderTargetTextureFormat m_CurrentDepthStencilAttachmentFormat = RenderTargetTextureFormat::None;
 		ShaderProgram* m_CurrentShaderProgram = nullptr;
 		PipelineState* m_CurrentPipelineState = nullptr;
 		VertexBufferView* m_CurrentVertexBufferView = nullptr;
@@ -172,6 +175,7 @@ namespace HE::Rendering {
 		const RenderTargetDesc& GetDesc() const override;
 		void BeginForCommandList();
 		void EndForCommandList();
+		OpenGLRenderTargetStorage* GetAttachmentStorage() const;
 		void Resize(uint32_t width, uint32_t height) override;
 		void ClearAttachment(uint32_t index, int value) override;
 		RenderTargetPixelRGBA8 ReadPixelRGBA8(uint32_t attachmentIndex, uint32_t x, uint32_t y) const override;
@@ -205,6 +209,7 @@ namespace HE::Rendering {
 		uint32_t GetHeight() const override;
 		void BindForCommandList(uint32_t slot = 0);
 		void UpdateAttachmentDesc(const TextureDesc& desc);
+		OpenGLRenderTargetStorage* GetAttachmentStorage() const;
 
 	private:
 		TextureDesc m_Desc;
