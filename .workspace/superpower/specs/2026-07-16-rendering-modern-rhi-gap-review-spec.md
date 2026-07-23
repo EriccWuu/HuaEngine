@@ -513,3 +513,28 @@ P46 RenderTarget attachment aggregation
 - Forward `BindTargetPass` 已使用 color/depth attachment view 构建 render pass。
 - `RHICommandListBindingSmoke` 已覆盖不携带 legacy target 的 view-only render pass draw；legacy render pass smoke 保持通过。
 - `RenderingOperationsSmoke`、`RHICommandListBindingSmoke`、`RHIResourceCreationSmoke`、`RenderPassGraphSmoke` 已通过。
+
+### P49：跨 Pass Attachment 读写与状态迁移
+
+#### 目标
+
+验证 render target attachment 可以作为 graph imported texture：先被一个 pass 写入，再被后续 pass 以 sampled texture 消费，并产生 `RenderTarget -> ShaderRead` 状态迁移。
+
+#### 约束
+
+- graph pass callback 必须能解析当前 execute 的 runtime texture，但不得取得 allocator 的可变所有权。
+- imported attachment 的 runtime identity 必须是 P47 暴露的 `TextureResource`。
+- 第二个 pass 创建的 sampled view 必须以同一 attachment texture 为源。
+
+#### 验收
+
+- `RenderPassContext` 能查询 runtime graph resource。
+- 两 pass graph 的 barrier 顺序为 `Undefined -> RenderTarget`、`RenderTarget -> ShaderRead`，且均指向同一个 attachment texture。
+- writer pass 可通过 attachment view 建立 render pass；reader pass 可从解析出的 runtime texture 创建 sampled view。
+
+#### 实现结果
+
+- `RenderPassContext` 已提供只读 `GraphResources`，`PassGraph::Execute()` 仅在执行期间注入 allocator，结束时恢复原 context。
+- `RHIResourceCreationSmoke` 已将 RenderTarget color attachment 作为 imported runtime texture。
+- writer pass 使用 attachment view 建立 render pass；reader pass 通过 `GraphResources` 解析同一 texture 并创建 sampled view。
+- smoke 已验证 `Undefined -> RenderTarget -> ShaderRead` barrier plan、最终 state 和 attachment texture identity。

@@ -283,6 +283,9 @@ namespace HE::Rendering {
 			return false;
 		}
 
+		const auto* const previousGraphResources = context.GraphResources;
+		context.GraphResources = &m_ResourceAllocator;
+
 		for (uint32_t passIndex = 0; passIndex < m_Passes.size(); ++passIndex) {
 			for (const auto& barrier : m_BarrierPlan) {
 				if (barrier.PassIndex == passIndex) {
@@ -305,6 +308,8 @@ namespace HE::Rendering {
 
 			m_Passes[passIndex].Execute(context);
 		}
+
+		context.GraphResources = previousGraphResources;
 
 		return true;
 	}

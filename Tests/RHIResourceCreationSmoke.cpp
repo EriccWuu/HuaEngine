@@ -298,6 +298,72 @@ int main() {
 	const auto resizedColorAttachmentView = renderTarget->GetColorAttachmentView(0);
 	Require(resizedColorAttachmentView.Width == 32 && resizedColorAttachmentView.Height == 48, "Expected color attachment metadata after resize");
 	Require(!device.CreateTextureView({}), "Expected empty texture view creation to fail");
+
+	HE::Rendering::PassGraph attachmentSamplingGraph;
+	attachmentSamplingGraph.AddImportedResource({
+		.Name = "AttachmentColor",
+		.Kind = HE::Rendering::RenderGraphResourceKind::Texture,
+		.Texture = {
+			.Width = colorAttachmentTexture->GetWidth(),
+			.Height = colorAttachmentTexture->GetHeight(),
+			.Format = colorAttachmentTexture->GetDesc().Format
+		},
+		.RuntimeTexture = colorAttachmentTexture
+	});
+	bool writerPassUsedAttachmentView = false;
+	bool readerPassUsedAttachmentTexture = false;
+	HE::Ref<HE::Rendering::TextureView> sampledAttachmentView;
+	attachmentSamplingGraph.AddPass({
+		.Name = "WriteAttachment",
+		.Outputs = { "AttachmentColor" },
+		.Execute = [&](HE::Rendering::RenderPassContext& context) {
+			const auto handle = context.GraphResources->FindByName("AttachmentColor");
+			const auto* runtimeResource = context.GraphResources->GetRuntimeResource(handle);
+			writerPassUsedAttachmentView = runtimeResource && runtimeResource->Texture == colorAttachmentTexture;
+			context.Commands->BeginRenderPass({
+				.ColorAttachments = {
+					{
+						.View = colorAttachmentTextureView,
+						.Load = HE::Rendering::LoadOp::Clear,
+						.Store = HE::Rendering::StoreOp::Store,
+						.ClearColor = { 0.2f, 0.3f, 0.4f, 1.0f }
+					}
+				}
+			});
+			context.Commands->EndRenderPass();
+		}
+	});
+	attachmentSamplingGraph.AddPass({
+		.Name = "SampleAttachment",
+		.Inputs = { "AttachmentColor" },
+		.Execute = [&](HE::Rendering::RenderPassContext& context) {
+			const auto handle = context.GraphResources->FindByName("AttachmentColor");
+			const auto* runtimeResource = context.GraphResources->GetRuntimeResource(handle);
+			if (runtimeResource && runtimeResource->Texture == colorAttachmentTexture) {
+				sampledAttachmentView = context.Device->CreateTextureView({ .Texture = runtimeResource->Texture });
+				readerPassUsedAttachmentTexture = static_cast<bool>(sampledAttachmentView);
+			}
+		}
+	});
+	Require(attachmentSamplingGraph.Compile(), "Expected attachment sampling graph compile to succeed");
+	std::vector<HE::Rendering::PassGraphResourceBarrier> attachmentBarrierSequence;
+	attachmentSamplingGraph.SetBarrierExecutor([&](const HE::Rendering::PassGraphResourceBarrier& barrier, HE::Rendering::RenderPassContext&) {
+		attachmentBarrierSequence.push_back(barrier);
+	});
+	HE::Rendering::ResourceStateTracker attachmentResourceStates;
+	HE::Rendering::RenderPassContext attachmentSamplingContext;
+	attachmentSamplingContext.Device = &device;
+	attachmentSamplingContext.Commands = &device.GetImmediateCommandList();
+	attachmentSamplingContext.ResourceStates = &attachmentResourceStates;
+	Require(attachmentSamplingGraph.Execute(attachmentSamplingContext), "Expected attachment sampling graph execute to succeed");
+	Require(attachmentSamplingContext.GraphResources == nullptr, "Expected graph resource context to be restored after execute");
+	Require(writerPassUsedAttachmentView, "Expected writer pass to resolve the imported attachment texture");
+	Require(readerPassUsedAttachmentTexture, "Expected reader pass to create a sampled view from the imported attachment texture");
+	Require(sampledAttachmentView->GetDesc().Texture == colorAttachmentTexture, "Expected sampled attachment view source texture");
+	Require(attachmentBarrierSequence.size() == 2, "Expected attachment graph to emit write and sampled-read barriers");
+	Require(attachmentBarrierSequence[0].Before == HE::Rendering::ResourceState::Undefined && attachmentBarrierSequence[0].After == HE::Rendering::ResourceState::RenderTarget, "Expected attachment write barrier state transition");
+	Require(attachmentBarrierSequence[1].Before == HE::Rendering::ResourceState::RenderTarget && attachmentBarrierSequence[1].After == HE::Rendering::ResourceState::ShaderRead, "Expected attachment sampled-read barrier state transition");
+	Require(attachmentResourceStates.GetState(colorAttachmentTexture) == HE::Rendering::ResourceState::ShaderRead, "Expected attachment texture final shader-read state");
 	device.GetImmediateCommandList().ResourceBarrier({
 		.Texture = texture,
 		.Before = HE::Rendering::ResourceState::Undefined,

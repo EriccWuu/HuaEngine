@@ -21,6 +21,7 @@
 namespace HE::Rendering {
 	class CommandList;
 	class RenderDevice;
+	class RenderGraphResourceAllocator;
 	class RenderResourceResolver;
 	class ResourceStateTracker;
 
@@ -113,6 +114,7 @@ namespace HE::Rendering {
 		CommandList* Commands = nullptr;
 		RenderDevice* Device = nullptr;
 		ResourceStateTracker* ResourceStates = nullptr;
+		const RenderGraphResourceAllocator* GraphResources = nullptr;
 		RenderStats* Stats = nullptr;
 		std::vector<RenderDiagnostic>* Diagnostics = nullptr;
 	};
