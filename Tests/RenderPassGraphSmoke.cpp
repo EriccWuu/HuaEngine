@@ -90,6 +90,52 @@ int main() {
 		HasDiagnostic(invalidHandleGraph.GetDiagnostics(), HE::Rendering::PassGraphDiagnosticCode::InvalidResourceHandle),
 		"Expected invalid typed resource handle diagnostic");
 
+	HE::Rendering::PassGraph explicitUsageGraph;
+	const auto explicitUsageTexture = explicitUsageGraph.AddImportedResource({
+		.Name = "ExplicitUsageTexture",
+		.Kind = HE::Rendering::RenderGraphResourceKind::Texture,
+		.Texture = {
+			.Width = 64,
+			.Height = 64,
+			.Format = HE::Rendering::RenderTargetTextureFormat::RGBA8
+		}
+	});
+	explicitUsageGraph.AddPass({
+		.Name = "WriteExplicitUsage",
+		.ResourceUsages = { { .Resource = explicitUsageTexture, .State = HE::Rendering::ResourceState::RenderTarget } },
+		.Execute = [](HE::Rendering::RenderPassContext&) {}
+	});
+	explicitUsageGraph.AddPass({
+		.Name = "ReadExplicitUsage",
+		.ResourceUsages = { { .Resource = explicitUsageTexture, .State = HE::Rendering::ResourceState::ShaderRead } },
+		.Execute = [](HE::Rendering::RenderPassContext&) {}
+	});
+	Require(explicitUsageGraph.Compile(), "Expected explicit resource usage graph compile to succeed");
+	const auto& explicitUsageBarriers = explicitUsageGraph.GetBarrierPlan();
+	Require(explicitUsageBarriers.size() == 2, "Expected explicit resource usage write/read barriers");
+	Require(explicitUsageBarriers[0].Before == HE::Rendering::ResourceState::Undefined && explicitUsageBarriers[0].After == HE::Rendering::ResourceState::RenderTarget, "Expected explicit write barrier");
+	Require(explicitUsageBarriers[1].Before == HE::Rendering::ResourceState::RenderTarget && explicitUsageBarriers[1].After == HE::Rendering::ResourceState::ShaderRead, "Expected explicit read barrier");
+
+	HE::Rendering::PassGraph invalidUsageGraph;
+	const auto invalidUsageTexture = invalidUsageGraph.AddImportedResource({
+		.Name = "InvalidUsageTexture",
+		.Kind = HE::Rendering::RenderGraphResourceKind::Texture,
+		.Texture = {
+			.Width = 64,
+			.Height = 64,
+			.Format = HE::Rendering::RenderTargetTextureFormat::RGBA8
+		}
+	});
+	invalidUsageGraph.AddPass({
+		.Name = "InvalidExplicitUsage",
+		.ResourceUsages = { { .Resource = invalidUsageTexture, .State = HE::Rendering::ResourceState::Undefined } },
+		.Execute = [](HE::Rendering::RenderPassContext&) {}
+	});
+	Require(!invalidUsageGraph.Compile(), "Expected unsupported explicit resource usage state to fail compile");
+	Require(
+		HasDiagnostic(invalidUsageGraph.GetDiagnostics(), HE::Rendering::PassGraphDiagnosticCode::InvalidResourceUsage),
+		"Expected invalid explicit resource usage diagnostic");
+
 	HE::Rendering::PassGraph duplicateAccessGraph;
 	duplicateAccessGraph.AddPass({
 		.Name = "DuplicateAccess",

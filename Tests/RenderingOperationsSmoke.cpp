@@ -137,7 +137,7 @@ namespace {
 			&& content.find("AddExternalInput(\"RenderTarget\")") == std::string::npos
 			&& content.find("BoundRenderTarget") == std::string::npos
 			&& content.find("ClearedSceneColor") == std::string::npos
-			&& content.find(".OutputResources = { viewportColorHandle }") != std::string::npos;
+			&& content.find(".ResourceUsages = { { .Resource = viewportColorHandle, .State = ResourceState::RenderTarget } }") != std::string::npos;
 	}
 }
 

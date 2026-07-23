@@ -18,6 +18,7 @@ namespace HE::Rendering {
 		EmptyResourceName,
 		InvalidResourceDescription,
 		InvalidResourceHandle,
+		InvalidResourceUsage,
 		DuplicateResourceAccess,
 		MissingResourceProducer,
 		DuplicateResourceWriter
@@ -29,12 +30,18 @@ namespace HE::Rendering {
 		std::string Message;
 	};
 
+	struct PassGraphResourceUsage {
+		RenderGraphResourceHandle Resource;
+		ResourceState State = ResourceState::Undefined;
+	};
+
 	struct PassGraphPassDesc {
 		std::string Name;
 		std::vector<std::string> Inputs;
 		std::vector<std::string> Outputs;
 		std::vector<RenderGraphResourceHandle> InputResources;
 		std::vector<RenderGraphResourceHandle> OutputResources;
+		std::vector<PassGraphResourceUsage> ResourceUsages;
 		std::function<void(RenderPassContext&)> Execute;
 	};
 

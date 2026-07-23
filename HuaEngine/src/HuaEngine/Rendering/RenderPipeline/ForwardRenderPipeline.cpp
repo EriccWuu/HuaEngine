@@ -25,6 +25,8 @@ namespace HE::Rendering {
 					return RenderGraphDiagnosticCode::InvalidResourceDescription;
 				case PassGraphDiagnosticCode::InvalidResourceHandle:
 					return RenderGraphDiagnosticCode::InvalidResourceHandle;
+				case PassGraphDiagnosticCode::InvalidResourceUsage:
+					return RenderGraphDiagnosticCode::InvalidResourceUsage;
 				case PassGraphDiagnosticCode::DuplicateResourceAccess:
 					return RenderGraphDiagnosticCode::DuplicateResourceAccess;
 				case PassGraphDiagnosticCode::MissingResourceProducer:
@@ -171,14 +173,14 @@ namespace HE::Rendering {
 		m_Graph.AddExternalInput("SceneItems");
 		m_Graph.AddPass({
 			.Name = "BindTarget",
-			.OutputResources = { viewportColorHandle },
+			.ResourceUsages = { { .Resource = viewportColorHandle, .State = ResourceState::RenderTarget } },
 			.Execute = [this](RenderPassContext& context) {
 				m_BindTargetPass.Execute(context);
 			}
 		});
 		m_Graph.AddPass({
 			.Name = "ClearTarget",
-			.OutputResources = { viewportColorHandle },
+			.ResourceUsages = { { .Resource = viewportColorHandle, .State = ResourceState::RenderTarget } },
 			.Execute = [this](RenderPassContext& context) {
 				m_ClearTargetPass.Execute(context);
 			}
@@ -194,7 +196,7 @@ namespace HE::Rendering {
 		m_Graph.AddPass({
 			.Name = "ForwardOpaque",
 			.Inputs = { "CameraView", "SceneItems", "RendererFrame" },
-			.OutputResources = { viewportColorHandle },
+			.ResourceUsages = { { .Resource = viewportColorHandle, .State = ResourceState::RenderTarget } },
 			.Execute = [this](RenderPassContext& context) {
 				m_OpaquePass.Execute(context);
 			}

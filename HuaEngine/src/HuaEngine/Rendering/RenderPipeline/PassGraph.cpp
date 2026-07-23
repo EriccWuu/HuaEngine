@@ -272,6 +272,69 @@ namespace HE::Rendering {
 					availableResources.insert(output);
 				}
 			}
+
+			for (const auto& usage : pass.ResourceUsages) {
+				const auto* resource = m_ResourceAllocator.GetDesc(usage.Resource);
+				if (!resource) {
+					AddDiagnostic(
+						m_Diagnostics,
+						PassGraphDiagnosticCode::InvalidResourceHandle,
+						pass.Name,
+						"Render pass references an invalid explicit resource usage handle");
+					continue;
+				}
+
+				if (usage.State != ResourceState::ShaderRead && usage.State != ResourceState::RenderTarget) {
+					AddDiagnostic(
+						m_Diagnostics,
+						PassGraphDiagnosticCode::InvalidResourceUsage,
+						pass.Name,
+						"Render pass explicit resource usage state is not supported");
+					continue;
+				}
+
+				const auto& resourceName = resource->Name;
+				if (!passResources.insert(resourceName).second) {
+					AddDiagnostic(
+						m_Diagnostics,
+						PassGraphDiagnosticCode::DuplicateResourceAccess,
+						pass.Name,
+						"Render pass declares the same resource more than once");
+				}
+
+				if (usage.State == ResourceState::ShaderRead && !availableResources.contains(resourceName)) {
+					AddDiagnostic(
+						m_Diagnostics,
+						PassGraphDiagnosticCode::MissingResourceProducer,
+						pass.Name,
+						"Render pass reads a resource that has no producer or external input");
+				}
+
+				resources.insert(resourceName);
+				if (!firstUsePass.contains(resourceName)) {
+					firstUsePass.emplace(resourceName, passIndex);
+				}
+				lastUsePass[resourceName] = passIndex;
+				const auto before = resourceStates.contains(resourceName) ? resourceStates[resourceName] : ResourceState::Undefined;
+				if (before != usage.State) {
+					m_BarrierPlan.push_back({
+						.PassName = pass.Name,
+						.ResourceName = resourceName,
+						.PassIndex = passIndex,
+						.Before = before,
+						.After = usage.State
+					});
+					resourceStates[resourceName] = usage.State;
+				}
+
+				if (usage.State == ResourceState::ShaderRead) {
+					readResources.insert(resourceName);
+					++inputEdgeCount;
+				} else {
+					resourceWriters[resourceName] = pass.Name;
+					availableResources.insert(resourceName);
+				}
+			}
 		}
 
 		m_Compiled = m_Diagnostics.empty();

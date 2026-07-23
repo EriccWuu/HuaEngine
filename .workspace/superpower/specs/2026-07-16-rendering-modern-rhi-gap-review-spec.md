@@ -615,3 +615,29 @@ P46 RenderTarget attachment aggregation
 - PassGraph 允许同一 typed resource 的顺序多 writer，但遗留字符串资源的重复 writer diagnostic 保持不变。
 - Forward pass context 已注入 device 和每帧 reset 的 `ResourceStateTracker`，使主路径进入 runtime barrier/state 流程。
 - `RenderingOperationsSmoke` 已验证 fallback draw、更新后的 typed graph stats 与旧字符串节点移除；`RenderPassGraphSmoke` 已通过。
+
+### P53：PassGraph Explicit Resource Usage
+
+#### 目标
+
+让 graph pass 明确声明 typed resource 的目标 `ResourceState`，以显式 usage 驱动 barrier，而不是把 input/output 隐式映射为 `ShaderRead`/`RenderTarget`。
+
+#### 约束
+
+- 当前只接受已有 RHI 语义的 `ShaderRead` 和 `RenderTarget` usage。
+- 同一 typed handle 可在不同 pass 连续声明 `RenderTarget`，并不会产生多 writer diagnostic。
+- 字符串和 P51 handle input/output 兼容路径保持原有规则。
+
+#### 验收
+
+- Forward BindTarget、ClearTarget、ForwardOpaque 使用同一 handle 的 `RenderTarget` usage。
+- explicit writer 后 explicit reader 的 barrier 为 `Undefined -> RenderTarget -> ShaderRead`。
+- 无效 handle 或不支持的 usage state 在 compile 期报告专门 diagnostic。
+
+#### 实现结果
+
+- `PassGraphResourceUsage` 已以 typed handle 和目标 `ResourceState` 表达显式 usage；当前支持 `RenderTarget` 与 `ShaderRead`。
+- compile 已将 explicit usage 接入 handle/state 校验、availability、lifetime、barrier 和 output 统计。
+- Forward BindTarget、ClearTarget、ForwardOpaque 已以同一 viewport attachment handle 声明 `RenderTarget` usage，不再依赖 typed output 的多 writer 兼容规则。
+- `RenderPassGraphSmoke` 已覆盖 explicit `Undefined -> RenderTarget -> ShaderRead` barrier，以及不支持 usage state 的 compile diagnostic。
+- `RenderingOperationsSmoke` 主渲染路径保持通过。
