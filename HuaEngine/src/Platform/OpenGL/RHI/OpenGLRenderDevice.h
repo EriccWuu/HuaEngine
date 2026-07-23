@@ -175,6 +175,10 @@ namespace HE::Rendering {
 		void Resize(uint32_t width, uint32_t height) override;
 		void ClearAttachment(uint32_t index, int value) override;
 		RenderTargetPixelRGBA8 ReadPixelRGBA8(uint32_t attachmentIndex, uint32_t x, uint32_t y) const override;
+		Ref<TextureResource> GetColorAttachmentTexture(uint32_t index = 0) const override;
+		Ref<TextureResource> GetDepthStencilAttachmentTexture() const override;
+		Ref<TextureView> GetColorAttachmentTextureView(uint32_t index = 0) const override;
+		Ref<TextureView> GetDepthStencilAttachmentTextureView() const override;
 		RenderTargetColorAttachmentView GetColorAttachmentView(uint32_t index = 0) const override;
 		RenderTargetColorAttachmentView GetDepthStencilAttachmentView() const override;
 		const RenderTargetSpecification& GetSpecification() const override;
@@ -182,11 +186,16 @@ namespace HE::Rendering {
 	private:
 		RenderTargetDesc m_Desc;
 		Ref<OpenGLRenderTargetStorage> m_BackendStorage;
+		std::vector<Ref<TextureResource>> m_ColorAttachmentTextures;
+		Ref<TextureResource> m_DepthStencilAttachmentTexture;
+		std::vector<Ref<TextureView>> m_ColorAttachmentTextureViews;
+		Ref<TextureView> m_DepthStencilAttachmentTextureView;
 	};
 
 	class OpenGLTextureResource final : public TextureResource {
 	public:
 		explicit OpenGLTextureResource(const TextureDesc& desc);
+		OpenGLTextureResource(TextureDesc desc, Ref<OpenGLRenderTargetStorage> attachmentStorage, uint32_t attachmentIndex, bool isDepthStencil);
 		~OpenGLTextureResource() override;
 		OpenGLTextureResource(const OpenGLTextureResource&) = delete;
 		OpenGLTextureResource& operator=(const OpenGLTextureResource&) = delete;
@@ -195,12 +204,16 @@ namespace HE::Rendering {
 		uint32_t GetWidth() const override;
 		uint32_t GetHeight() const override;
 		void BindForCommandList(uint32_t slot = 0);
+		void UpdateAttachmentDesc(const TextureDesc& desc);
 
 	private:
 		TextureDesc m_Desc;
 		uint32_t m_RenderID = 0;
 		uint32_t m_Width = 0;
 		uint32_t m_Height = 0;
+		Ref<OpenGLRenderTargetStorage> m_AttachmentStorage;
+		uint32_t m_AttachmentIndex = 0;
+		bool m_IsDepthStencilAttachment = false;
 	};
 
 	class OpenGLTextureView final : public TextureView {

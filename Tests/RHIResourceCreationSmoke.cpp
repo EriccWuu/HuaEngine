@@ -182,6 +182,21 @@ int main() {
 	Require(depthAttachmentView.Format == HE::Rendering::RenderTargetTextureFormat::DEPTH24_STENCIL8, "Expected depth/stencil attachment format metadata");
 	Require(depthAttachmentView.Width == 64 && depthAttachmentView.Height == 64, "Expected depth/stencil attachment size metadata");
 	Require(depthAttachmentView.Samples == 1, "Expected depth/stencil attachment sample metadata");
+	const auto colorAttachmentTexture = renderTarget->GetColorAttachmentTexture(0);
+	Require(static_cast<bool>(colorAttachmentTexture), "Expected color attachment texture resource");
+	Require(colorAttachmentTexture->GetDesc().Format == HE::Rendering::RenderTargetTextureFormat::RGBA8, "Expected color attachment texture format");
+	Require((colorAttachmentTexture->GetDesc().Usage & HE::Rendering::TextureUsageColorAttachment) != 0, "Expected color attachment usage");
+	Require((colorAttachmentTexture->GetDesc().Usage & HE::Rendering::TextureUsageSampled) != 0, "Expected color attachment sampled usage");
+	const auto depthAttachmentTexture = renderTarget->GetDepthStencilAttachmentTexture();
+	Require(static_cast<bool>(depthAttachmentTexture), "Expected depth/stencil attachment texture resource");
+	Require(depthAttachmentTexture->GetDesc().Format == HE::Rendering::RenderTargetTextureFormat::DEPTH24_STENCIL8, "Expected depth/stencil attachment texture format");
+	Require((depthAttachmentTexture->GetDesc().Usage & HE::Rendering::TextureUsageDepthStencilAttachment) != 0, "Expected depth/stencil attachment usage");
+	const auto colorAttachmentTextureView = renderTarget->GetColorAttachmentTextureView(0);
+	Require(static_cast<bool>(colorAttachmentTextureView), "Expected color attachment texture view");
+	Require(colorAttachmentTextureView->GetDesc().Texture == colorAttachmentTexture, "Expected color attachment texture view source");
+	const auto depthAttachmentTextureView = renderTarget->GetDepthStencilAttachmentTextureView();
+	Require(static_cast<bool>(depthAttachmentTextureView), "Expected depth/stencil attachment texture view");
+	Require(depthAttachmentTextureView->GetDesc().Texture == depthAttachmentTexture, "Expected depth/stencil attachment texture view source");
 
 	const auto texturePath = HE::ResourcePaths::ResolveEngineResourcePath("ret.png");
 	auto texture = device.CreateTexture({ .SourcePath = texturePath.generic_string() });
@@ -261,7 +276,7 @@ int main() {
 			{
 				.Name = "u_Texture",
 				.Type = HE::Rendering::BindingValueType::TextureView,
-				.Value = textureView,
+				.Value = colorAttachmentTextureView,
 				.Binding = 0,
 				.TextureSlot = 0
 			},
@@ -275,6 +290,13 @@ int main() {
 		}
 	});
 	Require(static_cast<bool>(sampledTextureBindGroup), "Expected texture view/sampler bind group creation to succeed");
+	Require(std::get<HE::Ref<HE::Rendering::TextureView>>(sampledTextureBindGroup->GetDesc().Entries[0].Value) == colorAttachmentTextureView, "Expected bind group to retain render target attachment view");
+	renderTarget->Resize(32, 48);
+	Require(renderTarget->GetColorAttachmentTexture(0) == colorAttachmentTexture, "Expected resize to preserve color attachment texture identity");
+	Require(colorAttachmentTexture->GetWidth() == 32 && colorAttachmentTexture->GetHeight() == 48, "Expected color attachment texture dimensions after resize");
+	Require(colorAttachmentTextureView->GetDesc().Texture == colorAttachmentTexture, "Expected color attachment view source after resize");
+	const auto resizedColorAttachmentView = renderTarget->GetColorAttachmentView(0);
+	Require(resizedColorAttachmentView.Width == 32 && resizedColorAttachmentView.Height == 48, "Expected color attachment metadata after resize");
 	Require(!device.CreateTextureView({}), "Expected empty texture view creation to fail");
 	device.GetImmediateCommandList().ResourceBarrier({
 		.Texture = texture,

@@ -1,8 +1,11 @@
 #pragma once
 
+#include "HuaEngine/Core/Core.h"
 #include "HuaEngine/Rendering/RHI/RenderTargetTypes.h"
 
 namespace HE::Rendering {
+	class TextureResource;
+	class TextureView;
 	struct RenderTargetDesc {
 		RenderTargetSpecification Specification;
 	};
@@ -24,6 +27,10 @@ namespace HE::Rendering {
 		virtual void Resize(uint32_t width, uint32_t height) = 0;
 		virtual void ClearAttachment(uint32_t index, int value) = 0;
 		virtual RenderTargetPixelRGBA8 ReadPixelRGBA8(uint32_t attachmentIndex, uint32_t x, uint32_t y) const = 0;
+		virtual Ref<TextureResource> GetColorAttachmentTexture(uint32_t index = 0) const = 0;
+		virtual Ref<TextureResource> GetDepthStencilAttachmentTexture() const = 0;
+		virtual Ref<TextureView> GetColorAttachmentTextureView(uint32_t index = 0) const = 0;
+		virtual Ref<TextureView> GetDepthStencilAttachmentTextureView() const = 0;
 		virtual RenderTargetColorAttachmentView GetColorAttachmentView(uint32_t index = 0) const = 0;
 		virtual RenderTargetColorAttachmentView GetDepthStencilAttachmentView() const = 0;
 		virtual const RenderTargetSpecification& GetSpecification() const = 0;

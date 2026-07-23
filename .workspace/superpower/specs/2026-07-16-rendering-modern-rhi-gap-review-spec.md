@@ -465,3 +465,23 @@ P46 RenderTarget attachment aggregation
 - OpenGL render target color/depth view accessor 已返回 attachment metadata。
 - `RHIResourceCreationSmoke` 已覆盖 color/depth attachment view metadata 与 native handle。
 - `RenderingOperationsSmoke`、`RHICommandListBindingSmoke`、`RHIResourceCreationSmoke`、`RenderPassGraphSmoke` 已通过。
+
+### P47：Attachment-backed TextureResource
+
+#### 目标
+
+将 `RenderTarget` 的 color/depth-stencil attachment 从仅含 native handle 的元数据，提升为可被 RHI、RenderGraph 与 bind group 消费的真实 `TextureResource` 和默认 `TextureView`。
+
+#### 约束
+
+- OpenGL framebuffer storage 仍是 attachment GL texture 的唯一所有者，资源包装不得重复释放 GL texture。
+- attachment texture 在 render target resize 后必须继续解析到新创建的底层 GL texture。
+- color attachment 必须带有 `TextureUsageColorAttachment | TextureUsageSampled`；depth/stencil attachment 必须带有 `TextureUsageDepthStencilAttachment | TextureUsageSampled`。
+- 保留 P46 的 metadata accessor 与现有 readback API，避免 editor/smoke 路径回归。
+
+#### 验收
+
+- `GetColorAttachmentTexture()` 与 `GetDepthStencilAttachmentTexture()` 返回有效资源，尺寸、格式、sample count 与 render target specification 一致。
+- `GetColorAttachmentTextureView()` 与 `GetDepthStencilAttachmentTextureView()` 返回以对应 attachment texture 为源的默认 view。
+- attachment texture 可用于创建 bind group 的 texture view binding。
+- resize 后既有 attachment resource/view 仍可解析并绑定新的 GL attachment，且 metadata 与 texture desc 更新。

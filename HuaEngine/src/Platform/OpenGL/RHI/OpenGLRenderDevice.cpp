@@ -701,7 +701,30 @@ namespace HE::Rendering {
 	}
 
 	OpenGLRenderTarget::OpenGLRenderTarget(const RenderTargetDesc& desc)
-		: m_Desc(desc), m_BackendStorage(CreateRef<OpenGLRenderTargetStorage>(desc.Specification)) {}
+		: m_Desc(desc), m_BackendStorage(CreateRef<OpenGLRenderTargetStorage>(desc.Specification)) {
+		for (const auto& attachment : m_Desc.Specification.Attachments.Attachments) {
+			const bool isDepthStencil = attachment.Format == RenderTargetTextureFormat::DEPTH24_STENCIL8;
+			TextureDesc textureDesc{
+				.Width = m_Desc.Specification.Width,
+				.Height = m_Desc.Specification.Height,
+				.Format = attachment.Format,
+				.Usage = isDepthStencil
+					? TextureUsageDepthStencilAttachment | TextureUsageSampled
+					: TextureUsageColorAttachment | TextureUsageSampled,
+				.MipLevels = 1,
+				.Samples = m_Desc.Specification.Samples
+			};
+			auto texture = CreateRef<OpenGLTextureResource>(textureDesc, m_BackendStorage, static_cast<uint32_t>(m_ColorAttachmentTextures.size()), isDepthStencil);
+			auto textureView = CreateRef<OpenGLTextureView>(TextureViewDesc{ .Texture = texture, .Format = attachment.Format });
+			if (isDepthStencil) {
+				m_DepthStencilAttachmentTexture = texture;
+				m_DepthStencilAttachmentTextureView = textureView;
+			} else {
+				m_ColorAttachmentTextures.push_back(texture);
+				m_ColorAttachmentTextureViews.push_back(textureView);
+			}
+		}
+	}
 
 	const RenderTargetDesc& OpenGLRenderTarget::GetDesc() const {
 		return m_Desc;
@@ -718,6 +741,20 @@ namespace HE::Rendering {
 	void OpenGLRenderTarget::Resize(uint32_t width, uint32_t height) {
 		m_BackendStorage->Resize(width, height);
 		m_Desc.Specification = m_BackendStorage->GetSpecification();
+		for (uint32_t index = 0; index < m_ColorAttachmentTextures.size(); ++index) {
+			auto texture = std::static_pointer_cast<OpenGLTextureResource>(m_ColorAttachmentTextures[index]);
+			auto desc = texture->GetDesc();
+			desc.Width = width;
+			desc.Height = height;
+			texture->UpdateAttachmentDesc(desc);
+		}
+		if (m_DepthStencilAttachmentTexture) {
+			auto texture = std::static_pointer_cast<OpenGLTextureResource>(m_DepthStencilAttachmentTexture);
+			auto desc = texture->GetDesc();
+			desc.Width = width;
+			desc.Height = height;
+			texture->UpdateAttachmentDesc(desc);
+		}
 	}
 
 	void OpenGLRenderTarget::ClearAttachment(uint32_t index, int value) {
@@ -726,6 +763,24 @@ namespace HE::Rendering {
 
 	RenderTargetPixelRGBA8 OpenGLRenderTarget::ReadPixelRGBA8(uint32_t attachmentIndex, uint32_t x, uint32_t y) const {
 		return m_BackendStorage->ReadPixelRGBA8(attachmentIndex, x, y);
+	}
+
+	Ref<TextureResource> OpenGLRenderTarget::GetColorAttachmentTexture(uint32_t index) const {
+		HE_CORE_ASSERT(index < m_ColorAttachmentTextures.size(), "Color attachment index out of range");
+		return m_ColorAttachmentTextures[index];
+	}
+
+	Ref<TextureResource> OpenGLRenderTarget::GetDepthStencilAttachmentTexture() const {
+		return m_DepthStencilAttachmentTexture;
+	}
+
+	Ref<TextureView> OpenGLRenderTarget::GetColorAttachmentTextureView(uint32_t index) const {
+		HE_CORE_ASSERT(index < m_ColorAttachmentTextureViews.size(), "Color attachment index out of range");
+		return m_ColorAttachmentTextureViews[index];
+	}
+
+	Ref<TextureView> OpenGLRenderTarget::GetDepthStencilAttachmentTextureView() const {
+		return m_DepthStencilAttachmentTextureView;
 	}
 
 	RenderTargetColorAttachmentView OpenGLRenderTarget::GetColorAttachmentView(uint32_t index) const {
@@ -808,8 +863,20 @@ namespace HE::Rendering {
 		glTextureParameteri(m_RenderID, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
 	}
 
+	OpenGLTextureResource::OpenGLTextureResource(TextureDesc desc, Ref<OpenGLRenderTargetStorage> attachmentStorage, uint32_t attachmentIndex, bool isDepthStencil)
+		: m_Desc(std::move(desc)),
+		  m_Width(m_Desc.Width),
+		  m_Height(m_Desc.Height),
+		  m_AttachmentStorage(std::move(attachmentStorage)),
+		  m_AttachmentIndex(attachmentIndex),
+		  m_IsDepthStencilAttachment(isDepthStencil) {
+		HE_CORE_ASSERT(m_AttachmentStorage, "Attachment texture storage must not be null");
+	}
+
 	OpenGLTextureResource::~OpenGLTextureResource() {
-		glDeleteTextures(1, &m_RenderID);
+		if (!m_AttachmentStorage && m_RenderID != 0) {
+			glDeleteTextures(1, &m_RenderID);
+		}
 	}
 
 	const TextureDesc& OpenGLTextureResource::GetDesc() const {
@@ -825,7 +892,17 @@ namespace HE::Rendering {
 	}
 
 	void OpenGLTextureResource::BindForCommandList(uint32_t slot) {
-		glBindTextureUnit(slot, m_RenderID);
+		const uint32_t renderID = m_AttachmentStorage
+			? (m_IsDepthStencilAttachment ? m_AttachmentStorage->GetDepthAttachment() : m_AttachmentStorage->GetColorAttachment(m_AttachmentIndex))
+			: m_RenderID;
+		glBindTextureUnit(slot, renderID);
+	}
+
+	void OpenGLTextureResource::UpdateAttachmentDesc(const TextureDesc& desc) {
+		HE_CORE_ASSERT(m_AttachmentStorage, "Only attachment textures can update from render target resize");
+		m_Desc = desc;
+		m_Width = desc.Width;
+		m_Height = desc.Height;
 	}
 
 	OpenGLTextureView::OpenGLTextureView(const TextureViewDesc& desc)
