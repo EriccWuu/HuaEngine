@@ -589,3 +589,29 @@ P46 RenderTarget attachment aggregation
 - Forward graph diagnostic 映射已同步支持无效 handle。
 - P50 writer/reader 已以同一 source attachment handle 声明 output/input，并在 callback 直接用该 handle 查询 runtime resource。
 - `RenderPassGraphSmoke` 已覆盖无效 typed handle compile failure；`RHICommandListBindingSmoke` 保持通过真实 sampling draw。
+
+### P52：Forward Typed Viewport Attachment
+
+#### 目标
+
+将 Forward 主图当前 viewport color attachment 建模为每帧 imported typed resource，并以同一 handle 声明 BindTarget、ClearTarget、ForwardOpaque 的连续 render-target 写入。
+
+#### 约束
+
+- graph 必须在每次 `Render()` 以当前 `RenderView::Target` 重建，禁止缓存上一帧的 imported texture。
+- 同一 typed resource 的顺序多 writer 合法，保持 `RenderTarget` state；遗留字符串资源的重复 writer 仍为 compile error。
+- Forward render context 必须提供 device/state tracker，使 typed attachment barrier 在主路径进入 RHI command list。
+
+#### 验收
+
+- Forward graph 不再使用 `RenderTarget`、`BoundRenderTarget`、`ClearedSceneColor`、`SceneColor` 字符串节点表达 viewport color attachment。
+- viewport color attachment 以 imported runtime texture 参与 graph runtime table，Bind/Clear/Opaque 都以同一 handle 写入。
+- 现有 `RenderingOperationsSmoke` 主路径仍完成 fallback draw，且 graph stats 与新 typed 图一致。
+
+#### 实现结果
+
+- Forward graph 现在每次 render 以当前 `RenderView::Target` 重建，并导入 `ViewportColorAttachment` runtime texture。
+- BindTarget、ClearTarget、ForwardOpaque 以同一 typed handle 声明连续 render-target 写入；不再使用旧 viewport color 字符串中间节点。
+- PassGraph 允许同一 typed resource 的顺序多 writer，但遗留字符串资源的重复 writer diagnostic 保持不变。
+- Forward pass context 已注入 device 和每帧 reset 的 `ResourceStateTracker`，使主路径进入 runtime barrier/state 流程。
+- `RenderingOperationsSmoke` 已验证 fallback draw、更新后的 typed graph stats 与旧字符串节点移除；`RenderPassGraphSmoke` 已通过。

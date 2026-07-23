@@ -133,7 +133,11 @@ namespace {
 		const std::string content((std::istreambuf_iterator<char>(source)), std::istreambuf_iterator<char>());
 		return content.find("SetVertexBufferView") == std::string::npos
 			&& content.find("SetVertexBuffer(") != std::string::npos
-			&& content.find("SetIndexBuffer(") != std::string::npos;
+			&& content.find("SetIndexBuffer(") != std::string::npos
+			&& content.find("AddExternalInput(\"RenderTarget\")") == std::string::npos
+			&& content.find("BoundRenderTarget") == std::string::npos
+			&& content.find("ClearedSceneColor") == std::string::npos
+			&& content.find(".OutputResources = { viewportColorHandle }") != std::string::npos;
 	}
 }
 
@@ -212,8 +216,8 @@ int main() {
 	Require(renderViewport.Payload.at("visible_items") == "1", "Expected invalid renderable resources to count one visible item");
 	Require(renderViewport.Payload.at("fallback_items") == "1", "Expected invalid renderable resources to count one fallback item");
 	Require(renderViewport.Payload.at("diagnostics") == "2", "Expected invalid renderable resources to emit mesh and material fallback diagnostics");
-	Require(renderViewport.Payload.at("graph_resources") == "7", "Expected forward render graph to report seven resources");
-	Require(renderViewport.Payload.at("graph_edges") == "10", "Expected forward render graph to report ten edges");
+	Require(renderViewport.Payload.at("graph_resources") == "4", "Expected forward render graph to report four resources");
+	Require(renderViewport.Payload.at("graph_edges") == "6", "Expected forward render graph to report six edges");
 	Require(renderViewport.Payload.at("graph_external_inputs") == "3", "Expected forward render graph to report three external inputs");
 	Require(renderViewport.Payload.at("graph_outputs") == "1", "Expected forward render graph to report one output");
 	Require(renderViewport.Payload.at("graph_diagnostics") == "0", "Expected forward render graph to emit no diagnostics");
@@ -257,8 +261,8 @@ int main() {
 	Require(renderAssetRefScene.Payload.at("pass_count") == "6", "Expected typed asset-ref scene render to execute six render passes");
 	Require(renderAssetRefScene.Payload.at("visible_items") == "1", "Expected typed asset-ref scene render to count one visible item");
 	Require(renderAssetRefScene.Payload.at("diagnostics") == "0", "Expected typed asset-ref scene render to emit no resolver diagnostics");
-	Require(renderAssetRefScene.Payload.at("graph_resources") == "7", "Expected typed asset-ref scene render graph to report seven resources");
-	Require(renderAssetRefScene.Payload.at("graph_edges") == "10", "Expected typed asset-ref scene render graph to report ten edges");
+	Require(renderAssetRefScene.Payload.at("graph_resources") == "4", "Expected typed asset-ref scene render graph to report four resources");
+	Require(renderAssetRefScene.Payload.at("graph_edges") == "6", "Expected typed asset-ref scene render graph to report six edges");
 	Require(renderAssetRefScene.Payload.at("graph_external_inputs") == "3", "Expected typed asset-ref scene render graph to report three external inputs");
 	Require(renderAssetRefScene.Payload.at("graph_outputs") == "1", "Expected typed asset-ref scene render graph to report one output");
 	Require(renderAssetRefScene.Payload.at("graph_diagnostics") == "0", "Expected typed asset-ref scene render to emit no render graph diagnostics");
@@ -303,8 +307,8 @@ int main() {
 	Require(renderLoadedScene.Payload.at("pass_count") == "6", "Expected loaded sandbox scene render to execute six render passes");
 	Require(renderLoadedScene.Payload.at("visible_items") == "4", "Expected loaded sandbox scene render to count four visible items");
 	Require(renderLoadedScene.Payload.at("diagnostics") == "1", "Expected loaded sandbox scene render to emit one fallback diagnostic for the unmigrated custom mesh");
-	Require(renderLoadedScene.Payload.at("graph_resources") == "7", "Expected loaded sandbox scene render graph to report seven resources");
-	Require(renderLoadedScene.Payload.at("graph_edges") == "10", "Expected loaded sandbox scene render graph to report ten edges");
+	Require(renderLoadedScene.Payload.at("graph_resources") == "4", "Expected loaded sandbox scene render graph to report four resources");
+	Require(renderLoadedScene.Payload.at("graph_edges") == "6", "Expected loaded sandbox scene render graph to report six edges");
 	Require(renderLoadedScene.Payload.at("graph_external_inputs") == "3", "Expected loaded sandbox scene render graph to report three external inputs");
 	Require(renderLoadedScene.Payload.at("graph_outputs") == "1", "Expected loaded sandbox scene render graph to report one output");
 	Require(renderLoadedScene.Payload.at("graph_diagnostics") == "0", "Expected loaded sandbox scene render to emit no render graph diagnostics");

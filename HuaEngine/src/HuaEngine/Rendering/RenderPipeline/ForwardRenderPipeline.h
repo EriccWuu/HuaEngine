@@ -2,6 +2,7 @@
 
 #include "HuaEngine/Rendering/RenderPipeline/PassGraph.h"
 #include "HuaEngine/Rendering/RenderPipeline/RenderPipeline.h"
+#include "HuaEngine/Rendering/RHI/ResourceStateTracker.h"
 
 namespace HE::Rendering {
 	class BindTargetPass {
@@ -42,12 +43,13 @@ namespace HE::Rendering {
 			const RenderResourceResolver& resourceResolver) override;
 
 	private:
-		void BuildGraph();
-		bool EnsureGraphCompiled(RenderResult& result);
+		void BuildGraph(const RenderView& view);
+		bool EnsureGraphCompiled(const RenderView& view, RenderResult& result);
 		void CopyGraphStateToResult(RenderResult& result) const;
 
 	private:
 		PassGraph m_Graph;
+		ResourceStateTracker m_ResourceStates;
 		BindTargetPass m_BindTargetPass;
 		ClearTargetPass m_ClearTargetPass;
 		BeginRendererPass m_BeginRendererPass;

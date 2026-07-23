@@ -154,23 +154,31 @@ namespace HE::Rendering {
 		context.Commands->EndRenderPass();
 	}
 
-	void ForwardRenderPipeline::BuildGraph() {
+	void ForwardRenderPipeline::BuildGraph(const RenderView& view) {
 		m_Graph.Reset();
-		m_Graph.AddExternalInput("RenderTarget");
+		const auto viewportColor = view.Target->GetColorAttachmentTexture();
+		const auto viewportColorHandle = m_Graph.AddImportedResource({
+			.Name = "ViewportColorAttachment",
+			.Kind = RenderGraphResourceKind::Texture,
+			.Texture = {
+				.Width = viewportColor->GetWidth(),
+				.Height = viewportColor->GetHeight(),
+				.Format = viewportColor->GetDesc().Format
+			},
+			.RuntimeTexture = viewportColor
+		});
 		m_Graph.AddExternalInput("CameraView");
 		m_Graph.AddExternalInput("SceneItems");
 		m_Graph.AddPass({
 			.Name = "BindTarget",
-			.Inputs = { "RenderTarget" },
-			.Outputs = { "BoundRenderTarget" },
+			.OutputResources = { viewportColorHandle },
 			.Execute = [this](RenderPassContext& context) {
 				m_BindTargetPass.Execute(context);
 			}
 		});
 		m_Graph.AddPass({
 			.Name = "ClearTarget",
-			.Inputs = { "BoundRenderTarget" },
-			.Outputs = { "ClearedSceneColor" },
+			.OutputResources = { viewportColorHandle },
 			.Execute = [this](RenderPassContext& context) {
 				m_ClearTargetPass.Execute(context);
 			}
@@ -185,8 +193,8 @@ namespace HE::Rendering {
 		});
 		m_Graph.AddPass({
 			.Name = "ForwardOpaque",
-			.Inputs = { "CameraView", "SceneItems", "RendererFrame", "ClearedSceneColor" },
-			.Outputs = { "SceneColor" },
+			.Inputs = { "CameraView", "SceneItems", "RendererFrame" },
+			.OutputResources = { viewportColorHandle },
 			.Execute = [this](RenderPassContext& context) {
 				m_OpaquePass.Execute(context);
 			}
@@ -200,19 +208,16 @@ namespace HE::Rendering {
 		});
 		m_Graph.AddPass({
 			.Name = "UnbindTarget",
-			.Inputs = { "BoundRenderTarget" },
 			.Execute = [this](RenderPassContext& context) {
 				m_UnbindTargetPass.Execute(context);
 			}
 		});
 	}
 
-	bool ForwardRenderPipeline::EnsureGraphCompiled(RenderResult& result) {
-		if (m_Graph.GetPasses().empty()) {
-			BuildGraph();
-		}
+	bool ForwardRenderPipeline::EnsureGraphCompiled(const RenderView& view, RenderResult& result) {
+		BuildGraph(view);
 
-		if (!m_Graph.IsCompiled() && !m_Graph.Compile()) {
+		if (!m_Graph.Compile()) {
 			CopyGraphStateToResult(result);
 			return false;
 		}
@@ -251,7 +256,7 @@ namespace HE::Rendering {
 			return result;
 		}
 
-		if (!EnsureGraphCompiled(result)) {
+		if (!EnsureGraphCompiled(view, result)) {
 			return result;
 		}
 
@@ -262,6 +267,9 @@ namespace HE::Rendering {
 		passContext.RenderItems = &renderItems;
 		passContext.ResourceResolver = &resourceResolver;
 		passContext.Commands = &commandList;
+		passContext.Device = &RenderHardwareInterface::GetDevice();
+		m_ResourceStates.Reset();
+		passContext.ResourceStates = &m_ResourceStates;
 		passContext.Stats = &result.Stats;
 		passContext.Diagnostics = &result.Diagnostics;
 

@@ -80,6 +80,7 @@ namespace HE::Rendering {
 		std::unordered_set<std::string> resources;
 		std::unordered_set<std::string> readResources;
 		std::unordered_map<std::string, std::string> resourceWriters;
+		std::unordered_set<std::string> typedResourceWriters;
 		std::unordered_map<std::string, uint32_t> firstUsePass;
 		std::unordered_map<std::string, uint32_t> lastUsePass;
 		std::unordered_map<std::string, ResourceState> resourceStates;
@@ -143,6 +144,12 @@ namespace HE::Rendering {
 			const auto& pass = m_Passes[passIndex];
 			const auto inputResources = resolveResourceNames(pass.Inputs, pass.InputResources, pass.Name);
 			const auto outputResources = resolveResourceNames(pass.Outputs, pass.OutputResources, pass.Name);
+			std::unordered_set<std::string> typedOutputs;
+			for (const auto handle : pass.OutputResources) {
+				if (const auto* resource = m_ResourceAllocator.GetDesc(handle)) {
+					typedOutputs.insert(resource->Name);
+				}
+			}
 			if (pass.Name.empty()) {
 				AddDiagnostic(
 					m_Diagnostics,
@@ -247,12 +254,16 @@ namespace HE::Rendering {
 					resourceStates[output] = ResourceState::RenderTarget;
 				}
 				const auto [writer, inserted] = resourceWriters.emplace(output, pass.Name);
-				if (!inserted) {
+				const bool isTypedOutput = typedOutputs.contains(output);
+				if (!inserted && (!isTypedOutput || !typedResourceWriters.contains(output))) {
 					AddDiagnostic(
 						m_Diagnostics,
 						PassGraphDiagnosticCode::DuplicateResourceWriter,
 						pass.Name,
 						"Render graph resource must not have multiple writers");
+				}
+				if (isTypedOutput) {
+					typedResourceWriters.insert(output);
 				}
 			}
 
