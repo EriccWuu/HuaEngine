@@ -563,3 +563,29 @@ P46 RenderTarget attachment aggregation
 - writer graph pass 清除 source attachment；reader graph pass 仅从 `GraphResources` 解析 runtime texture，再创建 texture view、sampler 与 bind group。
 - reader pass 使用 sampler2D shader 将 source attachment 采样结果 draw 到 destination attachment。
 - destination center readback 已验证匹配 source clear color，source resource 最终状态为 `ShaderRead`。
+
+### P51：PassGraph Typed Resource Handle Binding
+
+#### 目标
+
+让拥有 `RenderGraphResourceHandle` 的 graph pass 以 typed handle 声明 input/output，消除 runtime resource 路径对字符串名称的依赖。
+
+#### 约束
+
+- handle 路径与遗留字符串 `Inputs`/`Outputs` 可以共存，供未类型化 graph 节点渐进迁移。
+- 无效 handle 必须在 compile 期间产生显式 diagnostic。
+- typed handle 必须继续参与既有 dependency、lifetime 与 barrier 推导。
+
+#### 验收
+
+- P50 writer/reader 以同一 resource handle 声明 output/input，并在 callback 直接查询该 handle。
+- typed handle graph 的 barrier 仍为 `Undefined -> RenderTarget -> ShaderRead`。
+- 无效 typed handle graph compile 失败并报告 `InvalidResourceHandle`。
+
+#### 实现结果
+
+- `PassGraphPassDesc` 已新增 `InputResources` 与 `OutputResources` typed handle 列表，字符串资源列表仍可兼容使用。
+- compile 阶段会解析 typed handle 并复用既有 dependency、barrier 和 lifetime 推导；无效 handle 会报告 `InvalidResourceHandle`。
+- Forward graph diagnostic 映射已同步支持无效 handle。
+- P50 writer/reader 已以同一 source attachment handle 声明 output/input，并在 callback 直接用该 handle 查询 runtime resource。
+- `RenderPassGraphSmoke` 已覆盖无效 typed handle compile failure；`RHICommandListBindingSmoke` 保持通过真实 sampling draw。

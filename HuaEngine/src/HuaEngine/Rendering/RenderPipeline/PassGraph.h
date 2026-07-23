@@ -17,6 +17,7 @@ namespace HE::Rendering {
 		MissingExecuteCallback,
 		EmptyResourceName,
 		InvalidResourceDescription,
+		InvalidResourceHandle,
 		DuplicateResourceAccess,
 		MissingResourceProducer,
 		DuplicateResourceWriter
@@ -32,6 +33,8 @@ namespace HE::Rendering {
 		std::string Name;
 		std::vector<std::string> Inputs;
 		std::vector<std::string> Outputs;
+		std::vector<RenderGraphResourceHandle> InputResources;
+		std::vector<RenderGraphResourceHandle> OutputResources;
 		std::function<void(RenderPassContext&)> Execute;
 	};
 

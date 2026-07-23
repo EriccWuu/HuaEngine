@@ -79,6 +79,17 @@ int main() {
 		HasDiagnostic(invalidTypedResourceGraph.GetDiagnostics(), HE::Rendering::PassGraphDiagnosticCode::InvalidResourceDescription),
 		"Expected invalid typed resource description diagnostic");
 
+	HE::Rendering::PassGraph invalidHandleGraph;
+	invalidHandleGraph.AddPass({
+		.Name = "InvalidHandle",
+		.InputResources = { { 0 } },
+		.Execute = [](HE::Rendering::RenderPassContext&) {}
+	});
+	Require(!invalidHandleGraph.Compile(), "Expected invalid typed resource handle to fail compile");
+	Require(
+		HasDiagnostic(invalidHandleGraph.GetDiagnostics(), HE::Rendering::PassGraphDiagnosticCode::InvalidResourceHandle),
+		"Expected invalid typed resource handle diagnostic");
+
 	HE::Rendering::PassGraph duplicateAccessGraph;
 	duplicateAccessGraph.AddPass({
 		.Name = "DuplicateAccess",

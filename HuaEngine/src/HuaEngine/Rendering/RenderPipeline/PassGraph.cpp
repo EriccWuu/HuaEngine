@@ -84,6 +84,28 @@ namespace HE::Rendering {
 		std::unordered_map<std::string, uint32_t> lastUsePass;
 		std::unordered_map<std::string, ResourceState> resourceStates;
 		std::uint32_t inputEdgeCount = 0;
+		const auto resolveResourceNames = [this](
+			const std::vector<std::string>& legacyNames,
+			const std::vector<RenderGraphResourceHandle>& handles,
+			const std::string& passName) {
+			std::vector<std::string> names = legacyNames;
+			names.reserve(names.size() + handles.size());
+			for (const auto handle : handles) {
+				const auto* resource = m_ResourceAllocator.GetDesc(handle);
+				if (!resource) {
+					AddDiagnostic(
+						m_Diagnostics,
+						PassGraphDiagnosticCode::InvalidResourceHandle,
+						passName,
+						"Render pass references an invalid typed resource handle");
+					continue;
+				}
+
+				names.push_back(resource->Name);
+			}
+
+			return names;
+		};
 
 		for (const auto& desc : m_ResourceAllocator.GetResources()) {
 			if (!IsResourceDescriptionValid(desc)) {
@@ -119,6 +141,8 @@ namespace HE::Rendering {
 
 		for (uint32_t passIndex = 0; passIndex < m_Passes.size(); ++passIndex) {
 			const auto& pass = m_Passes[passIndex];
+			const auto inputResources = resolveResourceNames(pass.Inputs, pass.InputResources, pass.Name);
+			const auto outputResources = resolveResourceNames(pass.Outputs, pass.OutputResources, pass.Name);
 			if (pass.Name.empty()) {
 				AddDiagnostic(
 					m_Diagnostics,
@@ -142,7 +166,7 @@ namespace HE::Rendering {
 			}
 
 			std::unordered_set<std::string> passResources;
-			for (const auto& input : pass.Inputs) {
+			for (const auto& input : inputResources) {
 				if (input.empty()) {
 					AddDiagnostic(
 						m_Diagnostics,
@@ -188,7 +212,7 @@ namespace HE::Rendering {
 				++inputEdgeCount;
 			}
 
-			for (const auto& output : pass.Outputs) {
+			for (const auto& output : outputResources) {
 				if (output.empty()) {
 					AddDiagnostic(
 						m_Diagnostics,
@@ -232,7 +256,7 @@ namespace HE::Rendering {
 				}
 			}
 
-			for (const auto& output : pass.Outputs) {
+			for (const auto& output : outputResources) {
 				if (!output.empty()) {
 					availableResources.insert(output);
 				}

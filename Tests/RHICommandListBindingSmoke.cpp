@@ -442,7 +442,7 @@ int main() {
 	const glm::vec4 sampledSourceClearColor{ 0.25f, 0.5f, 0.75f, 1.0f };
 	const HE::Rendering::RenderTargetPixelRGBA8 expectedSampledPixel{ 64, 128, 191, 255 };
 	HE::Rendering::PassGraph attachmentSamplingGraph;
-	attachmentSamplingGraph.AddImportedResource({
+	const auto sourceAttachmentHandle = attachmentSamplingGraph.AddImportedResource({
 		.Name = "SourceAttachment",
 		.Kind = HE::Rendering::RenderGraphResourceKind::Texture,
 		.Texture = {
@@ -455,7 +455,7 @@ int main() {
 	bool readerBoundRuntimeAttachment = false;
 	attachmentSamplingGraph.AddPass({
 		.Name = "WriteSourceAttachment",
-		.Outputs = { "SourceAttachment" },
+		.OutputResources = { sourceAttachmentHandle },
 		.Execute = [&](HE::Rendering::RenderPassContext& context) {
 			context.Commands->BeginRenderPass({
 				.ColorAttachments = {
@@ -472,10 +472,9 @@ int main() {
 	});
 	attachmentSamplingGraph.AddPass({
 		.Name = "SampleSourceAttachment",
-		.Inputs = { "SourceAttachment" },
+		.InputResources = { sourceAttachmentHandle },
 		.Execute = [&](HE::Rendering::RenderPassContext& context) {
-			const auto handle = context.GraphResources->FindByName("SourceAttachment");
-			const auto* runtimeResource = context.GraphResources->GetRuntimeResource(handle);
+			const auto* runtimeResource = context.GraphResources->GetRuntimeResource(sourceAttachmentHandle);
 			if (!runtimeResource || !runtimeResource->Texture) {
 				return;
 			}
