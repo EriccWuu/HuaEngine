@@ -373,6 +373,48 @@ int main() {
 	Require(attachmentBarrierSequence[0].Before == HE::Rendering::ResourceState::Undefined && attachmentBarrierSequence[0].After == HE::Rendering::ResourceState::RenderTarget, "Expected attachment write barrier state transition");
 	Require(attachmentBarrierSequence[1].Before == HE::Rendering::ResourceState::RenderTarget && attachmentBarrierSequence[1].After == HE::Rendering::ResourceState::ShaderRead, "Expected attachment sampled-read barrier state transition");
 	Require(attachmentResourceStates.GetState(colorAttachmentTexture) == HE::Rendering::ResourceState::ShaderRead, "Expected attachment texture final shader-read state");
+
+	HE::Rendering::PassGraph transientPoolGraph;
+	const auto firstTransientHandle = transientPoolGraph.AddTransientResource({
+		.Name = "FirstTransient",
+		.Kind = HE::Rendering::RenderGraphResourceKind::Texture,
+		.Texture = { .Width = 16, .Height = 16, .Format = HE::Rendering::RenderTargetTextureFormat::RGBA8 }
+	});
+	const auto secondTransientHandle = transientPoolGraph.AddTransientResource({
+		.Name = "SecondTransient",
+		.Kind = HE::Rendering::RenderGraphResourceKind::Texture,
+		.Texture = { .Width = 16, .Height = 16, .Format = HE::Rendering::RenderTargetTextureFormat::RGBA8 }
+	});
+	transientPoolGraph.AddPass({
+		.Name = "WriteFirstTransient",
+		.RenderPassAttachments = { { .Resource = firstTransientHandle, .Kind = HE::Rendering::PassGraphRenderPassAttachmentKind::Color } },
+		.Execute = [](HE::Rendering::RenderPassContext&) {}
+	});
+	transientPoolGraph.AddPass({
+		.Name = "WriteSecondTransient",
+		.RenderPassAttachments = { { .Resource = secondTransientHandle, .Kind = HE::Rendering::PassGraphRenderPassAttachmentKind::Color } },
+		.Execute = [](HE::Rendering::RenderPassContext&) {}
+	});
+	Require(transientPoolGraph.Compile(), "Expected transient pool graph compile to succeed");
+	HE::Rendering::RenderPassContext transientPoolContext;
+	BarrierCaptureCommandList transientPoolCommands;
+	transientPoolContext.Device = &device;
+	transientPoolContext.Commands = &transientPoolCommands;
+	Require(transientPoolGraph.Execute(transientPoolContext), "Expected transient pool graph first execute to succeed");
+	const auto firstTransientTexture = transientPoolGraph.GetResourceAllocator().GetRuntimeResource(firstTransientHandle)->Texture;
+	const auto secondTransientTexture = transientPoolGraph.GetResourceAllocator().GetRuntimeResource(secondTransientHandle)->Texture;
+	Require(firstTransientTexture == secondTransientTexture, "Expected non-overlapping transient lifetimes to alias one texture");
+	transientPoolGraph.ReleaseTransientResources(10);
+	transientPoolContext.CompletedGraphicsFenceValue = 9;
+	Require(transientPoolGraph.Execute(transientPoolContext), "Expected transient pool graph execute before fence completion to succeed");
+	const auto blockedTransientTexture = transientPoolGraph.GetResourceAllocator().GetRuntimeResource(firstTransientHandle)->Texture;
+	Require(blockedTransientTexture != firstTransientTexture, "Expected unfinished fence to prevent transient texture reuse");
+	transientPoolGraph.ReleaseTransientResources(20);
+	transientPoolContext.CompletedGraphicsFenceValue = 10;
+	Require(transientPoolGraph.Execute(transientPoolContext), "Expected transient pool graph execute after fence completion to succeed");
+	const auto reusedTransientTexture = transientPoolGraph.GetResourceAllocator().GetRuntimeResource(firstTransientHandle)->Texture;
+	Require(reusedTransientTexture == firstTransientTexture, "Expected completed fence to allow transient texture reuse");
+	transientPoolGraph.ReleaseTransientResources(30);
 	device.GetImmediateCommandList().ResourceBarrier({
 		.Texture = texture,
 		.Before = HE::Rendering::ResourceState::Undefined,

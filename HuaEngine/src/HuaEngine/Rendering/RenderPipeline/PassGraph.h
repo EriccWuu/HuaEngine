@@ -90,6 +90,7 @@ namespace HE::Rendering {
 		RenderGraphResourceHandle AddTransientResource(RenderGraphResourceDesc desc);
 		[[nodiscard]] bool Compile();
 		[[nodiscard]] bool Execute(RenderPassContext& context);
+		void ReleaseTransientResources(uint64_t fenceValue);
 		void Reset();
 
 		[[nodiscard]] const std::vector<PassGraphPassDesc>& GetPasses() const { return m_Passes; }

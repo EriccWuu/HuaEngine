@@ -746,3 +746,29 @@ P46 RenderTarget attachment aggregation
 - Forward 在提交前将 frame/object/material bind group 与 pipeline 引用保活在 command buffer 中，避免回放时引用临时 RHI 资源。
 - render result 和 viewport operation payload 已输出 graphics queue signal/completed value；冒烟验证 signal 非零且 timeline fence 已完成该值。
 - `RHICommandListBindingSmoke` 已覆盖 command buffer 的 frame、barrier、render pass 和 draw 完整录制回放；四个 RHI/Rendering 冒烟测试均通过。
+
+### P58：Transient Resource Pool 与生命周期复用
+
+#### 目标
+
+将 PassGraph 已计算的 transient resource lifetime 用于实际纹理分配：同帧非重叠资源别名，并在 graphics queue fence 完成后跨帧复用。
+
+#### 约束
+
+- 仅相同尺寸、格式的 transient texture 可以复用。
+- 同一物理纹理仅可分配给 lifetime 不重叠的图资源。
+- 已提交资源在 fence signal value 未完成前不得再次分配。
+
+#### 验收
+
+- 同一 graph 中 lifetime 不重叠的同规格 transient texture 解析为同一 runtime texture。
+- 未完成 fence value 时必须新分配，完成后可重新使用先前纹理。
+- Forward 在成功提交 command buffer 后将 transient 资源的回收值登记为 queue signal value。
+
+#### 实现结果
+
+- `RenderGraphResourceAllocator` 新增持久 transient texture pool；`Reset()` 仅清理本图声明和 runtime 映射，不会释放可复用的 pool entry。
+- runtime 准备阶段按 lifetime 的 first-pass 顺序分配，同规格且 last-pass 早于下一资源 first-pass 的 transient resource 会别名同一物理 texture。
+- `ReleaseTransientResources()` 将当前图使用的 pool entry 标记为 queue signal value；下次执行仅复用 completed fence value 已覆盖的 entry。
+- Forward 在 graphics queue 提交成功后登记 signal value，并在下一帧构图前将当前 timeline completed value 传给 graph allocator。
+- `RHIResourceCreationSmoke` 已用真实 OpenGL device 验证同帧别名、未完成 fence 阻止复用、完成 fence 后复用；四个 RHI/Rendering 冒烟测试均通过。

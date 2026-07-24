@@ -1,6 +1,7 @@
 #pragma once
 
 #include <cstdint>
+#include <limits>
 #include <string>
 #include <vector>
 
@@ -119,6 +120,7 @@ namespace HE::Rendering {
 		const RenderResourceResolver* ResourceResolver = nullptr;
 		CommandList* Commands = nullptr;
 		CommandBuffer* RecordingCommandBuffer = nullptr;
+		uint64_t CompletedGraphicsFenceValue = std::numeric_limits<uint64_t>::max();
 		RenderDevice* Device = nullptr;
 		ResourceStateTracker* ResourceStates = nullptr;
 		const RenderGraphResourceAllocator* GraphResources = nullptr;

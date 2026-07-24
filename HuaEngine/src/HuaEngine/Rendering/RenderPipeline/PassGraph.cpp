@@ -386,7 +386,7 @@ namespace HE::Rendering {
 			return false;
 		}
 
-		if (context.Device && !m_ResourceAllocator.PrepareRuntimeResources(*context.Device)) {
+		if (context.Device && !m_ResourceAllocator.PrepareRuntimeResources(*context.Device, context.CompletedGraphicsFenceValue)) {
 			return false;
 		}
 
@@ -477,6 +477,10 @@ namespace HE::Rendering {
 		context.GraphRenderPass = previousGraphRenderPass;
 
 		return succeeded;
+	}
+
+	void PassGraph::ReleaseTransientResources(uint64_t fenceValue) {
+		m_ResourceAllocator.ReleaseTransientResources(fenceValue);
 	}
 
 	void PassGraph::Reset() {

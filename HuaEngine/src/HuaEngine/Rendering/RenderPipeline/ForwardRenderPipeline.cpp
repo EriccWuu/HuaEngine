@@ -260,6 +260,7 @@ namespace HE::Rendering {
 		passContext.Commands = &commandList;
 		passContext.RecordingCommandBuffer = commandBuffer.get();
 		passContext.Device = &device;
+		passContext.CompletedGraphicsFenceValue = device.GetGraphicsQueue().GetTimelineFence().GetCompletedValue();
 		m_ResourceStates.Reset();
 		passContext.ResourceStates = &m_ResourceStates;
 		passContext.Stats = &result.Stats;
@@ -277,6 +278,7 @@ namespace HE::Rendering {
 			CopyGraphStateToResult(result);
 			return result;
 		}
+		m_Graph.ReleaseTransientResources(submitResult.SignalValue);
 
 		result.Stats.GraphicsQueueSignalValue = submitResult.SignalValue;
 		result.Stats.GraphicsQueueCompletedValue = submitResult.SignalFence

@@ -71,7 +71,8 @@ namespace HE::Rendering {
 		RenderGraphResourceHandle AddTransientResource(RenderGraphResourceDesc desc);
 		void Reset();
 		void ClearLifetimes();
-		bool PrepareRuntimeResources(RenderDevice& device);
+		bool PrepareRuntimeResources(RenderDevice& device, uint64_t completedFenceValue);
+		void ReleaseTransientResources(uint64_t fenceValue);
 		void SetLifetime(RenderGraphResourceHandle handle, uint32_t firstPassIndex, uint32_t lastPassIndex);
 
 		[[nodiscard]] const RenderGraphResourceDesc* GetDesc(RenderGraphResourceHandle handle) const;
@@ -82,11 +83,19 @@ namespace HE::Rendering {
 		[[nodiscard]] const std::vector<RenderGraphRuntimeResource>& GetRuntimeResources() const { return m_RuntimeResources; }
 
 	private:
+		struct TransientTexturePoolEntry {
+			RenderGraphTextureDesc Desc;
+			Ref<TextureResource> Texture;
+			uint64_t AvailableAfterFenceValue = 0;
+		};
+
 		RenderGraphResourceHandle AddResource(RenderGraphResourceDesc desc, RenderGraphResourceStorage storage);
 
 		std::vector<RenderGraphResourceDesc> m_Resources;
 		std::vector<RenderGraphResourceLifetime> m_Lifetimes;
 		std::vector<RenderGraphRuntimeResource> m_RuntimeResources;
+		std::vector<TransientTexturePoolEntry> m_TransientTexturePool;
+		std::vector<uint32_t> m_ActiveTransientTextureIndices;
 		std::unordered_map<std::string, uint32_t> m_NameToIndex;
 	};
 }
