@@ -87,10 +87,12 @@ namespace HE::Rendering {
 
 	class OpenGLRenderQueue final : public RenderQueue {
 	public:
-		explicit OpenGLRenderQueue(CommandList* immediateCommandList = nullptr);
+		explicit OpenGLRenderQueue(RenderQueueType type, CommandList* immediateCommandList = nullptr);
 
 		QueueSubmitResult Submit(CommandBuffer& commandBuffer) override;
+		QueueSubmitResult Submit(const QueueSubmitDesc& desc) override;
 		Fence& GetTimelineFence() override;
+		RenderQueueType GetType() const override { return m_Type; }
 
 	private:
 		class OpenGLFence final : public Fence {
@@ -103,6 +105,7 @@ namespace HE::Rendering {
 		};
 
 		CommandList* m_ImmediateCommandList = nullptr;
+		RenderQueueType m_Type = RenderQueueType::Graphics;
 		OpenGLFence m_TimelineFence;
 		uint64_t m_NextSignalValue = 0;
 	};
@@ -285,6 +288,8 @@ namespace HE::Rendering {
 		CommandList& GetImmediateCommandList() override;
 		Ref<CommandBuffer> CreateCommandBuffer(const CommandBufferDesc& desc) override;
 		RenderQueue& GetGraphicsQueue() override;
+		RenderQueue& GetComputeQueue() override;
+		RenderQueue& GetCopyQueue() override;
 		Ref<GpuBuffer> CreateBuffer(const GpuBufferDesc& desc, const void* initialData) override;
 		Ref<VertexBufferView> CreateVertexBufferView(const VertexBufferViewDesc& desc) override;
 		Ref<RenderTarget> CreateRenderTarget(const RenderTargetDesc& desc) override;
@@ -301,5 +306,7 @@ namespace HE::Rendering {
 		RenderDeviceCapabilities m_Capabilities;
 		OpenGLCommandList m_ImmediateCommandList;
 		OpenGLRenderQueue m_GraphicsQueue;
+		OpenGLRenderQueue m_ComputeQueue;
+		OpenGLRenderQueue m_CopyQueue;
 	};
 }

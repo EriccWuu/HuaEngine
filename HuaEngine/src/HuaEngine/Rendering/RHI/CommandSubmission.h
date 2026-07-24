@@ -15,7 +15,15 @@ namespace HE::Rendering {
 
 	enum class CommandBufferUsage : uint8_t {
 		Invalid = 0,
-		Graphics
+		Graphics,
+		Compute,
+		Copy
+	};
+
+	enum class RenderQueueType : uint8_t {
+		Graphics = 0,
+		Compute,
+		Copy
 	};
 
 	struct CommandBufferDesc {
@@ -56,6 +64,8 @@ namespace HE::Rendering {
 
 	struct QueueSubmitDesc {
 		CommandBuffer* CommandBufferPtr = nullptr;
+		Fence* WaitFence = nullptr;
+		uint64_t WaitValue = 0;
 	};
 
 	struct QueueSubmitResult {
@@ -80,5 +90,6 @@ namespace HE::Rendering {
 		}
 
 		virtual Fence& GetTimelineFence() = 0;
+		virtual RenderQueueType GetType() const = 0;
 	};
 }

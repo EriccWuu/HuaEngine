@@ -794,3 +794,12 @@ P46 RenderTarget attachment aggregation
 - graph compiler 已接入 texture 的 `DepthStencilWrite`、`CopySrc`、`CopyDst` usage；read-like copy source 继续参与 producer 检查与依赖边。
 - depth/stencil attachment 不再错误推导为 color `RenderTarget`，现在生成 `DepthStencilWrite` barrier。
 - `RenderPassGraphSmoke` 覆盖 depth-write 到 copy-source transition，以及 copy pass attachment 的 invalid-pass-type diagnostic；四个 RHI/Rendering 冒烟测试均通过。
+
+### P61：多队列与 Timeline 同步契约
+
+#### 实现结果
+
+- RHI 新增 graphics、compute、copy command-buffer usage 与对应 logical queue type；`RenderDevice` 提供三个 queue 访问入口和 capability 标记。
+- `QueueSubmitDesc` 支持 wait fence/value；queue 仅在依赖 fence 已完成指定值时接受提交。
+- OpenGL backend 以共享 immediate command list 串行回放三个逻辑 queue，但为每个 queue 保持独立 timeline fence，提供与显式后端一致的同步契约。
+- `RHICommandListBindingSmoke` 已验证 graphics signal 后 compute wait、copy wait 的跨队列链路、未满足 wait 的提交失败及 queue/command-buffer usage 不匹配失败；四个 RHI/Rendering 冒烟测试均通过。

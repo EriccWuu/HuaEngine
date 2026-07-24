@@ -37,6 +37,8 @@ namespace HE::Rendering {
 		bool SupportsPipelineState = true;
 		bool SupportsBindGroups = true;
 		bool SupportsCommandSubmission = true;
+		bool SupportsComputeQueue = false;
+		bool SupportsCopyQueue = false;
 		bool SupportsRenderGraphResources = true;
 	};
 
@@ -49,6 +51,8 @@ namespace HE::Rendering {
 		virtual CommandList& GetImmediateCommandList() = 0;
 		virtual Ref<CommandBuffer> CreateCommandBuffer(const CommandBufferDesc& desc) = 0;
 		virtual RenderQueue& GetGraphicsQueue() = 0;
+		virtual RenderQueue& GetComputeQueue() = 0;
+		virtual RenderQueue& GetCopyQueue() = 0;
 
 		virtual Ref<GpuBuffer> CreateBuffer(const GpuBufferDesc& desc, const void* initialData) = 0;
 		virtual Ref<VertexBufferView> CreateVertexBufferView(const VertexBufferViewDesc& desc) = 0;

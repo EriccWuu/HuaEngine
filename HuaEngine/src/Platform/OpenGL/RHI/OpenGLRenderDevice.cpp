@@ -1364,7 +1364,7 @@ namespace HE::Rendering {
 
 	OpenGLCommandBuffer::OpenGLCommandBuffer(const CommandBufferDesc& desc)
 		: m_Desc(desc) {
-		HE_CORE_ASSERT(m_Desc.Usage == CommandBufferUsage::Graphics, "OpenGL command buffer requires graphics usage");
+		HE_CORE_ASSERT(m_Desc.Usage != CommandBufferUsage::Invalid, "OpenGL command buffer requires a valid usage");
 	}
 
 	const CommandBufferDesc& OpenGLCommandBuffer::GetDesc() const {
@@ -1541,12 +1541,15 @@ namespace HE::Rendering {
 		}
 	}
 
-	OpenGLRenderQueue::OpenGLRenderQueue(CommandList* immediateCommandList)
-		: m_ImmediateCommandList(immediateCommandList) {}
+	OpenGLRenderQueue::OpenGLRenderQueue(RenderQueueType type, CommandList* immediateCommandList)
+		: m_ImmediateCommandList(immediateCommandList), m_Type(type) {}
 
 	QueueSubmitResult OpenGLRenderQueue::Submit(CommandBuffer& commandBuffer) {
-		if (commandBuffer.GetDesc().Usage != CommandBufferUsage::Graphics) {
-			HE_CORE_WARN("OpenGL graphics queue skipped non-graphics command buffer");
+		const auto expectedUsage = m_Type == RenderQueueType::Graphics
+			? CommandBufferUsage::Graphics
+			: m_Type == RenderQueueType::Compute ? CommandBufferUsage::Compute : CommandBufferUsage::Copy;
+		if (commandBuffer.GetDesc().Usage != expectedUsage) {
+			HE_CORE_WARN("OpenGL render queue skipped incompatible command buffer usage");
 			return {};
 		}
 
@@ -1576,6 +1579,14 @@ namespace HE::Rendering {
 		};
 	}
 
+	QueueSubmitResult OpenGLRenderQueue::Submit(const QueueSubmitDesc& desc) {
+		if (!desc.CommandBufferPtr || (desc.WaitFence && desc.WaitFence->GetCompletedValue() < desc.WaitValue)) {
+			return {};
+		}
+
+		return Submit(*desc.CommandBufferPtr);
+	}
+
 	Fence& OpenGLRenderQueue::GetTimelineFence() {
 		return m_TimelineFence;
 	}
@@ -1584,12 +1595,17 @@ namespace HE::Rendering {
 		: OpenGLRenderDevice(RenderDeviceDesc{}) {}
 
 	OpenGLRenderDevice::OpenGLRenderDevice(const RenderDeviceDesc& desc)
-		: m_Desc(desc), m_GraphicsQueue(&m_ImmediateCommandList) {
+		: m_Desc(desc)
+		, m_GraphicsQueue(RenderQueueType::Graphics, &m_ImmediateCommandList)
+		, m_ComputeQueue(RenderQueueType::Compute, &m_ImmediateCommandList)
+		, m_CopyQueue(RenderQueueType::Copy, &m_ImmediateCommandList) {
 		m_Capabilities.Backend = RenderBackendType::OpenGL;
 		m_Capabilities.BackendName = "OpenGL";
 		m_Capabilities.SupportsPipelineState = true;
 		m_Capabilities.SupportsBindGroups = true;
 		m_Capabilities.SupportsCommandSubmission = true;
+		m_Capabilities.SupportsComputeQueue = true;
+		m_Capabilities.SupportsCopyQueue = true;
 		m_Capabilities.SupportsRenderGraphResources = true;
 		glEnable(GL_BLEND);
 		glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
@@ -1608,7 +1624,7 @@ namespace HE::Rendering {
 	}
 
 	Ref<CommandBuffer> OpenGLRenderDevice::CreateCommandBuffer(const CommandBufferDesc& desc) {
-		if (desc.Usage != CommandBufferUsage::Graphics) {
+		if (desc.Usage == CommandBufferUsage::Invalid) {
 			HE_CORE_ERROR("Invalid command buffer description");
 			return nullptr;
 		}
@@ -1618,6 +1634,14 @@ namespace HE::Rendering {
 
 	RenderQueue& OpenGLRenderDevice::GetGraphicsQueue() {
 		return m_GraphicsQueue;
+	}
+
+	RenderQueue& OpenGLRenderDevice::GetComputeQueue() {
+		return m_ComputeQueue;
+	}
+
+	RenderQueue& OpenGLRenderDevice::GetCopyQueue() {
+		return m_CopyQueue;
 	}
 
 	Ref<GpuBuffer> OpenGLRenderDevice::CreateBuffer(const GpuBufferDesc& desc, const void* initialData) {

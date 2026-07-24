@@ -769,6 +769,33 @@ int main() {
 	Require(secondSubmit.SignalValue == firstSubmit.SignalValue + 1, "Expected queue signal value to increase monotonically");
 	Require(secondSubmit.SignalFence == firstSubmit.SignalFence, "Expected graphics queue to reuse its timeline fence");
 	Require(secondSubmit.SignalFence->GetCompletedValue() == secondSubmit.SignalValue, "Expected fence completed value to track the latest signal value");
+	auto computeCommandBuffer = device.CreateCommandBuffer({
+		.Usage = HE::Rendering::CommandBufferUsage::Compute,
+		.DebugName = "RHICommandListBindingSmoke compute queue"
+	});
+	Require(static_cast<bool>(computeCommandBuffer), "Expected compute command buffer creation to succeed");
+	Require(computeCommandBuffer->Begin() && computeCommandBuffer->End(), "Expected empty compute command buffer recording to succeed");
+	const auto computeSubmit = device.GetComputeQueue().Submit({
+		.CommandBufferPtr = computeCommandBuffer.get(),
+		.WaitFence = secondSubmit.SignalFence,
+		.WaitValue = secondSubmit.SignalValue
+	});
+	Require(computeSubmit, "Expected compute queue submit after graphics timeline wait to succeed");
+	Require(computeSubmit.SignalFence->GetCompletedValue() == computeSubmit.SignalValue, "Expected compute timeline fence completion");
+	Require(!device.GetGraphicsQueue().Submit(*computeCommandBuffer), "Expected graphics queue to reject compute command buffer");
+	auto copyCommandBuffer = device.CreateCommandBuffer({
+		.Usage = HE::Rendering::CommandBufferUsage::Copy,
+		.DebugName = "RHICommandListBindingSmoke copy queue"
+	});
+	Require(static_cast<bool>(copyCommandBuffer), "Expected copy command buffer creation to succeed");
+	Require(copyCommandBuffer->Begin() && copyCommandBuffer->End(), "Expected empty copy command buffer recording to succeed");
+	const auto copySubmit = device.GetCopyQueue().Submit({
+		.CommandBufferPtr = copyCommandBuffer.get(),
+		.WaitFence = computeSubmit.SignalFence,
+		.WaitValue = computeSubmit.SignalValue
+	});
+	Require(copySubmit, "Expected copy queue submit after compute timeline wait to succeed");
+	Require(!device.GetCopyQueue().Submit({ .CommandBufferPtr = copyCommandBuffer.get(), .WaitFence = computeSubmit.SignalFence, .WaitValue = computeSubmit.SignalValue + 1 }), "Expected unmet timeline wait to reject queue submit");
 	VerifyRenderTargetSamples(renderTarget);
 	recordedCommandBuffer->Reset();
 	Require(!recordedCommandBuffer->IsExecutable(), "Expected reset recorded command buffer to clear executable state");
