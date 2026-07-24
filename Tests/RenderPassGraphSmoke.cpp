@@ -220,6 +220,8 @@ int main() {
 	Require(stats.OutputCount == 1, "Expected one graph output");
 	Require(graph.GetExternalInputs().size() == 1, "Expected one external input entry");
 	Require(graph.GetExternalInputs()[0] == "CameraView", "Expected CameraView external input");
+	Require(graph.GetExecutionOrder().size() == 2, "Expected compiled execution plan for both passes");
+	Require(graph.GetExecutionOrder()[0] == 0 && graph.GetExecutionOrder()[1] == 1, "Expected dependency execution plan to preserve producer before consumer");
 	HE::Rendering::RenderPassContext context;
 	Require(graph.Execute(context), "Expected valid graph execute to succeed");
 	Require(executionOrder.size() == 2, "Expected two passes to execute");

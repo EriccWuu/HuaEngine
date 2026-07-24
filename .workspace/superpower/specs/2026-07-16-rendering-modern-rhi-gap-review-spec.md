@@ -772,3 +772,16 @@ P46 RenderTarget attachment aggregation
 - `ReleaseTransientResources()` 将当前图使用的 pool entry 标记为 queue signal value；下次执行仅复用 completed fence value 已覆盖的 entry。
 - Forward 在 graphics queue 提交成功后登记 signal value，并在下一帧构图前将当前 timeline completed value 传给 graph allocator。
 - `RHIResourceCreationSmoke` 已用真实 OpenGL device 验证同帧别名、未完成 fence 阻止复用、完成 fence 后复用；四个 RHI/Rendering 冒烟测试均通过。
+
+### P59：Graph 编译执行计划
+
+#### 目标
+
+在 PassGraph 编译期记录已解析的 producer-to-reader 依赖，并生成稳定的拓扑执行计划，令执行阶段脱离对 pass 容器直接遍历的依赖。
+
+#### 实现结果
+
+- compiler 为资源 producer 到 reader 建立去重依赖边，并使用 Kahn 拓扑排序生成 `ExecutionOrder`。
+- `PassGraph::Execute()` 现在按已编译的执行计划处理 barrier、attachment 和 callback，而不是直接按 `m_Passes` 线性遍历。
+- 当前 producer 解析与已有资源状态/barrier 规则保持兼容；future-producer 解析和可裁剪 pass 将在后续 P 基于该计划引入。
+- `RenderPassGraphSmoke` 已验证执行计划包含 producer 在 consumer 之前的顺序；四个 RHI/Rendering 冒烟测试均通过。

@@ -100,6 +100,7 @@ namespace HE::Rendering {
 		[[nodiscard]] const std::vector<std::string>& GetExternalInputs() const { return m_ExternalInputs; }
 		[[nodiscard]] const RenderGraphResourceAllocator& GetResourceAllocator() const { return m_ResourceAllocator; }
 		[[nodiscard]] const std::vector<PassGraphResourceBarrier>& GetBarrierPlan() const { return m_BarrierPlan; }
+		[[nodiscard]] const std::vector<uint32_t>& GetExecutionOrder() const { return m_ExecutionOrder; }
 
 	private:
 		std::vector<PassGraphPassDesc> m_Passes;
@@ -107,6 +108,7 @@ namespace HE::Rendering {
 		RenderGraphResourceAllocator m_ResourceAllocator;
 		std::vector<PassGraphDiagnostic> m_Diagnostics;
 		std::vector<PassGraphResourceBarrier> m_BarrierPlan;
+		std::vector<uint32_t> m_ExecutionOrder;
 		PassGraphBarrierExecutor m_BarrierExecutor;
 		PassGraphStats m_Stats;
 		bool m_Compiled = false;

@@ -2,6 +2,8 @@
 #include "PassGraph.h"
 
 #include <algorithm>
+#include <deque>
+#include <numeric>
 #include <unordered_map>
 #include <unordered_set>
 
@@ -62,6 +64,7 @@ namespace HE::Rendering {
 	bool PassGraph::Compile() {
 		m_Diagnostics.clear();
 		m_BarrierPlan.clear();
+		m_ExecutionOrder.clear();
 		m_Stats = {};
 		m_ResourceAllocator.ClearLifetimes();
 
@@ -85,6 +88,8 @@ namespace HE::Rendering {
 		std::unordered_map<std::string, uint32_t> firstUsePass;
 		std::unordered_map<std::string, uint32_t> lastUsePass;
 		std::unordered_map<std::string, ResourceState> resourceStates;
+		std::unordered_map<std::string, uint32_t> passIndices;
+		std::vector<std::vector<uint32_t>> dependencyEdges(m_Passes.size());
 		std::uint32_t inputEdgeCount = 0;
 		const auto resolveResourceNames = [this](
 			const std::vector<std::string>& legacyNames,
@@ -171,6 +176,8 @@ namespace HE::Rendering {
 					PassGraphDiagnosticCode::DuplicatePassName,
 					pass.Name,
 					"Render pass name must be unique");
+			} else {
+				passIndices.emplace(pass.Name, passIndex);
 			}
 
 			if (!pass.Execute) {
@@ -206,6 +213,11 @@ namespace HE::Rendering {
 						PassGraphDiagnosticCode::MissingResourceProducer,
 						pass.Name,
 						"Render pass reads a resource that has no producer or external input");
+				}
+				if (const auto writer = resourceWriters.find(input); writer != resourceWriters.end()) {
+					if (const auto writerIndex = passIndices.find(writer->second); writerIndex != passIndices.end()) {
+						dependencyEdges[writerIndex->second].push_back(passIndex);
+					}
 				}
 
 				resources.insert(input);
@@ -318,6 +330,13 @@ namespace HE::Rendering {
 						pass.Name,
 						"Render pass reads a resource that has no producer or external input");
 				}
+				if (usage.State == ResourceState::ShaderRead) {
+					if (const auto writer = resourceWriters.find(resourceName); writer != resourceWriters.end()) {
+						if (const auto writerIndex = passIndices.find(writer->second); writerIndex != passIndices.end()) {
+							dependencyEdges[writerIndex->second].push_back(passIndex);
+						}
+					}
+				}
 
 				resources.insert(resourceName);
 				if (!firstUsePass.contains(resourceName)) {
@@ -348,6 +367,35 @@ namespace HE::Rendering {
 
 		m_Compiled = m_Diagnostics.empty();
 		if (m_Compiled) {
+			std::vector<uint32_t> incomingEdgeCounts(m_Passes.size(), 0);
+			for (auto& edges : dependencyEdges) {
+				std::sort(edges.begin(), edges.end());
+				edges.erase(std::unique(edges.begin(), edges.end()), edges.end());
+				for (const auto dependentPass : edges) {
+					++incomingEdgeCounts[dependentPass];
+				}
+			}
+			std::deque<uint32_t> readyPasses;
+			for (uint32_t passIndex = 0; passIndex < m_Passes.size(); ++passIndex) {
+				if (incomingEdgeCounts[passIndex] == 0) {
+					readyPasses.push_back(passIndex);
+				}
+			}
+			while (!readyPasses.empty()) {
+				const auto passIndex = readyPasses.front();
+				readyPasses.pop_front();
+				m_ExecutionOrder.push_back(passIndex);
+				for (const auto dependentPass : dependencyEdges[passIndex]) {
+					if (--incomingEdgeCounts[dependentPass] == 0) {
+						readyPasses.push_back(dependentPass);
+					}
+				}
+			}
+			if (m_ExecutionOrder.size() != m_Passes.size()) {
+				m_Compiled = false;
+				m_ExecutionOrder.clear();
+				return false;
+			}
 			std::uint32_t outputCount = 0;
 			for (const auto& [resource, passName] : resourceWriters) {
 				if (!readResources.contains(resource)) {
@@ -395,7 +443,7 @@ namespace HE::Rendering {
 		context.GraphResources = &m_ResourceAllocator;
 		bool succeeded = true;
 
-		for (uint32_t passIndex = 0; passIndex < m_Passes.size(); ++passIndex) {
+		for (const auto passIndex : m_ExecutionOrder) {
 			for (const auto& barrier : m_BarrierPlan) {
 				if (barrier.PassIndex == passIndex) {
 					if (context.Commands && context.ResourceStates) {
@@ -489,6 +537,7 @@ namespace HE::Rendering {
 		m_ResourceAllocator.Reset();
 		m_Diagnostics.clear();
 		m_BarrierPlan.clear();
+		m_ExecutionOrder.clear();
 		m_BarrierExecutor = nullptr;
 		m_Stats = {};
 		m_Compiled = false;
