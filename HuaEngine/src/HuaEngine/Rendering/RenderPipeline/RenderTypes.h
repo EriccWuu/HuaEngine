@@ -24,6 +24,7 @@ namespace HE::Rendering {
 	class RenderGraphResourceAllocator;
 	class RenderResourceResolver;
 	class ResourceStateTracker;
+	struct RenderPassDesc;
 
 	struct RenderView {
 		Ref<Camera> CameraRef;
@@ -117,6 +118,7 @@ namespace HE::Rendering {
 		RenderDevice* Device = nullptr;
 		ResourceStateTracker* ResourceStates = nullptr;
 		const RenderGraphResourceAllocator* GraphResources = nullptr;
+		const RenderPassDesc* GraphRenderPass = nullptr;
 		RenderStats* Stats = nullptr;
 		std::vector<RenderDiagnostic>* Diagnostics = nullptr;
 	};

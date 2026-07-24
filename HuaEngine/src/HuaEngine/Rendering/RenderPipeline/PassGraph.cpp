@@ -6,6 +6,7 @@
 #include <unordered_set>
 
 #include "HuaEngine/Rendering/RHI/CommandList.h"
+#include "HuaEngine/Rendering/RHI/RenderDevice.h"
 #include "HuaEngine/Rendering/RHI/ResourceStateTracker.h"
 
 namespace HE::Rendering {
@@ -390,7 +391,9 @@ namespace HE::Rendering {
 		}
 
 		const auto* const previousGraphResources = context.GraphResources;
+		const auto* const previousGraphRenderPass = context.GraphRenderPass;
 		context.GraphResources = &m_ResourceAllocator;
+		bool succeeded = true;
 
 		for (uint32_t passIndex = 0; passIndex < m_Passes.size(); ++passIndex) {
 			for (const auto& barrier : m_BarrierPlan) {
@@ -412,12 +415,62 @@ namespace HE::Rendering {
 				}
 			}
 
+			RenderPassDesc graphRenderPass;
+			context.GraphRenderPass = nullptr;
+			for (const auto& attachment : m_Passes[passIndex].RenderPassAttachments) {
+				if (!context.Device) {
+					succeeded = false;
+					break;
+				}
+
+				const auto* runtimeResource = m_ResourceAllocator.GetRuntimeResource(attachment.Resource);
+				if (!runtimeResource || !runtimeResource->Texture) {
+					succeeded = false;
+					break;
+				}
+
+				auto textureView = context.Device->CreateTextureView({ .Texture = runtimeResource->Texture });
+				if (!textureView) {
+					succeeded = false;
+					break;
+				}
+
+				if (attachment.Kind == PassGraphRenderPassAttachmentKind::Color) {
+					graphRenderPass.ColorAttachments.push_back({
+						.View = textureView,
+						.Load = attachment.Load,
+						.Store = attachment.Store,
+						.ClearColor = attachment.ClearColor
+					});
+				} else if (graphRenderPass.DepthStencilAttachment) {
+					succeeded = false;
+					break;
+				} else {
+					graphRenderPass.DepthStencilAttachment = RenderPassDepthStencilAttachment{
+						.View = textureView,
+						.DepthLoad = attachment.Load,
+						.DepthStore = attachment.Store,
+						.ClearDepth = attachment.ClearDepth,
+						.ClearStencil = attachment.ClearStencil
+					};
+				}
+			}
+
+			if (!succeeded) {
+				break;
+			}
+
+			if (!m_Passes[passIndex].RenderPassAttachments.empty()) {
+				context.GraphRenderPass = &graphRenderPass;
+			}
 			m_Passes[passIndex].Execute(context);
+			context.GraphRenderPass = previousGraphRenderPass;
 		}
 
 		context.GraphResources = previousGraphResources;
+		context.GraphRenderPass = previousGraphRenderPass;
 
-		return true;
+		return succeeded;
 	}
 
 	void PassGraph::Reset() {

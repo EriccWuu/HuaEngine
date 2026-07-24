@@ -667,3 +667,29 @@ P46 RenderTarget attachment aggregation
 - Forward 每帧导入 `ViewportColorAttachment` 和可用时的 `ViewportDepthAttachment`；BindTarget 声明 color/depth，ClearTarget 与 ForwardOpaque 声明 color。
 - `RenderPassGraphSmoke` 已用 attachment writer 验证自动 `Undefined -> RenderTarget -> ShaderRead` barrier。
 - `RenderingOperationsSmoke` 已更新为真实 color/depth imported resource 图统计，并保持 fallback draw 通过。
+
+### P55：Graph Attachment 到 Runtime RenderPassDesc
+
+#### 目标
+
+在 graph execute 时把 attachment handle 解析为 runtime `TextureView`，构造 `RenderPassDesc` 并提供给对应 callback，移除 Forward BindTargetPass 对 `RenderView::Target` 的直接依赖。
+
+#### 约束
+
+- 生成的 `RenderPassDesc` 只在 callback 执行期间有效，结束后必须恢复 context。
+- attachment 声明必须支持 load/store、color clear 与 depth clear 参数。
+- 无法解析 runtime texture/view 或出现多个 depth/stencil attachment 时，execute 必须失败。
+
+#### 验收
+
+- graph writer callback 可直接使用 `RenderPassContext::GraphRenderPass` 开始 render pass。
+- P49 attachment graph writer 使用生成的 desc，不再手写 source texture view。
+- Forward BindTargetPass 不再访问 `RenderView::Target`，但现有 fallback draw 保持通过。
+
+#### 实现结果
+
+- `PassGraphRenderPassAttachment` 已补齐 load/store、color clear、depth/stencil clear 参数；执行期会将 attachment handle 解析为 runtime texture view，再组装临时 `RenderPassDesc`。
+- `RenderPassContext::GraphRenderPass` 只在对应 callback 执行期间指向该临时 desc；执行完成或失败后会恢复调用方原有上下文。
+- runtime texture、texture view 缺失，或同一 pass 声明多个 depth/stencil attachment 时，`PassGraph::Execute()` 会明确失败并跳过该 callback。
+- Forward `BindTargetPass` 已改为仅消费 graph 提供的 desc；color/depth 的 load、store 和 clear 参数由每帧构图时的 attachment 声明提供。
+- `RHIResourceCreationSmoke` 已验证 attachment writer 使用生成的 view/desc，并验证执行后 `GraphRenderPass` 指针恢复；四个 RHI/Rendering 冒烟测试均通过。

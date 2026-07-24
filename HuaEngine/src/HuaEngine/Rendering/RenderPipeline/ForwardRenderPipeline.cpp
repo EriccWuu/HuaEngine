@@ -40,27 +40,12 @@ namespace HE::Rendering {
 	}
 
 	void BindTargetPass::Execute(RenderPassContext& context) {
-		if (!context.View || !context.View->Target || !context.Commands || !context.Stats) {
+		if (!context.Commands || !context.Stats || !context.GraphRenderPass) {
 			return;
 		}
 
 		++context.Stats->PassCount;
-		context.Commands->BeginRenderPass({
-			.ColorAttachments = {
-				{
-					.View = context.View->Target->GetColorAttachmentTextureView(0),
-					.Load = context.View->ClearColorBuffer ? LoadOp::Clear : LoadOp::Load,
-					.Store = StoreOp::Store,
-					.ClearColor = context.View->ClearColor
-				}
-			},
-			.DepthStencilAttachment = RenderPassDepthStencilAttachment{
-				.View = context.View->Target->GetDepthStencilAttachmentTextureView(),
-				.DepthLoad = context.View->ClearColorBuffer ? LoadOp::Clear : LoadOp::Load,
-				.DepthStore = StoreOp::Store,
-				.ClearDepth = 1.0f
-			}
-		});
+		context.Commands->BeginRenderPass(*context.GraphRenderPass);
 	}
 
 	void ClearTargetPass::Execute(RenderPassContext& context) {
@@ -183,12 +168,21 @@ namespace HE::Rendering {
 			})
 			: RenderGraphResourceHandle{};
 		std::vector<PassGraphRenderPassAttachment> bindTargetAttachments = {
-			{ .Resource = viewportColorHandle, .Kind = PassGraphRenderPassAttachmentKind::Color }
+			{
+				.Resource = viewportColorHandle,
+				.Kind = PassGraphRenderPassAttachmentKind::Color,
+				.Load = view.ClearColorBuffer ? LoadOp::Clear : LoadOp::Load,
+				.Store = StoreOp::Store,
+				.ClearColor = view.ClearColor
+			}
 		};
 		if (viewportDepthHandle.IsValid()) {
 			bindTargetAttachments.push_back({
 				.Resource = viewportDepthHandle,
-				.Kind = PassGraphRenderPassAttachmentKind::DepthStencil
+				.Kind = PassGraphRenderPassAttachmentKind::DepthStencil,
+				.Load = view.ClearColorBuffer ? LoadOp::Clear : LoadOp::Load,
+				.Store = StoreOp::Store,
+				.ClearDepth = 1.0f
 			});
 		}
 		m_Graph.AddExternalInput("CameraView");

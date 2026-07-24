@@ -138,6 +138,8 @@ namespace {
 			&& content.find("BoundRenderTarget") == std::string::npos
 			&& content.find("ClearedSceneColor") == std::string::npos
 			&& content.find(".RenderPassAttachments = std::move(bindTargetAttachments)") != std::string::npos
+			&& content.find("context.Commands->BeginRenderPass(*context.GraphRenderPass)") != std::string::npos
+			&& content.find("context.View->Target->GetColorAttachmentTextureView") == std::string::npos
 			&& content.find("ViewportDepthAttachment") != std::string::npos;
 	}
 }

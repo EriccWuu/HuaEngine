@@ -8,6 +8,7 @@
 #include "HuaEngine/Rendering/RenderPipeline/RenderGraphResource.h"
 #include "HuaEngine/Rendering/RenderPipeline/RenderTypes.h"
 #include "HuaEngine/Rendering/RHI/ResourceBarrier.h"
+#include "HuaEngine/Rendering/RHI/RenderPass.h"
 
 namespace HE::Rendering {
 	enum class PassGraphDiagnosticCode {
@@ -43,6 +44,11 @@ namespace HE::Rendering {
 	struct PassGraphRenderPassAttachment {
 		RenderGraphResourceHandle Resource;
 		PassGraphRenderPassAttachmentKind Kind = PassGraphRenderPassAttachmentKind::Color;
+		LoadOp Load = LoadOp::Clear;
+		StoreOp Store = StoreOp::Store;
+		glm::vec4 ClearColor = glm::vec4(0.0f);
+		float ClearDepth = 1.0f;
+		uint32_t ClearStencil = 0;
 	};
 
 	struct PassGraphPassDesc {
