@@ -61,6 +61,7 @@ namespace HE::Rendering {
 	struct PassGraphPassDesc {
 		std::string Name;
 		PassGraphPassType Type = PassGraphPassType::Graphics;
+		bool HasSideEffects = false;
 		std::vector<std::string> Inputs;
 		std::vector<std::string> Outputs;
 		std::vector<RenderGraphResourceHandle> InputResources;
@@ -77,6 +78,7 @@ namespace HE::Rendering {
 		std::uint32_t OutputCount = 0;
 		std::uint32_t ImportedResourceCount = 0;
 		std::uint32_t TransientResourceCount = 0;
+		std::uint32_t CulledPassCount = 0;
 	};
 
 	struct PassGraphResourceBarrier {
@@ -93,6 +95,7 @@ namespace HE::Rendering {
 	public:
 		void AddPass(PassGraphPassDesc pass);
 		void AddExternalInput(std::string resourceName);
+		void AddOutputResource(RenderGraphResourceHandle resource);
 		void SetBarrierExecutor(PassGraphBarrierExecutor executor);
 		RenderGraphResourceHandle AddImportedResource(RenderGraphResourceDesc desc);
 		RenderGraphResourceHandle AddTransientResource(RenderGraphResourceDesc desc);
@@ -113,6 +116,7 @@ namespace HE::Rendering {
 	private:
 		std::vector<PassGraphPassDesc> m_Passes;
 		std::vector<std::string> m_ExternalInputs;
+		std::vector<RenderGraphResourceHandle> m_OutputResources;
 		RenderGraphResourceAllocator m_ResourceAllocator;
 		std::vector<PassGraphDiagnostic> m_Diagnostics;
 		std::vector<PassGraphResourceBarrier> m_BarrierPlan;

@@ -822,3 +822,12 @@ P46 RenderTarget attachment aggregation
 - 后处理 pass 在 command buffer 中使用显式顶点/索引绑定、采样 bind group 与独立 pipeline；所有运行时创建的 RHI 对象都会由已提交 command buffer 保活。
 - transient allocator 对带附件组的颜色/深度资源复用同一个 pool entry，仍受 graphics timeline fence 限制，避免跨帧过早复用。
 - `RenderingOperationsSmoke` 验证后处理后的 viewport 保留材质覆盖颜色，图统计同步更新为 7 个资源、8 条边和 4 个 pass；`RHICommandListBindingSmoke`、`RHIResourceCreationSmoke`、`RenderPassGraphSmoke` 一并通过。
+
+### P64：显式输出与 Pass 裁剪
+
+#### 实现结果
+
+- `PassGraph` 增加显式 output resource 声明与 `HasSideEffects` 标记；仅当图声明输出时才启用裁剪，未迁移图保持原有全量执行兼容性。
+- compiler 从显式输出 producer 和 side-effect pass 逆向追踪依赖，仅将可达 pass 保留在 `ExecutionOrder`，并在统计中报告 `CulledPassCount`。
+- Forward 将 viewport color 声明为唯一外部输出，并将 Begin/End frame pass 标记为 side effect；未被最终呈现消费的 scene depth 不再被推断为图输出。
+- `RenderPassGraphSmoke` 验证无关 transient writer 被裁剪且不会执行；Forward 与其余 RHI/Rendering smoke 继续通过。

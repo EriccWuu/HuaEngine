@@ -44,6 +44,11 @@ namespace HE::Rendering {
 		m_Compiled = false;
 	}
 
+	void PassGraph::AddOutputResource(RenderGraphResourceHandle resource) {
+		m_OutputResources.push_back(resource);
+		m_Compiled = false;
+	}
+
 	void PassGraph::SetBarrierExecutor(PassGraphBarrierExecutor executor) {
 		m_BarrierExecutor = std::move(executor);
 	}
@@ -412,10 +417,35 @@ namespace HE::Rendering {
 				return false;
 			}
 			std::uint32_t outputCount = 0;
-			for (const auto& [resource, passName] : resourceWriters) {
-				if (!readResources.contains(resource)) {
+			if (!m_OutputResources.empty()) {
+				std::vector<std::vector<uint32_t>> reverseDependencies(m_Passes.size());
+				for (uint32_t producer = 0; producer < dependencyEdges.size(); ++producer) {
+					for (const auto consumer : dependencyEdges[producer]) reverseDependencies[consumer].push_back(producer);
+				}
+				std::vector<bool> required(m_Passes.size(), false);
+				std::deque<uint32_t> pending;
+				for (uint32_t index = 0; index < m_Passes.size(); ++index) {
+					if (m_Passes[index].HasSideEffects) { required[index] = true; pending.push_back(index); }
+				}
+				for (const auto output : m_OutputResources) {
+					const auto* desc = m_ResourceAllocator.GetDesc(output);
+					const auto writer = desc ? resourceWriters.find(desc->Name) : resourceWriters.end();
+					if (!desc || writer == resourceWriters.end()) { m_Compiled = false; break; }
+					const auto pass = passIndices.find(writer->second);
+					if (pass != passIndices.end() && !required[pass->second]) { required[pass->second] = true; pending.push_back(pass->second); }
 					++outputCount;
 				}
+				while (m_Compiled && !pending.empty()) {
+					const auto pass = pending.front(); pending.pop_front();
+					for (const auto dependency : reverseDependencies[pass]) {
+						if (!required[dependency]) { required[dependency] = true; pending.push_back(dependency); }
+					}
+				}
+				if (!m_Compiled) return false;
+				std::erase_if(m_ExecutionOrder, [&required](uint32_t pass) { return !required[pass]; });
+				m_Stats.CulledPassCount = static_cast<uint32_t>(m_Passes.size() - m_ExecutionOrder.size());
+			} else {
+				for (const auto& [resource, passName] : resourceWriters) if (!readResources.contains(resource)) ++outputCount;
 			}
 
 			m_Stats.ResourceCount = static_cast<std::uint32_t>(resources.size());
@@ -549,6 +579,7 @@ namespace HE::Rendering {
 	void PassGraph::Reset() {
 		m_Passes.clear();
 		m_ExternalInputs.clear();
+		m_OutputResources.clear();
 		m_ResourceAllocator.Reset();
 		m_Diagnostics.clear();
 		m_BarrierPlan.clear();

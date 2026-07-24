@@ -274,6 +274,7 @@ namespace HE::Rendering {
 				.RuntimeTexture = viewportDepth
 			})
 			: RenderGraphResourceHandle{};
+		m_Graph.AddOutputResource(viewportColorHandle);
 		const auto sceneColorHandle = m_Graph.AddTransientResource({
 			.Name = "SceneColor",
 			.Kind = RenderGraphResourceKind::Texture,
@@ -316,6 +317,7 @@ namespace HE::Rendering {
 		m_Graph.AddExternalInput("SceneItems");
 		m_Graph.AddPass({
 			.Name = "BeginRenderer",
+			.HasSideEffects = true,
 			.Inputs = { "CameraView" },
 			.Outputs = { "RendererFrame" },
 			.Execute = [this](RenderPassContext& context) {
@@ -349,6 +351,7 @@ namespace HE::Rendering {
 		});
 		m_Graph.AddPass({
 			.Name = "EndRenderer",
+			.HasSideEffects = true,
 			.Inputs = { "RendererFrame" },
 			.Execute = [this](RenderPassContext& context) {
 				m_EndRendererPass.Execute(context);

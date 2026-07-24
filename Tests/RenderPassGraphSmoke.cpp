@@ -261,6 +261,36 @@ int main() {
 	Require(executionOrder[0] == "ExtractedSceneInput", "Expected first pass execution order to be stable");
 	Require(executionOrder[1] == "ForwardOpaque", "Expected second pass execution order to be stable");
 
+	std::vector<std::string> culledExecution;
+	HE::Rendering::PassGraph cullingGraph;
+	const auto finalColor = cullingGraph.AddTransientResource({
+		.Name = "FinalColor",
+		.Kind = HE::Rendering::RenderGraphResourceKind::Texture,
+		.Texture = { .Width = 64, .Height = 64, .Format = HE::Rendering::RenderTargetTextureFormat::RGBA8 }
+	});
+	const auto unusedColor = cullingGraph.AddTransientResource({
+		.Name = "UnusedColor",
+		.Kind = HE::Rendering::RenderGraphResourceKind::Texture,
+		.Texture = { .Width = 64, .Height = 64, .Format = HE::Rendering::RenderTargetTextureFormat::RGBA8 }
+	});
+	cullingGraph.AddPass({
+		.Name = "WriteFinalColor",
+		.OutputResources = { finalColor },
+		.Execute = [&](HE::Rendering::RenderPassContext&) { culledExecution.push_back("final"); }
+	});
+	cullingGraph.AddPass({
+		.Name = "WriteUnusedColor",
+		.OutputResources = { unusedColor },
+		.Execute = [&](HE::Rendering::RenderPassContext&) { culledExecution.push_back("unused"); }
+	});
+	cullingGraph.AddOutputResource(finalColor);
+	Require(cullingGraph.Compile(), "Expected explicit output graph compile to succeed");
+	Require(cullingGraph.GetStats().CulledPassCount == 1, "Expected explicit output graph to cull one pass");
+	Require(cullingGraph.GetExecutionOrder().size() == 1, "Expected only the output producer to remain in execution plan");
+	HE::Rendering::RenderPassContext cullingContext;
+	Require(cullingGraph.Execute(cullingContext), "Expected explicit output graph execute to succeed");
+	Require(culledExecution.size() == 1 && culledExecution[0] == "final", "Expected unused pass to be culled from execution");
+
 	HE::Rendering::PassGraph typedGraph;
 	const auto importedTarget = typedGraph.AddImportedResource({
 		.Name = "RenderTarget",
