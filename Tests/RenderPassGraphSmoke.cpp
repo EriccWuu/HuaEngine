@@ -118,6 +118,39 @@ int main() {
 	Require(explicitUsageBarriers[0].Before == HE::Rendering::ResourceState::Undefined && explicitUsageBarriers[0].After == HE::Rendering::ResourceState::RenderTarget, "Expected explicit write barrier");
 	Require(explicitUsageBarriers[1].Before == HE::Rendering::ResourceState::RenderTarget && explicitUsageBarriers[1].After == HE::Rendering::ResourceState::ShaderRead, "Expected explicit read barrier");
 
+	HE::Rendering::PassGraph depthUsageGraph;
+	const auto depthUsageTexture = depthUsageGraph.AddImportedResource({
+		.Name = "DepthUsageTexture",
+		.Kind = HE::Rendering::RenderGraphResourceKind::Texture,
+		.Texture = { .Width = 64, .Height = 64, .Format = HE::Rendering::RenderTargetTextureFormat::DEPTH24_STENCIL8 }
+	});
+	depthUsageGraph.AddPass({
+		.Name = "WriteDepth",
+		.RenderPassAttachments = { { .Resource = depthUsageTexture, .Kind = HE::Rendering::PassGraphRenderPassAttachmentKind::DepthStencil } },
+		.Execute = [](HE::Rendering::RenderPassContext&) {}
+	});
+	depthUsageGraph.AddPass({
+		.Name = "CopyDepth",
+		.Type = HE::Rendering::PassGraphPassType::Copy,
+		.ResourceUsages = { { .Resource = depthUsageTexture, .State = HE::Rendering::ResourceState::CopySrc } },
+		.Execute = [](HE::Rendering::RenderPassContext&) {}
+	});
+	Require(depthUsageGraph.Compile(), "Expected depth and copy usage graph compile to succeed");
+	const auto& depthUsageBarriers = depthUsageGraph.GetBarrierPlan();
+	Require(depthUsageBarriers.size() == 2, "Expected depth and copy usage barriers");
+	Require(depthUsageBarriers[0].After == HE::Rendering::ResourceState::DepthStencilWrite, "Expected depth attachment to use depth-write state");
+	Require(depthUsageBarriers[1].Before == HE::Rendering::ResourceState::DepthStencilWrite && depthUsageBarriers[1].After == HE::Rendering::ResourceState::CopySrc, "Expected depth copy transition");
+
+	HE::Rendering::PassGraph invalidCopyAttachmentGraph;
+	invalidCopyAttachmentGraph.AddPass({
+		.Name = "InvalidCopyAttachment",
+		.Type = HE::Rendering::PassGraphPassType::Copy,
+		.RenderPassAttachments = { { .Resource = depthUsageTexture, .Kind = HE::Rendering::PassGraphRenderPassAttachmentKind::DepthStencil } },
+		.Execute = [](HE::Rendering::RenderPassContext&) {}
+	});
+	Require(!invalidCopyAttachmentGraph.Compile(), "Expected copy pass attachment declaration to fail compile");
+	Require(HasDiagnostic(invalidCopyAttachmentGraph.GetDiagnostics(), HE::Rendering::PassGraphDiagnosticCode::InvalidPassType), "Expected invalid pass type diagnostic");
+
 	HE::Rendering::PassGraph invalidUsageGraph;
 	const auto invalidUsageTexture = invalidUsageGraph.AddImportedResource({
 		.Name = "InvalidUsageTexture",

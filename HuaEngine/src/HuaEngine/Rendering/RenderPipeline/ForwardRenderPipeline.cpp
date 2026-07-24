@@ -26,8 +26,10 @@ namespace HE::Rendering {
 					return RenderGraphDiagnosticCode::InvalidResourceDescription;
 				case PassGraphDiagnosticCode::InvalidResourceHandle:
 					return RenderGraphDiagnosticCode::InvalidResourceHandle;
-				case PassGraphDiagnosticCode::InvalidResourceUsage:
-					return RenderGraphDiagnosticCode::InvalidResourceUsage;
+			case PassGraphDiagnosticCode::InvalidResourceUsage:
+				return RenderGraphDiagnosticCode::InvalidResourceUsage;
+			case PassGraphDiagnosticCode::InvalidPassType:
+				return RenderGraphDiagnosticCode::InvalidPassType;
 				case PassGraphDiagnosticCode::DuplicateResourceAccess:
 					return RenderGraphDiagnosticCode::DuplicateResourceAccess;
 				case PassGraphDiagnosticCode::MissingResourceProducer:

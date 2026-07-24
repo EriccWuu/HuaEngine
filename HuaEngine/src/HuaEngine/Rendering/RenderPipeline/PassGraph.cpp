@@ -155,8 +155,17 @@ namespace HE::Rendering {
 			for (const auto& attachment : pass.RenderPassAttachments) {
 				resourceUsages.push_back({
 					.Resource = attachment.Resource,
-					.State = ResourceState::RenderTarget
+					.State = attachment.Kind == PassGraphRenderPassAttachmentKind::Color
+						? ResourceState::RenderTarget
+						: ResourceState::DepthStencilWrite
 				});
+			}
+			if (pass.Type != PassGraphPassType::Graphics && !pass.RenderPassAttachments.empty()) {
+				AddDiagnostic(
+					m_Diagnostics,
+					PassGraphDiagnosticCode::InvalidPassType,
+					pass.Name,
+					"Only graphics passes may declare render-pass attachments");
 			}
 			std::unordered_set<std::string> typedOutputs;
 			for (const auto handle : pass.OutputResources) {
@@ -305,7 +314,12 @@ namespace HE::Rendering {
 					continue;
 				}
 
-				if (usage.State != ResourceState::ShaderRead && usage.State != ResourceState::RenderTarget) {
+				const bool isTextureUsage = usage.State == ResourceState::ShaderRead
+					|| usage.State == ResourceState::RenderTarget
+					|| usage.State == ResourceState::DepthStencilWrite
+					|| usage.State == ResourceState::CopySrc
+					|| usage.State == ResourceState::CopyDst;
+				if (!isTextureUsage || resource->Kind != RenderGraphResourceKind::Texture) {
 					AddDiagnostic(
 						m_Diagnostics,
 						PassGraphDiagnosticCode::InvalidResourceUsage,
@@ -323,14 +337,15 @@ namespace HE::Rendering {
 						"Render pass declares the same resource more than once");
 				}
 
-				if (usage.State == ResourceState::ShaderRead && !availableResources.contains(resourceName)) {
+				const bool requiresProducer = usage.State == ResourceState::ShaderRead || usage.State == ResourceState::CopySrc;
+				if (requiresProducer && !availableResources.contains(resourceName)) {
 					AddDiagnostic(
 						m_Diagnostics,
 						PassGraphDiagnosticCode::MissingResourceProducer,
 						pass.Name,
 						"Render pass reads a resource that has no producer or external input");
 				}
-				if (usage.State == ResourceState::ShaderRead) {
+				if (requiresProducer) {
 					if (const auto writer = resourceWriters.find(resourceName); writer != resourceWriters.end()) {
 						if (const auto writerIndex = passIndices.find(writer->second); writerIndex != passIndices.end()) {
 							dependencyEdges[writerIndex->second].push_back(passIndex);
@@ -355,7 +370,7 @@ namespace HE::Rendering {
 					resourceStates[resourceName] = usage.State;
 				}
 
-				if (usage.State == ResourceState::ShaderRead) {
+				if (requiresProducer) {
 					readResources.insert(resourceName);
 					++inputEdgeCount;
 				} else {

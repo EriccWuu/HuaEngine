@@ -785,3 +785,12 @@ P46 RenderTarget attachment aggregation
 - `PassGraph::Execute()` 现在按已编译的执行计划处理 barrier、attachment 和 callback，而不是直接按 `m_Passes` 线性遍历。
 - 当前 producer 解析与已有资源状态/barrier 规则保持兼容；future-producer 解析和可裁剪 pass 将在后续 P 基于该计划引入。
 - `RenderPassGraphSmoke` 已验证执行计划包含 producer 在 consumer 之前的顺序；四个 RHI/Rendering 冒烟测试均通过。
+
+### P60：Pass 类型与资源状态语义
+
+#### 实现结果
+
+- `PassGraphPassDesc` 新增 graphics、compute、copy 类型；仅 graphics pass 可声明 render-pass attachment。
+- graph compiler 已接入 texture 的 `DepthStencilWrite`、`CopySrc`、`CopyDst` usage；read-like copy source 继续参与 producer 检查与依赖边。
+- depth/stencil attachment 不再错误推导为 color `RenderTarget`，现在生成 `DepthStencilWrite` barrier。
+- `RenderPassGraphSmoke` 覆盖 depth-write 到 copy-source transition，以及 copy pass attachment 的 invalid-pass-type diagnostic；四个 RHI/Rendering 冒烟测试均通过。

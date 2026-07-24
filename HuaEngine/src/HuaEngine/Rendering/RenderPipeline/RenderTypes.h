@@ -69,6 +69,7 @@ namespace HE::Rendering {
 		InvalidResourceDescription,
 		InvalidResourceHandle,
 		InvalidResourceUsage,
+		InvalidPassType,
 		DuplicateResourceAccess,
 		MissingResourceProducer,
 		DuplicateResourceWriter

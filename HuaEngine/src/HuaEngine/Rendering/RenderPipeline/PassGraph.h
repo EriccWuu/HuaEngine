@@ -20,6 +20,7 @@ namespace HE::Rendering {
 		InvalidResourceDescription,
 		InvalidResourceHandle,
 		InvalidResourceUsage,
+		InvalidPassType,
 		DuplicateResourceAccess,
 		MissingResourceProducer,
 		DuplicateResourceWriter
@@ -34,6 +35,12 @@ namespace HE::Rendering {
 	struct PassGraphResourceUsage {
 		RenderGraphResourceHandle Resource;
 		ResourceState State = ResourceState::Undefined;
+	};
+
+	enum class PassGraphPassType : uint8_t {
+		Graphics = 0,
+		Compute,
+		Copy
 	};
 
 	enum class PassGraphRenderPassAttachmentKind : uint8_t {
@@ -53,6 +60,7 @@ namespace HE::Rendering {
 
 	struct PassGraphPassDesc {
 		std::string Name;
+		PassGraphPassType Type = PassGraphPassType::Graphics;
 		std::vector<std::string> Inputs;
 		std::vector<std::string> Outputs;
 		std::vector<RenderGraphResourceHandle> InputResources;
