@@ -35,6 +35,7 @@ namespace HE::Rendering {
 		uint32_t Width = 0;
 		uint32_t Height = 0;
 		RenderTargetTextureFormat Format = RenderTargetTextureFormat::RGBA8;
+		std::string AttachmentGroup;
 	};
 
 	struct RenderGraphBufferDesc {
@@ -86,6 +87,7 @@ namespace HE::Rendering {
 		struct TransientTexturePoolEntry {
 			RenderGraphTextureDesc Desc;
 			Ref<TextureResource> Texture;
+			Ref<TextureResource> DepthStencilTexture;
 			uint64_t AvailableAfterFenceValue = 0;
 		};
 

@@ -812,3 +812,13 @@ P46 RenderTarget attachment aggregation
 - Forward 在每帧开始时回收已完成资源；成功提交的 graphics command buffer 会保留到其 signal value 完成，避免异步后端过早释放录制内容。
 - viewport operation payload 增加 `frames_in_flight`，RenderStats 同步提供当前待回收提交数。
 - `RHICommandListBindingSmoke` 验证未完成 fence 前资源仍被保活、完成后释放；`RenderingOperationsSmoke` 验证 Forward 提交被登记为 in-flight；四个 RHI/Rendering 冒烟测试均通过。
+
+### P63：Transient Scene Color 后处理链路
+
+#### 实现结果
+
+- Forward 图新增 transient `SceneColor` 与 `SceneDepthAttachment`。二者通过附件组从同一个临时 render target 分配，确保 OpenGL color/depth attachment 可共同用于同一 render pass。
+- `ForwardOpaque` 现在写入 transient scene color/depth；新增 graphics `PostProcess` pass 将 `SceneColor` 以 `ShaderRead` 状态采样，并以全屏三角形写回 imported `ViewportColorAttachment`。
+- 后处理 pass 在 command buffer 中使用显式顶点/索引绑定、采样 bind group 与独立 pipeline；所有运行时创建的 RHI 对象都会由已提交 command buffer 保活。
+- transient allocator 对带附件组的颜色/深度资源复用同一个 pool entry，仍受 graphics timeline fence 限制，避免跨帧过早复用。
+- `RenderingOperationsSmoke` 验证后处理后的 viewport 保留材质覆盖颜色，图统计同步更新为 7 个资源、8 条边和 4 个 pass；`RHICommandListBindingSmoke`、`RHIResourceCreationSmoke`、`RenderPassGraphSmoke` 一并通过。

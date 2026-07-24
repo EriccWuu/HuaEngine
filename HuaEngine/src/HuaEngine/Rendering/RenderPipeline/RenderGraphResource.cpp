@@ -57,45 +57,70 @@ namespace HE::Rendering {
 			}
 		}
 		std::sort(allocations.begin(), allocations.end(), [](const auto& left, const auto& right) {
-			return left.FirstPassIndex < right.FirstPassIndex;
+			return left.FirstPassIndex != right.FirstPassIndex
+				? left.FirstPassIndex < right.FirstPassIndex
+				: left.ResourceIndex < right.ResourceIndex;
 		});
 
 		std::vector<uint32_t> poolLastPassIndices(m_TransientTexturePool.size(), std::numeric_limits<uint32_t>::max());
 		for (const auto& allocation : allocations) {
 			const auto& desc = m_Resources[allocation.ResourceIndex];
 			auto poolEntry = m_TransientTexturePool.size();
+			const bool isDepthStencil = desc.Texture.Format == RenderTargetTextureFormat::DEPTH24_STENCIL8;
 			for (uint32_t poolIndex = 0; poolIndex < m_TransientTexturePool.size(); ++poolIndex) {
 				const auto& entry = m_TransientTexturePool[poolIndex];
 				const bool hasMatchingDesc = entry.Desc.Width == desc.Texture.Width
 					&& entry.Desc.Height == desc.Texture.Height
-					&& entry.Desc.Format == desc.Texture.Format;
+					&& (isDepthStencil
+						? !desc.Texture.AttachmentGroup.empty() && entry.Desc.AttachmentGroup == desc.Texture.AttachmentGroup && entry.DepthStencilTexture
+						: entry.Desc.Format == desc.Texture.Format && entry.Desc.AttachmentGroup == desc.Texture.AttachmentGroup);
 				const bool lifetimeDoesNotOverlap = poolLastPassIndices[poolIndex] == std::numeric_limits<uint32_t>::max()
 					|| poolLastPassIndices[poolIndex] < allocation.FirstPassIndex;
-				if (hasMatchingDesc && entry.AvailableAfterFenceValue <= completedFenceValue && lifetimeDoesNotOverlap) {
+				if (hasMatchingDesc && entry.AvailableAfterFenceValue <= completedFenceValue && (isDepthStencil || lifetimeDoesNotOverlap)) {
 					poolEntry = poolIndex;
 					break;
 				}
 			}
 
 			if (poolEntry == m_TransientTexturePool.size()) {
-				auto texture = device.CreateTexture({
-					.Width = desc.Texture.Width,
-					.Height = desc.Texture.Height,
-					.Format = desc.Texture.Format,
-					.Usage = TextureUsageSampled | TextureUsageColorAttachment,
-					.MipLevels = 1,
-					.Samples = 1
+				if (isDepthStencil) {
+					return false;
+				}
+				RenderTargetAttachmentSpecification attachments{ desc.Texture.Format };
+				if (!desc.Texture.AttachmentGroup.empty()) {
+					const auto depthResource = std::find_if(m_Resources.begin(), m_Resources.end(), [&desc](const auto& candidate) {
+						return candidate.Storage == RenderGraphResourceStorage::Transient
+							&& candidate.Kind == RenderGraphResourceKind::Texture
+							&& candidate.Texture.AttachmentGroup == desc.Texture.AttachmentGroup
+							&& candidate.Texture.Format == RenderTargetTextureFormat::DEPTH24_STENCIL8;
+					});
+					if (depthResource != m_Resources.end()) {
+						attachments = { desc.Texture.Format, RenderTargetTextureFormat::DEPTH24_STENCIL8 };
+					}
+				}
+				auto renderTarget = device.CreateRenderTarget({
+					.Specification = {
+						.Width = desc.Texture.Width,
+						.Height = desc.Texture.Height,
+						.Attachments = attachments
+					}
 				});
-				if (!texture) {
+				if (!renderTarget || !renderTarget->GetColorAttachmentTexture()) {
 					return false;
 				}
 
 				poolEntry = m_TransientTexturePool.size();
-				m_TransientTexturePool.push_back({ .Desc = desc.Texture, .Texture = std::move(texture) });
+				m_TransientTexturePool.push_back({
+					.Desc = desc.Texture,
+					.Texture = renderTarget->GetColorAttachmentTexture(),
+					.DepthStencilTexture = renderTarget->GetDepthStencilAttachmentTexture()
+				});
 				poolLastPassIndices.push_back(std::numeric_limits<uint32_t>::max());
 			}
 
-			m_RuntimeResources[allocation.ResourceIndex].Texture = m_TransientTexturePool[poolEntry].Texture;
+			m_RuntimeResources[allocation.ResourceIndex].Texture = isDepthStencil
+				? m_TransientTexturePool[poolEntry].DepthStencilTexture
+				: m_TransientTexturePool[poolEntry].Texture;
 			poolLastPassIndices[poolEntry] = allocation.LastPassIndex;
 			if (std::find(m_ActiveTransientTextureIndices.begin(), m_ActiveTransientTextureIndices.end(), poolEntry) == m_ActiveTransientTextureIndices.end()) {
 				m_ActiveTransientTextureIndices.push_back(poolEntry);

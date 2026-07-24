@@ -117,6 +117,128 @@ namespace HE::Rendering {
 		}
 	}
 
+	void PostProcessPass::Execute(RenderPassContext& context, RenderGraphResourceHandle sceneColor) const {
+		if (!context.Device || !context.Commands || !context.GraphResources || !context.Stats) {
+			return;
+		}
+
+		const auto* sceneColorResource = context.GraphResources->GetRuntimeResource(sceneColor);
+		if (!sceneColorResource || !sceneColorResource->Texture) {
+			return;
+		}
+
+		const float vertices[] = {
+			-1.0f, -1.0f, 0.0f,
+			 3.0f, -1.0f, 0.0f,
+			-1.0f,  3.0f, 0.0f
+		};
+		const uint32_t indices[] = { 0, 1, 2 };
+		const BufferLayout vertexLayout = {
+			{ ShaderDataType::Float3, "a_Position" }
+		};
+
+		auto vertexBuffer = context.Device->CreateBuffer({
+			.Usage = GpuBufferUsage::Vertex,
+			.Size = sizeof(vertices),
+			.Stride = 3 * sizeof(float)
+		}, vertices);
+		auto indexBuffer = context.Device->CreateBuffer({
+			.Usage = GpuBufferUsage::Index,
+			.Size = sizeof(indices),
+			.Stride = sizeof(uint32_t)
+		}, indices);
+		auto shader = context.Device->CreateShaderProgram({
+			.VertexSource = R"(
+				#version 330 core
+				layout(location = 0) in vec3 a_Position;
+				out vec2 v_Uv;
+				void main() {
+					gl_Position = vec4(a_Position, 1.0);
+					v_Uv = a_Position.xy * 0.5 + 0.5;
+				}
+			)",
+			.FragmentSource = R"(
+				#version 330 core
+				in vec2 v_Uv;
+				layout(location = 0) out vec4 color;
+				uniform sampler2D u_SourceTexture;
+				void main() {
+					color = texture(u_SourceTexture, v_Uv);
+				}
+			)"
+		});
+		auto bindGroupLayout = context.Device->CreateBindGroupLayout({
+			.Scope = BindGroupScope::Material,
+			.Entries = {
+				{ .Name = "u_SourceTexture", .Type = BindingValueType::TextureView, .Binding = 0 },
+				{ .Name = "u_SourceSampler", .Type = BindingValueType::Sampler, .Binding = 1 }
+			}
+		});
+		auto textureView = context.Device->CreateTextureView({ .Texture = sceneColorResource->Texture });
+		auto sampler = context.Device->CreateSampler({
+			.AddressU = SamplerAddressMode::ClampToEdge,
+			.AddressV = SamplerAddressMode::ClampToEdge
+		});
+		if (!vertexBuffer || !indexBuffer || !shader || !bindGroupLayout || !textureView || !sampler) {
+			return;
+		}
+
+		auto pipeline = context.Device->CreatePipelineState({
+			.Shader = shader,
+			.VertexLayout = vertexLayout,
+			.Topology = PrimitiveTopology::TriangleList,
+			.ColorTargets = { { .Format = sceneColorResource->Texture->GetDesc().Format } },
+			.DepthStencil = {
+				.Format = RenderTargetTextureFormat::None,
+				.DepthTestEnabled = false,
+				.DepthWriteEnabled = false
+			},
+			.Raster = { .Cull = CullMode::None },
+			.BindGroupLayouts = { { .Slot = 0, .Layout = bindGroupLayout } }
+		});
+		auto bindGroup = context.Device->CreateBindGroup({
+			.Layout = bindGroupLayout,
+			.Entries = {
+				{
+					.Name = "u_SourceTexture",
+					.Type = BindingValueType::TextureView,
+					.Value = textureView,
+					.Binding = 0,
+					.TextureSlot = 0
+				},
+				{
+					.Name = "u_SourceSampler",
+					.Type = BindingValueType::Sampler,
+					.Value = sampler,
+					.Binding = 1,
+					.TextureSlot = 0
+				}
+			}
+		});
+		if (!pipeline || !bindGroup) {
+			return;
+		}
+
+		if (context.RecordingCommandBuffer) {
+			context.RecordingCommandBuffer->RetainResource(vertexBuffer);
+			context.RecordingCommandBuffer->RetainResource(indexBuffer);
+			context.RecordingCommandBuffer->RetainResource(shader);
+			context.RecordingCommandBuffer->RetainResource(bindGroupLayout);
+			context.RecordingCommandBuffer->RetainResource(textureView);
+			context.RecordingCommandBuffer->RetainResource(sampler);
+			context.RecordingCommandBuffer->RetainResource(pipeline);
+			context.RecordingCommandBuffer->RetainResource(bindGroup);
+		}
+
+		context.Commands->SetPipelineState(*pipeline);
+		context.Commands->SetVertexBuffer(0, { .Buffer = vertexBuffer, .Stride = 3 * sizeof(float) });
+		context.Commands->SetIndexBuffer({ .Buffer = indexBuffer, .Format = IndexFormat::UInt32, .IndexCount = 3 });
+		context.Commands->SetBindGroup(0, *bindGroup);
+		context.Commands->DrawIndexed(3);
+		++context.Stats->DrawCalls;
+		++context.Stats->PassCount;
+	}
+
 	void EndRendererPass::Execute(RenderPassContext& context) {
 		if (!context.Commands || !context.Stats) {
 			return;
@@ -152,9 +274,29 @@ namespace HE::Rendering {
 				.RuntimeTexture = viewportDepth
 			})
 			: RenderGraphResourceHandle{};
+		const auto sceneColorHandle = m_Graph.AddTransientResource({
+			.Name = "SceneColor",
+			.Kind = RenderGraphResourceKind::Texture,
+			.Texture = {
+				.Width = viewportColor->GetWidth(),
+				.Height = viewportColor->GetHeight(),
+				.Format = viewportColor->GetDesc().Format,
+				.AttachmentGroup = "ForwardScene"
+			}
+		});
+		const auto sceneDepthHandle = m_Graph.AddTransientResource({
+			.Name = "SceneDepthAttachment",
+			.Kind = RenderGraphResourceKind::Texture,
+			.Texture = {
+				.Width = viewportColor->GetWidth(),
+				.Height = viewportColor->GetHeight(),
+				.Format = RenderTargetTextureFormat::DEPTH24_STENCIL8,
+				.AttachmentGroup = "ForwardScene"
+			}
+		});
 		std::vector<PassGraphRenderPassAttachment> forwardOpaqueAttachments = {
 			{
-				.Resource = viewportColorHandle,
+				.Resource = sceneColorHandle,
 				.Kind = PassGraphRenderPassAttachmentKind::Color,
 				.Load = view.ClearColorBuffer ? LoadOp::Clear : LoadOp::Load,
 				.Store = StoreOp::Store,
@@ -163,7 +305,7 @@ namespace HE::Rendering {
 		};
 		if (viewportDepthHandle.IsValid()) {
 			forwardOpaqueAttachments.push_back({
-				.Resource = viewportDepthHandle,
+				.Resource = sceneDepthHandle,
 				.Kind = PassGraphRenderPassAttachmentKind::DepthStencil,
 				.Load = view.ClearColorBuffer ? LoadOp::Clear : LoadOp::Load,
 				.Store = StoreOp::Store,
@@ -186,6 +328,23 @@ namespace HE::Rendering {
 			.RenderPassAttachments = std::move(forwardOpaqueAttachments),
 			.Execute = [this](RenderPassContext& context) {
 				m_OpaquePass.Execute(context);
+			}
+		});
+		m_Graph.AddPass({
+			.Name = "PostProcess",
+			.Type = PassGraphPassType::Graphics,
+			.ResourceUsages = { { .Resource = sceneColorHandle, .State = ResourceState::ShaderRead } },
+			.RenderPassAttachments = {
+				{
+					.Resource = viewportColorHandle,
+					.Kind = PassGraphRenderPassAttachmentKind::Color,
+					.Load = LoadOp::Clear,
+					.Store = StoreOp::Store,
+					.ClearColor = view.ClearColor
+				}
+			},
+			.Execute = [this, sceneColorHandle](RenderPassContext& context) {
+				m_PostProcessPass.Execute(context, sceneColorHandle);
 			}
 		});
 		m_Graph.AddPass({

@@ -131,9 +131,9 @@ namespace {
 		}
 
 		const std::string content((std::istreambuf_iterator<char>(source)), std::istreambuf_iterator<char>());
-		return content.find("SetVertexBufferView") == std::string::npos
-			&& content.find("SetVertexBuffer(") != std::string::npos
+		return content.find("SetVertexBuffer(") != std::string::npos
 			&& content.find("SetIndexBuffer(") != std::string::npos
+			&& content.find("void PostProcessPass::Execute") != std::string::npos
 			&& content.find("AddExternalInput(\"RenderTarget\")") == std::string::npos
 			&& content.find("BoundRenderTarget") == std::string::npos
 			&& content.find("ClearedSceneColor") == std::string::npos
@@ -221,16 +221,16 @@ int main() {
 	Require(renderViewport.Payload.at("render_items") == "1", "Expected invalid renderable component triple to count as an extracted render item");
 	Require(renderViewport.Payload.at("submitted_items") == "1", "Expected invalid renderable resources to submit with fallback resources");
 	Require(renderViewport.Payload.at("skipped_items") == "0", "Expected invalid renderable resources to avoid skipped item count");
-	Require(renderViewport.Payload.at("draw_calls") == "1", "Expected invalid renderable resources to issue a fallback draw call");
-	Require(renderViewport.Payload.at("pass_count") == "3", "Expected invalid renderable resources to execute three render passes");
+	Require(renderViewport.Payload.at("draw_calls") == "2", "Expected invalid renderable resources to issue a fallback and post-process draw call");
+	Require(renderViewport.Payload.at("pass_count") == "4", "Expected invalid renderable resources to execute four render passes");
 	Require(renderViewport.Payload.at("graphics_queue_signal") != "0", "Expected invalid renderable resources to submit a graphics command buffer");
 	Require(renderViewport.Payload.at("graphics_queue_completed") == renderViewport.Payload.at("graphics_queue_signal"), "Expected graphics queue fence to complete submitted value");
 	Require(renderViewport.Payload.at("frames_in_flight") != "0", "Expected submitted forward command buffer to remain tracked in flight");
 	Require(renderViewport.Payload.at("visible_items") == "1", "Expected invalid renderable resources to count one visible item");
 	Require(renderViewport.Payload.at("fallback_items") == "1", "Expected invalid renderable resources to count one fallback item");
 	Require(renderViewport.Payload.at("diagnostics") == "2", "Expected invalid renderable resources to emit mesh and material fallback diagnostics");
-	Require(renderViewport.Payload.at("graph_resources") == "5", "Expected forward render graph to report five resources");
-	Require(renderViewport.Payload.at("graph_edges") == "7", "Expected forward render graph to report seven edges");
+	Require(renderViewport.Payload.at("graph_resources") == "7", "Expected forward render graph to report seven resources");
+	Require(renderViewport.Payload.at("graph_edges") == "8", "Expected forward render graph to report eight edges");
 	Require(renderViewport.Payload.at("graph_external_inputs") == "4", "Expected forward render graph to report four external inputs");
 	Require(renderViewport.Payload.at("graph_outputs") == "2", "Expected forward render graph to report two outputs");
 	Require(renderViewport.Payload.at("graph_diagnostics") == "0", "Expected forward render graph to emit no diagnostics");
@@ -270,12 +270,12 @@ int main() {
 	Require(renderAssetRefScene.Payload.at("render_items") == "1", "Expected typed asset-ref scene render to extract one render item");
 	Require(renderAssetRefScene.Payload.at("submitted_items") == "1", "Expected typed asset-ref scene render to submit through the asset resolver path");
 	Require(renderAssetRefScene.Payload.at("skipped_items") == "0", "Expected typed asset-ref scene render to avoid skipping through the asset resolver path");
-	Require(renderAssetRefScene.Payload.at("draw_calls") == "1", "Expected typed asset-ref scene render to issue one draw call through the asset resolver path");
-	Require(renderAssetRefScene.Payload.at("pass_count") == "3", "Expected typed asset-ref scene render to execute three render passes");
+	Require(renderAssetRefScene.Payload.at("draw_calls") == "2", "Expected typed asset-ref scene render to include one post-process draw call");
+	Require(renderAssetRefScene.Payload.at("pass_count") == "4", "Expected typed asset-ref scene render to execute four render passes");
 	Require(renderAssetRefScene.Payload.at("visible_items") == "1", "Expected typed asset-ref scene render to count one visible item");
 	Require(renderAssetRefScene.Payload.at("diagnostics") == "0", "Expected typed asset-ref scene render to emit no resolver diagnostics");
-	Require(renderAssetRefScene.Payload.at("graph_resources") == "5", "Expected typed asset-ref scene render graph to report five resources");
-	Require(renderAssetRefScene.Payload.at("graph_edges") == "7", "Expected typed asset-ref scene render graph to report seven edges");
+	Require(renderAssetRefScene.Payload.at("graph_resources") == "7", "Expected typed asset-ref scene render graph to report seven resources");
+	Require(renderAssetRefScene.Payload.at("graph_edges") == "8", "Expected typed asset-ref scene render graph to report eight edges");
 	Require(renderAssetRefScene.Payload.at("graph_external_inputs") == "4", "Expected typed asset-ref scene render graph to report four external inputs");
 	Require(renderAssetRefScene.Payload.at("graph_outputs") == "2", "Expected typed asset-ref scene render graph to report two outputs");
 	Require(renderAssetRefScene.Payload.at("graph_diagnostics") == "0", "Expected typed asset-ref scene render to emit no render graph diagnostics");
@@ -316,12 +316,12 @@ int main() {
 	Require(renderLoadedScene.Payload.at("render_items") == "4", "Expected loaded sandbox scene render to extract four render items");
 	Require(renderLoadedScene.Payload.at("submitted_items") == "4", "Expected loaded sandbox scene render to submit all render items through the asset resolver path");
 	Require(renderLoadedScene.Payload.at("skipped_items") == "0", "Expected loaded sandbox scene render to avoid skipping render items through the asset resolver path");
-	Require(renderLoadedScene.Payload.at("draw_calls") == "4", "Expected loaded sandbox scene render to issue draw calls through the asset resolver path");
-	Require(renderLoadedScene.Payload.at("pass_count") == "3", "Expected loaded sandbox scene render to execute three render passes");
+	Require(renderLoadedScene.Payload.at("draw_calls") == "5", "Expected loaded sandbox scene render to include one post-process draw call");
+	Require(renderLoadedScene.Payload.at("pass_count") == "4", "Expected loaded sandbox scene render to execute four render passes");
 	Require(renderLoadedScene.Payload.at("visible_items") == "4", "Expected loaded sandbox scene render to count four visible items");
 	Require(renderLoadedScene.Payload.at("diagnostics") == "1", "Expected loaded sandbox scene render to emit one fallback diagnostic for the unmigrated custom mesh");
-	Require(renderLoadedScene.Payload.at("graph_resources") == "5", "Expected loaded sandbox scene render graph to report five resources");
-	Require(renderLoadedScene.Payload.at("graph_edges") == "7", "Expected loaded sandbox scene render graph to report seven edges");
+	Require(renderLoadedScene.Payload.at("graph_resources") == "7", "Expected loaded sandbox scene render graph to report seven resources");
+	Require(renderLoadedScene.Payload.at("graph_edges") == "8", "Expected loaded sandbox scene render graph to report eight edges");
 	Require(renderLoadedScene.Payload.at("graph_external_inputs") == "4", "Expected loaded sandbox scene render graph to report four external inputs");
 	Require(renderLoadedScene.Payload.at("graph_outputs") == "2", "Expected loaded sandbox scene render graph to report two outputs");
 	Require(renderLoadedScene.Payload.at("graph_diagnostics") == "0", "Expected loaded sandbox scene render to emit no render graph diagnostics");

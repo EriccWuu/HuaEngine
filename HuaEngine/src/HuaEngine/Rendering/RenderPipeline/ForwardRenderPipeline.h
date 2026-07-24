@@ -16,6 +16,11 @@ namespace HE::Rendering {
 		void Execute(RenderPassContext& context);
 	};
 
+	class PostProcessPass {
+	public:
+		void Execute(RenderPassContext& context, RenderGraphResourceHandle sceneColor) const;
+	};
+
 	class EndRendererPass {
 	public:
 		void Execute(RenderPassContext& context);
@@ -39,6 +44,7 @@ namespace HE::Rendering {
 		DeferredReleaseQueue m_DeferredReleaseQueue;
 		BeginRendererPass m_BeginRendererPass;
 		ForwardOpaquePass m_OpaquePass;
+		PostProcessPass m_PostProcessPass;
 		EndRendererPass m_EndRendererPass;
 	};
 }
