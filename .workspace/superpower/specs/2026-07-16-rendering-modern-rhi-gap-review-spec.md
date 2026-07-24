@@ -693,3 +693,29 @@ P46 RenderTarget attachment aggregation
 - runtime texture、texture view 缺失，或同一 pass 声明多个 depth/stencil attachment 时，`PassGraph::Execute()` 会明确失败并跳过该 callback。
 - Forward `BindTargetPass` 已改为仅消费 graph 提供的 desc；color/depth 的 load、store 和 clear 参数由每帧构图时的 attachment 声明提供。
 - `RHIResourceCreationSmoke` 已验证 attachment writer 使用生成的 view/desc，并验证执行后 `GraphRenderPass` 指针恢复；四个 RHI/Rendering 冒烟测试均通过。
+
+### P56：Graph 托管 RenderPass 生命周期
+
+#### 目标
+
+让 `PassGraph` 对声明了 render-pass attachment 的 pass 自动执行 `BeginRenderPass`、callback、`EndRenderPass`，消除 Forward 中拆分的 Bind/Clear/Unbind 过渡 pass。
+
+#### 约束
+
+- 仅 attachment 非空的 graph pass 自动打开和关闭 RHI render pass；普通 pass 的执行语义不变。
+- callback 只允许在 graph 托管的 render-pass 范围内录制绘制命令，不再自行开始或结束该 pass。
+- Forward 的 color/depth load、store、clear 只在 `ForwardOpaque` 的 attachment 声明中出现。
+
+#### 验收
+
+- attachment graph callback 无需手动调用 `BeginRenderPass` / `EndRenderPass`，且命令列表观察到一次配对调用。
+- Forward graph 不再包含 BindTarget、ClearTarget、UnbindTarget，保留 `BeginRenderer -> ForwardOpaque -> EndRenderer`。
+- 现有 fallback draw、资源状态屏障与四个 RHI/Rendering 冒烟测试继续通过。
+
+#### 实现结果
+
+- `PassGraph::Execute()` 现在在带附件 pass 的 callback 前自动开始 RHI render pass，并在 callback 返回后自动结束；`GraphRenderPass` 的有效期与该范围一致。
+- `RHIResourceCreationSmoke` 使用捕获命令列表验证自动 begin/end 成对出现，并验证生成的 color load 与 clear color 参数。
+- Forward 已删除 BindTarget、ClearTarget、UnbindTarget 及其成员；`ForwardOpaque` 独占 color/depth attachment 声明，`BeginRenderer -> ForwardOpaque -> EndRenderer` 成为唯一主路径。
+- Forward 运行统计的 `pass_count` 已从 6 更新为 3；图资源、边、外部输入和输出统计保持原值。
+- `RenderingOperationsSmoke`、`RHICommandListBindingSmoke`、`RHIResourceCreationSmoke`、`RenderPassGraphSmoke` 均通过。

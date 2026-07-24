@@ -39,23 +39,6 @@ namespace HE::Rendering {
 		}
 	}
 
-	void BindTargetPass::Execute(RenderPassContext& context) {
-		if (!context.Commands || !context.Stats || !context.GraphRenderPass) {
-			return;
-		}
-
-		++context.Stats->PassCount;
-		context.Commands->BeginRenderPass(*context.GraphRenderPass);
-	}
-
-	void ClearTargetPass::Execute(RenderPassContext& context) {
-		if (!context.View || !context.Commands || !context.Stats) {
-			return;
-		}
-
-		++context.Stats->PassCount;
-	}
-
 	void BeginRendererPass::Execute(RenderPassContext& context) {
 		if (!context.View || !context.View->CameraRef || !context.Commands || !context.Stats) {
 			return;
@@ -132,15 +115,6 @@ namespace HE::Rendering {
 		context.Commands->EndFrame();
 	}
 
-	void UnbindTargetPass::Execute(RenderPassContext& context) {
-		if (!context.View || !context.View->Target || !context.Commands || !context.Stats) {
-			return;
-		}
-
-		++context.Stats->PassCount;
-		context.Commands->EndRenderPass();
-	}
-
 	void ForwardRenderPipeline::BuildGraph(const RenderView& view) {
 		m_Graph.Reset();
 		const auto viewportColor = view.Target->GetColorAttachmentTexture();
@@ -167,7 +141,7 @@ namespace HE::Rendering {
 				.RuntimeTexture = viewportDepth
 			})
 			: RenderGraphResourceHandle{};
-		std::vector<PassGraphRenderPassAttachment> bindTargetAttachments = {
+		std::vector<PassGraphRenderPassAttachment> forwardOpaqueAttachments = {
 			{
 				.Resource = viewportColorHandle,
 				.Kind = PassGraphRenderPassAttachmentKind::Color,
@@ -177,7 +151,7 @@ namespace HE::Rendering {
 			}
 		};
 		if (viewportDepthHandle.IsValid()) {
-			bindTargetAttachments.push_back({
+			forwardOpaqueAttachments.push_back({
 				.Resource = viewportDepthHandle,
 				.Kind = PassGraphRenderPassAttachmentKind::DepthStencil,
 				.Load = view.ClearColorBuffer ? LoadOp::Clear : LoadOp::Load,
@@ -187,20 +161,6 @@ namespace HE::Rendering {
 		}
 		m_Graph.AddExternalInput("CameraView");
 		m_Graph.AddExternalInput("SceneItems");
-		m_Graph.AddPass({
-			.Name = "BindTarget",
-			.RenderPassAttachments = std::move(bindTargetAttachments),
-			.Execute = [this](RenderPassContext& context) {
-				m_BindTargetPass.Execute(context);
-			}
-		});
-		m_Graph.AddPass({
-			.Name = "ClearTarget",
-			.RenderPassAttachments = { { .Resource = viewportColorHandle, .Kind = PassGraphRenderPassAttachmentKind::Color } },
-			.Execute = [this](RenderPassContext& context) {
-				m_ClearTargetPass.Execute(context);
-			}
-		});
 		m_Graph.AddPass({
 			.Name = "BeginRenderer",
 			.Inputs = { "CameraView" },
@@ -212,7 +172,7 @@ namespace HE::Rendering {
 		m_Graph.AddPass({
 			.Name = "ForwardOpaque",
 			.Inputs = { "CameraView", "SceneItems", "RendererFrame" },
-			.RenderPassAttachments = { { .Resource = viewportColorHandle, .Kind = PassGraphRenderPassAttachmentKind::Color } },
+			.RenderPassAttachments = std::move(forwardOpaqueAttachments),
 			.Execute = [this](RenderPassContext& context) {
 				m_OpaquePass.Execute(context);
 			}
@@ -222,12 +182,6 @@ namespace HE::Rendering {
 			.Inputs = { "RendererFrame" },
 			.Execute = [this](RenderPassContext& context) {
 				m_EndRendererPass.Execute(context);
-			}
-		});
-		m_Graph.AddPass({
-			.Name = "UnbindTarget",
-			.Execute = [this](RenderPassContext& context) {
-				m_UnbindTargetPass.Execute(context);
 			}
 		});
 	}

@@ -462,8 +462,14 @@ namespace HE::Rendering {
 
 			if (!m_Passes[passIndex].RenderPassAttachments.empty()) {
 				context.GraphRenderPass = &graphRenderPass;
+				if (context.Commands) {
+					context.Commands->BeginRenderPass(graphRenderPass);
+				}
 			}
 			m_Passes[passIndex].Execute(context);
+			if (!m_Passes[passIndex].RenderPassAttachments.empty() && context.Commands) {
+				context.Commands->EndRenderPass();
+			}
 			context.GraphRenderPass = previousGraphRenderPass;
 		}
 

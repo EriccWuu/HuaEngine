@@ -36,9 +36,11 @@ namespace {
 	class BarrierCaptureCommandList final : public HE::Rendering::CommandList {
 	public:
 		std::vector<HE::Rendering::ResourceBarrier> Barriers;
+		std::vector<HE::Rendering::RenderPassDesc> RenderPasses;
+		uint32_t EndRenderPassCount = 0;
 
-		void BeginRenderPass(const HE::Rendering::RenderPassDesc&) override {}
-		void EndRenderPass() override {}
+		void BeginRenderPass(const HE::Rendering::RenderPassDesc& desc) override { RenderPasses.push_back(desc); }
+		void EndRenderPass() override { ++EndRenderPassCount; }
 		void ResourceBarrier(const HE::Rendering::ResourceBarrier& barrier) override { Barriers.push_back(barrier); }
 		void BeginRenderTarget(HE::Rendering::RenderTarget&) override {}
 		void ClearColor(const glm::vec4&) override {}
@@ -332,8 +334,6 @@ int main() {
 				&& context.GraphRenderPass->ColorAttachments.size() == 1
 				&& context.GraphRenderPass->ColorAttachments[0].View
 				&& context.GraphRenderPass->ColorAttachments[0].View->GetDesc().Texture == colorAttachmentTexture;
-			context.Commands->BeginRenderPass(*context.GraphRenderPass);
-			context.Commands->EndRenderPass();
 		}
 	});
 	attachmentSamplingGraph.AddPass({
@@ -355,13 +355,18 @@ int main() {
 	});
 	HE::Rendering::ResourceStateTracker attachmentResourceStates;
 	HE::Rendering::RenderPassContext attachmentSamplingContext;
+	BarrierCaptureCommandList attachmentCommands;
 	attachmentSamplingContext.Device = &device;
-	attachmentSamplingContext.Commands = &device.GetImmediateCommandList();
+	attachmentSamplingContext.Commands = &attachmentCommands;
 	attachmentSamplingContext.ResourceStates = &attachmentResourceStates;
 	Require(attachmentSamplingGraph.Execute(attachmentSamplingContext), "Expected attachment sampling graph execute to succeed");
 	Require(attachmentSamplingContext.GraphResources == nullptr, "Expected graph resource context to be restored after execute");
 	Require(attachmentSamplingContext.GraphRenderPass == nullptr, "Expected graph render-pass context to be restored after execute");
 	Require(writerPassUsedAttachmentView, "Expected writer pass to resolve the imported attachment texture");
+	Require(attachmentCommands.RenderPasses.size() == 1, "Expected graph attachment pass to begin one render pass");
+	Require(attachmentCommands.EndRenderPassCount == 1, "Expected graph attachment pass to end one render pass");
+	Require(attachmentCommands.RenderPasses[0].ColorAttachments[0].Load == HE::Rendering::LoadOp::Clear, "Expected graph render pass color load operation");
+	Require(attachmentCommands.RenderPasses[0].ColorAttachments[0].ClearColor == glm::vec4(0.2f, 0.3f, 0.4f, 1.0f), "Expected graph render pass clear color");
 	Require(readerPassUsedAttachmentTexture, "Expected reader pass to create a sampled view from the imported attachment texture");
 	Require(sampledAttachmentView->GetDesc().Texture == colorAttachmentTexture, "Expected sampled attachment view source texture");
 	Require(attachmentBarrierSequence.size() == 2, "Expected attachment graph to emit write and sampled-read barriers");
