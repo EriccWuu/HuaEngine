@@ -113,6 +113,7 @@ namespace HE::Rendering {
 		uint32_t PipelineStateCacheMisses = 0;
 		uint64_t GraphicsQueueSignalValue = 0;
 		uint64_t GraphicsQueueCompletedValue = 0;
+		uint32_t FramesInFlight = 0;
 	};
 
 	struct RenderPassContext {

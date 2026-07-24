@@ -244,6 +244,7 @@ namespace HE::Rendering {
 		}
 
 		auto& device = RenderHardwareInterface::GetDevice();
+		m_DeferredReleaseQueue.RetireCompleted();
 		auto commandBuffer = device.CreateCommandBuffer({
 			.Usage = CommandBufferUsage::Graphics,
 			.DebugName = "ForwardRenderPipeline graph"
@@ -281,11 +282,13 @@ namespace HE::Rendering {
 			return result;
 		}
 		m_Graph.ReleaseTransientResources(submitResult.SignalValue);
+		m_DeferredReleaseQueue.Track(commandBuffer, submitResult.SignalFence, submitResult.SignalValue);
 
 		result.Stats.GraphicsQueueSignalValue = submitResult.SignalValue;
 		result.Stats.GraphicsQueueCompletedValue = submitResult.SignalFence
 			? submitResult.SignalFence->GetCompletedValue()
 			: device.GetGraphicsQueue().GetTimelineFence().GetCompletedValue();
+		result.Stats.FramesInFlight = m_DeferredReleaseQueue.GetPendingCount();
 		result.Succeeded = true;
 		CopyGraphStateToResult(result);
 		return result;

@@ -38,6 +38,15 @@ namespace {
 			: HE::Application(MakeApplicationSpecification()) {}
 	};
 
+	class ManualFence final : public HE::Rendering::Fence {
+	public:
+		uint64_t GetCompletedValue() const override { return m_CompletedValue; }
+		void SetCompletedValue(uint64_t value) { m_CompletedValue = value; }
+
+	private:
+		uint64_t m_CompletedValue = 0;
+	};
+
 	constexpr HE::Rendering::RenderTargetPixelRGBA8 kExpectedClearPixel{ 26, 26, 26, 255 };
 	constexpr HE::Rendering::RenderTargetPixelRGBA8 kExpectedFragmentPixel{ 230, 51, 26, 255 };
 	constexpr uint8_t kPixelTolerance = 3;
@@ -796,6 +805,17 @@ int main() {
 	});
 	Require(copySubmit, "Expected copy queue submit after compute timeline wait to succeed");
 	Require(!device.GetCopyQueue().Submit({ .CommandBufferPtr = copyCommandBuffer.get(), .WaitFence = computeSubmit.SignalFence, .WaitValue = computeSubmit.SignalValue + 1 }), "Expected unmet timeline wait to reject queue submit");
+	HE::Rendering::DeferredReleaseQueue deferredReleaseQueue;
+	ManualFence manualFence;
+	auto retainedValue = std::make_shared<uint32_t>(42);
+	std::weak_ptr<uint32_t> weakRetainedValue = retainedValue;
+	deferredReleaseQueue.Track(retainedValue, &manualFence, 2);
+	retainedValue.reset();
+	deferredReleaseQueue.RetireCompleted();
+	Require(!weakRetainedValue.expired() && deferredReleaseQueue.GetPendingCount() == 1, "Expected deferred release queue to retain resource before fence completion");
+	manualFence.SetCompletedValue(2);
+	deferredReleaseQueue.RetireCompleted();
+	Require(weakRetainedValue.expired() && deferredReleaseQueue.GetPendingCount() == 0, "Expected deferred release queue to release resource after fence completion");
 	VerifyRenderTargetSamples(renderTarget);
 	recordedCommandBuffer->Reset();
 	Require(!recordedCommandBuffer->IsExecutable(), "Expected reset recorded command buffer to clear executable state");

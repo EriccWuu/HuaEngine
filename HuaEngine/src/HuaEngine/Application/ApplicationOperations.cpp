@@ -657,6 +657,7 @@ namespace HE {
 		result.SetPayloadValue("pass_count", std::to_string(renderResult.Stats.PassCount));
 		result.SetPayloadValue("graphics_queue_signal", std::to_string(renderResult.Stats.GraphicsQueueSignalValue));
 		result.SetPayloadValue("graphics_queue_completed", std::to_string(renderResult.Stats.GraphicsQueueCompletedValue));
+		result.SetPayloadValue("frames_in_flight", std::to_string(renderResult.Stats.FramesInFlight));
 		result.SetPayloadValue("visible_items", std::to_string(renderResult.Stats.VisibleItems));
 		result.SetPayloadValue("fallback_items", std::to_string(renderResult.Stats.FallbackItems));
 		result.SetPayloadValue("diagnostics", std::to_string(renderResult.Diagnostics.size()));

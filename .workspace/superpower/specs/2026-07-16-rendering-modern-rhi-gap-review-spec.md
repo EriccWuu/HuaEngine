@@ -803,3 +803,12 @@ P46 RenderTarget attachment aggregation
 - `QueueSubmitDesc` 支持 wait fence/value；queue 仅在依赖 fence 已完成指定值时接受提交。
 - OpenGL backend 以共享 immediate command list 串行回放三个逻辑 queue，但为每个 queue 保持独立 timeline fence，提供与显式后端一致的同步契约。
 - `RHICommandListBindingSmoke` 已验证 graphics signal 后 compute wait、copy wait 的跨队列链路、未满足 wait 的提交失败及 queue/command-buffer usage 不匹配失败；四个 RHI/Rendering 冒烟测试均通过。
+
+### P62：Frames-in-flight 与延迟释放
+
+#### 实现结果
+
+- RHI 新增 `DeferredReleaseQueue`，按 fence/value 保活提交资源，仅在 timeline 已完成对应 value 后释放。
+- Forward 在每帧开始时回收已完成资源；成功提交的 graphics command buffer 会保留到其 signal value 完成，避免异步后端过早释放录制内容。
+- viewport operation payload 增加 `frames_in_flight`，RenderStats 同步提供当前待回收提交数。
+- `RHICommandListBindingSmoke` 验证未完成 fence 前资源仍被保活、完成后释放；`RenderingOperationsSmoke` 验证 Forward 提交被登记为 in-flight；四个 RHI/Rendering 冒烟测试均通过。

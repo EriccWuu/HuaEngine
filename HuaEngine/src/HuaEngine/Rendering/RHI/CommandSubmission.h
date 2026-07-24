@@ -3,6 +3,7 @@
 #include <cstdint>
 #include <memory>
 #include <string>
+#include <vector>
 
 namespace HE::Rendering {
 	class BindGroup;
@@ -91,5 +92,31 @@ namespace HE::Rendering {
 
 		virtual Fence& GetTimelineFence() = 0;
 		virtual RenderQueueType GetType() const = 0;
+	};
+
+	class DeferredReleaseQueue {
+	public:
+		void Track(std::shared_ptr<void> resource, Fence* fence, uint64_t value) {
+			if (resource && fence) {
+				m_Pending.push_back({ .Resource = std::move(resource), .FencePtr = fence, .Value = value });
+			}
+		}
+
+		void RetireCompleted() {
+			std::erase_if(m_Pending, [](const auto& entry) {
+				return entry.FencePtr->GetCompletedValue() >= entry.Value;
+			});
+		}
+
+		[[nodiscard]] uint32_t GetPendingCount() const { return static_cast<uint32_t>(m_Pending.size()); }
+
+	private:
+		struct Entry {
+			std::shared_ptr<void> Resource;
+			Fence* FencePtr = nullptr;
+			uint64_t Value = 0;
+		};
+
+		std::vector<Entry> m_Pending;
 	};
 }
