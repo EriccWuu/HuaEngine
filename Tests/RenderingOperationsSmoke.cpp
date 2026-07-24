@@ -142,6 +142,8 @@ namespace {
 			&& content.find("ClearTarget") == std::string::npos
 			&& content.find("UnbindTarget") == std::string::npos
 			&& content.find("context.View->Target->GetColorAttachmentTextureView") == std::string::npos
+			&& content.find("CreateCommandBuffer") != std::string::npos
+			&& content.find("GetImmediateCommandList") == std::string::npos
 			&& content.find("ViewportDepthAttachment") != std::string::npos;
 	}
 }
@@ -205,6 +207,8 @@ int main() {
 	Require(renderViewport.Payload.contains("skipped_items"), "Expected rendering.render_scene_viewport to report skipped item count");
 	Require(renderViewport.Payload.contains("draw_calls"), "Expected rendering.render_scene_viewport to report draw call count");
 	Require(renderViewport.Payload.contains("pass_count"), "Expected rendering.render_scene_viewport to report render pass count");
+	Require(renderViewport.Payload.contains("graphics_queue_signal"), "Expected rendering.render_scene_viewport to report graphics queue signal value");
+	Require(renderViewport.Payload.contains("graphics_queue_completed"), "Expected rendering.render_scene_viewport to report graphics queue completed value");
 	Require(renderViewport.Payload.contains("visible_items"), "Expected rendering.render_scene_viewport to report visible item count");
 	Require(renderViewport.Payload.contains("fallback_items"), "Expected rendering.render_scene_viewport to report fallback item count");
 	Require(renderViewport.Payload.contains("diagnostics"), "Expected rendering.render_scene_viewport to report diagnostic count");
@@ -218,6 +222,8 @@ int main() {
 	Require(renderViewport.Payload.at("skipped_items") == "0", "Expected invalid renderable resources to avoid skipped item count");
 	Require(renderViewport.Payload.at("draw_calls") == "1", "Expected invalid renderable resources to issue a fallback draw call");
 	Require(renderViewport.Payload.at("pass_count") == "3", "Expected invalid renderable resources to execute three render passes");
+	Require(renderViewport.Payload.at("graphics_queue_signal") != "0", "Expected invalid renderable resources to submit a graphics command buffer");
+	Require(renderViewport.Payload.at("graphics_queue_completed") == renderViewport.Payload.at("graphics_queue_signal"), "Expected graphics queue fence to complete submitted value");
 	Require(renderViewport.Payload.at("visible_items") == "1", "Expected invalid renderable resources to count one visible item");
 	Require(renderViewport.Payload.at("fallback_items") == "1", "Expected invalid renderable resources to count one fallback item");
 	Require(renderViewport.Payload.at("diagnostics") == "2", "Expected invalid renderable resources to emit mesh and material fallback diagnostics");

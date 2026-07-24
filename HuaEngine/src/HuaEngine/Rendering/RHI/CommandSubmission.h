@@ -1,12 +1,14 @@
 #pragma once
 
 #include <cstdint>
+#include <memory>
 #include <string>
 
 namespace HE::Rendering {
 	class BindGroup;
 	class CommandList;
 	class PipelineState;
+	struct ResourceBarrier;
 	struct IndexBufferBinding;
 	struct RenderPassDesc;
 	struct VertexBufferBinding;
@@ -34,11 +36,15 @@ namespace HE::Rendering {
 
 		virtual bool RecordBeginRenderPass(const RenderPassDesc& desc) = 0;
 		virtual bool RecordEndRenderPass() = 0;
+		virtual bool RecordResourceBarrier(const ResourceBarrier& barrier) = 0;
+		virtual bool RecordBeginFrame() = 0;
 		virtual bool RecordSetPipelineState(PipelineState& pipelineState) = 0;
 		virtual bool RecordSetVertexBuffer(uint32_t slot, const VertexBufferBinding& binding) = 0;
 		virtual bool RecordSetIndexBuffer(const IndexBufferBinding& binding) = 0;
 		virtual bool RecordSetBindGroup(uint32_t slot, BindGroup& bindGroup) = 0;
 		virtual bool RecordDrawIndexed(uint32_t indexCount) = 0;
+		virtual bool RecordEndFrame() = 0;
+		virtual void RetainResource(const std::shared_ptr<void>& resource) = 0;
 	};
 
 	class Fence {

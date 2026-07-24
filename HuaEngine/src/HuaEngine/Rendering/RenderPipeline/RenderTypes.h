@@ -24,6 +24,7 @@ namespace HE::Rendering {
 	class RenderGraphResourceAllocator;
 	class RenderResourceResolver;
 	class ResourceStateTracker;
+	class CommandBuffer;
 	struct RenderPassDesc;
 
 	struct RenderView {
@@ -108,6 +109,8 @@ namespace HE::Rendering {
 		uint32_t BindGroupLayoutCacheMisses = 0;
 		uint32_t PipelineStateCacheHits = 0;
 		uint32_t PipelineStateCacheMisses = 0;
+		uint64_t GraphicsQueueSignalValue = 0;
+		uint64_t GraphicsQueueCompletedValue = 0;
 	};
 
 	struct RenderPassContext {
@@ -115,6 +118,7 @@ namespace HE::Rendering {
 		const std::vector<RenderItem>* RenderItems = nullptr;
 		const RenderResourceResolver* ResourceResolver = nullptr;
 		CommandList* Commands = nullptr;
+		CommandBuffer* RecordingCommandBuffer = nullptr;
 		RenderDevice* Device = nullptr;
 		ResourceStateTracker* ResourceStates = nullptr;
 		const RenderGraphResourceAllocator* GraphResources = nullptr;

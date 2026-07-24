@@ -719,3 +719,30 @@ P46 RenderTarget attachment aggregation
 - Forward 已删除 BindTarget、ClearTarget、UnbindTarget 及其成员；`ForwardOpaque` 独占 color/depth attachment 声明，`BeginRenderer -> ForwardOpaque -> EndRenderer` 成为唯一主路径。
 - Forward 运行统计的 `pass_count` 已从 6 更新为 3；图资源、边、外部输入和输出统计保持原值。
 - `RenderingOperationsSmoke`、`RHICommandListBindingSmoke`、`RHIResourceCreationSmoke`、`RenderPassGraphSmoke` 均通过。
+
+### P57：Graph CommandBuffer 录制与队列提交
+
+#### 目标
+
+将 Forward 图执行录制为 graphics `CommandBuffer` 并提交到 graphics queue，使渲染路径使用 queue timeline fence，而不是直接调用 immediate command list。
+
+#### 约束
+
+- command buffer 必须覆盖 graph 所需的 resource barrier、frame boundary、render pass 和绘制命令。
+- 异步提交期间，录制命令引用的 pipeline、bind group 等 RHI 资源必须保持有效。
+- command buffer 创建、开始、图执行、结束或提交任一失败时，`RenderResult::Succeeded` 必须为 false。
+
+#### 验收
+
+- Forward 成功渲染后返回非零 graphics queue signal value，且 timeline fence 已完成该值。
+- fallback draw 继续写入 render target，graph barrier 与 render-pass 录制均通过 command buffer 回放执行。
+- 四个现有 RHI/Rendering 冒烟测试继续通过。
+
+#### 实现结果
+
+- `CommandBuffer` 已支持录制 resource barrier、BeginFrame、EndFrame；OpenGL command buffer 会保序回放这些命令到 immediate backend。
+- 新增 `CommandBufferRecorder`，以 `CommandList` 适配层将 PassGraph 的命令录制到 command buffer，并将不支持的遗留命令标记为录制失败。
+- Forward 每帧创建 graphics command buffer，执行 graph 后结束并提交至 graphics queue；创建、录制、结束、提交失败都会使渲染结果失败。
+- Forward 在提交前将 frame/object/material bind group 与 pipeline 引用保活在 command buffer 中，避免回放时引用临时 RHI 资源。
+- render result 和 viewport operation payload 已输出 graphics queue signal/completed value；冒烟验证 signal 非零且 timeline fence 已完成该值。
+- `RHICommandListBindingSmoke` 已覆盖 command buffer 的 frame、barrier、render pass 和 draw 完整录制回放；四个 RHI/Rendering 冒烟测试均通过。

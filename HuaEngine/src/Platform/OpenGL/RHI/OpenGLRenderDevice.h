@@ -62,11 +62,15 @@ namespace HE::Rendering {
 
 		bool RecordBeginRenderPass(const RenderPassDesc& desc) override;
 		bool RecordEndRenderPass() override;
+		bool RecordResourceBarrier(const ResourceBarrier& barrier) override;
+		bool RecordBeginFrame() override;
 		bool RecordSetPipelineState(PipelineState& pipelineState) override;
 		bool RecordSetVertexBuffer(uint32_t slot, const VertexBufferBinding& binding) override;
 		bool RecordSetIndexBuffer(const IndexBufferBinding& binding) override;
 		bool RecordSetBindGroup(uint32_t slot, BindGroup& bindGroup) override;
 		bool RecordDrawIndexed(uint32_t indexCount) override;
+		bool RecordEndFrame() override;
+		void RetainResource(const std::shared_ptr<void>& resource) override;
 		void Replay(CommandList& commandList);
 
 	private:
@@ -76,6 +80,7 @@ namespace HE::Rendering {
 
 		CommandBufferDesc m_Desc;
 		std::vector<RecordedCommand> m_Commands;
+		std::vector<std::shared_ptr<void>> m_RetainedResources;
 		bool m_IsRecording = false;
 		bool m_IsExecutable = false;
 	};

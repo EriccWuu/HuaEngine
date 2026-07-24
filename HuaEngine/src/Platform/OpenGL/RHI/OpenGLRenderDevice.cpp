@@ -1378,6 +1378,7 @@ namespace HE::Rendering {
 		}
 
 		m_Commands.clear();
+		m_RetainedResources.clear();
 		m_IsRecording = true;
 		m_IsExecutable = false;
 		return true;
@@ -1396,6 +1397,7 @@ namespace HE::Rendering {
 
 	void OpenGLCommandBuffer::Reset() {
 		m_Commands.clear();
+		m_RetainedResources.clear();
 		m_IsRecording = false;
 		m_IsExecutable = false;
 	}
@@ -1435,6 +1437,28 @@ namespace HE::Rendering {
 
 		m_Commands.push_back([](CommandList& commandList) {
 			commandList.EndRenderPass();
+		});
+		return true;
+	}
+
+	bool OpenGLCommandBuffer::RecordResourceBarrier(const ResourceBarrier& barrier) {
+		if (!CanRecord()) {
+			return false;
+		}
+
+		m_Commands.push_back([barrier](CommandList& commandList) {
+			commandList.ResourceBarrier(barrier);
+		});
+		return true;
+	}
+
+	bool OpenGLCommandBuffer::RecordBeginFrame() {
+		if (!CanRecord()) {
+			return false;
+		}
+
+		m_Commands.push_back([](CommandList& commandList) {
+			commandList.BeginFrame();
 		});
 		return true;
 	}
@@ -1492,6 +1516,23 @@ namespace HE::Rendering {
 			commandList.DrawIndexed(indexCount);
 		});
 		return true;
+	}
+
+	bool OpenGLCommandBuffer::RecordEndFrame() {
+		if (!CanRecord()) {
+			return false;
+		}
+
+		m_Commands.push_back([](CommandList& commandList) {
+			commandList.EndFrame();
+		});
+		return true;
+	}
+
+	void OpenGLCommandBuffer::RetainResource(const std::shared_ptr<void>& resource) {
+		if (resource) {
+			m_RetainedResources.push_back(resource);
+		}
 	}
 
 	void OpenGLCommandBuffer::Replay(CommandList& commandList) {

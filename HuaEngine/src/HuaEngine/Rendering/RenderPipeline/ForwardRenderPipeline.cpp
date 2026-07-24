@@ -3,6 +3,7 @@
 
 #include "HuaEngine/Rendering/RenderPipeline/RenderBindGroupBuilder.h"
 #include "HuaEngine/Rendering/RenderPipeline/RenderResourceResolver.h"
+#include "HuaEngine/Rendering/RHI/CommandBufferRecorder.h"
 #include "HuaEngine/Rendering/RHI/CommandList.h"
 #include "HuaEngine/Rendering/RHI/RenderPass.h"
 #include "HuaEngine/Rendering/RHI/RenderHardwareInterface.h"
@@ -68,6 +69,9 @@ namespace HE::Rendering {
 			});
 			return;
 		}
+		if (context.RecordingCommandBuffer) {
+			context.RecordingCommandBuffer->RetainResource(frameBindGroup);
+		}
 
 		for (const auto& item : *context.RenderItems) {
 			ResolvedRenderItem resolvedItem;
@@ -77,6 +81,11 @@ namespace HE::Rendering {
 			}
 
 			auto objectBindGroup = CreateObjectBindGroup(RenderHardwareInterface::GetDevice(), item.Transform);
+			if (context.RecordingCommandBuffer) {
+				context.RecordingCommandBuffer->RetainResource(resolvedItem.PipelineStateRef);
+				context.RecordingCommandBuffer->RetainResource(resolvedItem.MaterialBindGroupRef);
+				context.RecordingCommandBuffer->RetainResource(objectBindGroup);
+			}
 
 			if (resolvedItem.PipelineStateRef
 				&& resolvedItem.VertexBinding.Buffer
@@ -232,22 +241,48 @@ namespace HE::Rendering {
 			return result;
 		}
 
-		auto& commandList = RenderHardwareInterface::GetDevice().GetImmediateCommandList();
+		auto& device = RenderHardwareInterface::GetDevice();
+		auto commandBuffer = device.CreateCommandBuffer({
+			.Usage = CommandBufferUsage::Graphics,
+			.DebugName = "ForwardRenderPipeline graph"
+		});
+		if (!commandBuffer || !commandBuffer->Begin()) {
+			CopyGraphStateToResult(result);
+			return result;
+		}
+
+		CommandBufferRecorder commandList(*commandBuffer);
 
 		RenderPassContext passContext;
 		passContext.View = &view;
 		passContext.RenderItems = &renderItems;
 		passContext.ResourceResolver = &resourceResolver;
 		passContext.Commands = &commandList;
-		passContext.Device = &RenderHardwareInterface::GetDevice();
+		passContext.RecordingCommandBuffer = commandBuffer.get();
+		passContext.Device = &device;
 		m_ResourceStates.Reset();
 		passContext.ResourceStates = &m_ResourceStates;
 		passContext.Stats = &result.Stats;
 		passContext.Diagnostics = &result.Diagnostics;
 
 		const bool graphExecuted = m_Graph.Execute(passContext);
+		const bool commandBufferEnded = commandBuffer->End();
+		if (!graphExecuted || !commandList.Succeeded() || !commandBufferEnded) {
+			CopyGraphStateToResult(result);
+			return result;
+		}
 
-		result.Succeeded = graphExecuted;
+		const auto submitResult = device.GetGraphicsQueue().Submit(*commandBuffer);
+		if (!submitResult) {
+			CopyGraphStateToResult(result);
+			return result;
+		}
+
+		result.Stats.GraphicsQueueSignalValue = submitResult.SignalValue;
+		result.Stats.GraphicsQueueCompletedValue = submitResult.SignalFence
+			? submitResult.SignalFence->GetCompletedValue()
+			: device.GetGraphicsQueue().GetTimelineFence().GetCompletedValue();
+		result.Succeeded = true;
 		CopyGraphStateToResult(result);
 		return result;
 	}

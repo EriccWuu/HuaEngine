@@ -721,6 +721,12 @@ int main() {
 	});
 	Require(static_cast<bool>(recordedCommandBuffer), "Expected recorded command buffer creation to succeed");
 	Require(recordedCommandBuffer->Begin(), "Expected recorded command buffer begin to succeed");
+	Require(recordedCommandBuffer->RecordBeginFrame(), "Expected command buffer to record frame begin");
+	Require(recordedCommandBuffer->RecordResourceBarrier({
+		.Texture = renderTarget->GetColorAttachmentTexture(),
+		.Before = HE::Rendering::ResourceState::Undefined,
+		.After = HE::Rendering::ResourceState::RenderTarget
+	}), "Expected command buffer to record resource barrier");
 	Require(recordedCommandBuffer->RecordBeginRenderPass({
 		.ColorAttachments = {
 			{
@@ -749,6 +755,7 @@ int main() {
 	Require(recordedCommandBuffer->RecordSetBindGroup(2, *objectBindGroup), "Expected command buffer to record object bind group");
 	Require(recordedCommandBuffer->RecordDrawIndexed(3), "Expected command buffer to record indexed draw");
 	Require(recordedCommandBuffer->RecordEndRenderPass(), "Expected command buffer to record render pass end");
+	Require(recordedCommandBuffer->RecordEndFrame(), "Expected command buffer to record frame end");
 	Require(recordedCommandBuffer->End(), "Expected recorded command buffer end to succeed");
 	Require(!recordedCommandBuffer->IsRecording(), "Expected ended command buffer to clear recording state");
 	Require(recordedCommandBuffer->IsExecutable(), "Expected ended command buffer to be executable");
