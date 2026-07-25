@@ -9,6 +9,7 @@
 #include "HuaEngine/Rendering/RenderPipeline/RenderTypes.h"
 #include "HuaEngine/Rendering/RHI/ResourceBarrier.h"
 #include "HuaEngine/Rendering/RHI/RenderPass.h"
+#include "HuaEngine/Rendering/RHI/CommandSubmission.h"
 
 namespace HE::Rendering {
 	enum class PassGraphDiagnosticCode {
@@ -90,6 +91,12 @@ namespace HE::Rendering {
 		ResourceState After = ResourceState::Undefined;
 	};
 
+	struct PassGraphQueueBatch {
+		RenderQueueType Queue = RenderQueueType::Graphics;
+		std::vector<uint32_t> PassIndices;
+		std::vector<uint32_t> WaitBatchIndices;
+	};
+
 	using PassGraphBarrierExecutor = std::function<void(const PassGraphResourceBarrier&, RenderPassContext&)>;
 
 	class PassGraph {
@@ -113,6 +120,7 @@ namespace HE::Rendering {
 		[[nodiscard]] const RenderGraphResourceAllocator& GetResourceAllocator() const { return m_ResourceAllocator; }
 		[[nodiscard]] const std::vector<PassGraphResourceBarrier>& GetBarrierPlan() const { return m_BarrierPlan; }
 		[[nodiscard]] const std::vector<uint32_t>& GetExecutionOrder() const { return m_ExecutionOrder; }
+		[[nodiscard]] const std::vector<PassGraphQueueBatch>& GetQueueBatches() const { return m_QueueBatches; }
 
 	private:
 		std::vector<PassGraphPassDesc> m_Passes;
@@ -122,6 +130,7 @@ namespace HE::Rendering {
 		std::vector<PassGraphDiagnostic> m_Diagnostics;
 		std::vector<PassGraphResourceBarrier> m_BarrierPlan;
 		std::vector<uint32_t> m_ExecutionOrder;
+		std::vector<PassGraphQueueBatch> m_QueueBatches;
 		PassGraphBarrierExecutor m_BarrierExecutor;
 		PassGraphStats m_Stats;
 		bool m_Compiled = false;

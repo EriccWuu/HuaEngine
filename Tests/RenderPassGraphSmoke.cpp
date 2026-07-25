@@ -234,6 +234,17 @@ int main() {
 	Require(!cyclicGraph.Compile(), "Expected cyclic graph compile to fail");
 	Require(HasDiagnostic(cyclicGraph.GetDiagnostics(), HE::Rendering::PassGraphDiagnosticCode::CyclicDependency), "Expected cyclic dependency diagnostic");
 
+	HE::Rendering::PassGraph queuePlanGraph;
+	queuePlanGraph.AddPass({ .Name = "GraphicsProducer", .Outputs = { "SceneColor" }, .Execute = [](HE::Rendering::RenderPassContext&) {} });
+	queuePlanGraph.AddPass({ .Name = "ComputeConsumer", .Type = HE::Rendering::PassGraphPassType::Compute, .Inputs = { "SceneColor" }, .Outputs = { "Luminance" }, .Execute = [](HE::Rendering::RenderPassContext&) {} });
+	queuePlanGraph.AddPass({ .Name = "CopyConsumer", .Type = HE::Rendering::PassGraphPassType::Copy, .Inputs = { "Luminance" }, .Execute = [](HE::Rendering::RenderPassContext&) {} });
+	Require(queuePlanGraph.Compile(), "Expected multi-queue plan graph compile to succeed");
+	const auto& queueBatches = queuePlanGraph.GetQueueBatches();
+	Require(queueBatches.size() == 3, "Expected one batch per queue segment");
+	Require(queueBatches[0].Queue == HE::Rendering::RenderQueueType::Graphics, "Expected graphics batch first");
+	Require(queueBatches[1].Queue == HE::Rendering::RenderQueueType::Compute && queueBatches[1].WaitBatchIndices == std::vector<uint32_t>{ 0 }, "Expected compute batch to wait for graphics");
+	Require(queueBatches[2].Queue == HE::Rendering::RenderQueueType::Copy && queueBatches[2].WaitBatchIndices == std::vector<uint32_t>{ 1 }, "Expected copy batch to wait for compute");
+
 	std::vector<std::string> executionOrder;
 	HE::Rendering::PassGraph graph;
 	graph.AddExternalInput("CameraView");

@@ -70,6 +70,7 @@ namespace HE::Rendering {
 		m_Diagnostics.clear();
 		m_BarrierPlan.clear();
 		m_ExecutionOrder.clear();
+		m_QueueBatches.clear();
 		m_Stats = {};
 		m_ResourceAllocator.ClearLifetimes();
 
@@ -460,6 +461,37 @@ namespace HE::Rendering {
 				}
 			}
 
+			const auto queueForPass = [this](uint32_t passIndex) {
+				switch (m_Passes[passIndex].Type) {
+					case PassGraphPassType::Compute: return RenderQueueType::Compute;
+					case PassGraphPassType::Copy: return RenderQueueType::Copy;
+					case PassGraphPassType::Graphics: return RenderQueueType::Graphics;
+				}
+				return RenderQueueType::Graphics;
+			};
+			std::vector<uint32_t> passBatchIndices(m_Passes.size(), std::numeric_limits<uint32_t>::max());
+			for (const auto passIndex : m_ExecutionOrder) {
+				const auto queue = queueForPass(passIndex);
+				if (m_QueueBatches.empty() || m_QueueBatches.back().Queue != queue) {
+					m_QueueBatches.push_back({ .Queue = queue });
+				}
+				const auto batchIndex = static_cast<uint32_t>(m_QueueBatches.size() - 1);
+				m_QueueBatches.back().PassIndices.push_back(passIndex);
+				passBatchIndices[passIndex] = batchIndex;
+			}
+			for (uint32_t producer = 0; producer < dependencyEdges.size(); ++producer) {
+				for (const auto consumer : dependencyEdges[producer]) {
+					const auto producerBatch = passBatchIndices[producer];
+					const auto consumerBatch = passBatchIndices[consumer];
+					if (producerBatch != std::numeric_limits<uint32_t>::max()
+						&& consumerBatch != std::numeric_limits<uint32_t>::max()
+						&& producerBatch != consumerBatch) {
+						auto& waits = m_QueueBatches[consumerBatch].WaitBatchIndices;
+						if (std::find(waits.begin(), waits.end(), producerBatch) == waits.end()) waits.push_back(producerBatch);
+					}
+				}
+			}
+
 			m_Stats.ResourceCount = static_cast<std::uint32_t>(resources.size());
 			m_Stats.ExternalInputCount = static_cast<std::uint32_t>(externalInputs.size());
 			m_Stats.OutputCount = outputCount;
@@ -596,6 +628,7 @@ namespace HE::Rendering {
 		m_Diagnostics.clear();
 		m_BarrierPlan.clear();
 		m_ExecutionOrder.clear();
+		m_QueueBatches.clear();
 		m_BarrierExecutor = nullptr;
 		m_Stats = {};
 		m_Compiled = false;

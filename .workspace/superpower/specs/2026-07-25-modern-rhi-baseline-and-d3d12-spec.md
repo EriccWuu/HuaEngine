@@ -83,6 +83,13 @@
 - 不满足 wait 的 submit 被拒绝；满足后按计划执行。
 - Forward 纯 graphics 图不产生额外跨 queue wait。
 
+#### 实现结果
+
+- `PassGraph` 现在在编译完成后输出连续 queue segment 的 `PassGraphQueueBatch`，并将 graphics/compute/copy pass 映射到对应 `RenderQueueType`。
+- compiler 根据已解析的 dependency DAG 为跨 queue consumer batch 记录 producer batch wait；同 queue pass 保留在同一 batch 内按 execution order 执行。
+- 当前 Forward 仍是纯 graphics 单 batch，OpenGL 继续串行消费现有执行计划；没有在缺少 compute dispatch/copy 命令的阶段伪造多 queue 回放。
+- `RenderPassGraphSmoke` 验证 graphics -> compute -> copy 生成三个 batch，compute 等待 graphics，copy 等待 compute；Forward 冒烟继续通过。
+
 ### P67：Transient Buffer 与统一资源生命周期
 
 #### 目标
