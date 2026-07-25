@@ -580,6 +580,41 @@ int main() {
 	});
 	Require(static_cast<bool>(bindGroup), "Expected bind group creation to succeed");
 	Require(bindGroup->GetDesc().Layout == bindGroupLayout, "Expected bind group layout to round-trip");
+	HE::Rendering::GpuBufferDesc uniformBufferDesc;
+	uniformBufferDesc.Usage = HE::Rendering::GpuBufferUsage::Uniform;
+	uniformBufferDesc.Size = 64;
+	uniformBufferDesc.Stride = 16;
+	auto uniformBuffer = device.CreateBuffer(uniformBufferDesc, nullptr);
+	Require(static_cast<bool>(uniformBuffer), "Expected uniform buffer creation to succeed");
+	HE::Rendering::BindGroupLayoutDesc uniformLayoutDesc{
+		.Scope = HE::Rendering::BindGroupScope::Frame,
+		.Entries = {{
+			.Name = "FrameData",
+			.Type = HE::Rendering::BindingValueType::UniformBuffer,
+			.Binding = 3,
+			.Visibility = HE::Rendering::ShaderStageVertex | HE::Rendering::ShaderStageFragment,
+			.MinBindingSize = 16
+		}}
+	};
+	auto uniformLayout = device.CreateBindGroupLayout(uniformLayoutDesc);
+	Require(static_cast<bool>(uniformLayout), "Expected uniform buffer bind group layout creation to succeed");
+	Require(HE::Rendering::CalculateBindGroupLayoutSignature(uniformLayoutDesc) == HE::Rendering::CalculateBindGroupLayoutSignature(uniformLayout->GetDesc()), "Expected bind group layout signature to be stable");
+	auto uniformBindGroup = device.CreateBindGroup({
+		.Layout = uniformLayout,
+		.Entries = {{
+			.Name = "FrameData",
+			.Type = HE::Rendering::BindingValueType::UniformBuffer,
+			.Value = uniformBuffer,
+			.Binding = 3,
+			.Offset = 16,
+			.Size = 32
+		}}
+	});
+	Require(static_cast<bool>(uniformBindGroup), "Expected ranged uniform buffer bind group creation to succeed");
+	Require(!device.CreateBindGroup({
+		.Layout = uniformLayout,
+		.Entries = {{ .Name = "FrameData", .Type = HE::Rendering::BindingValueType::UniformBuffer, .Value = uniformBuffer, .Binding = 3, .Offset = 48, .Size = 32 }}
+	}), "Expected out-of-range uniform buffer binding to fail");
 
 	auto commandBuffer = device.CreateCommandBuffer({
 		.Usage = HE::Rendering::CommandBufferUsage::Graphics,

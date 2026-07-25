@@ -209,7 +209,8 @@ namespace {
 		for (size_t i = 0; i < expected.Entries.size(); ++i) {
 			const auto& expectedEntry = expected.Entries[i];
 			const auto& actualEntry = actual.Entries[i];
-			if (expectedEntry.Name != actualEntry.Name || expectedEntry.Type != actualEntry.Type || expectedEntry.Binding != actualEntry.Binding) {
+			if (expectedEntry.Name != actualEntry.Name || expectedEntry.Type != actualEntry.Type || expectedEntry.Binding != actualEntry.Binding
+				|| expectedEntry.Visibility != actualEntry.Visibility || expectedEntry.MinBindingSize != actualEntry.MinBindingSize) {
 				return false;
 			}
 		}
@@ -235,6 +236,39 @@ namespace {
 			slots.push_back(layoutRef.Slot);
 		}
 
+		return true;
+	}
+
+	bool ValidateBindGroupLayout(const HE::Rendering::BindGroupLayoutDesc& desc) {
+		if (desc.Entries.empty()) return false;
+		std::vector<uint32_t> bindings;
+		for (const auto& entry : desc.Entries) {
+			if (entry.Name.empty() || entry.Visibility == HE::Rendering::ShaderStageNone
+				|| std::find(bindings.begin(), bindings.end(), entry.Binding) != bindings.end()) return false;
+			bindings.push_back(entry.Binding);
+			const bool isBuffer = entry.Type == HE::Rendering::BindingValueType::UniformBuffer || entry.Type == HE::Rendering::BindingValueType::StorageBuffer;
+			if (!isBuffer && entry.MinBindingSize != 0) return false;
+		}
+		return true;
+	}
+
+	bool ValidateBindGroup(const HE::Rendering::BindGroupDesc& desc) {
+		if (!desc.Layout || desc.Entries.empty()) return false;
+		const auto& layout = desc.Layout->GetDesc();
+		if (layout.Entries.size() != desc.Entries.size()) return false;
+		for (const auto& layoutEntry : layout.Entries) {
+			const auto entry = std::find_if(desc.Entries.begin(), desc.Entries.end(), [&layoutEntry](const auto& candidate) {
+				return candidate.Name == layoutEntry.Name && candidate.Binding == layoutEntry.Binding && candidate.Type == layoutEntry.Type;
+			});
+			if (entry == desc.Entries.end()) return false;
+			const bool isBuffer = layoutEntry.Type == HE::Rendering::BindingValueType::UniformBuffer || layoutEntry.Type == HE::Rendering::BindingValueType::StorageBuffer;
+			if (!isBuffer) {
+				if (entry->Offset != 0 || entry->Size != 0) return false;
+				continue;
+			}
+			const auto* buffer = std::get_if<HE::Ref<HE::Rendering::GpuBuffer>>(&entry->Value);
+			if (!buffer || !*buffer || entry->Size < layoutEntry.MinBindingSize || entry->Offset > (*buffer)->GetDesc().Size || entry->Size > (*buffer)->GetDesc().Size - entry->Offset) return false;
+		}
 		return true;
 	}
 
@@ -1731,7 +1765,7 @@ namespace HE::Rendering {
 	}
 
 	Ref<BindGroupLayout> OpenGLRenderDevice::CreateBindGroupLayout(const BindGroupLayoutDesc& desc) {
-		if (desc.Entries.empty()) {
+		if (!ValidateBindGroupLayout(desc)) {
 			HE_CORE_ERROR("Bind group layout must have at least one entry");
 			return nullptr;
 		}
@@ -1740,7 +1774,7 @@ namespace HE::Rendering {
 	}
 
 	Ref<BindGroup> OpenGLRenderDevice::CreateBindGroup(const BindGroupDesc& desc) {
-		if (!desc.Layout || desc.Entries.empty()) {
+		if (!ValidateBindGroup(desc)) {
 			HE_CORE_ERROR("Invalid bind group description");
 			return nullptr;
 		}

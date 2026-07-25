@@ -134,6 +134,14 @@
 - 相同 schema 的 bind group layout 可以复用。
 - D3D12 后端可以由 layout 生成对应 root parameter/descriptor range。
 
+#### 实现结果
+
+- `BindGroupLayoutEntry` 新增 shader stage visibility 与 minimum binding size；新增 uniform/storage buffer binding value type，以及 bind group entry 的 offset/size range。
+- 提供稳定的 `CalculateBindGroupLayoutSignature()`，签名覆盖 scope、名称、类型、binding、visibility 和 minimum binding size，可作为未来 pipeline/root-signature cache key。
+- OpenGL backend 在创建 layout 时验证重复 binding、空名称、空 visibility 和非法 non-buffer size；创建 bind group 时验证 layout 完整匹配、buffer range 与 minimum size。
+- 现阶段 OpenGL 不伪装 UBO/SSBO shader 绑定实现；新增字段首先作为跨后端 layout contract，由 D3D12 descriptor/root signature 映射消费。
+- `RHIResourceCreationSmoke` 验证 visibility、稳定签名、合法 uniform buffer range 和越界 range 拒绝；四个 RHI/Rendering smoke 均通过。
+
 ### P69：Upload、Readback 与资源初始化路径
 
 #### 目标
