@@ -224,6 +224,16 @@ int main() {
 	Require((emptyTexture->GetDesc().Usage & HE::Rendering::TextureUsageCopyDst) != 0, "Expected non-file-backed texture usage");
 	Require(emptyTexture->GetDesc().MipLevels == 1, "Expected non-file-backed texture mip levels");
 	Require(emptyTexture->GetDesc().Samples == 1, "Expected non-file-backed texture sample count");
+	std::vector<uint8_t> textureUploadData(32 * 16 * 4, 0);
+	textureUploadData[0] = 32;
+	textureUploadData[1] = 64;
+	textureUploadData[2] = 128;
+	textureUploadData[3] = 255;
+	Require(device.UploadTexture({ .Texture = emptyTexture, .Data = textureUploadData }), "Expected texture upload to succeed");
+	std::vector<uint8_t> textureReadbackData;
+	Require(device.ReadbackTexture(emptyTexture, 0, textureReadbackData), "Expected texture readback to succeed");
+	Require(textureReadbackData == textureUploadData, "Expected texture readback data to match upload");
+	Require(!device.UploadTexture({ .Texture = emptyTexture, .Data = { 1, 2, 3 } }), "Expected invalid texture upload size to fail");
 	Require(!device.CreateTexture({}), "Expected empty texture description to fail");
 	Require(!device.CreateTexture({
 		.Width = 32,
@@ -586,6 +596,12 @@ int main() {
 	uniformBufferDesc.Stride = 16;
 	auto uniformBuffer = device.CreateBuffer(uniformBufferDesc, nullptr);
 	Require(static_cast<bool>(uniformBuffer), "Expected uniform buffer creation to succeed");
+	const std::vector<uint8_t> uploadedBufferData{ 1, 2, 3, 4, 5, 6, 7, 8 };
+	Require(device.UploadBuffer({ .Buffer = uniformBuffer, .Offset = 16, .Data = uploadedBufferData }), "Expected buffer upload to succeed");
+	std::vector<uint8_t> readbackBufferData;
+	Require(device.ReadbackBuffer(uniformBuffer, 16, static_cast<uint32_t>(uploadedBufferData.size()), readbackBufferData), "Expected buffer readback to succeed");
+	Require(readbackBufferData == uploadedBufferData, "Expected buffer readback data to match upload");
+	Require(!device.UploadBuffer({ .Buffer = uniformBuffer, .Offset = 60, .Data = uploadedBufferData }), "Expected out-of-range buffer upload to fail");
 	HE::Rendering::BindGroupLayoutDesc uniformLayoutDesc{
 		.Scope = HE::Rendering::BindGroupScope::Frame,
 		.Entries = {{

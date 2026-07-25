@@ -160,6 +160,13 @@
 - texture upload 后可被 shader sampling；readback 在 fence 完成前不可读取。
 - OpenGL 与 D3D12 使用相同的公开 RHI API。
 
+#### 实现结果
+
+- `RenderDevice` 新增公开的 buffer 与 texture upload/readback API，调用方不再只能通过 `CreateBuffer` 的构造期指针初始化数据。
+- OpenGL buffer 支持子区间 upload/readback；普通 RGBA8 texture 支持指定 mip upload/readback。attachment-backed texture、非 RGBA8 format 与 P70 的 subresource 扩展明确不在本首版范围。
+- OpenGL 后端以同步完成执行该 API，不伪造 copy command 或未实现的异步 fence；D3D12 将以相同 API 映射 staging/copy queue/fence。
+- `RHIResourceCreationSmoke` 验证 buffer/texture round-trip 数据一致性及越界或非法尺寸拒绝；`RenderingOperationsSmoke` 通过。
+
 ### P70：Texture Subresource 与 Resolve 模型
 
 #### 目标

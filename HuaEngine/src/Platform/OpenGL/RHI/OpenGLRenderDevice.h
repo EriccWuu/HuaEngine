@@ -120,6 +120,8 @@ namespace HE::Rendering {
 		const GpuBufferDesc& GetDesc() const override;
 		void BindForCommandList() const;
 		void UnbindForCommandList() const;
+		bool Upload(uint32_t offset, const std::vector<uint8_t>& data);
+		bool Readback(uint32_t offset, uint32_t size, std::vector<uint8_t>& outData) const;
 
 	private:
 		GpuBufferDesc m_Desc;
@@ -218,6 +220,8 @@ namespace HE::Rendering {
 		void BindForCommandList(uint32_t slot = 0);
 		void UpdateAttachmentDesc(const TextureDesc& desc);
 		OpenGLRenderTargetStorage* GetAttachmentStorage() const;
+		bool Upload(uint32_t mipLevel, const std::vector<uint8_t>& data);
+		bool Readback(uint32_t mipLevel, std::vector<uint8_t>& outData) const;
 
 	private:
 		TextureDesc m_Desc;
@@ -291,6 +295,10 @@ namespace HE::Rendering {
 		RenderQueue& GetComputeQueue() override;
 		RenderQueue& GetCopyQueue() override;
 		Ref<GpuBuffer> CreateBuffer(const GpuBufferDesc& desc, const void* initialData) override;
+		bool UploadBuffer(const BufferTransferDesc& desc) override;
+		bool ReadbackBuffer(const Ref<GpuBuffer>& buffer, uint32_t offset, uint32_t size, std::vector<uint8_t>& outData) override;
+		bool UploadTexture(const TextureTransferDesc& desc) override;
+		bool ReadbackTexture(const Ref<TextureResource>& texture, uint32_t mipLevel, std::vector<uint8_t>& outData) override;
 		Ref<VertexBufferView> CreateVertexBufferView(const VertexBufferViewDesc& desc) override;
 		Ref<RenderTarget> CreateRenderTarget(const RenderTargetDesc& desc) override;
 		Ref<TextureResource> CreateTexture(const TextureDesc& desc) override;

@@ -2,6 +2,7 @@
 
 #include <cstdint>
 #include <string>
+#include <vector>
 
 #include "HuaEngine/Core/Core.h"
 #include "HuaEngine/Rendering/RHI/BindGroup.h"
@@ -42,6 +43,18 @@ namespace HE::Rendering {
 		bool SupportsRenderGraphResources = true;
 	};
 
+	struct BufferTransferDesc {
+		Ref<GpuBuffer> Buffer;
+		uint32_t Offset = 0;
+		std::vector<uint8_t> Data;
+	};
+
+	struct TextureTransferDesc {
+		Ref<TextureResource> Texture;
+		uint32_t MipLevel = 0;
+		std::vector<uint8_t> Data;
+	};
+
 	class RenderDevice {
 	public:
 		virtual ~RenderDevice() = default;
@@ -55,6 +68,10 @@ namespace HE::Rendering {
 		virtual RenderQueue& GetCopyQueue() = 0;
 
 		virtual Ref<GpuBuffer> CreateBuffer(const GpuBufferDesc& desc, const void* initialData) = 0;
+		virtual bool UploadBuffer(const BufferTransferDesc& desc) = 0;
+		virtual bool ReadbackBuffer(const Ref<GpuBuffer>& buffer, uint32_t offset, uint32_t size, std::vector<uint8_t>& outData) = 0;
+		virtual bool UploadTexture(const TextureTransferDesc& desc) = 0;
+		virtual bool ReadbackTexture(const Ref<TextureResource>& texture, uint32_t mipLevel, std::vector<uint8_t>& outData) = 0;
 		virtual Ref<VertexBufferView> CreateVertexBufferView(const VertexBufferViewDesc& desc) = 0;
 		virtual Ref<RenderTarget> CreateRenderTarget(const RenderTargetDesc& desc) = 0;
 		virtual Ref<TextureResource> CreateTexture(const TextureDesc& desc) = 0;

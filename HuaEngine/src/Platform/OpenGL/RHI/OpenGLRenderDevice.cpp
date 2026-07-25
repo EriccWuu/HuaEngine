@@ -596,6 +596,19 @@ namespace HE::Rendering {
 		glBindBuffer(ToOpenGLBufferTarget(m_Desc.Usage), 0);
 	}
 
+	bool OpenGLGpuBuffer::Upload(uint32_t offset, const std::vector<uint8_t>& data) {
+		if (data.empty() || offset > m_Desc.Size || data.size() > m_Desc.Size - offset) return false;
+		glNamedBufferSubData(m_RenderID, offset, static_cast<GLsizeiptr>(data.size()), data.data());
+		return true;
+	}
+
+	bool OpenGLGpuBuffer::Readback(uint32_t offset, uint32_t size, std::vector<uint8_t>& outData) const {
+		if (size == 0 || offset > m_Desc.Size || size > m_Desc.Size - offset) return false;
+		outData.resize(size);
+		glGetNamedBufferSubData(m_RenderID, offset, size, outData.data());
+		return true;
+	}
+
 	OpenGLVertexBufferView::OpenGLVertexBufferView(const VertexBufferViewDesc& desc)
 		: m_Desc(desc) {
 		HE_CORE_ASSERT(m_Desc.VertexBuffer, "VertexBufferView requires a vertex buffer");
@@ -928,6 +941,24 @@ namespace HE::Rendering {
 
 	OpenGLRenderTargetStorage* OpenGLTextureResource::GetAttachmentStorage() const {
 		return m_AttachmentStorage.get();
+	}
+
+	bool OpenGLTextureResource::Upload(uint32_t mipLevel, const std::vector<uint8_t>& data) {
+		if (m_AttachmentStorage || m_Desc.Format != RenderTargetTextureFormat::RGBA8 || mipLevel >= m_Desc.MipLevels) return false;
+		const auto width = std::max(1u, m_Width >> mipLevel);
+		const auto height = std::max(1u, m_Height >> mipLevel);
+		if (data.size() != static_cast<size_t>(width) * height * 4) return false;
+		glTextureSubImage2D(m_RenderID, mipLevel, 0, 0, width, height, GL_RGBA, GL_UNSIGNED_BYTE, data.data());
+		return true;
+	}
+
+	bool OpenGLTextureResource::Readback(uint32_t mipLevel, std::vector<uint8_t>& outData) const {
+		if (m_AttachmentStorage || m_Desc.Format != RenderTargetTextureFormat::RGBA8 || mipLevel >= m_Desc.MipLevels) return false;
+		const auto width = std::max(1u, m_Width >> mipLevel);
+		const auto height = std::max(1u, m_Height >> mipLevel);
+		outData.resize(static_cast<size_t>(width) * height * 4);
+		glGetTextureImage(m_RenderID, mipLevel, GL_RGBA, GL_UNSIGNED_BYTE, static_cast<GLsizei>(outData.size()), outData.data());
+		return true;
 	}
 
 	OpenGLTextureView::OpenGLTextureView(const TextureViewDesc& desc)
@@ -1685,6 +1716,26 @@ namespace HE::Rendering {
 		}
 
 		return CreateRef<OpenGLGpuBuffer>(desc, initialData);
+	}
+
+	bool OpenGLRenderDevice::UploadBuffer(const BufferTransferDesc& desc) {
+		if (!desc.Buffer) return false;
+		return static_cast<OpenGLGpuBuffer&>(*desc.Buffer).Upload(desc.Offset, desc.Data);
+	}
+
+	bool OpenGLRenderDevice::ReadbackBuffer(const Ref<GpuBuffer>& buffer, uint32_t offset, uint32_t size, std::vector<uint8_t>& outData) {
+		if (!buffer) return false;
+		return static_cast<OpenGLGpuBuffer&>(*buffer).Readback(offset, size, outData);
+	}
+
+	bool OpenGLRenderDevice::UploadTexture(const TextureTransferDesc& desc) {
+		if (!desc.Texture) return false;
+		return static_cast<OpenGLTextureResource&>(*desc.Texture).Upload(desc.MipLevel, desc.Data);
+	}
+
+	bool OpenGLRenderDevice::ReadbackTexture(const Ref<TextureResource>& texture, uint32_t mipLevel, std::vector<uint8_t>& outData) {
+		if (!texture) return false;
+		return static_cast<OpenGLTextureResource&>(*texture).Readback(mipLevel, outData);
 	}
 
 	Ref<VertexBufferView> OpenGLRenderDevice::CreateVertexBufferView(const VertexBufferViewDesc& desc) {
