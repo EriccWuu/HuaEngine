@@ -94,6 +94,7 @@ namespace HE::Rendering {
 		std::unordered_map<std::string, uint32_t> lastUsePass;
 		std::unordered_map<std::string, ResourceState> resourceStates;
 		std::unordered_map<std::string, uint32_t> passIndices;
+		std::unordered_map<std::string, std::vector<uint32_t>> resourceReaders;
 		std::vector<std::vector<uint32_t>> dependencyEdges(m_Passes.size());
 		std::uint32_t inputEdgeCount = 0;
 		const auto resolveResourceNames = [this](
@@ -221,18 +222,7 @@ namespace HE::Rendering {
 						"Render pass declares the same resource more than once");
 				}
 
-				if (!availableResources.contains(input)) {
-					AddDiagnostic(
-						m_Diagnostics,
-						PassGraphDiagnosticCode::MissingResourceProducer,
-						pass.Name,
-						"Render pass reads a resource that has no producer or external input");
-				}
-				if (const auto writer = resourceWriters.find(input); writer != resourceWriters.end()) {
-					if (const auto writerIndex = passIndices.find(writer->second); writerIndex != passIndices.end()) {
-						dependencyEdges[writerIndex->second].push_back(passIndex);
-					}
-				}
+				resourceReaders[input].push_back(passIndex);
 
 				resources.insert(input);
 				readResources.insert(input);
@@ -343,19 +333,8 @@ namespace HE::Rendering {
 				}
 
 				const bool requiresProducer = usage.State == ResourceState::ShaderRead || usage.State == ResourceState::CopySrc;
-				if (requiresProducer && !availableResources.contains(resourceName)) {
-					AddDiagnostic(
-						m_Diagnostics,
-						PassGraphDiagnosticCode::MissingResourceProducer,
-						pass.Name,
-						"Render pass reads a resource that has no producer or external input");
-				}
 				if (requiresProducer) {
-					if (const auto writer = resourceWriters.find(resourceName); writer != resourceWriters.end()) {
-						if (const auto writerIndex = passIndices.find(writer->second); writerIndex != passIndices.end()) {
-							dependencyEdges[writerIndex->second].push_back(passIndex);
-						}
-					}
+					resourceReaders[resourceName].push_back(passIndex);
 				}
 
 				resources.insert(resourceName);
@@ -385,6 +364,22 @@ namespace HE::Rendering {
 			}
 		}
 
+		for (const auto& [resource, readers] : resourceReaders) {
+			const auto writer = resourceWriters.find(resource);
+			if (writer == resourceWriters.end()) {
+				if (!externalInputs.contains(resource)) {
+					for (const auto reader : readers) {
+						AddDiagnostic(m_Diagnostics, PassGraphDiagnosticCode::MissingResourceProducer, m_Passes[reader].Name, "Render pass reads a resource that has no producer or external input");
+					}
+				}
+				continue;
+			}
+
+			const auto writerIndex = passIndices.find(writer->second);
+			if (writerIndex == passIndices.end()) continue;
+			for (const auto reader : readers) dependencyEdges[writerIndex->second].push_back(reader);
+		}
+
 		m_Compiled = m_Diagnostics.empty();
 		if (m_Compiled) {
 			std::vector<uint32_t> incomingEdgeCounts(m_Passes.size(), 0);
@@ -412,6 +407,7 @@ namespace HE::Rendering {
 				}
 			}
 			if (m_ExecutionOrder.size() != m_Passes.size()) {
+				AddDiagnostic(m_Diagnostics, PassGraphDiagnosticCode::CyclicDependency, {}, "Render graph contains a cyclic pass dependency");
 				m_Compiled = false;
 				m_ExecutionOrder.clear();
 				return false;
@@ -446,6 +442,22 @@ namespace HE::Rendering {
 				m_Stats.CulledPassCount = static_cast<uint32_t>(m_Passes.size() - m_ExecutionOrder.size());
 			} else {
 				for (const auto& [resource, passName] : resourceWriters) if (!readResources.contains(resource)) ++outputCount;
+			}
+
+			const auto plannedBarriers = std::move(m_BarrierPlan);
+			m_BarrierPlan.clear();
+			std::unordered_map<std::string, ResourceState> executionStates;
+			for (const auto passIndex : m_ExecutionOrder) {
+				for (const auto& planned : plannedBarriers) {
+					if (planned.PassIndex != passIndex) continue;
+					const auto before = executionStates.contains(planned.ResourceName)
+						? executionStates[planned.ResourceName]
+						: ResourceState::Undefined;
+					if (before != planned.After) {
+						m_BarrierPlan.push_back({ planned.PassName, planned.ResourceName, passIndex, before, planned.After });
+						executionStates[planned.ResourceName] = planned.After;
+					}
+				}
 			}
 
 			m_Stats.ResourceCount = static_cast<std::uint32_t>(resources.size());

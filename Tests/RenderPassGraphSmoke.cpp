@@ -210,20 +210,29 @@ int main() {
 		"Expected duplicate resource writer diagnostic");
 
 	HE::Rendering::PassGraph futureProducerGraph;
+	std::vector<std::string> futureProducerExecution;
 	futureProducerGraph.AddPass({
 		.Name = "ReadsFutureColor",
 		.Inputs = { "SceneColor" },
-		.Execute = [](HE::Rendering::RenderPassContext&) {}
+		.Execute = [&](HE::Rendering::RenderPassContext&) { futureProducerExecution.push_back("reader"); }
 	});
 	futureProducerGraph.AddPass({
 		.Name = "WritesFutureColor",
 		.Outputs = { "SceneColor" },
-		.Execute = [](HE::Rendering::RenderPassContext&) {}
+		.Execute = [&](HE::Rendering::RenderPassContext&) { futureProducerExecution.push_back("writer"); }
 	});
-	Require(!futureProducerGraph.Compile(), "Expected future resource producer to fail compile");
-	Require(
-		HasDiagnostic(futureProducerGraph.GetDiagnostics(), HE::Rendering::PassGraphDiagnosticCode::MissingResourceProducer),
-		"Expected future resource producer diagnostic");
+	Require(futureProducerGraph.Compile(), "Expected future resource producer graph compile to succeed");
+	Require(futureProducerGraph.GetExecutionOrder().size() == 2, "Expected future producer execution plan");
+	Require(futureProducerGraph.GetExecutionOrder()[0] == 1 && futureProducerGraph.GetExecutionOrder()[1] == 0, "Expected future producer to execute before reader");
+	HE::Rendering::RenderPassContext futureProducerContext;
+	Require(futureProducerGraph.Execute(futureProducerContext), "Expected future producer graph execute to succeed");
+	Require(futureProducerExecution.size() == 2 && futureProducerExecution[0] == "writer" && futureProducerExecution[1] == "reader", "Expected future producer execution order");
+
+	HE::Rendering::PassGraph cyclicGraph;
+	cyclicGraph.AddPass({ .Name = "PassA", .Inputs = { "ResourceB" }, .Outputs = { "ResourceA" }, .Execute = [](HE::Rendering::RenderPassContext&) {} });
+	cyclicGraph.AddPass({ .Name = "PassB", .Inputs = { "ResourceA" }, .Outputs = { "ResourceB" }, .Execute = [](HE::Rendering::RenderPassContext&) {} });
+	Require(!cyclicGraph.Compile(), "Expected cyclic graph compile to fail");
+	Require(HasDiagnostic(cyclicGraph.GetDiagnostics(), HE::Rendering::PassGraphDiagnosticCode::CyclicDependency), "Expected cyclic dependency diagnostic");
 
 	std::vector<std::string> executionOrder;
 	HE::Rendering::PassGraph graph;

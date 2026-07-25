@@ -34,8 +34,10 @@ namespace HE::Rendering {
 					return RenderGraphDiagnosticCode::DuplicateResourceAccess;
 				case PassGraphDiagnosticCode::MissingResourceProducer:
 					return RenderGraphDiagnosticCode::MissingResourceProducer;
-				case PassGraphDiagnosticCode::DuplicateResourceWriter:
-					return RenderGraphDiagnosticCode::DuplicateResourceWriter;
+			case PassGraphDiagnosticCode::DuplicateResourceWriter:
+				return RenderGraphDiagnosticCode::DuplicateResourceWriter;
+			case PassGraphDiagnosticCode::CyclicDependency:
+				return RenderGraphDiagnosticCode::CyclicDependency;
 			}
 
 			return RenderGraphDiagnosticCode::EmptyGraph;

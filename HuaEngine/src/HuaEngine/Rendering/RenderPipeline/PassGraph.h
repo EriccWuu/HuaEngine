@@ -23,7 +23,8 @@ namespace HE::Rendering {
 		InvalidPassType,
 		DuplicateResourceAccess,
 		MissingResourceProducer,
-		DuplicateResourceWriter
+		DuplicateResourceWriter,
+		CyclicDependency
 	};
 
 	struct PassGraphDiagnostic {
