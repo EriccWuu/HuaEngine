@@ -186,6 +186,14 @@
 - MSAA render target 能显式 resolve 到 sampled texture。
 - 无效 subresource range 在创建期或 graph compile 期失败。
 
+#### 实现结果
+
+- `TextureDesc` 现表达 array layer 数；`TextureViewDesc` 现表达 mip/layer range 与 texture aspect；`ResourceBarrier` 现携带 `TextureSubresourceRange`，whole-resource 仍由默认范围表达。
+- `RenderDevice` 新增显式 `TextureResolveDesc`/`ResolveTexture()` contract，为 D3D12 resolve state 与 subresource 映射提供稳定 API。
+- OpenGL 普通 texture backend 明确仅支持 single-sample、single-layer storage；view 创建会校验 mip/layer range 与 color/depth-stencil aspect，普通 texture resolve 返回不支持而不伪造成功。
+- PassGraph 在创建 depth attachment view 时显式使用 `DepthStencil` aspect，避免新验证规则破坏 Forward scene depth 路径。
+- `RHIResourceCreationSmoke` 验证有效 mip view、越界 mip、错误 aspect 与不支持 resolve 的拒绝行为；四个 RHI/Rendering smoke 均通过。
+
 ## 4. D3D12 后端阶段
 
 ### P71：D3D12 Device、Adapter 与 Swapchain 骨架

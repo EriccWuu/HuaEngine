@@ -253,6 +253,18 @@ int main() {
 		.BaseMipLevel = 0,
 		.MipLevelCount = 1
 	});
+	auto mipTexture = device.CreateTexture({
+		.Width = 16,
+		.Height = 16,
+		.Format = HE::Rendering::RenderTargetTextureFormat::RGBA8,
+		.Usage = HE::Rendering::TextureUsageSampled | HE::Rendering::TextureUsageCopyDst,
+		.MipLevels = 2
+	});
+	Require(static_cast<bool>(mipTexture), "Expected mip texture creation to succeed");
+	Require(static_cast<bool>(device.CreateTextureView({ .Texture = mipTexture, .BaseMipLevel = 1, .MipLevelCount = 1, .Aspect = HE::Rendering::TextureAspect::Color })), "Expected mip texture view creation to succeed");
+	Require(!device.CreateTextureView({ .Texture = mipTexture, .BaseMipLevel = 1, .MipLevelCount = 2 }), "Expected out-of-range mip view creation to fail");
+	Require(!device.CreateTextureView({ .Texture = mipTexture, .Aspect = HE::Rendering::TextureAspect::Depth }), "Expected incompatible texture aspect to fail");
+	Require(!device.ResolveTexture({ .Source = mipTexture, .Destination = emptyTexture }), "Expected OpenGL resolve to reject unsupported non-MSAA resolve");
 	Require(static_cast<bool>(textureView), "Expected texture view creation to succeed");
 	Require(textureView->GetDesc().Texture == emptyTexture, "Expected texture view resource to round-trip");
 	Require(textureView->GetDesc().Format == HE::Rendering::RenderTargetTextureFormat::RGBA8, "Expected texture view format to round-trip");

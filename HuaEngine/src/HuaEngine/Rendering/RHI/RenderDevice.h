@@ -10,6 +10,7 @@
 #include "HuaEngine/Rendering/RHI/RenderTargetTypes.h"
 #include "HuaEngine/Rendering/RHI/GpuBuffer.h"
 #include "HuaEngine/Rendering/RHI/PipelineState.h"
+#include "HuaEngine/Rendering/RHI/ResourceBarrier.h"
 #include "HuaEngine/Rendering/RHI/RenderTarget.h"
 #include "HuaEngine/Rendering/RHI/ShaderProgram.h"
 #include "HuaEngine/Rendering/RHI/TextureResource.h"
@@ -55,6 +56,13 @@ namespace HE::Rendering {
 		std::vector<uint8_t> Data;
 	};
 
+	struct TextureResolveDesc {
+		Ref<TextureResource> Source;
+		Ref<TextureResource> Destination;
+		TextureSubresourceRange SourceSubresources;
+		TextureSubresourceRange DestinationSubresources;
+	};
+
 	class RenderDevice {
 	public:
 		virtual ~RenderDevice() = default;
@@ -72,6 +80,7 @@ namespace HE::Rendering {
 		virtual bool ReadbackBuffer(const Ref<GpuBuffer>& buffer, uint32_t offset, uint32_t size, std::vector<uint8_t>& outData) = 0;
 		virtual bool UploadTexture(const TextureTransferDesc& desc) = 0;
 		virtual bool ReadbackTexture(const Ref<TextureResource>& texture, uint32_t mipLevel, std::vector<uint8_t>& outData) = 0;
+		virtual bool ResolveTexture(const TextureResolveDesc& desc) = 0;
 		virtual Ref<VertexBufferView> CreateVertexBufferView(const VertexBufferViewDesc& desc) = 0;
 		virtual Ref<RenderTarget> CreateRenderTarget(const RenderTargetDesc& desc) = 0;
 		virtual Ref<TextureResource> CreateTexture(const TextureDesc& desc) = 0;

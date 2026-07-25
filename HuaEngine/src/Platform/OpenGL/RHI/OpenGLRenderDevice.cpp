@@ -398,7 +398,7 @@ namespace {
 			return false;
 		}
 
-		if (desc.MipLevels == 0 || desc.Samples == 0) {
+		if (desc.MipLevels == 0 || desc.Samples == 0 || desc.ArrayLayers == 0 || desc.Samples != 1 || desc.ArrayLayers != 1) {
 			HE_CORE_ERROR("Texture mip levels and samples must be greater than zero");
 			return false;
 		}
@@ -1738,6 +1738,10 @@ namespace HE::Rendering {
 		return static_cast<OpenGLTextureResource&>(*texture).Readback(mipLevel, outData);
 	}
 
+	bool OpenGLRenderDevice::ResolveTexture(const TextureResolveDesc& desc) {
+		return false;
+	}
+
 	Ref<VertexBufferView> OpenGLRenderDevice::CreateVertexBufferView(const VertexBufferViewDesc& desc) {
 		if (!desc.VertexBuffer || !desc.IndexBuffer || desc.IndexCount == 0 || desc.Layout.GetElements().empty()) {
 			HE_CORE_ERROR("Invalid vertex buffer view description");
@@ -1776,7 +1780,15 @@ namespace HE::Rendering {
 		}
 
 		const auto format = desc.Format == RenderTargetTextureFormat::None ? desc.Texture->GetDesc().Format : desc.Format;
-		if (format == RenderTargetTextureFormat::None || desc.MipLevelCount == 0) {
+		const bool isDepthFormat = format == RenderTargetTextureFormat::DEPTH24_STENCIL8;
+		const bool aspectMatches = isDepthFormat
+			? desc.Aspect == TextureAspect::Depth || desc.Aspect == TextureAspect::Stencil || desc.Aspect == TextureAspect::DepthStencil
+			: desc.Aspect == TextureAspect::Color;
+		if (format == RenderTargetTextureFormat::None || !aspectMatches || desc.MipLevelCount == 0 || desc.ArrayLayerCount == 0
+			|| desc.BaseMipLevel >= desc.Texture->GetDesc().MipLevels
+			|| desc.MipLevelCount > desc.Texture->GetDesc().MipLevels - desc.BaseMipLevel
+			|| desc.BaseArrayLayer >= desc.Texture->GetDesc().ArrayLayers
+			|| desc.ArrayLayerCount > desc.Texture->GetDesc().ArrayLayers - desc.BaseArrayLayer) {
 			HE_CORE_ERROR("Invalid texture view description");
 			return nullptr;
 		}

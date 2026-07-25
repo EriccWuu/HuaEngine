@@ -566,7 +566,12 @@ namespace HE::Rendering {
 					break;
 				}
 
-				auto textureView = context.Device->CreateTextureView({ .Texture = runtimeResource->Texture });
+				auto textureView = context.Device->CreateTextureView({
+					.Texture = runtimeResource->Texture,
+					.Aspect = attachment.Kind == PassGraphRenderPassAttachmentKind::DepthStencil
+						? TextureAspect::DepthStencil
+						: TextureAspect::Color
+				});
 				if (!textureView) {
 					succeeded = false;
 					break;

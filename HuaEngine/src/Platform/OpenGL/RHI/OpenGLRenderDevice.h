@@ -299,6 +299,7 @@ namespace HE::Rendering {
 		bool ReadbackBuffer(const Ref<GpuBuffer>& buffer, uint32_t offset, uint32_t size, std::vector<uint8_t>& outData) override;
 		bool UploadTexture(const TextureTransferDesc& desc) override;
 		bool ReadbackTexture(const Ref<TextureResource>& texture, uint32_t mipLevel, std::vector<uint8_t>& outData) override;
+		bool ResolveTexture(const TextureResolveDesc& desc) override;
 		Ref<VertexBufferView> CreateVertexBufferView(const VertexBufferViewDesc& desc) override;
 		Ref<RenderTarget> CreateRenderTarget(const RenderTargetDesc& desc) override;
 		Ref<TextureResource> CreateTexture(const TextureDesc& desc) override;

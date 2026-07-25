@@ -9,6 +9,13 @@
 namespace HE::Rendering {
 	class TextureResource;
 
+	enum class TextureAspect : uint8_t {
+		Color = 0,
+		Depth,
+		Stencil,
+		DepthStencil
+	};
+
 	using TextureUsageFlags = uint32_t;
 
 	constexpr TextureUsageFlags TextureUsageNone = 0;
@@ -25,6 +32,7 @@ namespace HE::Rendering {
 		TextureUsageFlags Usage = TextureUsageNone;
 		uint32_t MipLevels = 1;
 		uint32_t Samples = 1;
+		uint32_t ArrayLayers = 1;
 		std::string SourcePath;
 	};
 
@@ -33,6 +41,9 @@ namespace HE::Rendering {
 		RenderTargetTextureFormat Format = RenderTargetTextureFormat::None;
 		uint32_t BaseMipLevel = 0;
 		uint32_t MipLevelCount = 1;
+		uint32_t BaseArrayLayer = 0;
+		uint32_t ArrayLayerCount = 1;
+		TextureAspect Aspect = TextureAspect::Color;
 	};
 
 	enum class SamplerFilter : uint8_t {
