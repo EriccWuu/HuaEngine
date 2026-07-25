@@ -8,6 +8,7 @@
 
 #include "HuaEngine/Core/Core.h"
 #include "HuaEngine/Rendering/RHI/RenderTargetTypes.h"
+#include "HuaEngine/Rendering/RHI/GpuBuffer.h"
 #include "HuaEngine/Rendering/RHI/TextureResource.h"
 
 namespace HE::Rendering {
@@ -41,6 +42,7 @@ namespace HE::Rendering {
 	struct RenderGraphBufferDesc {
 		uint32_t Size = 0;
 		uint32_t Stride = 0;
+		GpuBufferUsage Usage = GpuBufferUsage::Storage;
 	};
 
 	struct RenderGraphResourceDesc {
@@ -50,6 +52,7 @@ namespace HE::Rendering {
 		RenderGraphTextureDesc Texture;
 		RenderGraphBufferDesc Buffer;
 		Ref<TextureResource> RuntimeTexture;
+		Ref<GpuBuffer> RuntimeBuffer;
 	};
 
 	struct RenderGraphResourceLifetime {
@@ -64,6 +67,7 @@ namespace HE::Rendering {
 		RenderGraphResourceHandle Handle;
 		std::string Name;
 		Ref<TextureResource> Texture;
+		Ref<GpuBuffer> Buffer;
 	};
 
 	class RenderGraphResourceAllocator {
@@ -91,6 +95,12 @@ namespace HE::Rendering {
 			uint64_t AvailableAfterFenceValue = 0;
 		};
 
+		struct TransientBufferPoolEntry {
+			RenderGraphBufferDesc Desc;
+			Ref<GpuBuffer> Buffer;
+			uint64_t AvailableAfterFenceValue = 0;
+		};
+
 		RenderGraphResourceHandle AddResource(RenderGraphResourceDesc desc, RenderGraphResourceStorage storage);
 
 		std::vector<RenderGraphResourceDesc> m_Resources;
@@ -98,6 +108,8 @@ namespace HE::Rendering {
 		std::vector<RenderGraphRuntimeResource> m_RuntimeResources;
 		std::vector<TransientTexturePoolEntry> m_TransientTexturePool;
 		std::vector<uint32_t> m_ActiveTransientTextureIndices;
+		std::vector<TransientBufferPoolEntry> m_TransientBufferPool;
+		std::vector<uint32_t> m_ActiveTransientBufferIndices;
 		std::unordered_map<std::string, uint32_t> m_NameToIndex;
 	};
 }

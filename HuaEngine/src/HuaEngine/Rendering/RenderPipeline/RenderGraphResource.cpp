@@ -29,6 +29,7 @@ namespace HE::Rendering {
 		m_RuntimeResources.clear();
 		m_RuntimeResources.reserve(m_Resources.size());
 		m_ActiveTransientTextureIndices.clear();
+		m_ActiveTransientBufferIndices.clear();
 
 		for (uint32_t index = 0; index < m_Resources.size(); ++index) {
 			const auto& desc = m_Resources[index];
@@ -40,6 +41,7 @@ namespace HE::Rendering {
 			if (desc.Kind == RenderGraphResourceKind::Texture && desc.Storage == RenderGraphResourceStorage::Imported) {
 				runtimeResource.Texture = desc.RuntimeTexture;
 			}
+			if (desc.Kind == RenderGraphResourceKind::Buffer && desc.Storage == RenderGraphResourceStorage::Imported) runtimeResource.Buffer = desc.RuntimeBuffer;
 
 			m_RuntimeResources.push_back(std::move(runtimeResource));
 		}
@@ -55,6 +57,11 @@ namespace HE::Rendering {
 			if (desc && desc->Storage == RenderGraphResourceStorage::Transient && desc->Kind == RenderGraphResourceKind::Texture) {
 				allocations.push_back({ lifetime.Handle.Index, lifetime.FirstPassIndex, lifetime.LastPassIndex });
 			}
+		}
+		std::vector<TransientTextureAllocation> bufferAllocations;
+		for (const auto& lifetime : m_Lifetimes) {
+			const auto* desc = GetDesc(lifetime.Handle);
+			if (desc && desc->Storage == RenderGraphResourceStorage::Transient && desc->Kind == RenderGraphResourceKind::Buffer) bufferAllocations.push_back({ lifetime.Handle.Index, lifetime.FirstPassIndex, lifetime.LastPassIndex });
 		}
 		std::sort(allocations.begin(), allocations.end(), [](const auto& left, const auto& right) {
 			return left.FirstPassIndex != right.FirstPassIndex
@@ -127,6 +134,31 @@ namespace HE::Rendering {
 			}
 		}
 
+		std::sort(bufferAllocations.begin(), bufferAllocations.end(), [](const auto& left, const auto& right) {
+			return left.FirstPassIndex != right.FirstPassIndex ? left.FirstPassIndex < right.FirstPassIndex : left.ResourceIndex < right.ResourceIndex;
+		});
+		std::vector<uint32_t> bufferPoolLastPassIndices(m_TransientBufferPool.size(), std::numeric_limits<uint32_t>::max());
+		for (const auto& allocation : bufferAllocations) {
+			const auto& desc = m_Resources[allocation.ResourceIndex];
+			auto poolEntry = m_TransientBufferPool.size();
+			for (uint32_t poolIndex = 0; poolIndex < m_TransientBufferPool.size(); ++poolIndex) {
+				const auto& entry = m_TransientBufferPool[poolIndex];
+				const bool matching = entry.Desc.Size == desc.Buffer.Size && entry.Desc.Stride == desc.Buffer.Stride && entry.Desc.Usage == desc.Buffer.Usage;
+				const bool nonOverlapping = bufferPoolLastPassIndices[poolIndex] == std::numeric_limits<uint32_t>::max() || bufferPoolLastPassIndices[poolIndex] < allocation.FirstPassIndex;
+				if (matching && nonOverlapping && entry.AvailableAfterFenceValue <= completedFenceValue) { poolEntry = poolIndex; break; }
+			}
+			if (poolEntry == m_TransientBufferPool.size()) {
+				auto buffer = device.CreateBuffer({ .Usage = desc.Buffer.Usage, .Size = desc.Buffer.Size, .Stride = desc.Buffer.Stride }, nullptr);
+				if (!buffer) return false;
+				poolEntry = m_TransientBufferPool.size();
+				m_TransientBufferPool.push_back({ .Desc = desc.Buffer, .Buffer = std::move(buffer) });
+				bufferPoolLastPassIndices.push_back(std::numeric_limits<uint32_t>::max());
+			}
+			m_RuntimeResources[allocation.ResourceIndex].Buffer = m_TransientBufferPool[poolEntry].Buffer;
+			bufferPoolLastPassIndices[poolEntry] = allocation.LastPassIndex;
+			if (std::find(m_ActiveTransientBufferIndices.begin(), m_ActiveTransientBufferIndices.end(), poolEntry) == m_ActiveTransientBufferIndices.end()) m_ActiveTransientBufferIndices.push_back(poolEntry);
+		}
+
 		return true;
 	}
 
@@ -135,6 +167,8 @@ namespace HE::Rendering {
 			m_TransientTexturePool[poolIndex].AvailableAfterFenceValue = fenceValue;
 		}
 		m_ActiveTransientTextureIndices.clear();
+		for (const auto poolIndex : m_ActiveTransientBufferIndices) m_TransientBufferPool[poolIndex].AvailableAfterFenceValue = fenceValue;
+		m_ActiveTransientBufferIndices.clear();
 	}
 
 	void RenderGraphResourceAllocator::SetLifetime(RenderGraphResourceHandle handle, uint32_t firstPassIndex, uint32_t lastPassIndex) {

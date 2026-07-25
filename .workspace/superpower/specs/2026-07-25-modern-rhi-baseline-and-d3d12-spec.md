@@ -108,6 +108,13 @@
 - 未完成 fence 阻止复用，完成后允许复用。
 - compute/copy smoke 能通过 graph 取得 runtime buffer。
 
+#### 实现结果
+
+- `RenderGraphResourceDesc` 与 runtime resource table 现支持 `RuntimeBuffer`/`Buffer`，imported buffer 和 transient buffer 都可由 handle 解析。
+- allocator 新增 persistent transient buffer pool，按 size、stride、usage 匹配，支持同帧非重叠 lifetime 别名和以 completed fence 为条件的跨帧复用。
+- `ReleaseTransientResources()` 同时登记活动 texture pool 和 buffer pool 的 fence value，保持统一资源生命周期语义。
+- `RHIResourceCreationSmoke` 使用真实 OpenGL device 验证 buffer 同帧别名、未完成 fence 阻止复用和完成后复用；四个 RHI/Rendering smoke 均通过。
+
 ### P68：BindGroup 与 Pipeline Layout 收敛
 
 #### 目标

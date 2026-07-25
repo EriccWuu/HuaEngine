@@ -415,6 +415,37 @@ int main() {
 	const auto reusedTransientTexture = transientPoolGraph.GetResourceAllocator().GetRuntimeResource(firstTransientHandle)->Texture;
 	Require(reusedTransientTexture == firstTransientTexture, "Expected completed fence to allow transient texture reuse");
 	transientPoolGraph.ReleaseTransientResources(30);
+
+	HE::Rendering::PassGraph transientBufferPoolGraph;
+	const auto firstTransientBuffer = transientBufferPoolGraph.AddTransientResource({
+		.Name = "FirstTransientBuffer",
+		.Kind = HE::Rendering::RenderGraphResourceKind::Buffer,
+		.Buffer = { .Size = 256, .Stride = 16, .Usage = HE::Rendering::GpuBufferUsage::Storage }
+	});
+	const auto secondTransientBuffer = transientBufferPoolGraph.AddTransientResource({
+		.Name = "SecondTransientBuffer",
+		.Kind = HE::Rendering::RenderGraphResourceKind::Buffer,
+		.Buffer = { .Size = 256, .Stride = 16, .Usage = HE::Rendering::GpuBufferUsage::Storage }
+	});
+	transientBufferPoolGraph.AddPass({ .Name = "WriteFirstTransientBuffer", .OutputResources = { firstTransientBuffer }, .Execute = [](HE::Rendering::RenderPassContext&) {} });
+	transientBufferPoolGraph.AddPass({ .Name = "WriteSecondTransientBuffer", .OutputResources = { secondTransientBuffer }, .Execute = [](HE::Rendering::RenderPassContext&) {} });
+	Require(transientBufferPoolGraph.Compile(), "Expected transient buffer pool graph compile to succeed");
+	HE::Rendering::RenderPassContext transientBufferContext;
+	transientBufferContext.Device = &device;
+	Require(transientBufferPoolGraph.Execute(transientBufferContext), "Expected transient buffer pool first execute to succeed");
+	const auto firstBuffer = transientBufferPoolGraph.GetResourceAllocator().GetRuntimeResource(firstTransientBuffer)->Buffer;
+	const auto secondBuffer = transientBufferPoolGraph.GetResourceAllocator().GetRuntimeResource(secondTransientBuffer)->Buffer;
+	Require(firstBuffer == secondBuffer, "Expected non-overlapping transient buffers to alias");
+	transientBufferPoolGraph.ReleaseTransientResources(10);
+	transientBufferContext.CompletedGraphicsFenceValue = 9;
+	Require(transientBufferPoolGraph.Execute(transientBufferContext), "Expected transient buffer graph execute before fence completion to succeed");
+	Require(transientBufferPoolGraph.GetResourceAllocator().GetRuntimeResource(firstTransientBuffer)->Buffer != firstBuffer, "Expected unfinished fence to prevent transient buffer reuse");
+	transientBufferPoolGraph.ReleaseTransientResources(20);
+	transientBufferContext.CompletedGraphicsFenceValue = 10;
+	Require(transientBufferPoolGraph.Execute(transientBufferContext), "Expected transient buffer graph execute after fence completion to succeed");
+	Require(transientBufferPoolGraph.GetResourceAllocator().GetRuntimeResource(firstTransientBuffer)->Buffer == firstBuffer, "Expected completed fence to allow transient buffer reuse");
+	transientBufferPoolGraph.ReleaseTransientResources(30);
+
 	device.GetImmediateCommandList().ResourceBarrier({
 		.Texture = texture,
 		.Before = HE::Rendering::ResourceState::Undefined,
