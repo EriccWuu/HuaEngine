@@ -6,6 +6,8 @@
 #include <algorithm>
 #include <string>
 
+#include <glm/glm.hpp>
+
 #include "HuaEngine.h"
 #include "HuaEngine/Core/ResourcePaths.h"
 #include "HuaEngine/Rendering/RenderPipeline/RenderTypes.h"
@@ -146,6 +148,41 @@ namespace {
 			&& content.find("GetImmediateCommandList") == std::string::npos
 			&& content.find("ViewportDepthAttachment") != std::string::npos;
 	}
+
+	bool SphereTrianglesFaceOutward() {
+		const auto sphere = HE::Rendering::Mesh::CreateSphere("WindingSmokeSphere", 8);
+		if (!sphere) {
+			return false;
+		}
+
+		const auto& meshData = sphere->GetMeshData();
+		uint32_t checkedTriangleCount = 0;
+		for (size_t index = 0; index + 2 < meshData.IndexData.size(); index += 3) {
+			const auto readPosition = [&meshData](uint32_t vertexIndex) {
+				const size_t offset = static_cast<size_t>(vertexIndex) * 5;
+				return glm::vec3(
+					meshData.VertexData[offset],
+					meshData.VertexData[offset + 1],
+					meshData.VertexData[offset + 2]);
+			};
+
+			const glm::vec3 first = readPosition(meshData.IndexData[index]);
+			const glm::vec3 second = readPosition(meshData.IndexData[index + 1]);
+			const glm::vec3 third = readPosition(meshData.IndexData[index + 2]);
+			const glm::vec3 faceNormal = glm::cross(second - first, third - first);
+			if (glm::length(faceNormal) <= 0.0001f) {
+				continue;
+			}
+
+			const glm::vec3 faceCenter = (first + second + third) / 3.0f;
+			if (glm::dot(faceNormal, faceCenter) <= 0.0f) {
+				return false;
+			}
+			++checkedTriangleCount;
+		}
+
+		return checkedTriangleCount > 0;
+	}
 }
 
 int main() {
@@ -154,6 +191,7 @@ int main() {
 	SmokeApplication application;
 	application.Start();
 	Require(ForwardPipelineUsesExplicitVertexIndexBinding(), "Expected ForwardRenderPipeline main draw path to use explicit vertex/index binding");
+	Require(SphereTrianglesFaceOutward(), "Expected generated sphere triangle winding to face outward");
 
 	auto& operations = application.GetOperations();
 	Require(operations.Supports("rendering.attach_scene_viewport"), "Expected rendering.attach_scene_viewport to be registered");

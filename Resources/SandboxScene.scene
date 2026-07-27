@@ -6,7 +6,7 @@ entities:
   components:
     TransformComponent:
       Position:
-        x: 1.5
+        x: 1.75
         y: 0.0
         z: -3.0
       Rotation:

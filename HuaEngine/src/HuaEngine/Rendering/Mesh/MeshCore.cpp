@@ -177,8 +177,8 @@ namespace HE::Rendering {
                 int first = (lat * (segments + 1)) + lon;
                 int second = first + segments + 1;
                 
-                indices.insert(indices.end(), {static_cast<uint32_t>(first), static_cast<uint32_t>(second), static_cast<uint32_t>(first + 1)});
-                indices.insert(indices.end(), {static_cast<uint32_t>(second), static_cast<uint32_t>(second + 1), static_cast<uint32_t>(first + 1)});
+                indices.insert(indices.end(), {static_cast<uint32_t>(first), static_cast<uint32_t>(first + 1), static_cast<uint32_t>(second)});
+                indices.insert(indices.end(), {static_cast<uint32_t>(second), static_cast<uint32_t>(first + 1), static_cast<uint32_t>(second + 1)});
             }
         }
 

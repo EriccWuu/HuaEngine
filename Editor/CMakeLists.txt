@@ -52,7 +52,7 @@ if(WIN32)
         set_target_properties(Editor PROPERTIES
             MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>"
         )
-        target_compile_options(Editor PRIVATE /utf-8)
+        target_compile_options(Editor PRIVATE /utf-8 /FS)
     endif()
 endif()
 
