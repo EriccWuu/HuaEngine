@@ -1,6 +1,6 @@
 # PassGraph 纯 Typed Resource Migration Spec
 
-状态：执行中  
+状态：已完成
 日期：2026-08-20
 
 ## 目标
@@ -27,3 +27,11 @@
 - 生产代码与 smoke 中不再使用 `Inputs`、`Outputs`、`InputResources`、`OutputResources`、`AddExternalInput` 或 `GetExternalInputs`。
 - `RenderPassGraphSmoke` 覆盖 typed future producer、cycle、queue batch、culling、barrier 和 explicit dependency。
 - `RHIResourceCreationSmoke`、`RHICommandListBindingSmoke`、`RenderingOperationsSmoke` 通过。
+
+## 实现结果
+
+- `PassGraphResourceUsage` 现在显式携带 `Read`/`Write` access 与 `ResourceState`，不再根据 state 猜测 producer/consumer。
+- `AddPass()` 返回 `PassGraphPassHandle`；无 GPU resource 的顺序约束通过 `Dependencies` 表达。
+- imported resource 成为唯一的图外资源来源；移除了 external input API、统计数据和 operation payload。
+- Forward 图只声明真实的 color/depth/post-process resource usage；帧开始/结束移至图执行外层。
+- legacy 字符串资源接口和已隔离的旧编译路径已物理删除；四个 RHI/rendering smoke 全部通过。

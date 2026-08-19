@@ -136,7 +136,6 @@ namespace {
 		return content.find("SetVertexBuffer(") != std::string::npos
 			&& content.find("SetIndexBuffer(") != std::string::npos
 			&& content.find("void PostProcessPass::Execute") != std::string::npos
-			&& content.find("AddExternalInput(") == std::string::npos
 			&& content.find("BoundRenderTarget") == std::string::npos
 			&& content.find("ClearedSceneColor") == std::string::npos
 			&& content.find(".RenderPassAttachments = std::move(forwardOpaqueAttachments)") != std::string::npos

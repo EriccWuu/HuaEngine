@@ -111,7 +111,7 @@ namespace HE::Rendering {
 
 	class PassGraph {
 	public:
-		[[nodiscard]] PassGraphPassHandle AddPass(PassGraphPassDesc pass);
+		PassGraphPassHandle AddPass(PassGraphPassDesc pass);
 		void AddOutputResource(RenderGraphResourceHandle resource);
 		void SetBarrierExecutor(PassGraphBarrierExecutor executor);
 		RenderGraphResourceHandle AddImportedResource(RenderGraphResourceDesc desc);
@@ -132,7 +132,7 @@ namespace HE::Rendering {
 
 	private:
 		std::vector<PassGraphPassDesc> m_Passes;
-		std::vector<RenderGraphResourceHandle> m_OutputResources;
+		std::vector<RenderGraphResourceHandle> m_DeclaredOutputs;
 		RenderGraphResourceAllocator m_ResourceAllocator;
 		std::vector<PassGraphDiagnostic> m_Diagnostics;
 		std::vector<PassGraphResourceBarrier> m_BarrierPlan;
