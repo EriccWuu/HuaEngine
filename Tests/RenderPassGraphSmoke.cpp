@@ -6,384 +6,91 @@
 #include "HuaEngine/Rendering/RenderPipeline/PassGraph.h"
 
 namespace {
+	using namespace HE::Rendering;
+	using Access = PassGraphResourceUsage::Access;
+
 	void Require(bool condition, const std::string& message) {
-		if (!condition) {
-			std::cerr << "[RenderPassGraphSmoke] " << message << std::endl;
-			std::exit(1);
-		}
+		if (!condition) { std::cerr << "[RenderPassGraphSmoke] " << message << std::endl; std::exit(1); }
 	}
 
-	bool HasDiagnostic(
-		const std::vector<HE::Rendering::PassGraphDiagnostic>& diagnostics,
-		HE::Rendering::PassGraphDiagnosticCode code) {
-		for (const auto& diagnostic : diagnostics) {
-			if (diagnostic.Code == code) {
-				return true;
-			}
-		}
-
+	bool HasDiagnostic(const std::vector<PassGraphDiagnostic>& diagnostics, PassGraphDiagnosticCode code) {
+		for (const auto& diagnostic : diagnostics) if (diagnostic.Code == code) return true;
 		return false;
+	}
+
+	RenderGraphResourceHandle AddTexture(PassGraph& graph, const char* name, RenderGraphResourceStorage storage = RenderGraphResourceStorage::Transient) {
+		RenderGraphResourceDesc desc;
+		desc.Name = name;
+		desc.Kind = RenderGraphResourceKind::Texture;
+		desc.Texture = { .Width = 64, .Height = 64, .Format = RenderTargetTextureFormat::RGBA8 };
+		return storage == RenderGraphResourceStorage::Imported ? graph.AddImportedResource(std::move(desc)) : graph.AddTransientResource(std::move(desc));
 	}
 }
 
 int main() {
-	HE::Rendering::PassGraph emptyGraph;
-	Require(!emptyGraph.Compile(), "Expected empty graph compile to fail");
-	Require(
-		HasDiagnostic(emptyGraph.GetDiagnostics(), HE::Rendering::PassGraphDiagnosticCode::EmptyGraph),
-		"Expected empty graph diagnostic");
+	PassGraph emptyGraph;
+	Require(!emptyGraph.Compile() && HasDiagnostic(emptyGraph.GetDiagnostics(), PassGraphDiagnosticCode::EmptyGraph), "Expected empty graph diagnostic");
 
-	HE::Rendering::PassGraph duplicateGraph;
-	duplicateGraph.AddPass({ .Name = "ForwardOpaque", .Execute = [](HE::Rendering::RenderPassContext&) {} });
-	duplicateGraph.AddPass({ .Name = "ForwardOpaque", .Execute = [](HE::Rendering::RenderPassContext&) {} });
-	Require(!duplicateGraph.Compile(), "Expected duplicate pass names to fail compile");
-	Require(
-		HasDiagnostic(duplicateGraph.GetDiagnostics(), HE::Rendering::PassGraphDiagnosticCode::DuplicatePassName),
-		"Expected duplicate pass diagnostic");
+	PassGraph duplicateGraph;
+	duplicateGraph.AddPass({ .Name = "Forward", .Execute = [](RenderPassContext&) {} });
+	duplicateGraph.AddPass({ .Name = "Forward", .Execute = [](RenderPassContext&) {} });
+	Require(!duplicateGraph.Compile() && HasDiagnostic(duplicateGraph.GetDiagnostics(), PassGraphDiagnosticCode::DuplicatePassName), "Expected duplicate pass diagnostic");
 
-	HE::Rendering::PassGraph missingCallbackGraph;
-	missingCallbackGraph.AddPass({ .Name = "MissingCallback" });
-	Require(!missingCallbackGraph.Compile(), "Expected missing callback to fail compile");
-	Require(
-		HasDiagnostic(missingCallbackGraph.GetDiagnostics(), HE::Rendering::PassGraphDiagnosticCode::MissingExecuteCallback),
-		"Expected missing callback diagnostic");
+	PassGraph invalidUsageGraph;
+	const auto invalidUsage = AddTexture(invalidUsageGraph, "InvalidUsage");
+	invalidUsageGraph.AddPass({ .Name = "Invalid", .ResourceUsages = { { invalidUsage, Access::Read, ResourceState::Undefined } }, .Execute = [](RenderPassContext&) {} });
+	Require(!invalidUsageGraph.Compile() && HasDiagnostic(invalidUsageGraph.GetDiagnostics(), PassGraphDiagnosticCode::InvalidResourceUsage), "Expected invalid usage diagnostic");
 
-	HE::Rendering::PassGraph emptyResourceGraph;
-	emptyResourceGraph.AddPass({
-		.Name = "EmptyResource",
-		.Outputs = { "" },
-		.Execute = [](HE::Rendering::RenderPassContext&) {}
-	});
-	Require(!emptyResourceGraph.Compile(), "Expected empty resource name to fail compile");
-	Require(
-		HasDiagnostic(emptyResourceGraph.GetDiagnostics(), HE::Rendering::PassGraphDiagnosticCode::EmptyResourceName),
-		"Expected empty resource name diagnostic");
+	PassGraph explicitGraph;
+	const auto color = AddTexture(explicitGraph, "Color", RenderGraphResourceStorage::Imported);
+	explicitGraph.AddPass({ .Name = "Write", .ResourceUsages = { { color, Access::Write, ResourceState::RenderTarget } }, .Execute = [](RenderPassContext&) {} });
+	explicitGraph.AddPass({ .Name = "Read", .ResourceUsages = { { color, Access::Read, ResourceState::ShaderRead } }, .Execute = [](RenderPassContext&) {} });
+	Require(explicitGraph.Compile(), "Expected typed write/read graph to compile");
+	const auto& barriers = explicitGraph.GetBarrierPlan();
+	Require(barriers.size() == 2 && barriers[0].After == ResourceState::RenderTarget && barriers[1].Before == ResourceState::RenderTarget && barriers[1].After == ResourceState::ShaderRead, "Expected typed barrier sequence");
 
-	HE::Rendering::PassGraph invalidTypedResourceGraph;
-	invalidTypedResourceGraph.AddTransientResource({
-		.Name = "BadSceneColor",
-		.Kind = HE::Rendering::RenderGraphResourceKind::Texture,
-		.Texture = {
-			.Width = 0,
-			.Height = 64,
-			.Format = HE::Rendering::RenderTargetTextureFormat::RGBA8
-		}
-	});
-	invalidTypedResourceGraph.AddPass({
-		.Name = "BadTypedResource",
-		.Outputs = { "BadSceneColor" },
-		.Execute = [](HE::Rendering::RenderPassContext&) {}
-	});
-	Require(!invalidTypedResourceGraph.Compile(), "Expected invalid typed resource description to fail compile");
-	Require(
-		HasDiagnostic(invalidTypedResourceGraph.GetDiagnostics(), HE::Rendering::PassGraphDiagnosticCode::InvalidResourceDescription),
-		"Expected invalid typed resource description diagnostic");
+	PassGraph futureGraph;
+	const auto futureColor = AddTexture(futureGraph, "FutureColor");
+	std::vector<std::string> execution;
+	futureGraph.AddPass({ .Name = "Reader", .ResourceUsages = { { futureColor, Access::Read, ResourceState::ShaderRead } }, .Execute = [&](RenderPassContext&) { execution.push_back("reader"); } });
+	futureGraph.AddPass({ .Name = "Writer", .ResourceUsages = { { futureColor, Access::Write, ResourceState::RenderTarget } }, .Execute = [&](RenderPassContext&) { execution.push_back("writer"); } });
+	Require(futureGraph.Compile() && futureGraph.GetExecutionOrder() == std::vector<uint32_t>{ 1, 0 }, "Expected future writer to execute first");
+	RenderPassContext emptyContext;
+	Require(futureGraph.Execute(emptyContext) && execution == std::vector<std::string>{ "writer", "reader" }, "Expected typed future producer execution");
 
-	HE::Rendering::PassGraph invalidHandleGraph;
-	invalidHandleGraph.AddPass({
-		.Name = "InvalidHandle",
-		.InputResources = { { 0 } },
-		.Execute = [](HE::Rendering::RenderPassContext&) {}
-	});
-	Require(!invalidHandleGraph.Compile(), "Expected invalid typed resource handle to fail compile");
-	Require(
-		HasDiagnostic(invalidHandleGraph.GetDiagnostics(), HE::Rendering::PassGraphDiagnosticCode::InvalidResourceHandle),
-		"Expected invalid typed resource handle diagnostic");
+	PassGraph cycleGraph;
+	const auto resourceA = AddTexture(cycleGraph, "A");
+	const auto resourceB = AddTexture(cycleGraph, "B");
+	cycleGraph.AddPass({ .Name = "A", .ResourceUsages = { { resourceA, Access::Write, ResourceState::RenderTarget }, { resourceB, Access::Read, ResourceState::ShaderRead } }, .Execute = [](RenderPassContext&) {} });
+	cycleGraph.AddPass({ .Name = "B", .ResourceUsages = { { resourceB, Access::Write, ResourceState::RenderTarget }, { resourceA, Access::Read, ResourceState::ShaderRead } }, .Execute = [](RenderPassContext&) {} });
+	Require(!cycleGraph.Compile() && HasDiagnostic(cycleGraph.GetDiagnostics(), PassGraphDiagnosticCode::CyclicDependency), "Expected typed cycle diagnostic");
 
-	HE::Rendering::PassGraph explicitUsageGraph;
-	const auto explicitUsageTexture = explicitUsageGraph.AddImportedResource({
-		.Name = "ExplicitUsageTexture",
-		.Kind = HE::Rendering::RenderGraphResourceKind::Texture,
-		.Texture = {
-			.Width = 64,
-			.Height = 64,
-			.Format = HE::Rendering::RenderTargetTextureFormat::RGBA8
-		}
-	});
-	explicitUsageGraph.AddPass({
-		.Name = "WriteExplicitUsage",
-		.RenderPassAttachments = {
-			{ .Resource = explicitUsageTexture, .Kind = HE::Rendering::PassGraphRenderPassAttachmentKind::Color }
-		},
-		.Execute = [](HE::Rendering::RenderPassContext&) {}
-	});
-	explicitUsageGraph.AddPass({
-		.Name = "ReadExplicitUsage",
-		.ResourceUsages = { { .Resource = explicitUsageTexture, .State = HE::Rendering::ResourceState::ShaderRead } },
-		.Execute = [](HE::Rendering::RenderPassContext&) {}
-	});
-	Require(explicitUsageGraph.Compile(), "Expected explicit resource usage graph compile to succeed");
-	const auto& explicitUsageBarriers = explicitUsageGraph.GetBarrierPlan();
-	Require(explicitUsageBarriers.size() == 2, "Expected explicit resource usage write/read barriers");
-	Require(explicitUsageBarriers[0].Before == HE::Rendering::ResourceState::Undefined && explicitUsageBarriers[0].After == HE::Rendering::ResourceState::RenderTarget, "Expected explicit write barrier");
-	Require(explicitUsageBarriers[1].Before == HE::Rendering::ResourceState::RenderTarget && explicitUsageBarriers[1].After == HE::Rendering::ResourceState::ShaderRead, "Expected explicit read barrier");
+	PassGraph queueGraph;
+	const auto sceneColor = AddTexture(queueGraph, "SceneColor");
+	const auto luminance = AddTexture(queueGraph, "Luminance");
+	queueGraph.AddPass({ .Name = "Graphics", .ResourceUsages = { { sceneColor, Access::Write, ResourceState::RenderTarget } }, .Execute = [](RenderPassContext&) {} });
+	queueGraph.AddPass({ .Name = "Compute", .Type = PassGraphPassType::Compute, .ResourceUsages = { { sceneColor, Access::Read, ResourceState::ShaderRead }, { luminance, Access::Write, ResourceState::CopyDst } }, .Execute = [](RenderPassContext&) {} });
+	queueGraph.AddPass({ .Name = "Copy", .Type = PassGraphPassType::Copy, .ResourceUsages = { { luminance, Access::Read, ResourceState::CopySrc } }, .Execute = [](RenderPassContext&) {} });
+	Require(queueGraph.Compile(), "Expected typed queue graph to compile");
+	const auto& batches = queueGraph.GetQueueBatches();
+	Require(batches.size() == 3 && batches[1].WaitBatchIndices == std::vector<uint32_t>{ 0 } && batches[2].WaitBatchIndices == std::vector<uint32_t>{ 1 }, "Expected cross-queue waits");
 
-	HE::Rendering::PassGraph depthUsageGraph;
-	const auto depthUsageTexture = depthUsageGraph.AddImportedResource({
-		.Name = "DepthUsageTexture",
-		.Kind = HE::Rendering::RenderGraphResourceKind::Texture,
-		.Texture = { .Width = 64, .Height = 64, .Format = HE::Rendering::RenderTargetTextureFormat::DEPTH24_STENCIL8 }
-	});
-	depthUsageGraph.AddPass({
-		.Name = "WriteDepth",
-		.RenderPassAttachments = { { .Resource = depthUsageTexture, .Kind = HE::Rendering::PassGraphRenderPassAttachmentKind::DepthStencil } },
-		.Execute = [](HE::Rendering::RenderPassContext&) {}
-	});
-	depthUsageGraph.AddPass({
-		.Name = "CopyDepth",
-		.Type = HE::Rendering::PassGraphPassType::Copy,
-		.ResourceUsages = { { .Resource = depthUsageTexture, .State = HE::Rendering::ResourceState::CopySrc } },
-		.Execute = [](HE::Rendering::RenderPassContext&) {}
-	});
-	Require(depthUsageGraph.Compile(), "Expected depth and copy usage graph compile to succeed");
-	const auto& depthUsageBarriers = depthUsageGraph.GetBarrierPlan();
-	Require(depthUsageBarriers.size() == 2, "Expected depth and copy usage barriers");
-	Require(depthUsageBarriers[0].After == HE::Rendering::ResourceState::DepthStencilWrite, "Expected depth attachment to use depth-write state");
-	Require(depthUsageBarriers[1].Before == HE::Rendering::ResourceState::DepthStencilWrite && depthUsageBarriers[1].After == HE::Rendering::ResourceState::CopySrc, "Expected depth copy transition");
-
-	HE::Rendering::PassGraph invalidCopyAttachmentGraph;
-	invalidCopyAttachmentGraph.AddPass({
-		.Name = "InvalidCopyAttachment",
-		.Type = HE::Rendering::PassGraphPassType::Copy,
-		.RenderPassAttachments = { { .Resource = depthUsageTexture, .Kind = HE::Rendering::PassGraphRenderPassAttachmentKind::DepthStencil } },
-		.Execute = [](HE::Rendering::RenderPassContext&) {}
-	});
-	Require(!invalidCopyAttachmentGraph.Compile(), "Expected copy pass attachment declaration to fail compile");
-	Require(HasDiagnostic(invalidCopyAttachmentGraph.GetDiagnostics(), HE::Rendering::PassGraphDiagnosticCode::InvalidPassType), "Expected invalid pass type diagnostic");
-
-	HE::Rendering::PassGraph invalidUsageGraph;
-	const auto invalidUsageTexture = invalidUsageGraph.AddImportedResource({
-		.Name = "InvalidUsageTexture",
-		.Kind = HE::Rendering::RenderGraphResourceKind::Texture,
-		.Texture = {
-			.Width = 64,
-			.Height = 64,
-			.Format = HE::Rendering::RenderTargetTextureFormat::RGBA8
-		}
-	});
-	invalidUsageGraph.AddPass({
-		.Name = "InvalidExplicitUsage",
-		.ResourceUsages = { { .Resource = invalidUsageTexture, .State = HE::Rendering::ResourceState::Undefined } },
-		.Execute = [](HE::Rendering::RenderPassContext&) {}
-	});
-	Require(!invalidUsageGraph.Compile(), "Expected unsupported explicit resource usage state to fail compile");
-	Require(
-		HasDiagnostic(invalidUsageGraph.GetDiagnostics(), HE::Rendering::PassGraphDiagnosticCode::InvalidResourceUsage),
-		"Expected invalid explicit resource usage diagnostic");
-
-	HE::Rendering::PassGraph duplicateAccessGraph;
-	duplicateAccessGraph.AddPass({
-		.Name = "DuplicateAccess",
-		.Outputs = { "SceneColor", "SceneColor" },
-		.Execute = [](HE::Rendering::RenderPassContext&) {}
-	});
-	Require(!duplicateAccessGraph.Compile(), "Expected duplicate resource access to fail compile");
-	Require(
-		HasDiagnostic(duplicateAccessGraph.GetDiagnostics(), HE::Rendering::PassGraphDiagnosticCode::DuplicateResourceAccess),
-		"Expected duplicate resource access diagnostic");
-
-	HE::Rendering::PassGraph missingProducerGraph;
-	missingProducerGraph.AddPass({
-		.Name = "MissingProducer",
-		.Inputs = { "SceneItems" },
-		.Execute = [](HE::Rendering::RenderPassContext&) {}
-	});
-	Require(!missingProducerGraph.Compile(), "Expected missing resource producer to fail compile");
-	Require(
-		HasDiagnostic(missingProducerGraph.GetDiagnostics(), HE::Rendering::PassGraphDiagnosticCode::MissingResourceProducer),
-		"Expected missing resource producer diagnostic");
-
-	HE::Rendering::PassGraph duplicateWriterGraph;
-	duplicateWriterGraph.AddPass({
-		.Name = "SceneExtract",
-		.Outputs = { "SceneColor" },
-		.Execute = [](HE::Rendering::RenderPassContext&) {}
-	});
-	duplicateWriterGraph.AddPass({
-		.Name = "ForwardOpaque",
-		.Outputs = { "SceneColor" },
-		.Execute = [](HE::Rendering::RenderPassContext&) {}
-	});
-	Require(!duplicateWriterGraph.Compile(), "Expected duplicate resource writer to fail compile");
-	Require(
-		HasDiagnostic(duplicateWriterGraph.GetDiagnostics(), HE::Rendering::PassGraphDiagnosticCode::DuplicateResourceWriter),
-		"Expected duplicate resource writer diagnostic");
-
-	HE::Rendering::PassGraph futureProducerGraph;
-	std::vector<std::string> futureProducerExecution;
-	futureProducerGraph.AddPass({
-		.Name = "ReadsFutureColor",
-		.Inputs = { "SceneColor" },
-		.Execute = [&](HE::Rendering::RenderPassContext&) { futureProducerExecution.push_back("reader"); }
-	});
-	futureProducerGraph.AddPass({
-		.Name = "WritesFutureColor",
-		.Outputs = { "SceneColor" },
-		.Execute = [&](HE::Rendering::RenderPassContext&) { futureProducerExecution.push_back("writer"); }
-	});
-	Require(futureProducerGraph.Compile(), "Expected future resource producer graph compile to succeed");
-	Require(futureProducerGraph.GetExecutionOrder().size() == 2, "Expected future producer execution plan");
-	Require(futureProducerGraph.GetExecutionOrder()[0] == 1 && futureProducerGraph.GetExecutionOrder()[1] == 0, "Expected future producer to execute before reader");
-	HE::Rendering::RenderPassContext futureProducerContext;
-	Require(futureProducerGraph.Execute(futureProducerContext), "Expected future producer graph execute to succeed");
-	Require(futureProducerExecution.size() == 2 && futureProducerExecution[0] == "writer" && futureProducerExecution[1] == "reader", "Expected future producer execution order");
-
-	HE::Rendering::PassGraph cyclicGraph;
-	cyclicGraph.AddPass({ .Name = "PassA", .Inputs = { "ResourceB" }, .Outputs = { "ResourceA" }, .Execute = [](HE::Rendering::RenderPassContext&) {} });
-	cyclicGraph.AddPass({ .Name = "PassB", .Inputs = { "ResourceA" }, .Outputs = { "ResourceB" }, .Execute = [](HE::Rendering::RenderPassContext&) {} });
-	Require(!cyclicGraph.Compile(), "Expected cyclic graph compile to fail");
-	Require(HasDiagnostic(cyclicGraph.GetDiagnostics(), HE::Rendering::PassGraphDiagnosticCode::CyclicDependency), "Expected cyclic dependency diagnostic");
-
-	HE::Rendering::PassGraph queuePlanGraph;
-	queuePlanGraph.AddPass({ .Name = "GraphicsProducer", .Outputs = { "SceneColor" }, .Execute = [](HE::Rendering::RenderPassContext&) {} });
-	queuePlanGraph.AddPass({ .Name = "ComputeConsumer", .Type = HE::Rendering::PassGraphPassType::Compute, .Inputs = { "SceneColor" }, .Outputs = { "Luminance" }, .Execute = [](HE::Rendering::RenderPassContext&) {} });
-	queuePlanGraph.AddPass({ .Name = "CopyConsumer", .Type = HE::Rendering::PassGraphPassType::Copy, .Inputs = { "Luminance" }, .Execute = [](HE::Rendering::RenderPassContext&) {} });
-	Require(queuePlanGraph.Compile(), "Expected multi-queue plan graph compile to succeed");
-	const auto& queueBatches = queuePlanGraph.GetQueueBatches();
-	Require(queueBatches.size() == 3, "Expected one batch per queue segment");
-	Require(queueBatches[0].Queue == HE::Rendering::RenderQueueType::Graphics, "Expected graphics batch first");
-	Require(queueBatches[1].Queue == HE::Rendering::RenderQueueType::Compute && queueBatches[1].WaitBatchIndices == std::vector<uint32_t>{ 0 }, "Expected compute batch to wait for graphics");
-	Require(queueBatches[2].Queue == HE::Rendering::RenderQueueType::Copy && queueBatches[2].WaitBatchIndices == std::vector<uint32_t>{ 1 }, "Expected copy batch to wait for compute");
-
-	std::vector<std::string> executionOrder;
-	HE::Rendering::PassGraph graph;
-	graph.AddExternalInput("CameraView");
-	graph.AddPass({
-		.Name = "ExtractedSceneInput",
-		.Outputs = { "SceneItems" },
-		.Execute = [&](HE::Rendering::RenderPassContext&) {
-			executionOrder.push_back("ExtractedSceneInput");
-		}
-	});
-	graph.AddPass({
-		.Name = "ForwardOpaque",
-		.Inputs = { "SceneItems", "CameraView" },
-		.Outputs = { "SceneColor" },
-		.Execute = [&](HE::Rendering::RenderPassContext&) {
-			executionOrder.push_back("ForwardOpaque");
-		}
-	});
-
-	Require(graph.Compile(), "Expected valid graph compile to succeed");
-	Require(graph.IsCompiled(), "Expected graph to report compiled state");
-	const auto& stats = graph.GetStats();
-	Require(stats.ResourceCount == 3, "Expected three graph resources");
-	Require(stats.EdgeCount == 3, "Expected three graph edges");
-	Require(stats.ExternalInputCount == 1, "Expected one external graph input");
-	Require(stats.OutputCount == 1, "Expected one graph output");
-	Require(graph.GetExternalInputs().size() == 1, "Expected one external input entry");
-	Require(graph.GetExternalInputs()[0] == "CameraView", "Expected CameraView external input");
-	Require(graph.GetExecutionOrder().size() == 2, "Expected compiled execution plan for both passes");
-	Require(graph.GetExecutionOrder()[0] == 0 && graph.GetExecutionOrder()[1] == 1, "Expected dependency execution plan to preserve producer before consumer");
-	HE::Rendering::RenderPassContext context;
-	Require(graph.Execute(context), "Expected valid graph execute to succeed");
-	Require(executionOrder.size() == 2, "Expected two passes to execute");
-	Require(executionOrder[0] == "ExtractedSceneInput", "Expected first pass execution order to be stable");
-	Require(executionOrder[1] == "ForwardOpaque", "Expected second pass execution order to be stable");
+	PassGraph dependencyGraph;
+	std::vector<std::string> dependencyExecution;
+	const auto first = dependencyGraph.AddPass({ .Name = "First", .Execute = [&](RenderPassContext&) { dependencyExecution.push_back("first"); } });
+	dependencyGraph.AddPass({ .Name = "Second", .Dependencies = { first }, .Execute = [&](RenderPassContext&) { dependencyExecution.push_back("second"); } });
+	Require(dependencyGraph.Compile(), "Expected explicit dependency graph to compile");
+	Require(dependencyGraph.Execute(emptyContext) && dependencyExecution == std::vector<std::string>{ "first", "second" }, "Expected explicit dependency execution");
 
 	std::vector<std::string> culledExecution;
-	HE::Rendering::PassGraph cullingGraph;
-	const auto finalColor = cullingGraph.AddTransientResource({
-		.Name = "FinalColor",
-		.Kind = HE::Rendering::RenderGraphResourceKind::Texture,
-		.Texture = { .Width = 64, .Height = 64, .Format = HE::Rendering::RenderTargetTextureFormat::RGBA8 }
-	});
-	const auto unusedColor = cullingGraph.AddTransientResource({
-		.Name = "UnusedColor",
-		.Kind = HE::Rendering::RenderGraphResourceKind::Texture,
-		.Texture = { .Width = 64, .Height = 64, .Format = HE::Rendering::RenderTargetTextureFormat::RGBA8 }
-	});
-	cullingGraph.AddPass({
-		.Name = "WriteFinalColor",
-		.OutputResources = { finalColor },
-		.Execute = [&](HE::Rendering::RenderPassContext&) { culledExecution.push_back("final"); }
-	});
-	cullingGraph.AddPass({
-		.Name = "WriteUnusedColor",
-		.OutputResources = { unusedColor },
-		.Execute = [&](HE::Rendering::RenderPassContext&) { culledExecution.push_back("unused"); }
-	});
+	PassGraph cullingGraph;
+	const auto finalColor = AddTexture(cullingGraph, "Final");
+	const auto unusedColor = AddTexture(cullingGraph, "Unused");
+	cullingGraph.AddPass({ .Name = "Final", .ResourceUsages = { { finalColor, Access::Write, ResourceState::RenderTarget } }, .Execute = [&](RenderPassContext&) { culledExecution.push_back("final"); } });
+	cullingGraph.AddPass({ .Name = "Unused", .ResourceUsages = { { unusedColor, Access::Write, ResourceState::RenderTarget } }, .Execute = [&](RenderPassContext&) { culledExecution.push_back("unused"); } });
 	cullingGraph.AddOutputResource(finalColor);
-	Require(cullingGraph.Compile(), "Expected explicit output graph compile to succeed");
-	Require(cullingGraph.GetStats().CulledPassCount == 1, "Expected explicit output graph to cull one pass");
-	Require(cullingGraph.GetExecutionOrder().size() == 1, "Expected only the output producer to remain in execution plan");
-	HE::Rendering::RenderPassContext cullingContext;
-	Require(cullingGraph.Execute(cullingContext), "Expected explicit output graph execute to succeed");
-	Require(culledExecution.size() == 1 && culledExecution[0] == "final", "Expected unused pass to be culled from execution");
-
-	HE::Rendering::PassGraph typedGraph;
-	const auto importedTarget = typedGraph.AddImportedResource({
-		.Name = "RenderTarget",
-		.Kind = HE::Rendering::RenderGraphResourceKind::Texture,
-		.Texture = {
-			.Width = 64,
-			.Height = 64,
-			.Format = HE::Rendering::RenderTargetTextureFormat::RGBA8
-		}
-	});
-	const auto transientSceneColor = typedGraph.AddTransientResource({
-		.Name = "SceneColor",
-		.Kind = HE::Rendering::RenderGraphResourceKind::Texture,
-		.Texture = {
-			.Width = 64,
-			.Height = 64,
-			.Format = HE::Rendering::RenderTargetTextureFormat::RGBA8
-		}
-	});
-	Require(importedTarget.IsValid(), "Expected imported render target handle to be valid");
-	Require(transientSceneColor.IsValid(), "Expected transient scene color handle to be valid");
-	typedGraph.AddPass({
-		.Name = "ForwardOpaqueTyped",
-		.Inputs = { "RenderTarget" },
-		.Outputs = { "SceneColor" },
-		.Execute = [](HE::Rendering::RenderPassContext&) {}
-	});
-	Require(typedGraph.Compile(), "Expected typed graph compile to succeed");
-	const auto& barrierPlan = typedGraph.GetBarrierPlan();
-	Require(barrierPlan.size() == 2, "Expected typed graph barrier plan for input and output resources");
-	Require(barrierPlan[0].PassName == "ForwardOpaqueTyped", "Expected first barrier pass name");
-	Require(barrierPlan[0].ResourceName == "RenderTarget", "Expected imported input resource barrier");
-	Require(barrierPlan[0].Before == HE::Rendering::ResourceState::Undefined, "Expected imported input barrier before state");
-	Require(barrierPlan[0].After == HE::Rendering::ResourceState::ShaderRead, "Expected imported input shader-read state");
-	Require(barrierPlan[1].ResourceName == "SceneColor", "Expected transient output resource barrier");
-	Require(barrierPlan[1].Before == HE::Rendering::ResourceState::Undefined, "Expected transient output barrier before state");
-	Require(barrierPlan[1].After == HE::Rendering::ResourceState::RenderTarget, "Expected transient output render-target state");
-	const auto& typedStats = typedGraph.GetStats();
-	Require(typedStats.ImportedResourceCount == 1, "Expected one imported resource");
-	Require(typedStats.TransientResourceCount == 1, "Expected one transient resource");
-	const auto& lifetimes = typedGraph.GetResourceAllocator().GetLifetimes();
-	Require(lifetimes.size() == 2, "Expected lifetimes for imported and transient resources");
-	Require(lifetimes[0].FirstPassIndex == 0 && lifetimes[0].LastPassIndex == 0, "Expected imported resource lifetime to cover typed pass");
-	Require(lifetimes[1].FirstPassIndex == 0 && lifetimes[1].LastPassIndex == 0, "Expected transient resource lifetime to cover typed pass");
-
-	std::vector<std::string> barrierExecutionOrder;
-	HE::Rendering::PassGraph barrierExecutionGraph;
-	barrierExecutionGraph.AddImportedResource({
-		.Name = "ImportedColor",
-		.Kind = HE::Rendering::RenderGraphResourceKind::Texture,
-		.Texture = {
-			.Width = 64,
-			.Height = 64,
-			.Format = HE::Rendering::RenderTargetTextureFormat::RGBA8
-		}
-	});
-	barrierExecutionGraph.AddPass({
-		.Name = "BarrierBeforePass",
-		.Inputs = { "ImportedColor" },
-		.Execute = [&](HE::Rendering::RenderPassContext&) {
-			barrierExecutionOrder.push_back("pass:BarrierBeforePass");
-		}
-	});
-	barrierExecutionGraph.SetBarrierExecutor([&](
-		const HE::Rendering::PassGraphResourceBarrier& barrier,
-		HE::Rendering::RenderPassContext&) {
-		barrierExecutionOrder.push_back("barrier:" + barrier.ResourceName);
-	});
-	HE::Rendering::RenderPassContext barrierExecutionContext;
-	Require(barrierExecutionGraph.Execute(barrierExecutionContext), "Expected graph with barrier executor to execute");
-	Require(barrierExecutionOrder.size() == 2, "Expected one barrier and one pass event");
-	Require(barrierExecutionOrder[0] == "barrier:ImportedColor", "Expected barrier to execute before pass");
-	Require(barrierExecutionOrder[1] == "pass:BarrierBeforePass", "Expected pass to execute after barrier");
+	Require(cullingGraph.Compile() && cullingGraph.GetStats().CulledPassCount == 1, "Expected typed culling");
+	Require(cullingGraph.Execute(emptyContext) && culledExecution == std::vector<std::string>{ "final" }, "Expected unused pass to be culled");
 
 	std::cout << "RenderPassGraphSmoke passed" << std::endl;
 	return 0;

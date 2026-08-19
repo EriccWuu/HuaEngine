@@ -360,7 +360,7 @@ int main() {
 	});
 	attachmentSamplingGraph.AddPass({
 		.Name = "SampleAttachment",
-		.Inputs = { "AttachmentColor" },
+		.ResourceUsages = { { .Resource = attachmentColorHandle, .AccessMode = HE::Rendering::PassGraphResourceUsage::Access::Read, .State = HE::Rendering::ResourceState::ShaderRead } },
 		.Execute = [&](HE::Rendering::RenderPassContext& context) {
 			const auto handle = context.GraphResources->FindByName("AttachmentColor");
 			const auto* runtimeResource = context.GraphResources->GetRuntimeResource(handle);
@@ -449,8 +449,8 @@ int main() {
 		.Kind = HE::Rendering::RenderGraphResourceKind::Buffer,
 		.Buffer = { .Size = 256, .Stride = 16, .Usage = HE::Rendering::GpuBufferUsage::Storage }
 	});
-	transientBufferPoolGraph.AddPass({ .Name = "WriteFirstTransientBuffer", .OutputResources = { firstTransientBuffer }, .Execute = [](HE::Rendering::RenderPassContext&) {} });
-	transientBufferPoolGraph.AddPass({ .Name = "WriteSecondTransientBuffer", .OutputResources = { secondTransientBuffer }, .Execute = [](HE::Rendering::RenderPassContext&) {} });
+	transientBufferPoolGraph.AddPass({ .Name = "WriteFirstTransientBuffer", .ResourceUsages = { { .Resource = firstTransientBuffer, .AccessMode = HE::Rendering::PassGraphResourceUsage::Access::Write, .State = HE::Rendering::ResourceState::CopyDst } }, .Execute = [](HE::Rendering::RenderPassContext&) {} });
+	transientBufferPoolGraph.AddPass({ .Name = "WriteSecondTransientBuffer", .ResourceUsages = { { .Resource = secondTransientBuffer, .AccessMode = HE::Rendering::PassGraphResourceUsage::Access::Write, .State = HE::Rendering::ResourceState::CopyDst } }, .Execute = [](HE::Rendering::RenderPassContext&) {} });
 	Require(transientBufferPoolGraph.Compile(), "Expected transient buffer pool graph compile to succeed");
 	HE::Rendering::RenderPassContext transientBufferContext;
 	transientBufferContext.Device = &device;
@@ -496,8 +496,10 @@ int main() {
 	});
 	runtimeResourceGraph.AddPass({
 		.Name = "RuntimeResourcePass",
-		.Inputs = { "ImportedTexture" },
-		.Outputs = { "TransientTexture" },
+		.ResourceUsages = {
+			{ .Resource = importedGraphTexture, .AccessMode = HE::Rendering::PassGraphResourceUsage::Access::Read, .State = HE::Rendering::ResourceState::ShaderRead },
+			{ .Resource = transientGraphTexture, .AccessMode = HE::Rendering::PassGraphResourceUsage::Access::Write, .State = HE::Rendering::ResourceState::RenderTarget }
+		},
 		.Execute = [](HE::Rendering::RenderPassContext&) {}
 	});
 	Require(runtimeResourceGraph.Compile(), "Expected runtime resource graph compile to succeed");
@@ -513,7 +515,7 @@ int main() {
 	Require(transientRuntimeResource->Texture->GetDesc().Format == HE::Rendering::RenderTargetTextureFormat::RGBA8, "Expected transient graph texture format");
 
 	HE::Rendering::PassGraph stateTrackedGraph;
-	stateTrackedGraph.AddImportedResource({
+	const auto trackedImportedTexture = stateTrackedGraph.AddImportedResource({
 		.Name = "TrackedImportedTexture",
 		.Kind = HE::Rendering::RenderGraphResourceKind::Texture,
 		.Texture = {
@@ -525,7 +527,7 @@ int main() {
 	});
 	stateTrackedGraph.AddPass({
 		.Name = "ReadTrackedImportedTexture",
-		.Inputs = { "TrackedImportedTexture" },
+		.ResourceUsages = { { .Resource = trackedImportedTexture, .AccessMode = HE::Rendering::PassGraphResourceUsage::Access::Read, .State = HE::Rendering::ResourceState::ShaderRead } },
 		.Execute = [](HE::Rendering::RenderPassContext&) {}
 	});
 	Require(stateTrackedGraph.Compile(), "Expected state tracked graph compile to succeed");

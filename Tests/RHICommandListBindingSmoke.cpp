@@ -464,7 +464,7 @@ int main() {
 	bool readerBoundRuntimeAttachment = false;
 	attachmentSamplingGraph.AddPass({
 		.Name = "WriteSourceAttachment",
-		.OutputResources = { sourceAttachmentHandle },
+		.ResourceUsages = { { .Resource = sourceAttachmentHandle, .AccessMode = HE::Rendering::PassGraphResourceUsage::Access::Write, .State = HE::Rendering::ResourceState::RenderTarget } },
 		.Execute = [&](HE::Rendering::RenderPassContext& context) {
 			context.Commands->BeginRenderPass({
 				.ColorAttachments = {
@@ -481,7 +481,7 @@ int main() {
 	});
 	attachmentSamplingGraph.AddPass({
 		.Name = "SampleSourceAttachment",
-		.InputResources = { sourceAttachmentHandle },
+		.ResourceUsages = { { .Resource = sourceAttachmentHandle, .AccessMode = HE::Rendering::PassGraphResourceUsage::Access::Read, .State = HE::Rendering::ResourceState::ShaderRead } },
 		.Execute = [&](HE::Rendering::RenderPassContext& context) {
 			const auto* runtimeResource = context.GraphResources->GetRuntimeResource(sourceAttachmentHandle);
 			if (!runtimeResource || !runtimeResource->Texture) {

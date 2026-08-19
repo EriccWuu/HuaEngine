@@ -663,7 +663,6 @@ namespace HE {
 		result.SetPayloadValue("diagnostics", std::to_string(renderResult.Diagnostics.size()));
 		result.SetPayloadValue("graph_resources", std::to_string(renderResult.GraphStats.ResourceCount));
 		result.SetPayloadValue("graph_edges", std::to_string(renderResult.GraphStats.EdgeCount));
-		result.SetPayloadValue("graph_external_inputs", std::to_string(renderResult.GraphStats.ExternalInputCount));
 		result.SetPayloadValue("graph_outputs", std::to_string(renderResult.GraphStats.OutputCount));
 		result.SetPayloadValue("graph_diagnostics", std::to_string(renderResult.GraphDiagnostics.size()));
 		return result;

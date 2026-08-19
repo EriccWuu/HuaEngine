@@ -85,7 +85,6 @@ namespace HE::Rendering {
 	struct RenderGraphStats {
 		uint32_t ResourceCount = 0;
 		uint32_t EdgeCount = 0;
-		uint32_t ExternalInputCount = 0;
 		uint32_t OutputCount = 0;
 	};
 

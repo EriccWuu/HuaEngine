@@ -315,20 +315,8 @@ namespace HE::Rendering {
 				.ClearDepth = 1.0f
 			});
 		}
-		m_Graph.AddExternalInput("CameraView");
-		m_Graph.AddExternalInput("SceneItems");
-		m_Graph.AddPass({
-			.Name = "BeginRenderer",
-			.HasSideEffects = true,
-			.Inputs = { "CameraView" },
-			.Outputs = { "RendererFrame" },
-			.Execute = [this](RenderPassContext& context) {
-				m_BeginRendererPass.Execute(context);
-			}
-		});
 		m_Graph.AddPass({
 			.Name = "ForwardOpaque",
-			.Inputs = { "CameraView", "SceneItems", "RendererFrame" },
 			.RenderPassAttachments = std::move(forwardOpaqueAttachments),
 			.Execute = [this](RenderPassContext& context) {
 				m_OpaquePass.Execute(context);
@@ -351,14 +339,6 @@ namespace HE::Rendering {
 				m_PostProcessPass.Execute(context, sceneColorHandle);
 			}
 		});
-		m_Graph.AddPass({
-			.Name = "EndRenderer",
-			.HasSideEffects = true,
-			.Inputs = { "RendererFrame" },
-			.Execute = [this](RenderPassContext& context) {
-				m_EndRendererPass.Execute(context);
-			}
-		});
 	}
 
 	bool ForwardRenderPipeline::EnsureGraphCompiled(const RenderView& view, RenderResult& result) {
@@ -377,7 +357,6 @@ namespace HE::Rendering {
 		const auto& graphStats = m_Graph.GetStats();
 		result.GraphStats.ResourceCount = graphStats.ResourceCount;
 		result.GraphStats.EdgeCount = graphStats.EdgeCount;
-		result.GraphStats.ExternalInputCount = graphStats.ExternalInputCount;
 		result.GraphStats.OutputCount = graphStats.OutputCount;
 
 		result.GraphDiagnostics.clear();
@@ -433,7 +412,9 @@ namespace HE::Rendering {
 		passContext.Stats = &result.Stats;
 		passContext.Diagnostics = &result.Diagnostics;
 
+		m_BeginRendererPass.Execute(passContext);
 		const bool graphExecuted = m_Graph.Execute(passContext);
+		m_EndRendererPass.Execute(passContext);
 		const bool commandBufferEnded = commandBuffer->End();
 		if (!graphExecuted || !commandList.Succeeded() || !commandBufferEnded) {
 			CopyGraphStateToResult(result);

@@ -2,6 +2,7 @@
 
 #include <cstdint>
 #include <functional>
+#include <limits>
 #include <string>
 #include <vector>
 
@@ -36,7 +37,20 @@ namespace HE::Rendering {
 
 	struct PassGraphResourceUsage {
 		RenderGraphResourceHandle Resource;
+		enum class Access : uint8_t {
+			Read = 0,
+			Write
+		};
+		Access AccessMode = Access::Read;
 		ResourceState State = ResourceState::Undefined;
+	};
+
+	struct PassGraphPassHandle {
+		uint32_t Index = std::numeric_limits<uint32_t>::max();
+
+		[[nodiscard]] bool IsValid() const {
+			return Index != std::numeric_limits<uint32_t>::max();
+		}
 	};
 
 	enum class PassGraphPassType : uint8_t {
@@ -64,10 +78,7 @@ namespace HE::Rendering {
 		std::string Name;
 		PassGraphPassType Type = PassGraphPassType::Graphics;
 		bool HasSideEffects = false;
-		std::vector<std::string> Inputs;
-		std::vector<std::string> Outputs;
-		std::vector<RenderGraphResourceHandle> InputResources;
-		std::vector<RenderGraphResourceHandle> OutputResources;
+		std::vector<PassGraphPassHandle> Dependencies;
 		std::vector<PassGraphResourceUsage> ResourceUsages;
 		std::vector<PassGraphRenderPassAttachment> RenderPassAttachments;
 		std::function<void(RenderPassContext&)> Execute;
@@ -76,7 +87,6 @@ namespace HE::Rendering {
 	struct PassGraphStats {
 		std::uint32_t ResourceCount = 0;
 		std::uint32_t EdgeCount = 0;
-		std::uint32_t ExternalInputCount = 0;
 		std::uint32_t OutputCount = 0;
 		std::uint32_t ImportedResourceCount = 0;
 		std::uint32_t TransientResourceCount = 0;
@@ -101,8 +111,7 @@ namespace HE::Rendering {
 
 	class PassGraph {
 	public:
-		void AddPass(PassGraphPassDesc pass);
-		void AddExternalInput(std::string resourceName);
+		[[nodiscard]] PassGraphPassHandle AddPass(PassGraphPassDesc pass);
 		void AddOutputResource(RenderGraphResourceHandle resource);
 		void SetBarrierExecutor(PassGraphBarrierExecutor executor);
 		RenderGraphResourceHandle AddImportedResource(RenderGraphResourceDesc desc);
@@ -116,7 +125,6 @@ namespace HE::Rendering {
 		[[nodiscard]] const std::vector<PassGraphDiagnostic>& GetDiagnostics() const { return m_Diagnostics; }
 		[[nodiscard]] bool IsCompiled() const { return m_Compiled; }
 		[[nodiscard]] const PassGraphStats& GetStats() const { return m_Stats; }
-		[[nodiscard]] const std::vector<std::string>& GetExternalInputs() const { return m_ExternalInputs; }
 		[[nodiscard]] const RenderGraphResourceAllocator& GetResourceAllocator() const { return m_ResourceAllocator; }
 		[[nodiscard]] const std::vector<PassGraphResourceBarrier>& GetBarrierPlan() const { return m_BarrierPlan; }
 		[[nodiscard]] const std::vector<uint32_t>& GetExecutionOrder() const { return m_ExecutionOrder; }
@@ -124,7 +132,6 @@ namespace HE::Rendering {
 
 	private:
 		std::vector<PassGraphPassDesc> m_Passes;
-		std::vector<std::string> m_ExternalInputs;
 		std::vector<RenderGraphResourceHandle> m_OutputResources;
 		RenderGraphResourceAllocator m_ResourceAllocator;
 		std::vector<PassGraphDiagnostic> m_Diagnostics;
