@@ -138,7 +138,8 @@ namespace {
 			&& content.find("void PostProcessPass::Execute") != std::string::npos
 			&& content.find("BoundRenderTarget") == std::string::npos
 			&& content.find("ClearedSceneColor") == std::string::npos
-			&& content.find(".RenderPassAttachments = std::move(forwardOpaqueAttachments)") != std::string::npos
+			&& content.find("graph.AddGraphicsPass(\"ForwardOpaque\"") != std::string::npos
+			&& content.find("pass.WriteColor(sceneColorHandle") != std::string::npos
 			&& content.find("BindTarget") == std::string::npos
 			&& content.find("ClearTarget") == std::string::npos
 			&& content.find("UnbindTarget") == std::string::npos

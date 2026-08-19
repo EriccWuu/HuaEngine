@@ -1,6 +1,7 @@
 #include "enginepch.h"
 #include "ForwardRenderPipeline.h"
 
+#include "HuaEngine/Rendering/RenderPipeline/RenderGraphBuilder.h"
 #include "HuaEngine/Rendering/RenderPipeline/RenderBindGroupBuilder.h"
 #include "HuaEngine/Rendering/RenderPipeline/RenderResourceResolver.h"
 #include "HuaEngine/Rendering/RHI/CommandBufferRecorder.h"
@@ -251,93 +252,43 @@ namespace HE::Rendering {
 	}
 
 	void ForwardRenderPipeline::BuildGraph(const RenderView& view) {
-		m_Graph.Reset();
+		RenderGraphBuilder graph(m_Graph);
+		const auto clearColor = view.ClearColor;
+		const auto clearColorBuffer = view.ClearColorBuffer;
 		const auto viewportColor = view.Target->GetColorAttachmentTexture();
-		const auto viewportColorHandle = m_Graph.AddImportedResource({
-			.Name = "ViewportColorAttachment",
-			.Kind = RenderGraphResourceKind::Texture,
-			.Texture = {
-				.Width = viewportColor->GetWidth(),
-				.Height = viewportColor->GetHeight(),
-				.Format = viewportColor->GetDesc().Format
-			},
-			.RuntimeTexture = viewportColor
-		});
+		const auto viewportColorHandle = graph.ImportTexture("ViewportColorAttachment", viewportColor);
 		const auto viewportDepth = view.Target->GetDepthStencilAttachmentTexture();
 		const auto viewportDepthHandle = viewportDepth
-			? m_Graph.AddImportedResource({
-				.Name = "ViewportDepthAttachment",
-				.Kind = RenderGraphResourceKind::Texture,
-				.Texture = {
-					.Width = viewportDepth->GetWidth(),
-					.Height = viewportDepth->GetHeight(),
-					.Format = viewportDepth->GetDesc().Format
-				},
-				.RuntimeTexture = viewportDepth
-			})
+			? graph.ImportTexture("ViewportDepthAttachment", viewportDepth)
 			: RenderGraphResourceHandle{};
-		m_Graph.AddOutputResource(viewportColorHandle);
-		const auto sceneColorHandle = m_Graph.AddTransientResource({
-			.Name = "SceneColor",
-			.Kind = RenderGraphResourceKind::Texture,
-			.Texture = {
+		graph.Export(viewportColorHandle);
+		const auto sceneColorHandle = graph.CreateTexture("SceneColor", {
 				.Width = viewportColor->GetWidth(),
 				.Height = viewportColor->GetHeight(),
 				.Format = viewportColor->GetDesc().Format,
 				.AttachmentGroup = "ForwardScene"
-			}
 		});
-		const auto sceneDepthHandle = m_Graph.AddTransientResource({
-			.Name = "SceneDepthAttachment",
-			.Kind = RenderGraphResourceKind::Texture,
-			.Texture = {
+		const auto sceneDepthHandle = graph.CreateTexture("SceneDepthAttachment", {
 				.Width = viewportColor->GetWidth(),
 				.Height = viewportColor->GetHeight(),
 				.Format = RenderTargetTextureFormat::DEPTH24_STENCIL8,
 				.AttachmentGroup = "ForwardScene"
-			}
 		});
-		std::vector<PassGraphRenderPassAttachment> forwardOpaqueAttachments = {
-			{
-				.Resource = sceneColorHandle,
-				.Kind = PassGraphRenderPassAttachmentKind::Color,
-				.Load = view.ClearColorBuffer ? LoadOp::Clear : LoadOp::Load,
-				.Store = StoreOp::Store,
-				.ClearColor = view.ClearColor
+		graph.AddGraphicsPass("ForwardOpaque", [this, sceneColorHandle, sceneDepthHandle, viewportDepthHandle, clearColor, clearColorBuffer](RenderGraphPassBuilder& pass) {
+			pass.WriteColor(sceneColorHandle, clearColorBuffer ? LoadOp::Clear : LoadOp::Load, StoreOp::Store, clearColor);
+			if (viewportDepthHandle.IsValid()) {
+				pass.WriteDepth(sceneDepthHandle, clearColorBuffer ? LoadOp::Clear : LoadOp::Load);
 			}
-		};
-		if (viewportDepthHandle.IsValid()) {
-			forwardOpaqueAttachments.push_back({
-				.Resource = sceneDepthHandle,
-				.Kind = PassGraphRenderPassAttachmentKind::DepthStencil,
-				.Load = view.ClearColorBuffer ? LoadOp::Clear : LoadOp::Load,
-				.Store = StoreOp::Store,
-				.ClearDepth = 1.0f
-			});
-		}
-		m_Graph.AddPass({
-			.Name = "ForwardOpaque",
-			.RenderPassAttachments = std::move(forwardOpaqueAttachments),
-			.Execute = [this](RenderPassContext& context) {
+			pass.SetExecute([this](RenderPassContext& context) {
 				m_OpaquePass.Execute(context);
-			}
+			});
 		});
-		m_Graph.AddPass({
-			.Name = "PostProcess",
-			.Type = PassGraphPassType::Graphics,
-			.ResourceUsages = { { .Resource = sceneColorHandle, .State = ResourceState::ShaderRead } },
-			.RenderPassAttachments = {
-				{
-					.Resource = viewportColorHandle,
-					.Kind = PassGraphRenderPassAttachmentKind::Color,
-					.Load = LoadOp::Clear,
-					.Store = StoreOp::Store,
-					.ClearColor = view.ClearColor
-				}
-			},
-			.Execute = [this, sceneColorHandle](RenderPassContext& context) {
+		graph.AddGraphicsPass("PostProcess", [this, sceneColorHandle, viewportColorHandle, clearColor](RenderGraphPassBuilder& pass) {
+			pass.Read(sceneColorHandle, ResourceState::ShaderRead);
+			pass.WriteColor(viewportColorHandle, LoadOp::Clear, StoreOp::Store, clearColor);
+			pass.SetExecute([this, sceneColorHandle](RenderPassContext& context) {
 				m_PostProcessPass.Execute(context, sceneColorHandle);
-			}
+			});
 		});
 	}
 
