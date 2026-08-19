@@ -2,7 +2,7 @@
 
 ## 状态
 
-执行中。
+已完成。
 
 ## 目标
 
@@ -42,3 +42,10 @@
 - 三个 RenderGraph 相关 smoke 只使用 Builder 业务接口构建图。
 - `RenderPassGraphSmoke`、`RHIResourceCreationSmoke`、`RHICommandListBindingSmoke` 与 `RenderingOperationsSmoke` 通过。
 - `PassGraph` 保持 typed resource compile 语义和既有结果不变。
+
+## 实施结果
+
+- 已新增 `RenderGraphBuilder` 与 `RenderGraphPassBuilder`，业务侧可以用资源和 Pass 语义直接构建图。
+- `ForwardRenderPipeline` 与三个 RenderGraph/RHI smoke 均已迁移至 Builder。
+- `PassGraph` 的资源登记、Pass 登记、输出登记和 `Reset` 已设为 Builder 私有协作接口；业务代码不再能直接构造低层图节点。
+- 已验证 `RenderPassGraphSmoke`、`RHIResourceCreationSmoke`、`RHICommandListBindingSmoke`、`RenderingOperationsSmoke`。

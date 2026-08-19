@@ -109,19 +109,15 @@ namespace HE::Rendering {
 
 	using PassGraphBarrierExecutor = std::function<void(const PassGraphResourceBarrier&, RenderPassContext&)>;
 
+	class RenderGraphBuilder;
+
 	class PassGraph {
 	public:
-		PassGraphPassHandle AddPass(PassGraphPassDesc pass);
-		void AddOutputResource(RenderGraphResourceHandle resource);
 		void SetBarrierExecutor(PassGraphBarrierExecutor executor);
-		RenderGraphResourceHandle AddImportedResource(RenderGraphResourceDesc desc);
-		RenderGraphResourceHandle AddTransientResource(RenderGraphResourceDesc desc);
 		[[nodiscard]] bool Compile();
 		[[nodiscard]] bool Execute(RenderPassContext& context);
 		void ReleaseTransientResources(uint64_t fenceValue);
-		void Reset();
 
-		[[nodiscard]] const std::vector<PassGraphPassDesc>& GetPasses() const { return m_Passes; }
 		[[nodiscard]] const std::vector<PassGraphDiagnostic>& GetDiagnostics() const { return m_Diagnostics; }
 		[[nodiscard]] bool IsCompiled() const { return m_Compiled; }
 		[[nodiscard]] const PassGraphStats& GetStats() const { return m_Stats; }
@@ -131,6 +127,14 @@ namespace HE::Rendering {
 		[[nodiscard]] const std::vector<PassGraphQueueBatch>& GetQueueBatches() const { return m_QueueBatches; }
 
 	private:
+		friend class RenderGraphBuilder;
+
+		PassGraphPassHandle AddPass(PassGraphPassDesc pass);
+		void AddOutputResource(RenderGraphResourceHandle resource);
+		RenderGraphResourceHandle AddImportedResource(RenderGraphResourceDesc desc);
+		RenderGraphResourceHandle AddTransientResource(RenderGraphResourceDesc desc);
+		void Reset();
+
 		std::vector<PassGraphPassDesc> m_Passes;
 		std::vector<RenderGraphResourceHandle> m_DeclaredOutputs;
 		RenderGraphResourceAllocator m_ResourceAllocator;

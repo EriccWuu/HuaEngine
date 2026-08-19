@@ -5,7 +5,7 @@
 
 #include "HuaEngine.h"
 #include "HuaEngine/Core/ResourcePaths.h"
-#include "HuaEngine/Rendering/RenderPipeline/PassGraph.h"
+#include "HuaEngine/Rendering/RenderPipeline/RenderGraphBuilder.h"
 #include "HuaEngine/Rendering/RHI/CommandList.h"
 #include "HuaEngine/Rendering/RHI/ResourceBarrier.h"
 #include "HuaEngine/Rendering/RHI/ResourceStateTracker.h"
@@ -324,31 +324,14 @@ int main() {
 	Require(!device.CreateTextureView({}), "Expected empty texture view creation to fail");
 
 	HE::Rendering::PassGraph attachmentSamplingGraph;
-	const auto attachmentColorHandle = attachmentSamplingGraph.AddImportedResource({
-		.Name = "AttachmentColor",
-		.Kind = HE::Rendering::RenderGraphResourceKind::Texture,
-		.Texture = {
-			.Width = colorAttachmentTexture->GetWidth(),
-			.Height = colorAttachmentTexture->GetHeight(),
-			.Format = colorAttachmentTexture->GetDesc().Format
-		},
-		.RuntimeTexture = colorAttachmentTexture
-	});
+	HE::Rendering::RenderGraphBuilder attachmentSamplingBuilder(attachmentSamplingGraph);
+	const auto attachmentColorHandle = attachmentSamplingBuilder.ImportTexture("AttachmentColor", colorAttachmentTexture);
 	bool writerPassUsedAttachmentView = false;
 	bool readerPassUsedAttachmentTexture = false;
 	HE::Ref<HE::Rendering::TextureView> sampledAttachmentView;
-	attachmentSamplingGraph.AddPass({
-		.Name = "WriteAttachment",
-		.RenderPassAttachments = {
-			{
-				.Resource = attachmentColorHandle,
-				.Kind = HE::Rendering::PassGraphRenderPassAttachmentKind::Color,
-				.Load = HE::Rendering::LoadOp::Clear,
-				.Store = HE::Rendering::StoreOp::Store,
-				.ClearColor = { 0.2f, 0.3f, 0.4f, 1.0f }
-			}
-		},
-		.Execute = [&](HE::Rendering::RenderPassContext& context) {
+	attachmentSamplingBuilder.AddGraphicsPass("WriteAttachment", [&](HE::Rendering::RenderGraphPassBuilder& pass) {
+		pass.WriteColor(attachmentColorHandle, HE::Rendering::LoadOp::Clear, HE::Rendering::StoreOp::Store, { 0.2f, 0.3f, 0.4f, 1.0f });
+		pass.SetExecute([&](HE::Rendering::RenderPassContext& context) {
 			const auto* runtimeResource = context.GraphResources->GetRuntimeResource(attachmentColorHandle);
 			writerPassUsedAttachmentView = runtimeResource
 				&& runtimeResource->Texture == colorAttachmentTexture
@@ -356,19 +339,18 @@ int main() {
 				&& context.GraphRenderPass->ColorAttachments.size() == 1
 				&& context.GraphRenderPass->ColorAttachments[0].View
 				&& context.GraphRenderPass->ColorAttachments[0].View->GetDesc().Texture == colorAttachmentTexture;
-		}
+		});
 	});
-	attachmentSamplingGraph.AddPass({
-		.Name = "SampleAttachment",
-		.ResourceUsages = { { .Resource = attachmentColorHandle, .AccessMode = HE::Rendering::PassGraphResourceUsage::Access::Read, .State = HE::Rendering::ResourceState::ShaderRead } },
-		.Execute = [&](HE::Rendering::RenderPassContext& context) {
+	attachmentSamplingBuilder.AddGraphicsPass("SampleAttachment", [&](HE::Rendering::RenderGraphPassBuilder& pass) {
+		pass.Read(attachmentColorHandle, HE::Rendering::ResourceState::ShaderRead);
+		pass.SetExecute([&](HE::Rendering::RenderPassContext& context) {
 			const auto handle = context.GraphResources->FindByName("AttachmentColor");
 			const auto* runtimeResource = context.GraphResources->GetRuntimeResource(handle);
 			if (runtimeResource && runtimeResource->Texture == colorAttachmentTexture) {
 				sampledAttachmentView = context.Device->CreateTextureView({ .Texture = runtimeResource->Texture });
 				readerPassUsedAttachmentTexture = static_cast<bool>(sampledAttachmentView);
 			}
-		}
+		});
 	});
 	Require(attachmentSamplingGraph.Compile(), "Expected attachment sampling graph compile to succeed");
 	std::vector<HE::Rendering::PassGraphResourceBarrier> attachmentBarrierSequence;
@@ -397,25 +379,16 @@ int main() {
 	Require(attachmentResourceStates.GetState(colorAttachmentTexture) == HE::Rendering::ResourceState::ShaderRead, "Expected attachment texture final shader-read state");
 
 	HE::Rendering::PassGraph transientPoolGraph;
-	const auto firstTransientHandle = transientPoolGraph.AddTransientResource({
-		.Name = "FirstTransient",
-		.Kind = HE::Rendering::RenderGraphResourceKind::Texture,
-		.Texture = { .Width = 16, .Height = 16, .Format = HE::Rendering::RenderTargetTextureFormat::RGBA8 }
+	HE::Rendering::RenderGraphBuilder transientPoolBuilder(transientPoolGraph);
+	const auto firstTransientHandle = transientPoolBuilder.CreateTexture("FirstTransient", { .Width = 16, .Height = 16, .Format = HE::Rendering::RenderTargetTextureFormat::RGBA8 });
+	const auto secondTransientHandle = transientPoolBuilder.CreateTexture("SecondTransient", { .Width = 16, .Height = 16, .Format = HE::Rendering::RenderTargetTextureFormat::RGBA8 });
+	transientPoolBuilder.AddGraphicsPass("WriteFirstTransient", [firstTransientHandle](HE::Rendering::RenderGraphPassBuilder& pass) {
+		pass.WriteColor(firstTransientHandle);
+		pass.SetExecute([](HE::Rendering::RenderPassContext&) {});
 	});
-	const auto secondTransientHandle = transientPoolGraph.AddTransientResource({
-		.Name = "SecondTransient",
-		.Kind = HE::Rendering::RenderGraphResourceKind::Texture,
-		.Texture = { .Width = 16, .Height = 16, .Format = HE::Rendering::RenderTargetTextureFormat::RGBA8 }
-	});
-	transientPoolGraph.AddPass({
-		.Name = "WriteFirstTransient",
-		.RenderPassAttachments = { { .Resource = firstTransientHandle, .Kind = HE::Rendering::PassGraphRenderPassAttachmentKind::Color } },
-		.Execute = [](HE::Rendering::RenderPassContext&) {}
-	});
-	transientPoolGraph.AddPass({
-		.Name = "WriteSecondTransient",
-		.RenderPassAttachments = { { .Resource = secondTransientHandle, .Kind = HE::Rendering::PassGraphRenderPassAttachmentKind::Color } },
-		.Execute = [](HE::Rendering::RenderPassContext&) {}
+	transientPoolBuilder.AddGraphicsPass("WriteSecondTransient", [secondTransientHandle](HE::Rendering::RenderGraphPassBuilder& pass) {
+		pass.WriteColor(secondTransientHandle);
+		pass.SetExecute([](HE::Rendering::RenderPassContext&) {});
 	});
 	Require(transientPoolGraph.Compile(), "Expected transient pool graph compile to succeed");
 	HE::Rendering::RenderPassContext transientPoolContext;
@@ -439,18 +412,17 @@ int main() {
 	transientPoolGraph.ReleaseTransientResources(30);
 
 	HE::Rendering::PassGraph transientBufferPoolGraph;
-	const auto firstTransientBuffer = transientBufferPoolGraph.AddTransientResource({
-		.Name = "FirstTransientBuffer",
-		.Kind = HE::Rendering::RenderGraphResourceKind::Buffer,
-		.Buffer = { .Size = 256, .Stride = 16, .Usage = HE::Rendering::GpuBufferUsage::Storage }
+	HE::Rendering::RenderGraphBuilder transientBufferPoolBuilder(transientBufferPoolGraph);
+	const auto firstTransientBuffer = transientBufferPoolBuilder.CreateBuffer("FirstTransientBuffer", { .Size = 256, .Stride = 16, .Usage = HE::Rendering::GpuBufferUsage::Storage });
+	const auto secondTransientBuffer = transientBufferPoolBuilder.CreateBuffer("SecondTransientBuffer", { .Size = 256, .Stride = 16, .Usage = HE::Rendering::GpuBufferUsage::Storage });
+	transientBufferPoolBuilder.AddCopyPass("WriteFirstTransientBuffer", [firstTransientBuffer](HE::Rendering::RenderGraphPassBuilder& pass) {
+		pass.Write(firstTransientBuffer, HE::Rendering::ResourceState::CopyDst);
+		pass.SetExecute([](HE::Rendering::RenderPassContext&) {});
 	});
-	const auto secondTransientBuffer = transientBufferPoolGraph.AddTransientResource({
-		.Name = "SecondTransientBuffer",
-		.Kind = HE::Rendering::RenderGraphResourceKind::Buffer,
-		.Buffer = { .Size = 256, .Stride = 16, .Usage = HE::Rendering::GpuBufferUsage::Storage }
+	transientBufferPoolBuilder.AddCopyPass("WriteSecondTransientBuffer", [secondTransientBuffer](HE::Rendering::RenderGraphPassBuilder& pass) {
+		pass.Write(secondTransientBuffer, HE::Rendering::ResourceState::CopyDst);
+		pass.SetExecute([](HE::Rendering::RenderPassContext&) {});
 	});
-	transientBufferPoolGraph.AddPass({ .Name = "WriteFirstTransientBuffer", .ResourceUsages = { { .Resource = firstTransientBuffer, .AccessMode = HE::Rendering::PassGraphResourceUsage::Access::Write, .State = HE::Rendering::ResourceState::CopyDst } }, .Execute = [](HE::Rendering::RenderPassContext&) {} });
-	transientBufferPoolGraph.AddPass({ .Name = "WriteSecondTransientBuffer", .ResourceUsages = { { .Resource = secondTransientBuffer, .AccessMode = HE::Rendering::PassGraphResourceUsage::Access::Write, .State = HE::Rendering::ResourceState::CopyDst } }, .Execute = [](HE::Rendering::RenderPassContext&) {} });
 	Require(transientBufferPoolGraph.Compile(), "Expected transient buffer pool graph compile to succeed");
 	HE::Rendering::RenderPassContext transientBufferContext;
 	transientBufferContext.Device = &device;
@@ -475,32 +447,17 @@ int main() {
 	});
 
 	HE::Rendering::PassGraph runtimeResourceGraph;
-	const auto importedGraphTexture = runtimeResourceGraph.AddImportedResource({
-		.Name = "ImportedTexture",
-		.Kind = HE::Rendering::RenderGraphResourceKind::Texture,
-		.Texture = {
-			.Width = emptyTexture->GetDesc().Width,
-			.Height = emptyTexture->GetDesc().Height,
-			.Format = emptyTexture->GetDesc().Format
-		},
-		.RuntimeTexture = emptyTexture
-	});
-	const auto transientGraphTexture = runtimeResourceGraph.AddTransientResource({
-		.Name = "TransientTexture",
-		.Kind = HE::Rendering::RenderGraphResourceKind::Texture,
-		.Texture = {
+	HE::Rendering::RenderGraphBuilder runtimeResourceBuilder(runtimeResourceGraph);
+	const auto importedGraphTexture = runtimeResourceBuilder.ImportTexture("ImportedTexture", emptyTexture);
+	const auto transientGraphTexture = runtimeResourceBuilder.CreateTexture("TransientTexture", {
 			.Width = 16,
 			.Height = 8,
 			.Format = HE::Rendering::RenderTargetTextureFormat::RGBA8
-		}
 	});
-	runtimeResourceGraph.AddPass({
-		.Name = "RuntimeResourcePass",
-		.ResourceUsages = {
-			{ .Resource = importedGraphTexture, .AccessMode = HE::Rendering::PassGraphResourceUsage::Access::Read, .State = HE::Rendering::ResourceState::ShaderRead },
-			{ .Resource = transientGraphTexture, .AccessMode = HE::Rendering::PassGraphResourceUsage::Access::Write, .State = HE::Rendering::ResourceState::RenderTarget }
-		},
-		.Execute = [](HE::Rendering::RenderPassContext&) {}
+	runtimeResourceBuilder.AddGraphicsPass("RuntimeResourcePass", [importedGraphTexture, transientGraphTexture](HE::Rendering::RenderGraphPassBuilder& pass) {
+		pass.Read(importedGraphTexture, HE::Rendering::ResourceState::ShaderRead);
+		pass.Write(transientGraphTexture, HE::Rendering::ResourceState::RenderTarget);
+		pass.SetExecute([](HE::Rendering::RenderPassContext&) {});
 	});
 	Require(runtimeResourceGraph.Compile(), "Expected runtime resource graph compile to succeed");
 	HE::Rendering::RenderPassContext runtimeResourceContext;
@@ -515,20 +472,11 @@ int main() {
 	Require(transientRuntimeResource->Texture->GetDesc().Format == HE::Rendering::RenderTargetTextureFormat::RGBA8, "Expected transient graph texture format");
 
 	HE::Rendering::PassGraph stateTrackedGraph;
-	const auto trackedImportedTexture = stateTrackedGraph.AddImportedResource({
-		.Name = "TrackedImportedTexture",
-		.Kind = HE::Rendering::RenderGraphResourceKind::Texture,
-		.Texture = {
-			.Width = emptyTexture->GetDesc().Width,
-			.Height = emptyTexture->GetDesc().Height,
-			.Format = emptyTexture->GetDesc().Format
-		},
-		.RuntimeTexture = emptyTexture
-	});
-	stateTrackedGraph.AddPass({
-		.Name = "ReadTrackedImportedTexture",
-		.ResourceUsages = { { .Resource = trackedImportedTexture, .AccessMode = HE::Rendering::PassGraphResourceUsage::Access::Read, .State = HE::Rendering::ResourceState::ShaderRead } },
-		.Execute = [](HE::Rendering::RenderPassContext&) {}
+	HE::Rendering::RenderGraphBuilder stateTrackedBuilder(stateTrackedGraph);
+	const auto trackedImportedTexture = stateTrackedBuilder.ImportTexture("TrackedImportedTexture", emptyTexture);
+	stateTrackedBuilder.AddGraphicsPass("ReadTrackedImportedTexture", [trackedImportedTexture](HE::Rendering::RenderGraphPassBuilder& pass) {
+		pass.Read(trackedImportedTexture, HE::Rendering::ResourceState::ShaderRead);
+		pass.SetExecute([](HE::Rendering::RenderPassContext&) {});
 	});
 	Require(stateTrackedGraph.Compile(), "Expected state tracked graph compile to succeed");
 	BarrierCaptureCommandList barrierCaptureCommands;
