@@ -45,7 +45,7 @@ namespace HE::Rendering {
 		}
 	}
 
-	void ForwardRenderPipeline::BuildGraph(const RenderView& view) {
+	void ForwardRenderPipeline::BuildGraph(const RenderView& view, RenderGraphExtension* extension) {
 		RenderGraphBuilder graph(m_Graph);
 		const auto clearColor = view.ClearColor;
 		const auto clearColorBuffer = view.ClearColorBuffer;
@@ -68,19 +68,19 @@ namespace HE::Rendering {
 				.Format = RenderTargetTextureFormat::DEPTH24_STENCIL8,
 				.AttachmentGroup = "ForwardScene"
 		});
-		const bool writeSceneDepth = viewportDepthHandle.IsValid() || view.DrawEditorGrid;
-		m_OpaquePass.Configure(sceneColorHandle, sceneDepthHandle, writeSceneDepth, clearColor, clearColorBuffer && !view.DrawEditorGrid);
+		const bool hasBeforeOpaqueExtension = extension != nullptr;
+		const bool writeSceneDepth = viewportDepthHandle.IsValid() || (extension && extension->RequiresSceneDepth());
+		m_OpaquePass.Configure(sceneColorHandle, sceneDepthHandle, writeSceneDepth, clearColor, clearColorBuffer && !hasBeforeOpaqueExtension);
 		m_PostProcessPass.Configure(sceneColorHandle, viewportColorHandle, clearColor);
-		if (view.DrawEditorGrid) {
-			m_EditorGridPass.Configure(sceneColorHandle, sceneDepthHandle, clearColor);
-			graph.AddPass(m_EditorGridPass);
+		if (extension) {
+			extension->AddBeforeOpaquePasses(graph, { .Color = sceneColorHandle, .Depth = sceneDepthHandle }, view);
 		}
 		graph.AddPass(m_OpaquePass);
 		graph.AddPass(m_PostProcessPass);
 	}
 
-	bool ForwardRenderPipeline::EnsureGraphCompiled(const RenderView& view, RenderResult& result) {
-		BuildGraph(view);
+	bool ForwardRenderPipeline::EnsureGraphCompiled(const RenderView& view, RenderGraphExtension* extension, RenderResult& result) {
+		BuildGraph(view, extension);
 
 		if (!m_Graph.Compile()) {
 			CopyGraphStateToResult(result);
@@ -111,7 +111,8 @@ namespace HE::Rendering {
 	RenderResult ForwardRenderPipeline::Render(
 		const RenderView& view,
 		const std::vector<RenderItem>& renderItems,
-		const RenderResourceResolver& resourceResolver) {
+		const RenderResourceResolver& resourceResolver,
+		RenderGraphExtension* extension) {
 		RenderResult result;
 		result.Stats.RenderItems = static_cast<uint32_t>(renderItems.size());
 		result.Stats.VisibleItems = result.Stats.RenderItems;
@@ -120,7 +121,7 @@ namespace HE::Rendering {
 			return result;
 		}
 
-		if (!EnsureGraphCompiled(view, result)) {
+		if (!EnsureGraphCompiled(view, extension, result)) {
 			return result;
 		}
 

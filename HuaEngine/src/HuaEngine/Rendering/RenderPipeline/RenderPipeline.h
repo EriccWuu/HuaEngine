@@ -6,6 +6,7 @@
 
 namespace HE::Rendering {
 	class RenderResourceResolver;
+	class RenderGraphExtension;
 
 	class RenderPipeline {
 	public:
@@ -13,6 +14,7 @@ namespace HE::Rendering {
 		virtual RenderResult Render(
 			const RenderView& view,
 			const std::vector<RenderItem>& renderItems,
-			const RenderResourceResolver& resourceResolver) = 0;
+			const RenderResourceResolver& resourceResolver,
+			RenderGraphExtension* extension = nullptr) = 0;
 	};
 }

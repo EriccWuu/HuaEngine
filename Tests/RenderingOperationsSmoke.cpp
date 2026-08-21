@@ -135,15 +135,15 @@ namespace {
 
 		const auto renderingRoot = std::filesystem::current_path() / "HuaEngine" / "src" / "HuaEngine" / "Rendering";
 		const auto pipelineContent = readSource(renderingRoot / "RenderPipeline" / "ForwardRenderPipeline.cpp");
-		const auto gridContent = readSource(renderingRoot / "RenderPipeline" / "GraphPasses" / "EditorGridPass.cpp");
+		const auto extensionContent = readSource(renderingRoot / "RenderPipeline" / "RenderGraphExtension.h");
 		const auto opaqueContent = readSource(renderingRoot / "RenderPipeline" / "GraphPasses" / "ForwardOpaquePass.cpp");
 		const auto postProcessContent = readSource(renderingRoot / "RenderPipeline" / "GraphPasses" / "PostProcessPass.cpp");
 		return opaqueContent.find("SetVertexBuffer(") != std::string::npos
 			&& postProcessContent.find("SetIndexBuffer(") != std::string::npos
 			&& postProcessContent.find("void PostProcessPass::Execute") != std::string::npos
-			&& gridContent.find("void EditorGridPass::Setup") != std::string::npos
-			&& pipelineContent.find("graph.AddPass(m_EditorGridPass)") != std::string::npos
-			&& opaqueContent.find("m_EditorGridPass") == std::string::npos
+			&& extensionContent.find("class RenderGraphExtension") != std::string::npos
+			&& pipelineContent.find("extension->AddBeforeOpaquePasses") != std::string::npos
+			&& opaqueContent.find("EditorGrid") == std::string::npos
 			&& pipelineContent.find("BoundRenderTarget") == std::string::npos
 			&& pipelineContent.find("ClearedSceneColor") == std::string::npos
 			&& pipelineContent.find("graph.AddPass(m_OpaquePass)") != std::string::npos
@@ -266,8 +266,8 @@ int main() {
 	Require(renderViewport.Payload.at("render_items") == "1", "Expected invalid renderable component triple to count as an extracted render item");
 	Require(renderViewport.Payload.at("submitted_items") == "1", "Expected invalid renderable resources to submit with fallback resources");
 	Require(renderViewport.Payload.at("skipped_items") == "0", "Expected invalid renderable resources to avoid skipped item count");
-	Require(renderViewport.Payload.at("draw_calls") == "3", "Expected Scene View grid, fallback draw, and post-process draw");
-	Require(renderViewport.Payload.at("pass_count") == "5", "Expected invalid renderable resources to execute five render passes");
+	Require(renderViewport.Payload.at("draw_calls") == "2", "Expected fallback draw and post-process draw without editor extensions");
+	Require(renderViewport.Payload.at("pass_count") == "4", "Expected runtime render graph to execute four render passes");
 	Require(renderViewport.Payload.at("graphics_queue_signal") != "0", "Expected invalid renderable resources to submit a graphics command buffer");
 	Require(renderViewport.Payload.at("graphics_queue_completed") == renderViewport.Payload.at("graphics_queue_signal"), "Expected graphics queue fence to complete submitted value");
 	Require(renderViewport.Payload.at("frames_in_flight") != "0", "Expected submitted forward command buffer to remain tracked in flight");
@@ -313,8 +313,8 @@ int main() {
 	Require(renderAssetRefScene.Payload.at("render_items") == "1", "Expected typed asset-ref scene render to extract one render item");
 	Require(renderAssetRefScene.Payload.at("submitted_items") == "1", "Expected typed asset-ref scene render to submit through the asset resolver path");
 	Require(renderAssetRefScene.Payload.at("skipped_items") == "0", "Expected typed asset-ref scene render to avoid skipping through the asset resolver path");
-	Require(renderAssetRefScene.Payload.at("draw_calls") == "3", "Expected Scene View grid, typed asset draw, and post-process draw");
-	Require(renderAssetRefScene.Payload.at("pass_count") == "5", "Expected typed asset-ref scene render to execute five render passes");
+	Require(renderAssetRefScene.Payload.at("draw_calls") == "2", "Expected typed asset draw and post-process draw without editor extensions");
+	Require(renderAssetRefScene.Payload.at("pass_count") == "4", "Expected typed asset-ref scene render to execute four runtime passes");
 	Require(renderAssetRefScene.Payload.at("visible_items") == "1", "Expected typed asset-ref scene render to count one visible item");
 	Require(renderAssetRefScene.Payload.at("diagnostics") == "0", "Expected typed asset-ref scene render to emit no resolver diagnostics");
 	Require(renderAssetRefScene.Payload.at("graph_resources") == "3", "Expected typed asset-ref scene render graph to report three typed resources");
@@ -357,8 +357,8 @@ int main() {
 	Require(renderLoadedScene.Payload.at("render_items") == "4", "Expected loaded sandbox scene render to extract four render items");
 	Require(renderLoadedScene.Payload.at("submitted_items") == "4", "Expected loaded sandbox scene render to submit all render items through the asset resolver path");
 	Require(renderLoadedScene.Payload.at("skipped_items") == "0", "Expected loaded sandbox scene render to avoid skipping render items through the asset resolver path");
-	Require(renderLoadedScene.Payload.at("draw_calls") == "6", "Expected Scene View grid, loaded scene draws, and post-process draw");
-	Require(renderLoadedScene.Payload.at("pass_count") == "5", "Expected loaded sandbox scene render to execute five render passes");
+	Require(renderLoadedScene.Payload.at("draw_calls") == "5", "Expected loaded scene draws and post-process draw without editor extensions");
+	Require(renderLoadedScene.Payload.at("pass_count") == "4", "Expected loaded sandbox scene render to execute four runtime passes");
 	Require(renderLoadedScene.Payload.at("visible_items") == "4", "Expected loaded sandbox scene render to count four visible items");
 	Require(renderLoadedScene.Payload.at("diagnostics") == "1", "Expected loaded sandbox scene render to emit one fallback diagnostic for the unmigrated custom mesh");
 	Require(renderLoadedScene.Payload.at("graph_resources") == "3", "Expected loaded sandbox scene render graph to report three typed resources");

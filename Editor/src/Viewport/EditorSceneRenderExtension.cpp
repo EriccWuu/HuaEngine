@@ -1,27 +1,27 @@
 #include "enginepch.h"
-#include "EditorGridPass.h"
+#include "EditorSceneRenderExtension.h"
 
 #include "HuaEngine/Rendering/RenderPipeline/RenderBindGroupBuilder.h"
 #include "HuaEngine/Rendering/RHI/CommandSubmission.h"
 #include "HuaEngine/Rendering/RHI/CommandList.h"
 #include "HuaEngine/Rendering/RHI/RenderDevice.h"
 
-namespace HE::Rendering {
+namespace HE::Editor {
 	void EditorGridPass::Configure(
-		RenderGraphResourceHandle sceneColor,
-		RenderGraphResourceHandle sceneDepth,
+		Rendering::RenderGraphResourceHandle sceneColor,
+		Rendering::RenderGraphResourceHandle sceneDepth,
 		const glm::vec4& clearColor) {
 		m_SceneColor = sceneColor;
 		m_SceneDepth = sceneDepth;
 		m_ClearColor = clearColor;
 	}
 
-	void EditorGridPass::Setup(RenderGraphPassBuilder& builder) {
-		builder.WriteColor(m_SceneColor, LoadOp::Clear, StoreOp::Store, m_ClearColor);
-		builder.WriteDepth(m_SceneDepth, LoadOp::Clear);
+	void EditorGridPass::Setup(Rendering::RenderGraphPassBuilder& builder) {
+		builder.WriteColor(m_SceneColor, Rendering::LoadOp::Clear, Rendering::StoreOp::Store, m_ClearColor);
+		builder.WriteDepth(m_SceneDepth, Rendering::LoadOp::Clear);
 	}
 
-	void EditorGridPass::Execute(RenderPassContext& context) {
+	void EditorGridPass::Execute(Rendering::RenderPassContext& context) {
 		if (!context.View || !context.View->CameraRef || !context.View->Target || !context.Device || !context.Commands || !context.Stats) return;
 
 		std::vector<glm::vec3> vertices;
@@ -38,20 +38,20 @@ namespace HE::Rendering {
 			indices.insert(indices.end(), { base, base + 1, base + 2, base + 3 });
 		}
 
-		auto vertexBuffer = context.Device->CreateBuffer({ .Usage = GpuBufferUsage::Vertex, .Size = static_cast<uint32_t>(vertices.size() * sizeof(glm::vec3)), .Stride = sizeof(glm::vec3) }, vertices.data());
-		auto indexBuffer = context.Device->CreateBuffer({ .Usage = GpuBufferUsage::Index, .Size = static_cast<uint32_t>(indices.size() * sizeof(uint32_t)), .Stride = sizeof(uint32_t) }, indices.data());
+		auto vertexBuffer = context.Device->CreateBuffer({ .Usage = Rendering::GpuBufferUsage::Vertex, .Size = static_cast<uint32_t>(vertices.size() * sizeof(glm::vec3)), .Stride = sizeof(glm::vec3) }, vertices.data());
+		auto indexBuffer = context.Device->CreateBuffer({ .Usage = Rendering::GpuBufferUsage::Index, .Size = static_cast<uint32_t>(indices.size() * sizeof(uint32_t)), .Stride = sizeof(uint32_t) }, indices.data());
 		auto shader = context.Device->CreateShaderProgram({
 			.VertexSource = "#version 330 core\nlayout(location=0) in vec3 a_Position; uniform mat4 u_ViewProjection; void main(){ gl_Position=u_ViewProjection*vec4(a_Position,1.0); }",
 			.FragmentSource = "#version 330 core\nlayout(location=0) out vec4 color; void main(){ color=vec4(0.25,0.29,0.35,1.0); }"
 		});
-		auto frameLayout = CreateFrameBindGroupLayout(*context.Device);
-		auto frameBindGroup = CreateFrameBindGroup(*context.Device, context.View->CameraRef->GetViewProjection());
+		auto frameLayout = Rendering::CreateFrameBindGroupLayout(*context.Device);
+		auto frameBindGroup = Rendering::CreateFrameBindGroup(*context.Device, context.View->CameraRef->GetViewProjection());
 		if (!vertexBuffer || !indexBuffer || !shader || !frameLayout || !frameBindGroup) return;
 		auto pipeline = context.Device->CreatePipelineState({
-			.Shader = shader, .VertexLayout = { { ShaderDataType::Float3, "a_Position" } }, .Topology = PrimitiveTopology::LineList,
+			.Shader = shader, .VertexLayout = { { Rendering::ShaderDataType::Float3, "a_Position" } }, .Topology = Rendering::PrimitiveTopology::LineList,
 			.ColorTargets = { { .Format = context.View->Target->GetColorAttachmentTexture()->GetDesc().Format } },
-			.DepthStencil = { .Format = RenderTargetTextureFormat::DEPTH24_STENCIL8, .DepthTestEnabled = true, .DepthWriteEnabled = false },
-			.Raster = { .Cull = CullMode::None }, .BindGroupLayouts = { { .Slot = 0, .Layout = frameLayout } }
+			.DepthStencil = { .Format = Rendering::RenderTargetTextureFormat::DEPTH24_STENCIL8, .DepthTestEnabled = true, .DepthWriteEnabled = false },
+			.Raster = { .Cull = Rendering::CullMode::None }, .BindGroupLayouts = { { .Slot = 0, .Layout = frameLayout } }
 		});
 		if (!pipeline) return;
 		if (context.RecordingCommandBuffer) {
@@ -61,9 +61,17 @@ namespace HE::Rendering {
 		}
 		context.Commands->SetPipelineState(*pipeline);
 		context.Commands->SetVertexBuffer(0, { .Buffer = vertexBuffer, .Stride = sizeof(glm::vec3) });
-		context.Commands->SetIndexBuffer({ .Buffer = indexBuffer, .Format = IndexFormat::UInt32, .IndexCount = static_cast<uint32_t>(indices.size()) });
+		context.Commands->SetIndexBuffer({ .Buffer = indexBuffer, .Format = Rendering::IndexFormat::UInt32, .IndexCount = static_cast<uint32_t>(indices.size()) });
 		context.Commands->SetBindGroup(0, *frameBindGroup);
 		context.Commands->DrawIndexed(static_cast<uint32_t>(indices.size()));
 		++context.Stats->DrawCalls; ++context.Stats->PassCount;
+	}
+
+	void EditorSceneRenderExtension::AddBeforeOpaquePasses(
+		Rendering::RenderGraphBuilder& graph,
+		const Rendering::ForwardSceneResources& resources,
+		const Rendering::RenderView& view) {
+		m_EditorGridPass.Configure(resources.Color, resources.Depth, view.ClearColor);
+		graph.AddPass(m_EditorGridPass);
 	}
 }

@@ -33,7 +33,6 @@ namespace HE::Rendering {
 		Ref<RenderTarget> Target;
 		glm::vec4 ClearColor = { 0.1f, 0.1f, 0.1f, 1.0f };
 		bool ClearColorBuffer = true;
-		bool DrawEditorGrid = false;
 	};
 
 	struct RenderItem {

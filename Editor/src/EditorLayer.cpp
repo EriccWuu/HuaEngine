@@ -1143,7 +1143,10 @@ namespace HE {
 
 		m_EditorCameraController->Update(m_IsSceneViewportHovered);
 		const auto camera = m_EditorCameraController->BuildRenderCamera();
-		const auto renderResult = Application::GetInstance().GetOperations().RenderSceneViewport(*m_SceneDocument.SceneRef, camera);
+		const auto renderResult = Application::GetInstance().GetOperations().RenderSceneViewport(
+			*m_SceneDocument.SceneRef,
+			camera,
+			&m_SceneRenderExtension);
         if (!renderResult.Succeeded()) {
             CaptureOperationResult(renderResult);
             m_WorkbenchReady = false;

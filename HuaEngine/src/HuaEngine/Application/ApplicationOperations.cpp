@@ -638,7 +638,8 @@ namespace HE {
 
 	ResultEnvelope ApplicationOperations::RenderSceneViewport(
 		Scene& scene,
-		const Rendering::RenderCamera& camera) const
+		const Rendering::RenderCamera& camera,
+		Rendering::RenderGraphExtension* extension) const
 	{
 		auto renderSystem = scene.FindSystem<RenderSystem>();
 		if (!renderSystem) {
@@ -647,7 +648,7 @@ namespace HE {
 			return result;
 		}
 
-		renderSystem->RenderSingleCamera(scene.GetWorld(), camera, true);
+		renderSystem->RenderSingleCamera(scene.GetWorld(), camera, extension);
 		const auto& renderResult = renderSystem->GetLastRenderResult();
 		if (!renderResult.Succeeded) {
 			auto result = ResultEnvelope::Failure("rendering.render_scene_viewport", scene.GetName(), "Scene viewport render failed");

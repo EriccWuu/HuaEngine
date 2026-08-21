@@ -30,6 +30,7 @@ namespace HE {
 		class Mesh;
 		class Material;
 		class TextureResource;
+		class RenderGraphExtension;
 		struct CameraComponent;
 		struct MaterialComponent;
 		struct MeshComponent;
@@ -185,7 +186,8 @@ namespace HE {
 			const Ref<Rendering::RenderTarget>& renderTarget) const;
 		[[nodiscard]] ResultEnvelope RenderSceneViewport(
 			Scene& scene,
-			const Rendering::RenderCamera& camera) const;
+			const Rendering::RenderCamera& camera,
+			Rendering::RenderGraphExtension* extension = nullptr) const;
 
 		[[nodiscard]] ResultEnvelope Validate(const ApplicationValidationRequest& request, ValidationReport* outReport = nullptr) const;
 		[[nodiscard]] ResultEnvelope ScanReflection(const ReflectionToolRequest& request) const;
