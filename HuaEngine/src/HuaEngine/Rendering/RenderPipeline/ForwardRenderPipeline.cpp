@@ -11,279 +11,38 @@
 
 namespace HE::Rendering {
 	namespace {
-		RenderGraphDiagnosticCode ToRenderGraphDiagnosticCode(PassGraphDiagnosticCode code) {
+		RenderGraphResultDiagnosticCode ToRenderGraphResultDiagnosticCode(RenderGraphDiagnosticCode code) {
 			switch (code) {
-				case PassGraphDiagnosticCode::EmptyGraph:
-					return RenderGraphDiagnosticCode::EmptyGraph;
-				case PassGraphDiagnosticCode::EmptyPassName:
-					return RenderGraphDiagnosticCode::EmptyPassName;
-				case PassGraphDiagnosticCode::DuplicatePassName:
-					return RenderGraphDiagnosticCode::DuplicatePassName;
-				case PassGraphDiagnosticCode::MissingExecuteCallback:
-					return RenderGraphDiagnosticCode::MissingExecuteCallback;
-				case PassGraphDiagnosticCode::EmptyResourceName:
-					return RenderGraphDiagnosticCode::EmptyResourceName;
-				case PassGraphDiagnosticCode::InvalidResourceDescription:
-					return RenderGraphDiagnosticCode::InvalidResourceDescription;
-				case PassGraphDiagnosticCode::InvalidResourceHandle:
-					return RenderGraphDiagnosticCode::InvalidResourceHandle;
-			case PassGraphDiagnosticCode::InvalidResourceUsage:
-				return RenderGraphDiagnosticCode::InvalidResourceUsage;
-			case PassGraphDiagnosticCode::InvalidPassType:
-				return RenderGraphDiagnosticCode::InvalidPassType;
-				case PassGraphDiagnosticCode::DuplicateResourceAccess:
-					return RenderGraphDiagnosticCode::DuplicateResourceAccess;
-				case PassGraphDiagnosticCode::MissingResourceProducer:
-					return RenderGraphDiagnosticCode::MissingResourceProducer;
-			case PassGraphDiagnosticCode::DuplicateResourceWriter:
-				return RenderGraphDiagnosticCode::DuplicateResourceWriter;
-			case PassGraphDiagnosticCode::CyclicDependency:
-				return RenderGraphDiagnosticCode::CyclicDependency;
+				case RenderGraphDiagnosticCode::EmptyGraph:
+					return RenderGraphResultDiagnosticCode::EmptyGraph;
+				case RenderGraphDiagnosticCode::EmptyPassName:
+					return RenderGraphResultDiagnosticCode::EmptyPassName;
+				case RenderGraphDiagnosticCode::DuplicatePassName:
+					return RenderGraphResultDiagnosticCode::DuplicatePassName;
+				case RenderGraphDiagnosticCode::MissingExecuteCallback:
+					return RenderGraphResultDiagnosticCode::MissingExecuteCallback;
+				case RenderGraphDiagnosticCode::EmptyResourceName:
+					return RenderGraphResultDiagnosticCode::EmptyResourceName;
+				case RenderGraphDiagnosticCode::InvalidResourceDescription:
+					return RenderGraphResultDiagnosticCode::InvalidResourceDescription;
+				case RenderGraphDiagnosticCode::InvalidResourceHandle:
+					return RenderGraphResultDiagnosticCode::InvalidResourceHandle;
+			case RenderGraphDiagnosticCode::InvalidResourceUsage:
+				return RenderGraphResultDiagnosticCode::InvalidResourceUsage;
+			case RenderGraphDiagnosticCode::InvalidPassType:
+				return RenderGraphResultDiagnosticCode::InvalidPassType;
+				case RenderGraphDiagnosticCode::DuplicateResourceAccess:
+					return RenderGraphResultDiagnosticCode::DuplicateResourceAccess;
+				case RenderGraphDiagnosticCode::MissingResourceProducer:
+					return RenderGraphResultDiagnosticCode::MissingResourceProducer;
+			case RenderGraphDiagnosticCode::DuplicateResourceWriter:
+				return RenderGraphResultDiagnosticCode::DuplicateResourceWriter;
+			case RenderGraphDiagnosticCode::CyclicDependency:
+				return RenderGraphResultDiagnosticCode::CyclicDependency;
 			}
 
-			return RenderGraphDiagnosticCode::EmptyGraph;
+			return RenderGraphResultDiagnosticCode::EmptyGraph;
 		}
-	}
-
-	void BeginRendererPass::Execute(RenderPassContext& context) {
-		if (!context.View || !context.View->CameraRef || !context.Commands || !context.Stats) {
-			return;
-		}
-
-		++context.Stats->PassCount;
-		context.Commands->BeginFrame();
-	}
-
-	void ForwardOpaquePass::Configure(
-		RenderGraphResourceHandle sceneColor,
-		RenderGraphResourceHandle sceneDepth,
-		bool writeDepth,
-		const glm::vec4& clearColor,
-		bool clearColorBuffer) {
-		m_SceneColor = sceneColor;
-		m_SceneDepth = sceneDepth;
-		m_WriteDepth = writeDepth;
-		m_ClearColor = clearColor;
-		m_ClearColorBuffer = clearColorBuffer;
-	}
-
-	void ForwardOpaquePass::Setup(RenderGraphPassBuilder& builder) {
-		const auto load = m_ClearColorBuffer ? LoadOp::Clear : LoadOp::Load;
-		builder.WriteColor(m_SceneColor, load, StoreOp::Store, m_ClearColor);
-		if (m_WriteDepth) {
-			builder.WriteDepth(m_SceneDepth, load);
-		}
-	}
-
-	void ForwardOpaquePass::Execute(RenderPassContext& context) {
-		if (!context.RenderItems || !context.ResourceResolver || !context.Commands || !context.Stats || !context.Diagnostics) {
-			return;
-		}
-
-		++context.Stats->PassCount;
-
-		if (!context.View || !context.View->CameraRef) {
-			return;
-		}
-
-		auto frameBindGroup = CreateFrameBindGroup(RenderHardwareInterface::GetDevice(), context.View->CameraRef->GetViewProjection());
-		if (!frameBindGroup) {
-			context.Diagnostics->push_back({
-				RenderDiagnosticCode::MissingRhiDrawResources,
-				Entity{},
-				"Forward opaque pass skipped because the frame bind group could not be created"
-			});
-			return;
-		}
-		if (context.RecordingCommandBuffer) {
-			context.RecordingCommandBuffer->RetainResource(frameBindGroup);
-		}
-
-		for (const auto& item : *context.RenderItems) {
-			ResolvedRenderItem resolvedItem;
-			if (!context.ResourceResolver->Resolve(item, resolvedItem, *context.Stats, *context.Diagnostics)) {
-				++context.Stats->SkippedItems;
-				continue;
-			}
-
-			auto objectBindGroup = CreateObjectBindGroup(RenderHardwareInterface::GetDevice(), item.Transform);
-			if (context.RecordingCommandBuffer) {
-				context.RecordingCommandBuffer->RetainResource(resolvedItem.PipelineStateRef);
-				context.RecordingCommandBuffer->RetainResource(resolvedItem.MaterialBindGroupRef);
-				context.RecordingCommandBuffer->RetainResource(objectBindGroup);
-			}
-
-			if (resolvedItem.PipelineStateRef
-				&& resolvedItem.VertexBinding.Buffer
-				&& resolvedItem.IndexBinding.Buffer
-				&& resolvedItem.IndexBinding.IndexCount > 0
-				&& resolvedItem.MaterialBindGroupRef
-				&& objectBindGroup) {
-				context.Commands->SetPipelineState(*resolvedItem.PipelineStateRef);
-				context.Commands->SetBindGroup(0, *frameBindGroup);
-				context.Commands->SetVertexBuffer(0, resolvedItem.VertexBinding);
-				context.Commands->SetIndexBuffer(resolvedItem.IndexBinding);
-				context.Commands->SetBindGroup(1, *resolvedItem.MaterialBindGroupRef);
-				context.Commands->SetBindGroup(2, *objectBindGroup);
-				context.Commands->DrawIndexed(resolvedItem.IndexBinding.IndexCount);
-			} else {
-				context.Diagnostics->push_back({
-					RenderDiagnosticCode::MissingRhiDrawResources,
-					item.SourceEntity,
-					"Render item skipped because resolved RHI draw resources were incomplete"
-				});
-				++context.Stats->SkippedItems;
-				continue;
-			}
-
-			++context.Stats->SubmittedItems;
-			++context.Stats->DrawCalls;
-		}
-	}
-
-	void PostProcessPass::Configure(
-		RenderGraphResourceHandle sceneColor,
-		RenderGraphResourceHandle output,
-		const glm::vec4& clearColor) {
-		m_SceneColor = sceneColor;
-		m_Output = output;
-		m_ClearColor = clearColor;
-	}
-
-	void PostProcessPass::Setup(RenderGraphPassBuilder& builder) {
-		builder.Read(m_SceneColor, ResourceState::ShaderRead);
-		builder.WriteColor(m_Output, LoadOp::Clear, StoreOp::Store, m_ClearColor);
-	}
-
-	void PostProcessPass::Execute(RenderPassContext& context) {
-		if (!context.Device || !context.Commands || !context.GraphResources || !context.Stats) {
-			return;
-		}
-
-		const auto* sceneColorResource = context.GraphResources->GetRuntimeResource(m_SceneColor);
-		if (!sceneColorResource || !sceneColorResource->Texture) {
-			return;
-		}
-
-		const float vertices[] = {
-			-1.0f, -1.0f, 0.0f,
-			 3.0f, -1.0f, 0.0f,
-			-1.0f,  3.0f, 0.0f
-		};
-		const uint32_t indices[] = { 0, 1, 2 };
-		const BufferLayout vertexLayout = {
-			{ ShaderDataType::Float3, "a_Position" }
-		};
-
-		auto vertexBuffer = context.Device->CreateBuffer({
-			.Usage = GpuBufferUsage::Vertex,
-			.Size = sizeof(vertices),
-			.Stride = 3 * sizeof(float)
-		}, vertices);
-		auto indexBuffer = context.Device->CreateBuffer({
-			.Usage = GpuBufferUsage::Index,
-			.Size = sizeof(indices),
-			.Stride = sizeof(uint32_t)
-		}, indices);
-		auto shader = context.Device->CreateShaderProgram({
-			.VertexSource = R"(
-				#version 330 core
-				layout(location = 0) in vec3 a_Position;
-				out vec2 v_Uv;
-				void main() {
-					gl_Position = vec4(a_Position, 1.0);
-					v_Uv = a_Position.xy * 0.5 + 0.5;
-				}
-			)",
-			.FragmentSource = R"(
-				#version 330 core
-				in vec2 v_Uv;
-				layout(location = 0) out vec4 color;
-				uniform sampler2D u_SourceTexture;
-				void main() {
-					color = texture(u_SourceTexture, v_Uv);
-				}
-			)"
-		});
-		auto bindGroupLayout = context.Device->CreateBindGroupLayout({
-			.Scope = BindGroupScope::Material,
-			.Entries = {
-				{ .Name = "u_SourceTexture", .Type = BindingValueType::TextureView, .Binding = 0 },
-				{ .Name = "u_SourceSampler", .Type = BindingValueType::Sampler, .Binding = 1 }
-			}
-		});
-		auto textureView = context.Device->CreateTextureView({ .Texture = sceneColorResource->Texture });
-		auto sampler = context.Device->CreateSampler({
-			.AddressU = SamplerAddressMode::ClampToEdge,
-			.AddressV = SamplerAddressMode::ClampToEdge
-		});
-		if (!vertexBuffer || !indexBuffer || !shader || !bindGroupLayout || !textureView || !sampler) {
-			return;
-		}
-
-		auto pipeline = context.Device->CreatePipelineState({
-			.Shader = shader,
-			.VertexLayout = vertexLayout,
-			.Topology = PrimitiveTopology::TriangleList,
-			.ColorTargets = { { .Format = sceneColorResource->Texture->GetDesc().Format } },
-			.DepthStencil = {
-				.Format = RenderTargetTextureFormat::None,
-				.DepthTestEnabled = false,
-				.DepthWriteEnabled = false
-			},
-			.Raster = { .Cull = CullMode::None },
-			.BindGroupLayouts = { { .Slot = 0, .Layout = bindGroupLayout } }
-		});
-		auto bindGroup = context.Device->CreateBindGroup({
-			.Layout = bindGroupLayout,
-			.Entries = {
-				{
-					.Name = "u_SourceTexture",
-					.Type = BindingValueType::TextureView,
-					.Value = textureView,
-					.Binding = 0,
-					.TextureSlot = 0
-				},
-				{
-					.Name = "u_SourceSampler",
-					.Type = BindingValueType::Sampler,
-					.Value = sampler,
-					.Binding = 1,
-					.TextureSlot = 0
-				}
-			}
-		});
-		if (!pipeline || !bindGroup) {
-			return;
-		}
-
-		if (context.RecordingCommandBuffer) {
-			context.RecordingCommandBuffer->RetainResource(vertexBuffer);
-			context.RecordingCommandBuffer->RetainResource(indexBuffer);
-			context.RecordingCommandBuffer->RetainResource(shader);
-			context.RecordingCommandBuffer->RetainResource(bindGroupLayout);
-			context.RecordingCommandBuffer->RetainResource(textureView);
-			context.RecordingCommandBuffer->RetainResource(sampler);
-			context.RecordingCommandBuffer->RetainResource(pipeline);
-			context.RecordingCommandBuffer->RetainResource(bindGroup);
-		}
-
-		context.Commands->SetPipelineState(*pipeline);
-		context.Commands->SetVertexBuffer(0, { .Buffer = vertexBuffer, .Stride = 3 * sizeof(float) });
-		context.Commands->SetIndexBuffer({ .Buffer = indexBuffer, .Format = IndexFormat::UInt32, .IndexCount = 3 });
-		context.Commands->SetBindGroup(0, *bindGroup);
-		context.Commands->DrawIndexed(3);
-		++context.Stats->DrawCalls;
-		++context.Stats->PassCount;
-	}
-
-	void EndRendererPass::Execute(RenderPassContext& context) {
-		if (!context.Commands || !context.Stats) {
-			return;
-		}
-
-		++context.Stats->PassCount;
-		context.Commands->EndFrame();
 	}
 
 	void ForwardRenderPipeline::BuildGraph(const RenderView& view) {
@@ -337,7 +96,7 @@ namespace HE::Rendering {
 		result.GraphDiagnostics.reserve(m_Graph.GetDiagnostics().size());
 		for (const auto& diagnostic : m_Graph.GetDiagnostics()) {
 			result.GraphDiagnostics.push_back({
-				.Code = ToRenderGraphDiagnosticCode(diagnostic.Code),
+				.Code = ToRenderGraphResultDiagnosticCode(diagnostic.Code),
 				.PassName = diagnostic.PassName,
 				.Message = diagnostic.Message
 			});

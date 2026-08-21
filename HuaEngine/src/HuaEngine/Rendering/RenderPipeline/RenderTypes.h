@@ -60,7 +60,7 @@ namespace HE::Rendering {
 		std::string Message;
 	};
 
-	enum class RenderGraphDiagnosticCode {
+	enum class RenderGraphResultDiagnosticCode {
 		EmptyGraph,
 		EmptyPassName,
 		DuplicatePassName,
@@ -76,13 +76,13 @@ namespace HE::Rendering {
 		CyclicDependency
 	};
 
-	struct RenderGraphDiagnostic {
-		RenderGraphDiagnosticCode Code;
+	struct RenderGraphResultDiagnostic {
+		RenderGraphResultDiagnosticCode Code;
 		std::string PassName;
 		std::string Message;
 	};
 
-	struct RenderGraphStats {
+	struct RenderGraphResultStats {
 		uint32_t ResourceCount = 0;
 		uint32_t EdgeCount = 0;
 		uint32_t OutputCount = 0;
@@ -134,8 +134,8 @@ namespace HE::Rendering {
 	struct RenderResult {
 		bool Succeeded = false;
 		RenderStats Stats;
-		RenderGraphStats GraphStats;
+		RenderGraphResultStats GraphStats;
 		std::vector<RenderDiagnostic> Diagnostics;
-		std::vector<RenderGraphDiagnostic> GraphDiagnostics;
+		std::vector<RenderGraphResultDiagnostic> GraphDiagnostics;
 	};
 }

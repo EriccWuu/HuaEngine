@@ -6,52 +6,49 @@
 
 ## 目标
 
-将业务侧 RenderGraph 构建收敛为 Builder facade。业务 Pass 不再直接构造 `PassGraphPassDesc`、`PassGraphResourceUsage` 或 `PassGraphRenderPassAttachment`，而是通过语义化接口声明资源、读写关系、RenderPass 附件、显式依赖、导出资源和执行回调。
+将业务侧 RenderGraph 构建收敛为 Builder facade。业务 Pass 不直接构造底层图描述，而是通过语义化接口声明资源、读写关系、RenderPass 附件、显式依赖、导出资源和执行回调。
 
-## 不在范围内
+## 范围
 
-- 不重写 `PassGraph::Compile()` 的依赖分析、barrier 规划、队列批次或 culling。
-- 不改变 transient allocator、资源池和 fence 回收策略。
-- 不接入 DX12，也不扩展异步队列的实际 RHI 提交实现。
+- 保持 RenderGraph 的 typed resource 编译、barrier 规划、队列批次、culling、transient allocator 和 fence 回收语义。
+- 不在本次接入 DX12，也不扩展异步队列的实际 RHI 提交实现。
 
 ## API 设计
 
-`RenderGraphBuilder` 负责一次图构建：
+`RenderGraphBuilder` 负责整张图：
 
-- `ImportTexture` / `ImportBuffer`：登记图外拥有的资源。
-- `CreateTexture` / `CreateBuffer`：声明由图 allocator 创建并回收的 transient 资源。
-- `AddGraphicsPass` / `AddComputePass` / `AddCopyPass`：创建对应类型的 Pass。
-- `Export`：声明图的最终可观察输出，作为 culling 根。
+- `ImportTexture` / `ImportBuffer` 登记图外拥有的资源。
+- `CreateTexture` / `CreateBuffer` 声明由图 allocator 创建和回收的 transient 资源。
+- `AddPass(pass)` 注册 Pass；Pass 自身提供名称和 `RenderGraphPassType`。
+- `Export` 声明图的最终可观察输出，作为 culling 根。
 
 `RenderGraphPassBuilder` 负责单个 Pass 的资源语义：
 
-- `Read` / `Write`：声明任意状态的读写访问。
-- `WriteColor` / `WriteDepth`：声明 graphics attachment；底层编译器继续自动生成对应 write usage。
-- `DependsOn`：添加无法从资源访问推导的显式边。
-- `SetExecute`：绑定录制回调。
+- `Read` / `Write` 声明资源访问及状态。
+- `WriteColor` / `WriteDepth` 声明 graphics attachment。
+- `DependsOn` 添加无法由资源访问推导的显式依赖。
 
-## 迁移步骤
+`RenderGraphPass` 统一 Pass 对象的构图与执行：
 
-1. 新增 facade 并迁移 `ForwardRenderPipeline::BuildGraph()`。
-2. 迁移全部 RenderGraph smoke，验证 facade 覆盖现有编译、barrier、队列、依赖和 culling 语义。
-3. 将 `PassGraph` 的低层资源、Pass 和输出构造接口转为 Builder 私有实现细节。
+- `GetName` 和 `GetType` 描述自身。
+- `Setup` 声明资源使用。
+- `Execute` 录制实际命令。
 
-## 验收标准
+Builder 支持 `Ref<RenderGraphPass>` 重载，图执行回调会持有对象，避免临时 Pass 生命周期问题。
 
-- Forward 路径不直接调用 `PassGraph::Add*`，也不构造 `PassGraphPassDesc`。
-- 三个 RenderGraph 相关 smoke 只使用 Builder 业务接口构建图。
-- `RenderPassGraphSmoke`、`RHIResourceCreationSmoke`、`RHICommandListBindingSmoke` 与 `RenderingOperationsSmoke` 通过。
-- `PassGraph` 保持 typed resource compile 语义和既有结果不变。
+## 目录结构
 
-## 实施结果
+`RenderPipeline/GraphPasses` 保存具体 Pass 的定义和实现。目前包括：
 
-- 已新增 `RenderGraphBuilder` 与 `RenderGraphPassBuilder`，业务侧可以用资源和 Pass 语义直接构建图。
-- `ForwardRenderPipeline` 与三个 RenderGraph/RHI smoke 均已迁移至 Builder。
-- `PassGraph` 的资源登记、Pass 登记、输出登记和 `Reset` 已设为 Builder 私有协作接口；业务代码不再能直接构造低层图节点。
-- 已验证 `RenderPassGraphSmoke`、`RHIResourceCreationSmoke`、`RHICommandListBindingSmoke`、`RenderingOperationsSmoke`。
+- `BeginRendererPass`
+- `ForwardOpaquePass`
+- `PostProcessPass`
+- `EndRendererPass`
 
-## Pass 对象收敛
+`ForwardRenderPipeline` 只保留资源拓扑构建、图编译和提交控制流；具体 Pass 的资源声明与执行逻辑由各自文件维护。
 
-- 新增 `RenderGraphPass` 接口，统一 `Setup(RenderGraphPassBuilder&)` 与 `Execute(RenderPassContext&)`。
-- Builder 统一通过 `AddPass(pass)` 接收 Pass 对象，并自动完成 setup 与执行回调绑定；Pass 自身提供名称和队列类型。
-- Forward opaque 与 post-process Pass 自身持有构图资源句柄和配置，`BuildGraph()` 只负责资源拓扑与 Pass 排列，不再维护资源相关 lambda capture。
+## 验收结果
+
+- `PassGraph` 已完全更名为 `RenderGraph`，对应 smoke 目标改为 `RenderGraphSmoke`。
+- 已消除 `PassGraph` 源码、测试和 CMake 遗留引用。
+- 已验证 `RenderGraphSmoke`、`RHIResourceCreationSmoke`、`RHICommandListBindingSmoke`、`RenderingOperationsSmoke`。

@@ -125,28 +125,31 @@ namespace {
 	}
 
 	bool ForwardPipelineUsesExplicitVertexIndexBinding() {
-		const std::filesystem::path sourcePath =
-			std::filesystem::current_path() / "HuaEngine" / "src" / "HuaEngine" / "Rendering" / "RenderPipeline" / "ForwardRenderPipeline.cpp";
-		std::ifstream source(sourcePath);
-		if (!source.is_open()) {
-			return false;
-		}
+		const auto readSource = [](const std::filesystem::path& sourcePath) {
+			std::ifstream source(sourcePath);
+			return source.is_open()
+				? std::string((std::istreambuf_iterator<char>(source)), std::istreambuf_iterator<char>())
+				: std::string{};
+		};
 
-		const std::string content((std::istreambuf_iterator<char>(source)), std::istreambuf_iterator<char>());
-		return content.find("SetVertexBuffer(") != std::string::npos
-			&& content.find("SetIndexBuffer(") != std::string::npos
-			&& content.find("void PostProcessPass::Execute") != std::string::npos
-			&& content.find("BoundRenderTarget") == std::string::npos
-			&& content.find("ClearedSceneColor") == std::string::npos
-			&& content.find("graph.AddPass(m_OpaquePass)") != std::string::npos
-			&& content.find("void ForwardOpaquePass::Setup") != std::string::npos
-			&& content.find("BindTarget") == std::string::npos
-			&& content.find("ClearTarget") == std::string::npos
-			&& content.find("UnbindTarget") == std::string::npos
-			&& content.find("context.View->Target->GetColorAttachmentTextureView") == std::string::npos
-			&& content.find("CreateCommandBuffer") != std::string::npos
-			&& content.find("GetImmediateCommandList") == std::string::npos
-			&& content.find("ViewportDepthAttachment") != std::string::npos;
+		const auto sourceRoot = std::filesystem::current_path() / "HuaEngine" / "src" / "HuaEngine" / "Rendering" / "RenderPipeline";
+		const auto pipelineContent = readSource(sourceRoot / "ForwardRenderPipeline.cpp");
+		const auto opaqueContent = readSource(sourceRoot / "GraphPasses" / "ForwardOpaquePass.cpp");
+		const auto postProcessContent = readSource(sourceRoot / "GraphPasses" / "PostProcessPass.cpp");
+		return opaqueContent.find("SetVertexBuffer(") != std::string::npos
+			&& postProcessContent.find("SetIndexBuffer(") != std::string::npos
+			&& postProcessContent.find("void PostProcessPass::Execute") != std::string::npos
+			&& pipelineContent.find("BoundRenderTarget") == std::string::npos
+			&& pipelineContent.find("ClearedSceneColor") == std::string::npos
+			&& pipelineContent.find("graph.AddPass(m_OpaquePass)") != std::string::npos
+			&& opaqueContent.find("void ForwardOpaquePass::Setup") != std::string::npos
+			&& pipelineContent.find("BindTarget") == std::string::npos
+			&& pipelineContent.find("ClearTarget") == std::string::npos
+			&& pipelineContent.find("UnbindTarget") == std::string::npos
+			&& pipelineContent.find("context.View->Target->GetColorAttachmentTextureView") == std::string::npos
+			&& pipelineContent.find("CreateCommandBuffer") != std::string::npos
+			&& pipelineContent.find("GetImmediateCommandList") == std::string::npos
+			&& pipelineContent.find("ViewportDepthAttachment") != std::string::npos;
 	}
 
 	bool SphereTrianglesFaceOutward() {

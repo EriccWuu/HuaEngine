@@ -67,23 +67,23 @@ namespace {
 		return component;
 	}
 
-	std::string ToRenderingGraphDetailCode(HE::Rendering::RenderGraphDiagnosticCode code) {
+	std::string ToRenderingGraphDetailCode(HE::Rendering::RenderGraphResultDiagnosticCode code) {
 		switch (code) {
-			case HE::Rendering::RenderGraphDiagnosticCode::EmptyGraph:
+			case HE::Rendering::RenderGraphResultDiagnosticCode::EmptyGraph:
 				return "rendering.graph.empty_graph";
-			case HE::Rendering::RenderGraphDiagnosticCode::EmptyPassName:
+			case HE::Rendering::RenderGraphResultDiagnosticCode::EmptyPassName:
 				return "rendering.graph.empty_pass_name";
-			case HE::Rendering::RenderGraphDiagnosticCode::DuplicatePassName:
+			case HE::Rendering::RenderGraphResultDiagnosticCode::DuplicatePassName:
 				return "rendering.graph.duplicate_pass_name";
-			case HE::Rendering::RenderGraphDiagnosticCode::MissingExecuteCallback:
+			case HE::Rendering::RenderGraphResultDiagnosticCode::MissingExecuteCallback:
 				return "rendering.graph.missing_execute_callback";
-			case HE::Rendering::RenderGraphDiagnosticCode::EmptyResourceName:
+			case HE::Rendering::RenderGraphResultDiagnosticCode::EmptyResourceName:
 				return "rendering.graph.empty_resource";
-			case HE::Rendering::RenderGraphDiagnosticCode::DuplicateResourceAccess:
+			case HE::Rendering::RenderGraphResultDiagnosticCode::DuplicateResourceAccess:
 				return "rendering.graph.duplicate_resource_access";
-			case HE::Rendering::RenderGraphDiagnosticCode::MissingResourceProducer:
+			case HE::Rendering::RenderGraphResultDiagnosticCode::MissingResourceProducer:
 				return "rendering.graph.missing_resource_producer";
-			case HE::Rendering::RenderGraphDiagnosticCode::DuplicateResourceWriter:
+			case HE::Rendering::RenderGraphResultDiagnosticCode::DuplicateResourceWriter:
 				return "rendering.graph.duplicate_resource_writer";
 		}
 

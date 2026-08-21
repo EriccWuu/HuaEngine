@@ -450,11 +450,11 @@ int main() {
 	auto& commands = device.GetImmediateCommandList();
 	const glm::vec4 sampledSourceClearColor{ 0.25f, 0.5f, 0.75f, 1.0f };
 	const HE::Rendering::RenderTargetPixelRGBA8 expectedSampledPixel{ 64, 128, 191, 255 };
-	HE::Rendering::PassGraph attachmentSamplingGraph;
+	HE::Rendering::RenderGraph attachmentSamplingGraph;
 	HE::Rendering::RenderGraphBuilder attachmentSamplingBuilder(attachmentSamplingGraph);
 	const auto sourceAttachmentHandle = attachmentSamplingBuilder.ImportTexture("SourceAttachment", samplingSourceTarget->GetColorAttachmentTexture());
 	bool readerBoundRuntimeAttachment = false;
-	attachmentSamplingBuilder.AddPass("WriteSourceAttachment", HE::Rendering::PassGraphPassType::Graphics, [&](HE::Rendering::RenderGraphPassBuilder& pass) {
+	attachmentSamplingBuilder.AddPass("WriteSourceAttachment", HE::Rendering::RenderGraphPassType::Graphics, [&](HE::Rendering::RenderGraphPassBuilder& pass) {
 		pass.Write(sourceAttachmentHandle, HE::Rendering::ResourceState::RenderTarget);
 		pass.SetExecute([&](HE::Rendering::RenderPassContext& context) {
 			context.Commands->BeginRenderPass({
@@ -470,7 +470,7 @@ int main() {
 			context.Commands->EndRenderPass();
 		});
 	});
-	attachmentSamplingBuilder.AddPass("SampleSourceAttachment", HE::Rendering::PassGraphPassType::Graphics, [&](HE::Rendering::RenderGraphPassBuilder& pass) {
+	attachmentSamplingBuilder.AddPass("SampleSourceAttachment", HE::Rendering::RenderGraphPassType::Graphics, [&](HE::Rendering::RenderGraphPassBuilder& pass) {
 		pass.Read(sourceAttachmentHandle, HE::Rendering::ResourceState::ShaderRead);
 		pass.SetExecute([&](HE::Rendering::RenderPassContext& context) {
 			const auto* runtimeResource = context.GraphResources->GetRuntimeResource(sourceAttachmentHandle);

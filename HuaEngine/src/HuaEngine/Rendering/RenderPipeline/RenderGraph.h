@@ -13,7 +13,7 @@
 #include "HuaEngine/Rendering/RHI/CommandSubmission.h"
 
 namespace HE::Rendering {
-	enum class PassGraphDiagnosticCode {
+	enum class RenderGraphDiagnosticCode {
 		EmptyGraph,
 		EmptyPassName,
 		DuplicatePassName,
@@ -29,13 +29,13 @@ namespace HE::Rendering {
 		CyclicDependency
 	};
 
-	struct PassGraphDiagnostic {
-		PassGraphDiagnosticCode Code;
+	struct RenderGraphDiagnostic {
+		RenderGraphDiagnosticCode Code;
 		std::string PassName;
 		std::string Message;
 	};
 
-	struct PassGraphResourceUsage {
+	struct RenderGraphResourceUsage {
 		RenderGraphResourceHandle Resource;
 		enum class Access : uint8_t {
 			Read = 0,
@@ -45,7 +45,7 @@ namespace HE::Rendering {
 		ResourceState State = ResourceState::Undefined;
 	};
 
-	struct PassGraphPassHandle {
+	struct RenderGraphPassHandle {
 		uint32_t Index = std::numeric_limits<uint32_t>::max();
 
 		[[nodiscard]] bool IsValid() const {
@@ -53,20 +53,20 @@ namespace HE::Rendering {
 		}
 	};
 
-	enum class PassGraphPassType : uint8_t {
+	enum class RenderGraphPassType : uint8_t {
 		Graphics = 0,
 		Compute,
 		Copy
 	};
 
-	enum class PassGraphRenderPassAttachmentKind : uint8_t {
+	enum class RenderGraphRenderPassAttachmentKind : uint8_t {
 		Color = 0,
 		DepthStencil
 	};
 
-	struct PassGraphRenderPassAttachment {
+	struct RenderGraphRenderPassAttachment {
 		RenderGraphResourceHandle Resource;
-		PassGraphRenderPassAttachmentKind Kind = PassGraphRenderPassAttachmentKind::Color;
+		RenderGraphRenderPassAttachmentKind Kind = RenderGraphRenderPassAttachmentKind::Color;
 		LoadOp Load = LoadOp::Clear;
 		StoreOp Store = StoreOp::Store;
 		glm::vec4 ClearColor = glm::vec4(0.0f);
@@ -74,17 +74,17 @@ namespace HE::Rendering {
 		uint32_t ClearStencil = 0;
 	};
 
-	struct PassGraphPassDesc {
+	struct RenderGraphPassDesc {
 		std::string Name;
-		PassGraphPassType Type = PassGraphPassType::Graphics;
+		RenderGraphPassType Type = RenderGraphPassType::Graphics;
 		bool HasSideEffects = false;
-		std::vector<PassGraphPassHandle> Dependencies;
-		std::vector<PassGraphResourceUsage> ResourceUsages;
-		std::vector<PassGraphRenderPassAttachment> RenderPassAttachments;
+		std::vector<RenderGraphPassHandle> Dependencies;
+		std::vector<RenderGraphResourceUsage> ResourceUsages;
+		std::vector<RenderGraphRenderPassAttachment> RenderPassAttachments;
 		std::function<void(RenderPassContext&)> Execute;
 	};
 
-	struct PassGraphStats {
+	struct RenderGraphStats {
 		std::uint32_t ResourceCount = 0;
 		std::uint32_t EdgeCount = 0;
 		std::uint32_t OutputCount = 0;
@@ -93,7 +93,7 @@ namespace HE::Rendering {
 		std::uint32_t CulledPassCount = 0;
 	};
 
-	struct PassGraphResourceBarrier {
+	struct RenderGraphResourceBarrier {
 		std::string PassName;
 		std::string ResourceName;
 		uint32_t PassIndex = 0;
@@ -101,49 +101,49 @@ namespace HE::Rendering {
 		ResourceState After = ResourceState::Undefined;
 	};
 
-	struct PassGraphQueueBatch {
+	struct RenderGraphQueueBatch {
 		RenderQueueType Queue = RenderQueueType::Graphics;
 		std::vector<uint32_t> PassIndices;
 		std::vector<uint32_t> WaitBatchIndices;
 	};
 
-	using PassGraphBarrierExecutor = std::function<void(const PassGraphResourceBarrier&, RenderPassContext&)>;
+	using RenderGraphBarrierExecutor = std::function<void(const RenderGraphResourceBarrier&, RenderPassContext&)>;
 
 	class RenderGraphBuilder;
 
-	class PassGraph {
+	class RenderGraph {
 	public:
-		void SetBarrierExecutor(PassGraphBarrierExecutor executor);
+		void SetBarrierExecutor(RenderGraphBarrierExecutor executor);
 		[[nodiscard]] bool Compile();
 		[[nodiscard]] bool Execute(RenderPassContext& context);
 		void ReleaseTransientResources(uint64_t fenceValue);
 
-		[[nodiscard]] const std::vector<PassGraphDiagnostic>& GetDiagnostics() const { return m_Diagnostics; }
+		[[nodiscard]] const std::vector<RenderGraphDiagnostic>& GetDiagnostics() const { return m_Diagnostics; }
 		[[nodiscard]] bool IsCompiled() const { return m_Compiled; }
-		[[nodiscard]] const PassGraphStats& GetStats() const { return m_Stats; }
+		[[nodiscard]] const RenderGraphStats& GetStats() const { return m_Stats; }
 		[[nodiscard]] const RenderGraphResourceAllocator& GetResourceAllocator() const { return m_ResourceAllocator; }
-		[[nodiscard]] const std::vector<PassGraphResourceBarrier>& GetBarrierPlan() const { return m_BarrierPlan; }
+		[[nodiscard]] const std::vector<RenderGraphResourceBarrier>& GetBarrierPlan() const { return m_BarrierPlan; }
 		[[nodiscard]] const std::vector<uint32_t>& GetExecutionOrder() const { return m_ExecutionOrder; }
-		[[nodiscard]] const std::vector<PassGraphQueueBatch>& GetQueueBatches() const { return m_QueueBatches; }
+		[[nodiscard]] const std::vector<RenderGraphQueueBatch>& GetQueueBatches() const { return m_QueueBatches; }
 
 	private:
 		friend class RenderGraphBuilder;
 
-		PassGraphPassHandle AddPass(PassGraphPassDesc pass);
+		RenderGraphPassHandle AddPass(RenderGraphPassDesc pass);
 		void AddOutputResource(RenderGraphResourceHandle resource);
 		RenderGraphResourceHandle AddImportedResource(RenderGraphResourceDesc desc);
 		RenderGraphResourceHandle AddTransientResource(RenderGraphResourceDesc desc);
 		void Reset();
 
-		std::vector<PassGraphPassDesc> m_Passes;
+		std::vector<RenderGraphPassDesc> m_Passes;
 		std::vector<RenderGraphResourceHandle> m_DeclaredOutputs;
 		RenderGraphResourceAllocator m_ResourceAllocator;
-		std::vector<PassGraphDiagnostic> m_Diagnostics;
-		std::vector<PassGraphResourceBarrier> m_BarrierPlan;
+		std::vector<RenderGraphDiagnostic> m_Diagnostics;
+		std::vector<RenderGraphResourceBarrier> m_BarrierPlan;
 		std::vector<uint32_t> m_ExecutionOrder;
-		std::vector<PassGraphQueueBatch> m_QueueBatches;
-		PassGraphBarrierExecutor m_BarrierExecutor;
-		PassGraphStats m_Stats;
+		std::vector<RenderGraphQueueBatch> m_QueueBatches;
+		RenderGraphBarrierExecutor m_BarrierExecutor;
+		RenderGraphStats m_Stats;
 		bool m_Compiled = false;
 	};
 }

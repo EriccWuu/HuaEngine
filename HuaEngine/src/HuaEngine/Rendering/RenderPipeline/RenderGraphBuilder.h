@@ -3,12 +3,12 @@
 #include <functional>
 #include <string>
 
-#include "HuaEngine/Rendering/RenderPipeline/PassGraph.h"
+#include "HuaEngine/Rendering/RenderPipeline/RenderGraph.h"
 
 namespace HE::Rendering {
 	class RenderGraphPassBuilder {
 	public:
-		void DependsOn(PassGraphPassHandle pass);
+		void DependsOn(RenderGraphPassHandle pass);
 		void Read(RenderGraphResourceHandle resource, ResourceState state);
 		void Write(RenderGraphResourceHandle resource, ResourceState state);
 		void WriteColor(
@@ -27,9 +27,9 @@ namespace HE::Rendering {
 	private:
 		friend class RenderGraphBuilder;
 
-		explicit RenderGraphPassBuilder(PassGraphPassDesc& pass) : m_Pass(pass) {}
+		explicit RenderGraphPassBuilder(RenderGraphPassDesc& pass) : m_Pass(pass) {}
 
-		PassGraphPassDesc& m_Pass;
+		RenderGraphPassDesc& m_Pass;
 	};
 
 	class RenderGraphPass {
@@ -37,29 +37,29 @@ namespace HE::Rendering {
 		virtual ~RenderGraphPass() = default;
 
 		[[nodiscard]] virtual const char* GetName() const = 0;
-		[[nodiscard]] virtual PassGraphPassType GetType() const = 0;
+		[[nodiscard]] virtual RenderGraphPassType GetType() const = 0;
 		virtual void Setup(RenderGraphPassBuilder& builder) = 0;
 		virtual void Execute(RenderPassContext& context) = 0;
 	};
 
 	class RenderGraphBuilder {
 	public:
-		explicit RenderGraphBuilder(PassGraph& graph);
+		explicit RenderGraphBuilder(RenderGraph& graph);
 
 		RenderGraphResourceHandle ImportTexture(std::string name, const Ref<TextureResource>& texture);
 		RenderGraphResourceHandle ImportBuffer(std::string name, const Ref<GpuBuffer>& buffer);
 		RenderGraphResourceHandle CreateTexture(std::string name, RenderGraphTextureDesc desc);
 		RenderGraphResourceHandle CreateBuffer(std::string name, RenderGraphBufferDesc desc);
 
-		PassGraphPassHandle AddPass(
+		RenderGraphPassHandle AddPass(
 			const std::string& name,
-			PassGraphPassType type,
+			RenderGraphPassType type,
 			const std::function<void(RenderGraphPassBuilder&)>& setup);
-		PassGraphPassHandle AddPass(RenderGraphPass& pass);
-		PassGraphPassHandle AddPass(const Ref<RenderGraphPass>& pass);
+		RenderGraphPassHandle AddPass(RenderGraphPass& pass);
+		RenderGraphPassHandle AddPass(const Ref<RenderGraphPass>& pass);
 		void Export(RenderGraphResourceHandle resource);
 
 	private:
-		PassGraph& m_Graph;
+		RenderGraph& m_Graph;
 	};
 }

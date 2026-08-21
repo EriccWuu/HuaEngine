@@ -2,14 +2,14 @@
 #include "RenderGraphBuilder.h"
 
 namespace HE::Rendering {
-	void RenderGraphPassBuilder::DependsOn(PassGraphPassHandle pass) {
+	void RenderGraphPassBuilder::DependsOn(RenderGraphPassHandle pass) {
 		m_Pass.Dependencies.push_back(pass);
 	}
 
 	void RenderGraphPassBuilder::Read(RenderGraphResourceHandle resource, ResourceState state) {
 		m_Pass.ResourceUsages.push_back({
 			.Resource = resource,
-			.AccessMode = PassGraphResourceUsage::Access::Read,
+			.AccessMode = RenderGraphResourceUsage::Access::Read,
 			.State = state
 		});
 	}
@@ -17,7 +17,7 @@ namespace HE::Rendering {
 	void RenderGraphPassBuilder::Write(RenderGraphResourceHandle resource, ResourceState state) {
 		m_Pass.ResourceUsages.push_back({
 			.Resource = resource,
-			.AccessMode = PassGraphResourceUsage::Access::Write,
+			.AccessMode = RenderGraphResourceUsage::Access::Write,
 			.State = state
 		});
 	}
@@ -29,7 +29,7 @@ namespace HE::Rendering {
 		const glm::vec4& clearColor) {
 		m_Pass.RenderPassAttachments.push_back({
 			.Resource = resource,
-			.Kind = PassGraphRenderPassAttachmentKind::Color,
+			.Kind = RenderGraphRenderPassAttachmentKind::Color,
 			.Load = load,
 			.Store = store,
 			.ClearColor = clearColor
@@ -44,7 +44,7 @@ namespace HE::Rendering {
 		uint32_t clearStencil) {
 		m_Pass.RenderPassAttachments.push_back({
 			.Resource = resource,
-			.Kind = PassGraphRenderPassAttachmentKind::DepthStencil,
+			.Kind = RenderGraphRenderPassAttachmentKind::DepthStencil,
 			.Load = load,
 			.Store = store,
 			.ClearDepth = clearDepth,
@@ -56,7 +56,7 @@ namespace HE::Rendering {
 		m_Pass.Execute = std::move(execute);
 	}
 
-	RenderGraphBuilder::RenderGraphBuilder(PassGraph& graph) : m_Graph(graph) {
+	RenderGraphBuilder::RenderGraphBuilder(RenderGraph& graph) : m_Graph(graph) {
 		m_Graph.Reset();
 	}
 
@@ -106,11 +106,11 @@ namespace HE::Rendering {
 		m_Graph.AddOutputResource(resource);
 	}
 
-	PassGraphPassHandle RenderGraphBuilder::AddPass(
+	RenderGraphPassHandle RenderGraphBuilder::AddPass(
 		const std::string& name,
-		PassGraphPassType type,
+		RenderGraphPassType type,
 		const std::function<void(RenderGraphPassBuilder&)>& setup) {
-		PassGraphPassDesc pass;
+		RenderGraphPassDesc pass;
 		pass.Name = name;
 		pass.Type = type;
 		RenderGraphPassBuilder passBuilder(pass);
@@ -118,7 +118,7 @@ namespace HE::Rendering {
 		return m_Graph.AddPass(std::move(pass));
 	}
 
-	PassGraphPassHandle RenderGraphBuilder::AddPass(RenderGraphPass& pass) {
+	RenderGraphPassHandle RenderGraphBuilder::AddPass(RenderGraphPass& pass) {
 		return AddPass(pass.GetName(), pass.GetType(), [&pass](RenderGraphPassBuilder& builder) {
 			pass.Setup(builder);
 			builder.SetExecute([&pass](RenderPassContext& context) {
@@ -127,7 +127,7 @@ namespace HE::Rendering {
 		});
 	}
 
-	PassGraphPassHandle RenderGraphBuilder::AddPass(const Ref<RenderGraphPass>& pass) {
+	RenderGraphPassHandle RenderGraphBuilder::AddPass(const Ref<RenderGraphPass>& pass) {
 		return AddPass(pass->GetName(), pass->GetType(), [pass](RenderGraphPassBuilder& builder) {
 			pass->Setup(builder);
 			builder.SetExecute([pass](RenderPassContext& context) {

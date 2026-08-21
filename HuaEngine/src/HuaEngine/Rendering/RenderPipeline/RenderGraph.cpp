@@ -1,5 +1,5 @@
 #include "enginepch.h"
-#include "PassGraph.h"
+#include "RenderGraph.h"
 
 #include <algorithm>
 #include <deque>
@@ -14,8 +14,8 @@
 namespace HE::Rendering {
 	namespace {
 		void AddDiagnostic(
-			std::vector<PassGraphDiagnostic>& diagnostics,
-			PassGraphDiagnosticCode code,
+			std::vector<RenderGraphDiagnostic>& diagnostics,
+			RenderGraphDiagnosticCode code,
 			std::string passName,
 			std::string message) {
 			diagnostics.push_back({ code, std::move(passName), std::move(message) });
@@ -34,34 +34,34 @@ namespace HE::Rendering {
 		}
 	}
 
-	PassGraphPassHandle PassGraph::AddPass(PassGraphPassDesc pass) {
+	RenderGraphPassHandle RenderGraph::AddPass(RenderGraphPassDesc pass) {
 		m_Passes.push_back(std::move(pass));
 		m_Compiled = false;
 		return { static_cast<uint32_t>(m_Passes.size() - 1) };
 	}
 
-	void PassGraph::AddOutputResource(RenderGraphResourceHandle resource) {
+	void RenderGraph::AddOutputResource(RenderGraphResourceHandle resource) {
 		m_DeclaredOutputs.push_back(resource);
 		m_Compiled = false;
 	}
 
-	void PassGraph::SetBarrierExecutor(PassGraphBarrierExecutor executor) {
+	void RenderGraph::SetBarrierExecutor(RenderGraphBarrierExecutor executor) {
 		m_BarrierExecutor = std::move(executor);
 	}
 
-	RenderGraphResourceHandle PassGraph::AddImportedResource(RenderGraphResourceDesc desc) {
+	RenderGraphResourceHandle RenderGraph::AddImportedResource(RenderGraphResourceDesc desc) {
 		const auto handle = m_ResourceAllocator.AddImportedResource(std::move(desc));
 		m_Compiled = false;
 		return handle;
 	}
 
-	RenderGraphResourceHandle PassGraph::AddTransientResource(RenderGraphResourceDesc desc) {
+	RenderGraphResourceHandle RenderGraph::AddTransientResource(RenderGraphResourceDesc desc) {
 		const auto handle = m_ResourceAllocator.AddTransientResource(std::move(desc));
 		m_Compiled = false;
 		return handle;
 	}
 
-	bool PassGraph::Compile() {
+	bool RenderGraph::Compile() {
 		m_Diagnostics.clear();
 		m_BarrierPlan.clear();
 		m_ExecutionOrder.clear();
@@ -69,8 +69,8 @@ namespace HE::Rendering {
 		m_Stats = {};
 		m_ResourceAllocator.ClearLifetimes();
 		if (m_Passes.empty()) {
-			AddDiagnostic(m_Diagnostics, PassGraphDiagnosticCode::EmptyGraph, {},
-						  "PassGraph must contain at least one pass");
+			AddDiagnostic(m_Diagnostics, RenderGraphDiagnosticCode::EmptyGraph, {},
+						  "RenderGraph must contain at least one pass");
 			m_Compiled = false;
 			return false;
 		}
@@ -83,27 +83,27 @@ namespace HE::Rendering {
 		uint32_t accessEdgeCount = 0;
 		for (const auto &desc : m_ResourceAllocator.GetResources()) {
 			if (!IsResourceDescriptionValid(desc))
-				AddDiagnostic(m_Diagnostics, PassGraphDiagnosticCode::InvalidResourceDescription, {},
+				AddDiagnostic(m_Diagnostics, RenderGraphDiagnosticCode::InvalidResourceDescription, {},
 							  "Render graph resource description is invalid");
 		}
 
 		for (uint32_t passIndex = 0; passIndex < m_Passes.size(); ++passIndex) {
 			const auto &pass = m_Passes[passIndex];
 			if (pass.Name.empty())
-				AddDiagnostic(m_Diagnostics, PassGraphDiagnosticCode::EmptyPassName, {},
+				AddDiagnostic(m_Diagnostics, RenderGraphDiagnosticCode::EmptyPassName, {},
 							  "Render pass name must not be empty");
 			else if (!passNames.insert(pass.Name).second)
-				AddDiagnostic(m_Diagnostics, PassGraphDiagnosticCode::DuplicatePassName, pass.Name,
+				AddDiagnostic(m_Diagnostics, RenderGraphDiagnosticCode::DuplicatePassName, pass.Name,
 							  "Render pass name must be unique");
 			if (!pass.Execute)
-				AddDiagnostic(m_Diagnostics, PassGraphDiagnosticCode::MissingExecuteCallback, pass.Name,
+				AddDiagnostic(m_Diagnostics, RenderGraphDiagnosticCode::MissingExecuteCallback, pass.Name,
 							  "Render pass must provide an execute callback");
-			if (pass.Type != PassGraphPassType::Graphics && !pass.RenderPassAttachments.empty())
-				AddDiagnostic(m_Diagnostics, PassGraphDiagnosticCode::InvalidPassType, pass.Name,
+			if (pass.Type != RenderGraphPassType::Graphics && !pass.RenderPassAttachments.empty())
+				AddDiagnostic(m_Diagnostics, RenderGraphDiagnosticCode::InvalidPassType, pass.Name,
 							  "Only graphics passes may declare render-pass attachments");
 			for (const auto dependency : pass.Dependencies) {
 				if (!dependency.IsValid() || dependency.Index >= m_Passes.size() || dependency.Index == passIndex)
-					AddDiagnostic(m_Diagnostics, PassGraphDiagnosticCode::InvalidResourceHandle, pass.Name,
+					AddDiagnostic(m_Diagnostics, RenderGraphDiagnosticCode::InvalidResourceHandle, pass.Name,
 								  "Render pass declares an invalid explicit dependency");
 				else
 					dependencyEdges[dependency.Index].push_back(passIndex);
@@ -111,15 +111,15 @@ namespace HE::Rendering {
 
 			auto usages = pass.ResourceUsages;
 			for (const auto &attachment : pass.RenderPassAttachments)
-				usages.push_back({attachment.Resource, PassGraphResourceUsage::Access::Write,
-								  attachment.Kind == PassGraphRenderPassAttachmentKind::Color
+				usages.push_back({attachment.Resource, RenderGraphResourceUsage::Access::Write,
+								  attachment.Kind == RenderGraphRenderPassAttachmentKind::Color
 									  ? ResourceState::RenderTarget
 									  : ResourceState::DepthStencilWrite});
 			std::unordered_set<std::string> passResources;
 			for (const auto &usage : usages) {
 				const auto *resource = m_ResourceAllocator.GetDesc(usage.Resource);
 				if (!resource) {
-					AddDiagnostic(m_Diagnostics, PassGraphDiagnosticCode::InvalidResourceHandle, pass.Name,
+					AddDiagnostic(m_Diagnostics, RenderGraphDiagnosticCode::InvalidResourceHandle, pass.Name,
 								  "Render pass references an invalid resource handle");
 					continue;
 				}
@@ -132,13 +132,13 @@ namespace HE::Rendering {
 					usage.State == ResourceState::VertexBuffer || usage.State == ResourceState::IndexBuffer;
 				if (usage.State == ResourceState::Undefined ||
 					(resource->Kind == RenderGraphResourceKind::Texture ? !textureState : !bufferState)) {
-					AddDiagnostic(m_Diagnostics, PassGraphDiagnosticCode::InvalidResourceUsage, pass.Name,
+					AddDiagnostic(m_Diagnostics, RenderGraphDiagnosticCode::InvalidResourceUsage, pass.Name,
 								  "Render pass resource usage state is not supported");
 					continue;
 				}
 				const auto &name = resource->Name;
 				if (!passResources.insert(name).second) {
-					AddDiagnostic(m_Diagnostics, PassGraphDiagnosticCode::DuplicateResourceAccess, pass.Name,
+					AddDiagnostic(m_Diagnostics, RenderGraphDiagnosticCode::DuplicateResourceAccess, pass.Name,
 								  "Render pass declares the same resource more than once");
 					continue;
 				}
@@ -152,12 +152,12 @@ namespace HE::Rendering {
 					m_BarrierPlan.push_back({pass.Name, name, passIndex, before, usage.State});
 					declarationStates[name] = usage.State;
 				}
-				if (usage.AccessMode == PassGraphResourceUsage::Access::Read) {
+				if (usage.AccessMode == RenderGraphResourceUsage::Access::Read) {
 					readers[name].push_back(passIndex);
 					readResources.insert(name);
 					++accessEdgeCount;
 				} else if (!writers.emplace(name, passIndex).second)
-					AddDiagnostic(m_Diagnostics, PassGraphDiagnosticCode::DuplicateResourceWriter, pass.Name,
+					AddDiagnostic(m_Diagnostics, RenderGraphDiagnosticCode::DuplicateResourceWriter, pass.Name,
 								  "Render graph resource must not have multiple writers");
 			}
 		}
@@ -167,7 +167,7 @@ namespace HE::Rendering {
 				const auto *desc = m_ResourceAllocator.GetDesc(m_ResourceAllocator.FindByName(name));
 				if (!desc || desc->Storage != RenderGraphResourceStorage::Imported)
 					for (const auto reader : resourceReaders)
-						AddDiagnostic(m_Diagnostics, PassGraphDiagnosticCode::MissingResourceProducer,
+						AddDiagnostic(m_Diagnostics, RenderGraphDiagnosticCode::MissingResourceProducer,
 									  m_Passes[reader].Name,
 									  "Render pass reads a resource that has no producer or imported source");
 			} else
@@ -199,7 +199,7 @@ namespace HE::Rendering {
 					ready.push_back(dependent);
 		}
 		if (m_ExecutionOrder.size() != m_Passes.size()) {
-			AddDiagnostic(m_Diagnostics, PassGraphDiagnosticCode::CyclicDependency, {},
+			AddDiagnostic(m_Diagnostics, RenderGraphDiagnosticCode::CyclicDependency, {},
 						  "Render graph contains a cyclic pass dependency");
 			m_Compiled = false;
 			m_ExecutionOrder.clear();
@@ -263,8 +263,8 @@ namespace HE::Rendering {
 					}
 				}
 		const auto queueFor = [this](uint32_t index) {
-			return m_Passes[index].Type == PassGraphPassType::Compute ? RenderQueueType::Compute
-				   : m_Passes[index].Type == PassGraphPassType::Copy  ? RenderQueueType::Copy
+			return m_Passes[index].Type == RenderGraphPassType::Compute ? RenderQueueType::Compute
+				   : m_Passes[index].Type == RenderGraphPassType::Copy  ? RenderQueueType::Copy
 																	  : RenderQueueType::Graphics;
 		};
 		std::vector<uint32_t> batchIndices(m_Passes.size(), std::numeric_limits<uint32_t>::max());
@@ -300,7 +300,7 @@ namespace HE::Rendering {
 		return true;
 	}
 
-	bool PassGraph::Execute(RenderPassContext& context) {
+	bool RenderGraph::Execute(RenderPassContext& context) {
 		if (!m_Compiled && !Compile()) {
 			return false;
 		}
@@ -350,7 +350,7 @@ namespace HE::Rendering {
 
 				auto textureView = context.Device->CreateTextureView({
 					.Texture = runtimeResource->Texture,
-					.Aspect = attachment.Kind == PassGraphRenderPassAttachmentKind::DepthStencil
+					.Aspect = attachment.Kind == RenderGraphRenderPassAttachmentKind::DepthStencil
 						? TextureAspect::DepthStencil
 						: TextureAspect::Color
 				});
@@ -359,7 +359,7 @@ namespace HE::Rendering {
 					break;
 				}
 
-				if (attachment.Kind == PassGraphRenderPassAttachmentKind::Color) {
+				if (attachment.Kind == RenderGraphRenderPassAttachmentKind::Color) {
 					graphRenderPass.ColorAttachments.push_back({
 						.View = textureView,
 						.Load = attachment.Load,
@@ -403,11 +403,11 @@ namespace HE::Rendering {
 		return succeeded;
 	}
 
-	void PassGraph::ReleaseTransientResources(uint64_t fenceValue) {
+	void RenderGraph::ReleaseTransientResources(uint64_t fenceValue) {
 		m_ResourceAllocator.ReleaseTransientResources(fenceValue);
 	}
 
-	void PassGraph::Reset() {
+	void RenderGraph::Reset() {
 		m_Passes.clear();
 		m_DeclaredOutputs.clear();
 		m_ResourceAllocator.Reset();

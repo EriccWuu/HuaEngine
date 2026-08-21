@@ -10,12 +10,12 @@ namespace {
 
 	void Require(bool condition, const std::string& message) {
 		if (!condition) {
-			std::cerr << "[RenderPassGraphSmoke] " << message << std::endl;
+			std::cerr << "[RenderGraphSmoke] " << message << std::endl;
 			std::exit(1);
 		}
 	}
 
-	bool HasDiagnostic(const std::vector<PassGraphDiagnostic>& diagnostics, PassGraphDiagnosticCode code) {
+	bool HasDiagnostic(const std::vector<RenderGraphDiagnostic>& diagnostics, RenderGraphDiagnosticCode code) {
 		for (const auto& diagnostic : diagnostics) {
 			if (diagnostic.Code == code) {
 				return true;
@@ -37,7 +37,7 @@ namespace {
 		explicit ObjectPass(RenderGraphResourceHandle color) : m_Color(color) {}
 
 		[[nodiscard]] const char* GetName() const override { return "ObjectPass"; }
-		[[nodiscard]] PassGraphPassType GetType() const override { return PassGraphPassType::Graphics; }
+		[[nodiscard]] RenderGraphPassType GetType() const override { return RenderGraphPassType::Graphics; }
 
 		void Setup(RenderGraphPassBuilder& builder) override {
 			builder.Write(m_Color, ResourceState::RenderTarget);
@@ -56,32 +56,32 @@ namespace {
 }
 
 int main() {
-	PassGraph emptyGraph;
-	Require(!emptyGraph.Compile() && HasDiagnostic(emptyGraph.GetDiagnostics(), PassGraphDiagnosticCode::EmptyGraph), "Expected empty graph diagnostic");
+	RenderGraph emptyGraph;
+	Require(!emptyGraph.Compile() && HasDiagnostic(emptyGraph.GetDiagnostics(), RenderGraphDiagnosticCode::EmptyGraph), "Expected empty graph diagnostic");
 
-	PassGraph duplicateGraph;
+	RenderGraph duplicateGraph;
 	RenderGraphBuilder duplicateBuilder(duplicateGraph);
-	duplicateBuilder.AddPass("Forward", PassGraphPassType::Graphics, [](RenderGraphPassBuilder& pass) { pass.SetExecute([](RenderPassContext&) {}); });
-	duplicateBuilder.AddPass("Forward", PassGraphPassType::Graphics, [](RenderGraphPassBuilder& pass) { pass.SetExecute([](RenderPassContext&) {}); });
-	Require(!duplicateGraph.Compile() && HasDiagnostic(duplicateGraph.GetDiagnostics(), PassGraphDiagnosticCode::DuplicatePassName), "Expected duplicate pass diagnostic");
+	duplicateBuilder.AddPass("Forward", RenderGraphPassType::Graphics, [](RenderGraphPassBuilder& pass) { pass.SetExecute([](RenderPassContext&) {}); });
+	duplicateBuilder.AddPass("Forward", RenderGraphPassType::Graphics, [](RenderGraphPassBuilder& pass) { pass.SetExecute([](RenderPassContext&) {}); });
+	Require(!duplicateGraph.Compile() && HasDiagnostic(duplicateGraph.GetDiagnostics(), RenderGraphDiagnosticCode::DuplicatePassName), "Expected duplicate pass diagnostic");
 
-	PassGraph invalidUsageGraph;
+	RenderGraph invalidUsageGraph;
 	RenderGraphBuilder invalidUsageBuilder(invalidUsageGraph);
 	const auto invalidUsage = CreateTexture(invalidUsageBuilder, "InvalidUsage");
-	invalidUsageBuilder.AddPass("Invalid", PassGraphPassType::Graphics, [invalidUsage](RenderGraphPassBuilder& pass) {
+	invalidUsageBuilder.AddPass("Invalid", RenderGraphPassType::Graphics, [invalidUsage](RenderGraphPassBuilder& pass) {
 		pass.Read(invalidUsage, ResourceState::Undefined);
 		pass.SetExecute([](RenderPassContext&) {});
 	});
-	Require(!invalidUsageGraph.Compile() && HasDiagnostic(invalidUsageGraph.GetDiagnostics(), PassGraphDiagnosticCode::InvalidResourceUsage), "Expected invalid usage diagnostic");
+	Require(!invalidUsageGraph.Compile() && HasDiagnostic(invalidUsageGraph.GetDiagnostics(), RenderGraphDiagnosticCode::InvalidResourceUsage), "Expected invalid usage diagnostic");
 
-	PassGraph explicitGraph;
+	RenderGraph explicitGraph;
 	RenderGraphBuilder explicitBuilder(explicitGraph);
 	const auto color = CreateTexture(explicitBuilder, "Color");
-	explicitBuilder.AddPass("Write", PassGraphPassType::Graphics, [color](RenderGraphPassBuilder& pass) {
+	explicitBuilder.AddPass("Write", RenderGraphPassType::Graphics, [color](RenderGraphPassBuilder& pass) {
 		pass.Write(color, ResourceState::RenderTarget);
 		pass.SetExecute([](RenderPassContext&) {});
 	});
-	explicitBuilder.AddPass("Read", PassGraphPassType::Graphics, [color](RenderGraphPassBuilder& pass) {
+	explicitBuilder.AddPass("Read", RenderGraphPassType::Graphics, [color](RenderGraphPassBuilder& pass) {
 		pass.Read(color, ResourceState::ShaderRead);
 		pass.SetExecute([](RenderPassContext&) {});
 	});
@@ -89,15 +89,15 @@ int main() {
 	const auto& barriers = explicitGraph.GetBarrierPlan();
 	Require(barriers.size() == 2 && barriers[0].After == ResourceState::RenderTarget && barriers[1].Before == ResourceState::RenderTarget && barriers[1].After == ResourceState::ShaderRead, "Expected typed barrier sequence");
 
-	PassGraph futureGraph;
+	RenderGraph futureGraph;
 	RenderGraphBuilder futureBuilder(futureGraph);
 	const auto futureColor = CreateTexture(futureBuilder, "FutureColor");
 	std::vector<std::string> execution;
-	futureBuilder.AddPass("Reader", PassGraphPassType::Graphics, [&](RenderGraphPassBuilder& pass) {
+	futureBuilder.AddPass("Reader", RenderGraphPassType::Graphics, [&](RenderGraphPassBuilder& pass) {
 		pass.Read(futureColor, ResourceState::ShaderRead);
 		pass.SetExecute([&](RenderPassContext&) { execution.push_back("reader"); });
 	});
-	futureBuilder.AddPass("Writer", PassGraphPassType::Graphics, [&](RenderGraphPassBuilder& pass) {
+	futureBuilder.AddPass("Writer", RenderGraphPassType::Graphics, [&](RenderGraphPassBuilder& pass) {
 		pass.Write(futureColor, ResourceState::RenderTarget);
 		pass.SetExecute([&](RenderPassContext&) { execution.push_back("writer"); });
 	});
@@ -105,36 +105,36 @@ int main() {
 	RenderPassContext emptyContext;
 	Require(futureGraph.Execute(emptyContext) && execution == std::vector<std::string>{ "writer", "reader" }, "Expected typed future producer execution");
 
-	PassGraph cycleGraph;
+	RenderGraph cycleGraph;
 	RenderGraphBuilder cycleBuilder(cycleGraph);
 	const auto resourceA = CreateTexture(cycleBuilder, "A");
 	const auto resourceB = CreateTexture(cycleBuilder, "B");
-	cycleBuilder.AddPass("A", PassGraphPassType::Graphics, [resourceA, resourceB](RenderGraphPassBuilder& pass) {
+	cycleBuilder.AddPass("A", RenderGraphPassType::Graphics, [resourceA, resourceB](RenderGraphPassBuilder& pass) {
 		pass.Write(resourceA, ResourceState::RenderTarget);
 		pass.Read(resourceB, ResourceState::ShaderRead);
 		pass.SetExecute([](RenderPassContext&) {});
 	});
-	cycleBuilder.AddPass("B", PassGraphPassType::Graphics, [resourceA, resourceB](RenderGraphPassBuilder& pass) {
+	cycleBuilder.AddPass("B", RenderGraphPassType::Graphics, [resourceA, resourceB](RenderGraphPassBuilder& pass) {
 		pass.Write(resourceB, ResourceState::RenderTarget);
 		pass.Read(resourceA, ResourceState::ShaderRead);
 		pass.SetExecute([](RenderPassContext&) {});
 	});
-	Require(!cycleGraph.Compile() && HasDiagnostic(cycleGraph.GetDiagnostics(), PassGraphDiagnosticCode::CyclicDependency), "Expected typed cycle diagnostic");
+	Require(!cycleGraph.Compile() && HasDiagnostic(cycleGraph.GetDiagnostics(), RenderGraphDiagnosticCode::CyclicDependency), "Expected typed cycle diagnostic");
 
-	PassGraph queueGraph;
+	RenderGraph queueGraph;
 	RenderGraphBuilder queueBuilder(queueGraph);
 	const auto sceneColor = CreateTexture(queueBuilder, "SceneColor");
 	const auto luminance = CreateTexture(queueBuilder, "Luminance");
-	queueBuilder.AddPass("Graphics", PassGraphPassType::Graphics, [sceneColor](RenderGraphPassBuilder& pass) {
+	queueBuilder.AddPass("Graphics", RenderGraphPassType::Graphics, [sceneColor](RenderGraphPassBuilder& pass) {
 		pass.Write(sceneColor, ResourceState::RenderTarget);
 		pass.SetExecute([](RenderPassContext&) {});
 	});
-	queueBuilder.AddPass("Compute", PassGraphPassType::Compute, [sceneColor, luminance](RenderGraphPassBuilder& pass) {
+	queueBuilder.AddPass("Compute", RenderGraphPassType::Compute, [sceneColor, luminance](RenderGraphPassBuilder& pass) {
 		pass.Read(sceneColor, ResourceState::ShaderRead);
 		pass.Write(luminance, ResourceState::CopyDst);
 		pass.SetExecute([](RenderPassContext&) {});
 	});
-	queueBuilder.AddPass("Copy", PassGraphPassType::Copy, [luminance](RenderGraphPassBuilder& pass) {
+	queueBuilder.AddPass("Copy", RenderGraphPassType::Copy, [luminance](RenderGraphPassBuilder& pass) {
 		pass.Read(luminance, ResourceState::CopySrc);
 		pass.SetExecute([](RenderPassContext&) {});
 	});
@@ -142,38 +142,38 @@ int main() {
 	const auto& batches = queueGraph.GetQueueBatches();
 	Require(batches.size() == 3 && batches[1].WaitBatchIndices == std::vector<uint32_t>{ 0 } && batches[2].WaitBatchIndices == std::vector<uint32_t>{ 1 }, "Expected cross-queue waits");
 
-	PassGraph dependencyGraph;
+	RenderGraph dependencyGraph;
 	RenderGraphBuilder dependencyBuilder(dependencyGraph);
 	std::vector<std::string> dependencyExecution;
-	const auto first = dependencyBuilder.AddPass("First", PassGraphPassType::Graphics, [&](RenderGraphPassBuilder& pass) {
+	const auto first = dependencyBuilder.AddPass("First", RenderGraphPassType::Graphics, [&](RenderGraphPassBuilder& pass) {
 		pass.SetExecute([&](RenderPassContext&) { dependencyExecution.push_back("first"); });
 	});
-	dependencyBuilder.AddPass("Second", PassGraphPassType::Graphics, [&](RenderGraphPassBuilder& pass) {
+	dependencyBuilder.AddPass("Second", RenderGraphPassType::Graphics, [&](RenderGraphPassBuilder& pass) {
 		pass.DependsOn(first);
 		pass.SetExecute([&](RenderPassContext&) { dependencyExecution.push_back("second"); });
 	});
 	Require(dependencyGraph.Compile(), "Expected explicit dependency graph to compile");
 	Require(dependencyGraph.Execute(emptyContext) && dependencyExecution == std::vector<std::string>{ "first", "second" }, "Expected explicit dependency execution");
 
-	PassGraph objectPassGraph;
-	RenderGraphBuilder objectPassBuilder(objectPassGraph);
+	RenderGraph objectRenderGraph;
+	RenderGraphBuilder objectPassBuilder(objectRenderGraph);
 	const auto objectPassColor = CreateTexture(objectPassBuilder, "ObjectPassColor");
 	ObjectPass objectPass(objectPassColor);
 	objectPassBuilder.AddPass(objectPass);
 	objectPassBuilder.Export(objectPassColor);
-	Require(objectPassGraph.Compile(), "Expected object pass graph to compile");
-	Require(objectPassGraph.Execute(emptyContext) && objectPass.WasExecuted(), "Expected object pass setup and execute binding");
+	Require(objectRenderGraph.Compile(), "Expected object pass graph to compile");
+	Require(objectRenderGraph.Execute(emptyContext) && objectPass.WasExecuted(), "Expected object pass setup and execute binding");
 
 	std::vector<std::string> culledExecution;
-	PassGraph cullingGraph;
+	RenderGraph cullingGraph;
 	RenderGraphBuilder cullingBuilder(cullingGraph);
 	const auto finalColor = CreateTexture(cullingBuilder, "Final");
 	const auto unusedColor = CreateTexture(cullingBuilder, "Unused");
-	cullingBuilder.AddPass("Final", PassGraphPassType::Graphics, [&](RenderGraphPassBuilder& pass) {
+	cullingBuilder.AddPass("Final", RenderGraphPassType::Graphics, [&](RenderGraphPassBuilder& pass) {
 		pass.Write(finalColor, ResourceState::RenderTarget);
 		pass.SetExecute([&](RenderPassContext&) { culledExecution.push_back("final"); });
 	});
-	cullingBuilder.AddPass("Unused", PassGraphPassType::Graphics, [&](RenderGraphPassBuilder& pass) {
+	cullingBuilder.AddPass("Unused", RenderGraphPassType::Graphics, [&](RenderGraphPassBuilder& pass) {
 		pass.Write(unusedColor, ResourceState::RenderTarget);
 		pass.SetExecute([&](RenderPassContext&) { culledExecution.push_back("unused"); });
 	});
@@ -181,6 +181,6 @@ int main() {
 	Require(cullingGraph.Compile() && cullingGraph.GetStats().CulledPassCount == 1, "Expected typed culling");
 	Require(cullingGraph.Execute(emptyContext) && culledExecution == std::vector<std::string>{ "final" }, "Expected unused pass to be culled");
 
-	std::cout << "RenderPassGraphSmoke passed" << std::endl;
+	std::cout << "RenderGraphSmoke passed" << std::endl;
 	return 0;
 }

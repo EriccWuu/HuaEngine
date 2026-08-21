@@ -543,22 +543,22 @@ endif()
 configure_smoke_target(CLIReflectionSmoke)
 copy_cli_host_to_smoke(CLIReflectionSmoke)
 
-add_executable(RenderPassGraphSmoke Tests/RenderPassGraphSmoke.cpp)
-target_include_directories(RenderPassGraphSmoke PRIVATE
+add_executable(RenderGraphSmoke Tests/RenderGraphSmoke.cpp)
+target_include_directories(RenderGraphSmoke PRIVATE
     ${CMAKE_SOURCE_DIR}/HuaEngine/src
     ${SPDLOG_INCLUDE_DIR}
     ${GLM_INCLUDE_DIR}
 )
-target_link_libraries(RenderPassGraphSmoke PRIVATE HuaEngine)
+target_link_libraries(RenderGraphSmoke PRIVATE HuaEngine)
 if(WIN32)
     if(MSVC)
-        set_target_properties(RenderPassGraphSmoke PROPERTIES
+        set_target_properties(RenderGraphSmoke PROPERTIES
             MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>"
         )
-        target_compile_options(RenderPassGraphSmoke PRIVATE /utf-8)
+        target_compile_options(RenderGraphSmoke PRIVATE /utf-8)
     endif()
 endif()
-configure_smoke_target(RenderPassGraphSmoke)
+configure_smoke_target(RenderGraphSmoke)
 
 add_executable(RHIResourceCreationSmoke Tests/RHIResourceCreationSmoke.cpp)
 target_include_directories(RHIResourceCreationSmoke PRIVATE
@@ -754,7 +754,7 @@ set_property(TARGET CLIHostSmoke PROPERTY FOLDER "Tests")
 set_property(TARGET CLIWorkflowSmoke PROPERTY FOLDER "Tests")
 set_property(TARGET CLIContractSmoke PROPERTY FOLDER "Tests")
 set_property(TARGET CLIReflectionSmoke PROPERTY FOLDER "Tests")
-set_property(TARGET RenderPassGraphSmoke PROPERTY FOLDER "Tests")
+set_property(TARGET RenderGraphSmoke PROPERTY FOLDER "Tests")
 set_property(TARGET RHIResourceCreationSmoke PROPERTY FOLDER "Tests")
 set_property(TARGET RHICommandListBindingSmoke PROPERTY FOLDER "Tests")
 set_property(TARGET RenderingOperationsSmoke PROPERTY FOLDER "Tests")
