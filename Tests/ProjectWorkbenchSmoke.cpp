@@ -97,12 +97,21 @@ int main() {
 	persisted.LastProjectRoot = context.RootPath.generic_string();
 	persisted.LastProjectName = context.Descriptor.Name;
 	persisted.LastScenePath = scenePath.generic_string();
+	persisted.SceneCameraPositionX = 1.25f;
+	persisted.SceneCameraPositionY = -2.5f;
+	persisted.SceneCameraPositionZ = 3.75f;
+	persisted.SceneCameraPitch = 0.25f;
+	persisted.SceneCameraYaw = -0.5f;
+	persisted.HasSceneCameraPose = true;
 	Require(HE::EditorSessionStorage::Save(persisted), "Expected editor session persistence to succeed");
 
 	HE::PersistedEditorSession loadedSession;
 	Require(HE::EditorSessionStorage::Load(loadedSession), "Expected persisted editor session to load");
 	Require(loadedSession.LastProjectRoot == persisted.LastProjectRoot, "Expected persisted project root parity");
 	Require(loadedSession.LastScenePath == persisted.LastScenePath, "Expected persisted last-scene parity");
+	Require(loadedSession.HasSceneCameraPose, "Expected persisted scene camera pose");
+	Require(loadedSession.SceneCameraPositionZ == persisted.SceneCameraPositionZ, "Expected persisted scene camera position parity");
+	Require(loadedSession.SceneCameraYaw == persisted.SceneCameraYaw, "Expected persisted scene camera orientation parity");
 
 	HE::Ref<HE::Scene> reopenedScene;
 	auto loadScene = operations.LoadScene(session.LastOpenedScenePath, reopenedScene);

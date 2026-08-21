@@ -11,6 +11,12 @@ namespace HE {
 		std::string LastProjectRoot;
 		std::string LastProjectName;
 		std::string LastScenePath;
+		float SceneCameraPositionX = 0.0f;
+		float SceneCameraPositionY = 0.0f;
+		float SceneCameraPositionZ = 0.0f;
+		float SceneCameraPitch = 0.0f;
+		float SceneCameraYaw = 0.0f;
+		bool HasSceneCameraPose = false;
 
 		[[nodiscard]] bool HasProject() const {
 			return !LastProjectRoot.empty();
@@ -20,6 +26,12 @@ namespace HE {
 			LastProjectRoot.clear();
 			LastProjectName.clear();
 			LastScenePath.clear();
+			SceneCameraPositionX = 0.0f;
+			SceneCameraPositionY = 0.0f;
+			SceneCameraPositionZ = 0.0f;
+			SceneCameraPitch = 0.0f;
+			SceneCameraYaw = 0.0f;
+			HasSceneCameraPose = false;
 		}
 	};
 
@@ -36,7 +48,13 @@ srefl_class(HE::PersistedEditorSession,
 	fields(
 		field(LastProjectRoot),
 		field(LastProjectName),
-		field(LastScenePath)
+		field(LastScenePath),
+		field(SceneCameraPositionX),
+		field(SceneCameraPositionY),
+		field(SceneCameraPositionZ),
+		field(SceneCameraPitch),
+		field(SceneCameraYaw),
+		field(HasSceneCameraPose)
 	)
 )
 
@@ -51,6 +69,12 @@ namespace HE::Serialization {
 			backend.Serialize("last_project_root", session.LastProjectRoot);
 			backend.Serialize("last_project_name", session.LastProjectName);
 			backend.Serialize("last_scene_path", session.LastScenePath);
+			backend.Serialize("scene_camera_position_x", session.SceneCameraPositionX);
+			backend.Serialize("scene_camera_position_y", session.SceneCameraPositionY);
+			backend.Serialize("scene_camera_position_z", session.SceneCameraPositionZ);
+			backend.Serialize("scene_camera_pitch", session.SceneCameraPitch);
+			backend.Serialize("scene_camera_yaw", session.SceneCameraYaw);
+			backend.Serialize("has_scene_camera_pose", session.HasSceneCameraPose);
 
 			if (!name.empty()) {
 				backend.EndObject();
@@ -70,6 +94,14 @@ namespace HE::Serialization {
 			success &= DeserializeValue(backend, "last_project_root", session.LastProjectRoot);
 			success &= DeserializeValue(backend, "last_project_name", session.LastProjectName);
 			success &= DeserializeValue(backend, "last_scene_path", session.LastScenePath);
+			if (backend.HasField("has_scene_camera_pose")) {
+				success &= DeserializeValue(backend, "scene_camera_position_x", session.SceneCameraPositionX);
+				success &= DeserializeValue(backend, "scene_camera_position_y", session.SceneCameraPositionY);
+				success &= DeserializeValue(backend, "scene_camera_position_z", session.SceneCameraPositionZ);
+				success &= DeserializeValue(backend, "scene_camera_pitch", session.SceneCameraPitch);
+				success &= DeserializeValue(backend, "scene_camera_yaw", session.SceneCameraYaw);
+				success &= DeserializeValue(backend, "has_scene_camera_pose", session.HasSceneCameraPose);
+			}
 
 			if (!name.empty()) {
 				backend.EndObject();

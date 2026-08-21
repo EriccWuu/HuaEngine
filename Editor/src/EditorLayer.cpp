@@ -216,11 +216,20 @@ namespace HE {
         m_ProjectSession.Loaded = true;
 
         if (m_HasPersistedSession && !m_PersistedSession.LastProjectRoot.empty()) {
-            const auto persistedRoot = NormalizePath(m_PersistedSession.LastProjectRoot);
+			const auto persistedRoot = NormalizePath(m_PersistedSession.LastProjectRoot);
             if (persistedRoot == context.RootPath && !m_PersistedSession.LastScenePath.empty()) {
                 m_ProjectSession.LastOpenedScenePath = NormalizePath(m_PersistedSession.LastScenePath);
             }
         }
+
+		m_EditorCameraController->ResetPose();
+		if (m_HasPersistedSession && m_PersistedSession.HasSceneCameraPose &&
+			NormalizePath(m_PersistedSession.LastProjectRoot) == context.RootPath) {
+			m_EditorCameraController->SetPose(
+				{ m_PersistedSession.SceneCameraPositionX, m_PersistedSession.SceneCameraPositionY, m_PersistedSession.SceneCameraPositionZ },
+				m_PersistedSession.SceneCameraPitch,
+				m_PersistedSession.SceneCameraYaw);
+		}
 
         SyncWorkbenchSessionState();
         RefreshInteractionHost();
@@ -562,6 +571,17 @@ namespace HE {
         m_PersistedSession.LastProjectRoot = m_ProjectSession.Context.RootPath.generic_string();
         m_PersistedSession.LastProjectName = m_ProjectSession.GetDisplayName();
         m_PersistedSession.LastScenePath = m_ProjectSession.LastOpenedScenePath.generic_string();
+		if (m_EditorCameraController) {
+			const auto& position = m_EditorCameraController->GetPosition();
+			m_PersistedSession.SceneCameraPositionX = position.x;
+			m_PersistedSession.SceneCameraPositionY = position.y;
+			m_PersistedSession.SceneCameraPositionZ = position.z;
+			m_PersistedSession.SceneCameraPitch = m_EditorCameraController->GetPitch();
+			m_PersistedSession.SceneCameraYaw = m_EditorCameraController->GetYaw();
+			m_PersistedSession.HasSceneCameraPose = true;
+		}
+		m_SceneCameraPoseDirty = false;
+		m_LastSceneCameraPoseSave = std::chrono::steady_clock::now();
         m_HasPersistedSession = true;
         if (!EditorSessionStorage::Save(m_PersistedSession)) {
             HE_CORE_WARN("[EditorWorkbench] Failed to persist editor session to disk");
@@ -1141,7 +1161,12 @@ namespace HE {
             return;
         }
 
-		m_EditorCameraController->Update(m_IsSceneViewportHovered);
+		if (m_EditorCameraController->Update(m_IsSceneViewportHovered)) {
+			m_SceneCameraPoseDirty = true;
+		}
+		if (m_SceneCameraPoseDirty && std::chrono::steady_clock::now() - m_LastSceneCameraPoseSave >= std::chrono::seconds(1)) {
+			PersistCurrentProjectSession();
+		}
 		const auto camera = m_EditorCameraController->BuildRenderCamera();
 		const auto renderResult = Application::GetInstance().GetOperations().RenderSceneViewport(
 			*m_SceneDocument.SceneRef,
@@ -1156,7 +1181,13 @@ namespace HE {
 
 	void EditorLayer::OnEvent(Event& event) {
 		if (m_EditorCameraController && m_IsSceneViewportHovered) {
-			m_EditorCameraController->OnEvent(event);
+			m_SceneCameraPoseDirty = m_EditorCameraController->OnEvent(event) || m_SceneCameraPoseDirty;
+		}
+	}
+
+	void EditorLayer::OnDetach() {
+		if (m_SceneCameraPoseDirty) {
+			PersistCurrentProjectSession();
 		}
 	}
 

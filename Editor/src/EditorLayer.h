@@ -1,6 +1,7 @@
 #pragma once
 
 #include <array>
+#include <chrono>
 #include <filesystem>
 #include <string>
 
@@ -54,7 +55,8 @@ namespace HE {
     public:
         explicit EditorLayer(EditorLayerSpecification specification = {});
 
-        void OnAttach() override;
+		void OnAttach() override;
+		void OnDetach() override;
         void OnUpdate() override;
         void OnGuiRender() override;
 		void OnEvent(Event& event) override;
@@ -132,6 +134,8 @@ namespace HE {
         SceneDocument m_SceneDocument;
         PersistedEditorSession m_PersistedSession;
         bool m_HasPersistedSession = false;
+		bool m_SceneCameraPoseDirty = false;
+		std::chrono::steady_clock::time_point m_LastSceneCameraPoseSave = std::chrono::steady_clock::now();
         WorkbenchActionRequest m_PendingAction;
         bool m_OpenUnsavedChangesPopup = false;
         std::array<char, 512> m_ProjectHubPathInput{};
