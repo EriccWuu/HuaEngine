@@ -1730,6 +1730,7 @@ namespace HE {
         ImGuizmo::SetDrawlist();
         ImGuizmo::SetRect(viewportOrigin.x, viewportOrigin.y, m_SceneViewportSize.x, m_SceneViewportSize.y);
         ImGuizmo::SetOrthographic(false);
+		ImGuizmo::AllowAxisFlip(false);
 		ImGuizmo::SetAxisLimit(0.0f);
 
         auto selectedEntity = Selection::HasSingleSelection()
