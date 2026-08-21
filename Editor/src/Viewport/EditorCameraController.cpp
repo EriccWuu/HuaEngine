@@ -30,7 +30,11 @@ namespace HE::Editor {
 
 		const glm::vec2 mousePosition = { Input::GetMouseX(), Input::GetMouseY() };
 		bool changed = false;
-		if (isActive) {
+		const bool hasShortcutModifier =
+			Input::IsKeyPressed(Key::LeftControl) || Input::IsKeyPressed(Key::RightControl) ||
+			Input::IsKeyPressed(Key::LeftAlt) || Input::IsKeyPressed(Key::RightAlt) ||
+			Input::IsKeyPressed(Key::LeftSuper) || Input::IsKeyPressed(Key::RightSuper);
+		if (isActive && !hasShortcutModifier) {
 			const float moveDistance = m_MoveSpeed * deltaTime;
 			if (Input::IsKeyPressed(Key::W)) { m_Position += GetForwardDirection() * moveDistance; changed = true; }
 			if (Input::IsKeyPressed(Key::S)) { m_Position -= GetForwardDirection() * moveDistance; changed = true; }
