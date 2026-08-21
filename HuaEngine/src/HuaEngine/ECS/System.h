@@ -1,6 +1,7 @@
 #pragma once
 
 #include <string>
+#include <string_view>
 #include <vector>
 
 #include "HuaEngine/ECS/ComponentType.h"
@@ -16,15 +17,55 @@ namespace HE {
 		Render
 	};
 
+	enum class SystemAccessTarget {
+		Component,
+		FrameResource
+	};
+
+	enum class SystemAccessMode {
+		Read,
+		Write
+	};
+
+	struct SystemAccess {
+		SystemAccessTarget Target = SystemAccessTarget::Component;
+		SystemAccessMode Mode = SystemAccessMode::Read;
+		ComponentTypeId ComponentType = InvalidComponentTypeId;
+		std::string FrameResourceName;
+
+		template<typename T>
+		static SystemAccess ReadComponent() {
+			return { SystemAccessTarget::Component, SystemAccessMode::Read, ComponentTypeIdOf<T>(), {} };
+		}
+
+		template<typename T>
+		static SystemAccess WriteComponent() {
+			return { SystemAccessTarget::Component, SystemAccessMode::Write, ComponentTypeIdOf<T>(), {} };
+		}
+
+		static SystemAccess ReadFrameResource(std::string_view resourceName) {
+			return { SystemAccessTarget::FrameResource, SystemAccessMode::Read, InvalidComponentTypeId, std::string(resourceName) };
+		}
+
+		static SystemAccess WriteFrameResource(std::string_view resourceName) {
+			return { SystemAccessTarget::FrameResource, SystemAccessMode::Write, InvalidComponentTypeId, std::string(resourceName) };
+		}
+
+		[[nodiscard]] bool TargetsSame(const SystemAccess& other) const {
+			if (Target != other.Target) {
+				return false;
+			}
+
+			return Target == SystemAccessTarget::Component
+				? ComponentType == other.ComponentType
+				: FrameResourceName == other.FrameResourceName;
+		}
+	};
+
 	struct SystemDescriptor {
 		std::string Name;
 		SystemStage Stage = SystemStage::Update;
-		std::vector<std::string> Before;
-		std::vector<std::string> After;
-		std::vector<ComponentTypeId> Reads;
-		std::vector<ComponentTypeId> Writes;
-		std::vector<std::string> ResourceReads;
-		std::vector<std::string> ResourceWrites;
+		std::vector<SystemAccess> Accesses;
 		bool Enabled = true;
 	};
 

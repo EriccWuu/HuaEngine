@@ -10,12 +10,11 @@ namespace HE {
 		SystemDescriptor descriptor;
 		descriptor.Name = "CameraSystem";
 		descriptor.Stage = SystemStage::Render;
-		descriptor.Before = { "RenderSystem" };
-		descriptor.Reads = {
-			ComponentTypeIdOf<TransformComponent>(),
-			ComponentTypeIdOf<Rendering::CameraComponent>()
+		descriptor.Accesses = {
+			SystemAccess::ReadComponent<TransformComponent>(),
+			SystemAccess::ReadComponent<Rendering::CameraComponent>(),
+			SystemAccess::WriteFrameResource(Rendering::RenderFrameData::ResourceName)
 		};
-		descriptor.ResourceWrites = { std::string(Rendering::RenderFrameData::ResourceName) };
 		return descriptor;
 	}
 

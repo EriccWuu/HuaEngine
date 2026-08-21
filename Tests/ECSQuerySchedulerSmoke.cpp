@@ -32,7 +32,7 @@ namespace {
 			HE::SystemDescriptor descriptor;
 			descriptor.Name = "FirstSystem";
 			descriptor.Stage = HE::SystemStage::Update;
-			descriptor.ResourceWrites = { "Smoke.FrameCounter" };
+			descriptor.Accesses = { HE::SystemAccess::WriteFrameResource("Smoke.FrameCounter") };
 			return descriptor;
 		}
 
@@ -57,7 +57,7 @@ namespace {
 			HE::SystemDescriptor descriptor;
 			descriptor.Name = "SecondSystem";
 			descriptor.Stage = HE::SystemStage::Update;
-			descriptor.ResourceReads = { "Smoke.FrameCounter" };
+			descriptor.Accesses = { HE::SystemAccess::ReadFrameResource("Smoke.FrameCounter") };
 			return descriptor;
 		}
 

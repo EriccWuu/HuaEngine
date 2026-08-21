@@ -32,30 +32,17 @@ namespace HE {
 					return static_cast<int>(lhs.Stage) < static_cast<int>(rhs.Stage);
 				}
 
-				if (std::find(lhs.After.begin(), lhs.After.end(), rhs.Name) != lhs.After.end()) {
-					return false;
-				}
-
-				if (std::find(rhs.After.begin(), rhs.After.end(), lhs.Name) != rhs.After.end()) {
-					return true;
-				}
-
-				if (std::find(lhs.Before.begin(), lhs.Before.end(), rhs.Name) != lhs.Before.end()) {
-					return true;
-				}
-
-				if (std::find(rhs.Before.begin(), rhs.Before.end(), lhs.Name) != rhs.Before.end()) {
-					return false;
-				}
-
-				const auto producesRequiredResource = [](const SystemDescriptor& producer, const SystemDescriptor& consumer) {
-					return std::any_of(producer.ResourceWrites.begin(), producer.ResourceWrites.end(), [&consumer](const std::string& resourceName) {
-						return std::find(consumer.ResourceReads.begin(), consumer.ResourceReads.end(), resourceName) != consumer.ResourceReads.end();
+				const auto writesFor = [](const SystemDescriptor& producer, const SystemDescriptor& consumer) {
+					return std::any_of(producer.Accesses.begin(), producer.Accesses.end(), [&consumer](const SystemAccess& producedAccess) {
+						return producedAccess.Mode == SystemAccessMode::Write
+							&& std::any_of(consumer.Accesses.begin(), consumer.Accesses.end(), [&producedAccess](const SystemAccess& consumedAccess) {
+								return producedAccess.TargetsSame(consumedAccess);
+							});
 					});
 				};
 
-				const bool lhsProducesForRhs = producesRequiredResource(lhs, rhs);
-				const bool rhsProducesForLhs = producesRequiredResource(rhs, lhs);
+				const bool lhsProducesForRhs = writesFor(lhs, rhs);
+				const bool rhsProducesForLhs = writesFor(rhs, lhs);
 				if (lhsProducesForRhs != rhsProducesForLhs) {
 					return lhsProducesForRhs;
 				}

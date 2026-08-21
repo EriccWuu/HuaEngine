@@ -13,12 +13,12 @@ namespace HE {
 		SystemDescriptor descriptor;
 		descriptor.Name = "RenderSystem";
 		descriptor.Stage = SystemStage::Render;
-		descriptor.Reads = {
-			ComponentTypeIdOf<TransformComponent>(),
-			ComponentTypeIdOf<Rendering::MeshComponent>(),
-			ComponentTypeIdOf<Rendering::MaterialComponent>()
+		descriptor.Accesses = {
+			SystemAccess::ReadComponent<TransformComponent>(),
+			SystemAccess::ReadComponent<Rendering::MeshComponent>(),
+			SystemAccess::ReadComponent<Rendering::MaterialComponent>(),
+			SystemAccess::ReadFrameResource(Rendering::RenderFrameData::ResourceName)
 		};
-		descriptor.ResourceReads = { std::string(Rendering::RenderFrameData::ResourceName) };
 		return descriptor;
 	}
 

@@ -29,7 +29,7 @@
 
 - 新增场景持有的 `FrameContext`，作为一次 Scheduler 更新内的 typed resource 容器，并在每帧开始清空。
 - `CameraSystem` 写入 `RenderFrameData::ActiveCamera`，`RenderSystem` 读取该资源；两者不再通过 `FindSystem` 或系统 getter 通信。
-- Scheduler 根据 `ResourceWrites` 与 `ResourceReads` 排序同阶段系统，使资源声明参与实际执行顺序。
+- `SystemDescriptor::Accesses` 统一描述组件与帧资源的 Read/Write；Scheduler 根据其中的写入与消费关系排序同阶段系统。
 
 已完成。
 
