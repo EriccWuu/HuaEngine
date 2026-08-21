@@ -153,7 +153,7 @@ namespace HE::Editor {
 			}
 
 			auto objectBindGroup = Rendering::CreateObjectBindGroup(*context.Device, item.Transform);
-			const uint32_t entityId = item.SourceEntity.GetUid();
+			const uint32_t entityId = item.SourceEntity.GetUid() + 1u;
 			const glm::vec4 encodedId(
 				static_cast<float>(entityId & 0xffu) / 255.0f,
 				static_cast<float>((entityId >> 8u) & 0xffu) / 255.0f,

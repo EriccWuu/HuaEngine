@@ -91,6 +91,13 @@ namespace HE {
             return {};
         }
 
+        uint32_t DecodeObjectId(Rendering::RenderTargetPixelRGBA8 pixel) {
+            return static_cast<uint32_t>(pixel.R)
+                | (static_cast<uint32_t>(pixel.G) << 8u)
+                | (static_cast<uint32_t>(pixel.B) << 16u)
+                | (static_cast<uint32_t>(pixel.A) << 24u);
+        }
+
         Rendering::MeshComponent MakeBuiltinMeshComponent(const AssetGuid& guid) {
             Rendering::MeshComponent component;
             component.Mesh.Reference.Guid = guid;
@@ -1827,6 +1834,25 @@ namespace HE {
         } else {
             m_GizmoWasUsing = false;
             m_GizmoEntityUuid = {};
+        }
+
+        if (m_IsSceneViewportHovered && ImGui::IsMouseClicked(ImGuiMouseButton_Left) && !ImGuizmo::IsOver()) {
+            const ImVec2 mousePosition = ImGui::GetMousePos();
+            const float localX = mousePosition.x - viewportOrigin.x;
+            const float localY = mousePosition.y - viewportOrigin.y;
+            const auto objectIdTexture = m_RenderTarget->GetColorAttachmentTexture(1);
+            if (objectIdTexture) {
+                const int maxX = static_cast<int>(objectIdTexture->GetWidth()) - 1;
+                const int maxY = static_cast<int>(objectIdTexture->GetHeight()) - 1;
+                const uint32_t pixelX = static_cast<uint32_t>(std::clamp(static_cast<int>(localX), 0, maxX));
+                const uint32_t pixelY = static_cast<uint32_t>(std::clamp(maxY - static_cast<int>(localY), 0, maxY));
+                const uint32_t encodedEntityId = DecodeObjectId(m_RenderTarget->ReadPixelRGBA8(1, pixelX, pixelY));
+                if (encodedEntityId == 0u) {
+                    Selection::ClearSelection();
+                } else {
+                    Selection::SetSelection(m_SceneDocument.SceneRef->GetWorld().GetEntityByIndex(encodedEntityId - 1u));
+                }
+            }
         }
         ImGui::End();
         ImGui::PopStyleVar();
