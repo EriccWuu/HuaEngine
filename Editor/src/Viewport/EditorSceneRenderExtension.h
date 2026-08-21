@@ -2,6 +2,10 @@
 
 #include "HuaEngine/Rendering/RenderPipeline/RenderGraphExtension.h"
 
+namespace HE::Rendering {
+	class RenderTarget;
+}
+
 namespace HE::Editor {
 	class EditorGridPass final : public Rendering::RenderGraphPass {
 	public:
@@ -26,17 +30,18 @@ namespace HE::Editor {
 		[[nodiscard]] Rendering::RenderGraphPassType GetType() const override { return Rendering::RenderGraphPassType::Graphics; }
 		void Configure(
 			Rendering::RenderGraphResourceHandle objectId,
-			Rendering::RenderGraphResourceHandle sceneDepth);
+			Rendering::RenderGraphResourceHandle objectIdDepth);
 		void Setup(Rendering::RenderGraphPassBuilder& builder) override;
 		void Execute(Rendering::RenderPassContext& context) override;
 
 	private:
 		Rendering::RenderGraphResourceHandle m_ObjectId;
-		Rendering::RenderGraphResourceHandle m_SceneDepth;
+		Rendering::RenderGraphResourceHandle m_ObjectIdDepth;
 	};
 
 	class EditorSceneRenderExtension final : public Rendering::RenderGraphExtension {
 	public:
+		void SetObjectIdTarget(Ref<Rendering::RenderTarget> target) { m_ObjectIdTarget = std::move(target); }
 		[[nodiscard]] bool RequiresSceneDepth() const override { return true; }
 		void AddBeforeOpaquePasses(
 			Rendering::RenderGraphBuilder& graph,
@@ -48,6 +53,7 @@ namespace HE::Editor {
 			const Rendering::RenderView& view) override;
 
 	private:
+		Ref<Rendering::RenderTarget> m_ObjectIdTarget;
 		EditorGridPass m_EditorGridPass;
 		EditorObjectIdPass m_EditorObjectIdPass;
 	};

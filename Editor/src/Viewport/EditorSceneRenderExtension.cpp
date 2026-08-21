@@ -87,14 +87,14 @@ namespace HE::Editor {
 
 	void EditorObjectIdPass::Configure(
 		Rendering::RenderGraphResourceHandle objectId,
-		Rendering::RenderGraphResourceHandle sceneDepth) {
+		Rendering::RenderGraphResourceHandle objectIdDepth) {
 		m_ObjectId = objectId;
-		m_SceneDepth = sceneDepth;
+		m_ObjectIdDepth = objectIdDepth;
 	}
 
 	void EditorObjectIdPass::Setup(Rendering::RenderGraphPassBuilder& builder) {
 		builder.WriteColor(m_ObjectId, Rendering::LoadOp::Clear, Rendering::StoreOp::Store);
-		builder.WriteDepth(m_SceneDepth, Rendering::LoadOp::Load, Rendering::StoreOp::Store);
+		builder.WriteDepth(m_ObjectIdDepth, Rendering::LoadOp::Clear, Rendering::StoreOp::Store);
 	}
 
 	void EditorObjectIdPass::Execute(Rendering::RenderPassContext& context) {
@@ -118,15 +118,11 @@ namespace HE::Editor {
 			return;
 		}
 
-		const auto objectIdTexture = context.View->Target->GetColorAttachmentTexture(1);
-		if (!objectIdTexture) {
-			return;
-		}
 		auto pipeline = context.Device->CreatePipelineState({
 			.Shader = shader,
 			.VertexLayout = { { Rendering::ShaderDataType::Float3, "a_Position" } },
 			.Topology = Rendering::PrimitiveTopology::TriangleList,
-			.ColorTargets = { { .Format = objectIdTexture->GetDesc().Format } },
+			.ColorTargets = { { .Format = Rendering::RenderTargetTextureFormat::RGBA8 } },
 			.DepthStencil = { .Format = Rendering::RenderTargetTextureFormat::DEPTH24_STENCIL8, .DepthTestEnabled = true, .DepthWriteEnabled = false, .DepthCompare = Rendering::CompareOp::LessEqual },
 			.BindGroupLayouts = { { .Slot = 0, .Layout = frameLayout }, { .Slot = 1, .Layout = objectLayout }, { .Slot = 2, .Layout = idLayout } }
 		});
@@ -186,14 +182,14 @@ namespace HE::Editor {
 		Rendering::RenderGraphBuilder& graph,
 		const Rendering::ForwardSceneResources& resources,
 		const Rendering::RenderView& view) {
-		const auto objectIdTexture = view.Target->GetColorAttachmentTexture(1);
-		if (!objectIdTexture) {
+		if (!m_ObjectIdTarget) {
 			return;
 		}
 
-		const auto objectId = graph.ImportTexture("EditorObjectIdAttachment", objectIdTexture);
+		const auto objectId = graph.ImportTexture("EditorObjectIdAttachment", m_ObjectIdTarget->GetColorAttachmentTexture());
+		const auto objectIdDepth = graph.ImportTexture("EditorObjectIdDepthAttachment", m_ObjectIdTarget->GetDepthStencilAttachmentTexture());
 		graph.Export(objectId);
-		m_EditorObjectIdPass.Configure(objectId, resources.Depth);
+		m_EditorObjectIdPass.Configure(objectId, objectIdDepth);
 		graph.AddPass(m_EditorObjectIdPass);
 	}
 }

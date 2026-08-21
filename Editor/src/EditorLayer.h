@@ -124,6 +124,7 @@ namespace HE {
         bool m_WorkbenchReady = false;
         bool m_DockLayoutInitialized = false;
         Ref<RenderTarget> m_RenderTarget;
+		Ref<RenderTarget> m_ObjectIdRenderTarget;
         Ref<Editor::EditorCameraController> m_EditorCameraController;
 		Editor::EditorSceneRenderExtension m_SceneRenderExtension;
         Ref<Material> m_SandboxMaterial;

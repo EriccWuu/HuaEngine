@@ -608,12 +608,10 @@ namespace HE {
         RenderTargetSpecification spec;
         spec.Width = 1280;
         spec.Height = 720;
-        spec.Attachments = {
-            RenderTargetTextureFormat::RGBA8,
-            RenderTargetTextureFormat::RGBA8,
-            RenderTargetTextureFormat::DEPTH24_STENCIL8
-        };
+        spec.Attachments = { RenderTargetTextureFormat::RGBA8, RenderTargetTextureFormat::DEPTH24_STENCIL8 };
         m_RenderTarget = Rendering::RenderHardwareInterface::GetDevice().CreateRenderTarget({ .Specification = spec });
+		m_ObjectIdRenderTarget = Rendering::RenderHardwareInterface::GetDevice().CreateRenderTarget({ .Specification = spec });
+		m_SceneRenderExtension.SetObjectIdTarget(m_ObjectIdRenderTarget);
 
         if (m_SceneDocument.SceneRef) {
             return BindSceneDocumentToShell();
@@ -1777,6 +1775,7 @@ namespace HE {
         const glm::vec2 newViewportSize = { scenePanelSize.x, scenePanelSize.y };
         if (newViewportSize != m_SceneViewportSize) {
             m_RenderTarget->Resize((uint32_t)scenePanelSize.x, (uint32_t)scenePanelSize.y);
+			m_ObjectIdRenderTarget->Resize((uint32_t)scenePanelSize.x, (uint32_t)scenePanelSize.y);
             m_SceneViewportSize = newViewportSize;
         }
 
@@ -1840,13 +1839,14 @@ namespace HE {
             const ImVec2 mousePosition = ImGui::GetMousePos();
             const float localX = mousePosition.x - viewportOrigin.x;
             const float localY = mousePosition.y - viewportOrigin.y;
-            const auto objectIdTexture = m_RenderTarget->GetColorAttachmentTexture(1);
+            const auto objectIdTexture = m_ObjectIdRenderTarget->GetColorAttachmentTexture();
             if (objectIdTexture) {
                 const int maxX = static_cast<int>(objectIdTexture->GetWidth()) - 1;
                 const int maxY = static_cast<int>(objectIdTexture->GetHeight()) - 1;
                 const uint32_t pixelX = static_cast<uint32_t>(std::clamp(static_cast<int>(localX), 0, maxX));
                 const uint32_t pixelY = static_cast<uint32_t>(std::clamp(maxY - static_cast<int>(localY), 0, maxY));
-                const uint32_t encodedEntityId = DecodeObjectId(m_RenderTarget->ReadPixelRGBA8(1, pixelX, pixelY));
+                const auto pixel = m_ObjectIdRenderTarget->ReadPixelRGBA8(0, pixelX, pixelY);
+                const uint32_t encodedEntityId = DecodeObjectId(pixel);
                 if (encodedEntityId == 0u) {
                     Selection::ClearSelection();
                 } else {
