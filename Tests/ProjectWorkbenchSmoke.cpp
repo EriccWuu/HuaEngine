@@ -97,21 +97,26 @@ int main() {
 	persisted.LastProjectRoot = context.RootPath.generic_string();
 	persisted.LastProjectName = context.Descriptor.Name;
 	persisted.LastScenePath = scenePath.generic_string();
-	persisted.SceneCameraPositionX = 1.25f;
-	persisted.SceneCameraPositionY = -2.5f;
-	persisted.SceneCameraPositionZ = 3.75f;
-	persisted.SceneCameraPitch = 0.25f;
-	persisted.SceneCameraYaw = -0.5f;
-	persisted.HasSceneCameraPose = true;
+	persisted.UpsertSceneCameraPose({
+		.ScenePath = scenePath.generic_string(),
+		.PositionX = 1.25f,
+		.PositionY = -2.5f,
+		.PositionZ = 3.75f,
+		.Pitch = 0.25f,
+		.Yaw = -0.5f
+	});
+	persisted.UpsertSceneCameraPose({ .ScenePath = "secondary.scene", .PositionX = -4.0f });
 	Require(HE::EditorSessionStorage::Save(persisted), "Expected editor session persistence to succeed");
 
 	HE::PersistedEditorSession loadedSession;
 	Require(HE::EditorSessionStorage::Load(loadedSession), "Expected persisted editor session to load");
 	Require(loadedSession.LastProjectRoot == persisted.LastProjectRoot, "Expected persisted project root parity");
 	Require(loadedSession.LastScenePath == persisted.LastScenePath, "Expected persisted last-scene parity");
-	Require(loadedSession.HasSceneCameraPose, "Expected persisted scene camera pose");
-	Require(loadedSession.SceneCameraPositionZ == persisted.SceneCameraPositionZ, "Expected persisted scene camera position parity");
-	Require(loadedSession.SceneCameraYaw == persisted.SceneCameraYaw, "Expected persisted scene camera orientation parity");
+	const auto* loadedCameraPose = loadedSession.FindSceneCameraPose(scenePath.generic_string());
+	Require(loadedCameraPose != nullptr, "Expected persisted scene camera pose");
+	Require(loadedCameraPose->PositionZ == 3.75f, "Expected persisted scene camera position parity");
+	Require(loadedCameraPose->Yaw == -0.5f, "Expected persisted scene camera orientation parity");
+	Require(loadedSession.FindSceneCameraPose("secondary.scene") != nullptr, "Expected multiple scene camera poses to persist");
 
 	HE::Ref<HE::Scene> reopenedScene;
 	auto loadScene = operations.LoadScene(session.LastOpenedScenePath, reopenedScene);

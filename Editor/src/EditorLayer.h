@@ -81,6 +81,7 @@ namespace HE {
         bool SaveActiveSceneDocumentAs(const std::filesystem::path& scenePath);
         void SetSceneContext(const Ref<Scene>& scene);
         void SetSceneDocument(const Ref<Scene>& scene, const std::filesystem::path& scenePath, SceneDocumentSource source);
+		void RestoreSceneCameraPose(const std::filesystem::path& scenePath);
         void CreateSandboxEntities();
         void EnterProjectHub();
         void EnterWorkbenchShell();

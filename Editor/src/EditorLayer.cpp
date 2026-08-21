@@ -223,13 +223,6 @@ namespace HE {
         }
 
 		m_EditorCameraController->ResetPose();
-		if (m_HasPersistedSession && m_PersistedSession.HasSceneCameraPose &&
-			NormalizePath(m_PersistedSession.LastProjectRoot) == context.RootPath) {
-			m_EditorCameraController->SetPose(
-				{ m_PersistedSession.SceneCameraPositionX, m_PersistedSession.SceneCameraPositionY, m_PersistedSession.SceneCameraPositionZ },
-				m_PersistedSession.SceneCameraPitch,
-				m_PersistedSession.SceneCameraYaw);
-		}
 
         SyncWorkbenchSessionState();
         RefreshInteractionHost();
@@ -314,6 +307,14 @@ namespace HE {
             }
         }
     }
+
+	void EditorLayer::RestoreSceneCameraPose(const std::filesystem::path& scenePath) {
+		m_EditorCameraController->ResetPose();
+		const auto* pose = m_PersistedSession.FindSceneCameraPose(NormalizePath(scenePath).generic_string());
+		if (pose) {
+			m_EditorCameraController->SetPose({ pose->PositionX, pose->PositionY, pose->PositionZ }, pose->Pitch, pose->Yaw);
+		}
+	}
 
     void EditorLayer::EnterProjectHub() {
         Selection::ClearSelection();
@@ -571,14 +572,16 @@ namespace HE {
         m_PersistedSession.LastProjectRoot = m_ProjectSession.Context.RootPath.generic_string();
         m_PersistedSession.LastProjectName = m_ProjectSession.GetDisplayName();
         m_PersistedSession.LastScenePath = m_ProjectSession.LastOpenedScenePath.generic_string();
-		if (m_EditorCameraController) {
+		if (m_EditorCameraController && !m_SceneDocument.ScenePath.empty()) {
 			const auto& position = m_EditorCameraController->GetPosition();
-			m_PersistedSession.SceneCameraPositionX = position.x;
-			m_PersistedSession.SceneCameraPositionY = position.y;
-			m_PersistedSession.SceneCameraPositionZ = position.z;
-			m_PersistedSession.SceneCameraPitch = m_EditorCameraController->GetPitch();
-			m_PersistedSession.SceneCameraYaw = m_EditorCameraController->GetYaw();
-			m_PersistedSession.HasSceneCameraPose = true;
+			m_PersistedSession.UpsertSceneCameraPose({
+				.ScenePath = NormalizePath(m_SceneDocument.ScenePath).generic_string(),
+				.PositionX = position.x,
+				.PositionY = position.y,
+				.PositionZ = position.z,
+				.Pitch = m_EditorCameraController->GetPitch(),
+				.Yaw = m_EditorCameraController->GetYaw()
+			});
 		}
 		m_SceneCameraPoseDirty = false;
 		m_LastSceneCameraPoseSave = std::chrono::steady_clock::now();
@@ -1031,6 +1034,7 @@ namespace HE {
             return false;
         }
 
+		m_EditorCameraController->ResetPose();
         SetSceneDocument(scene, {}, SceneDocumentSource::NewScene);
         m_SceneDocument.DisplayName = sceneName.empty() ? m_Specification.InitialSceneName : std::string(sceneName);
         m_ProjectSession.LastOpenedScenePath.clear();
@@ -1064,6 +1068,8 @@ namespace HE {
             return false;
         }
 
+		PersistCurrentProjectSession();
+		RestoreSceneCameraPose(resolvedPath);
         SetSceneDocument(scene, resolvedPath, SceneDocumentSource::LoadedFromDisk);
         m_ProjectSession.LastOpenedScenePath = resolvedPath;
         SyncWorkbenchSessionState();
