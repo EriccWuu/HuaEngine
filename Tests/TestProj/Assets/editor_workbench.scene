@@ -7,16 +7,16 @@ entities:
       TransformComponent:
         Position:
           x: 1.5
-          y: -0.400000006
-          z: -3.20000005
+          y: 0.299827933
+          z: -3.35205245
         Rotation:
-          x: 0.300000012
+          x: 0
           y: 0
           z: 0
         Scale:
           x: 0.5
-          y: 0.5
-          z: 0.5
+          y: 0.499999344
+          z: 0.499999344
       MaterialComponent:
         Material:
           guid: builtin-material-default
@@ -40,10 +40,10 @@ entities:
         Position:
           x: -0.5
           y: -0.5
-          z: -4.30000019
+          z: -3.5226984
         Rotation:
           x: 0
-          y: 0
+          y: -0
           z: 0
         Scale:
           x: 1
@@ -75,12 +75,12 @@ entities:
     components:
       TransformComponent:
         Position:
-          x: -1.5
-          y: 0
-          z: -2.9000001
+          x: -1.66577911
+          y: 0.13816978
+          z: -2.68188334
         Rotation:
           x: -0.600000024
-          y: 0
+          y: -0
           z: 0
         Scale:
           x: 0.5
@@ -107,12 +107,12 @@ entities:
     components:
       TransformComponent:
         Position:
-          x: 0.5
-          y: 0.5
-          z: -5.5
+          x: -0.30020678
+          y: 0.591587961
+          z: -5.93453121
         Rotation:
           x: 0
-          y: 0
+          y: -0
           z: 0
         Scale:
           x: 1
@@ -139,17 +139,17 @@ entities:
     components:
       TransformComponent:
         Position:
-          x: 1
-          y: -0.400000006
-          z: -3.29999995
+          x: 1.33484352
+          y: -0.608064532
+          z: -3.41639161
         Rotation:
-          x: 0
-          y: -1.60000002
-          z: 0
+          x: -5.71127748e-05
+          y: -1.36425757
+          z: -1.02253962
         Scale:
-          x: 1
-          y: 1
-          z: 1
+          x: 0.999987364
+          y: 0.999999285
+          z: 0.999986768
       MeshComponent:
         Mesh:
           guid: builtin-mesh-quad
