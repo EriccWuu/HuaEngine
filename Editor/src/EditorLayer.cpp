@@ -1519,6 +1519,9 @@ namespace HE {
 
     void EditorLayer::OnDockingPanel() {
         static bool enable_docking = true;
+		bool openNewScenePopup = false;
+		bool openOpenScenePopup = false;
+		bool openSaveSceneAsPopup = false;
 
         static bool opt_fullscreen = true;
         static bool opt_padding = false;
@@ -1592,16 +1595,16 @@ namespace HE {
             if (ImGui::BeginMenu("Scene")) {
                 if (ImGui::MenuItem("New Scene...", nullptr, false, m_ProjectSession.IsLoaded())) {
                     CopyToBuffer(m_Specification.InitialSceneName, m_NewSceneNameInput.data(), m_NewSceneNameInput.size());
-                    ImGui::OpenPopup("New Scene");
+					openNewScenePopup = true;
                 }
                 if (ImGui::MenuItem("Open Scene...", nullptr, false, m_ProjectSession.IsLoaded())) {
-                    ImGui::OpenPopup("Open Scene");
+					openOpenScenePopup = true;
                 }
                 if (ImGui::MenuItem("Save Scene", "Ctrl+S", false, m_SceneDocument.IsLoaded())) {
                     SaveActiveSceneDocument();
                 }
                 if (ImGui::MenuItem("Save Scene As...", nullptr, false, m_SceneDocument.IsLoaded())) {
-                    ImGui::OpenPopup("Save Scene As");
+					openSaveSceneAsPopup = true;
                 }
                 if (ImGui::MenuItem("Validate Scene", nullptr, false, m_SceneDocument.IsLoaded())) {
                     CaptureOperationResult(Application::GetInstance().GetOperations().ValidateScene(*m_SceneDocument.SceneRef));
@@ -1657,6 +1660,10 @@ namespace HE {
 
             ImGui::EndMenuBar();
         }
+
+		if (openNewScenePopup) ImGui::OpenPopup("New Scene");
+		if (openOpenScenePopup) ImGui::OpenPopup("Open Scene");
+		if (openSaveSceneAsPopup) ImGui::OpenPopup("Save Scene As");
 
         if (ImGui::BeginPopupModal("New Scene", nullptr, ImGuiWindowFlags_AlwaysAutoResize)) {
             ImGui::InputText("Scene Name", m_NewSceneNameInput.data(), static_cast<int>(m_NewSceneNameInput.size()));
