@@ -49,3 +49,9 @@
 - `ForwardRenderPipeline` 与三个 RenderGraph/RHI smoke 均已迁移至 Builder。
 - `PassGraph` 的资源登记、Pass 登记、输出登记和 `Reset` 已设为 Builder 私有协作接口；业务代码不再能直接构造低层图节点。
 - 已验证 `RenderPassGraphSmoke`、`RHIResourceCreationSmoke`、`RHICommandListBindingSmoke`、`RenderingOperationsSmoke`。
+
+## Pass 对象收敛
+
+- 新增 `RenderGraphPass` 接口，统一 `Setup(RenderGraphPassBuilder&)` 与 `Execute(RenderPassContext&)`。
+- Builder 支持直接接收 Pass 对象，并自动完成 setup 与执行回调绑定。
+- Forward opaque 与 post-process Pass 自身持有构图资源句柄和配置，`BuildGraph()` 只负责资源拓扑与 Pass 排列，不再维护资源相关 lambda capture。

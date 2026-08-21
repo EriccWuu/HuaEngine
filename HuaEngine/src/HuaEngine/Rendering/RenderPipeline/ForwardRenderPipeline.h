@@ -1,6 +1,6 @@
 #pragma once
 
-#include "HuaEngine/Rendering/RenderPipeline/PassGraph.h"
+#include "HuaEngine/Rendering/RenderPipeline/RenderGraphBuilder.h"
 #include "HuaEngine/Rendering/RenderPipeline/RenderPipeline.h"
 #include "HuaEngine/Rendering/RHI/ResourceStateTracker.h"
 #include "HuaEngine/Rendering/RHI/CommandSubmission.h"
@@ -11,14 +11,38 @@ namespace HE::Rendering {
 		void Execute(RenderPassContext& context);
 	};
 
-	class ForwardOpaquePass {
+	class ForwardOpaquePass final : public RenderGraphPass {
 	public:
-		void Execute(RenderPassContext& context);
+		void Configure(
+			RenderGraphResourceHandle sceneColor,
+			RenderGraphResourceHandle sceneDepth,
+			bool writeDepth,
+			const glm::vec4& clearColor,
+			bool clearColorBuffer);
+		void Setup(RenderGraphPassBuilder& builder) override;
+		void Execute(RenderPassContext& context) override;
+
+	private:
+		RenderGraphResourceHandle m_SceneColor;
+		RenderGraphResourceHandle m_SceneDepth;
+		bool m_WriteDepth = false;
+		glm::vec4 m_ClearColor = glm::vec4(0.0f);
+		bool m_ClearColorBuffer = true;
 	};
 
-	class PostProcessPass {
+	class PostProcessPass final : public RenderGraphPass {
 	public:
-		void Execute(RenderPassContext& context, RenderGraphResourceHandle sceneColor) const;
+		void Configure(
+			RenderGraphResourceHandle sceneColor,
+			RenderGraphResourceHandle output,
+			const glm::vec4& clearColor);
+		void Setup(RenderGraphPassBuilder& builder) override;
+		void Execute(RenderPassContext& context) override;
+
+	private:
+		RenderGraphResourceHandle m_SceneColor;
+		RenderGraphResourceHandle m_Output;
+		glm::vec4 m_ClearColor = glm::vec4(0.0f);
 	};
 
 	class EndRendererPass {

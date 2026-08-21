@@ -120,6 +120,18 @@ namespace HE::Rendering {
 		return AddPass(name, PassGraphPassType::Copy, setup);
 	}
 
+	PassGraphPassHandle RenderGraphBuilder::AddGraphicsPass(const std::string& name, RenderGraphPass& pass) {
+		return AddPass(name, PassGraphPassType::Graphics, pass);
+	}
+
+	PassGraphPassHandle RenderGraphBuilder::AddComputePass(const std::string& name, RenderGraphPass& pass) {
+		return AddPass(name, PassGraphPassType::Compute, pass);
+	}
+
+	PassGraphPassHandle RenderGraphBuilder::AddCopyPass(const std::string& name, RenderGraphPass& pass) {
+		return AddPass(name, PassGraphPassType::Copy, pass);
+	}
+
 	void RenderGraphBuilder::Export(RenderGraphResourceHandle resource) {
 		m_Graph.AddOutputResource(resource);
 	}
@@ -134,5 +146,17 @@ namespace HE::Rendering {
 		RenderGraphPassBuilder passBuilder(pass);
 		setup(passBuilder);
 		return m_Graph.AddPass(std::move(pass));
+	}
+
+	PassGraphPassHandle RenderGraphBuilder::AddPass(
+		const std::string& name,
+		PassGraphPassType type,
+		RenderGraphPass& pass) {
+		return AddPass(name, type, [&pass](RenderGraphPassBuilder& builder) {
+			pass.Setup(builder);
+			builder.SetExecute([&pass](RenderPassContext& context) {
+				pass.Execute(context);
+			});
+		});
 	}
 }

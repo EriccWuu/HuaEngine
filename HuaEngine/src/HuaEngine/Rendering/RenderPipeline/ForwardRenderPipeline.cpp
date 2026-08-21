@@ -54,6 +54,27 @@ namespace HE::Rendering {
 		context.Commands->BeginFrame();
 	}
 
+	void ForwardOpaquePass::Configure(
+		RenderGraphResourceHandle sceneColor,
+		RenderGraphResourceHandle sceneDepth,
+		bool writeDepth,
+		const glm::vec4& clearColor,
+		bool clearColorBuffer) {
+		m_SceneColor = sceneColor;
+		m_SceneDepth = sceneDepth;
+		m_WriteDepth = writeDepth;
+		m_ClearColor = clearColor;
+		m_ClearColorBuffer = clearColorBuffer;
+	}
+
+	void ForwardOpaquePass::Setup(RenderGraphPassBuilder& builder) {
+		const auto load = m_ClearColorBuffer ? LoadOp::Clear : LoadOp::Load;
+		builder.WriteColor(m_SceneColor, load, StoreOp::Store, m_ClearColor);
+		if (m_WriteDepth) {
+			builder.WriteDepth(m_SceneDepth, load);
+		}
+	}
+
 	void ForwardOpaquePass::Execute(RenderPassContext& context) {
 		if (!context.RenderItems || !context.ResourceResolver || !context.Commands || !context.Stats || !context.Diagnostics) {
 			return;
@@ -120,12 +141,26 @@ namespace HE::Rendering {
 		}
 	}
 
-	void PostProcessPass::Execute(RenderPassContext& context, RenderGraphResourceHandle sceneColor) const {
+	void PostProcessPass::Configure(
+		RenderGraphResourceHandle sceneColor,
+		RenderGraphResourceHandle output,
+		const glm::vec4& clearColor) {
+		m_SceneColor = sceneColor;
+		m_Output = output;
+		m_ClearColor = clearColor;
+	}
+
+	void PostProcessPass::Setup(RenderGraphPassBuilder& builder) {
+		builder.Read(m_SceneColor, ResourceState::ShaderRead);
+		builder.WriteColor(m_Output, LoadOp::Clear, StoreOp::Store, m_ClearColor);
+	}
+
+	void PostProcessPass::Execute(RenderPassContext& context) {
 		if (!context.Device || !context.Commands || !context.GraphResources || !context.Stats) {
 			return;
 		}
 
-		const auto* sceneColorResource = context.GraphResources->GetRuntimeResource(sceneColor);
+		const auto* sceneColorResource = context.GraphResources->GetRuntimeResource(m_SceneColor);
 		if (!sceneColorResource || !sceneColorResource->Texture) {
 			return;
 		}
@@ -274,22 +309,10 @@ namespace HE::Rendering {
 				.Format = RenderTargetTextureFormat::DEPTH24_STENCIL8,
 				.AttachmentGroup = "ForwardScene"
 		});
-		graph.AddGraphicsPass("ForwardOpaque", [this, sceneColorHandle, sceneDepthHandle, viewportDepthHandle, clearColor, clearColorBuffer](RenderGraphPassBuilder& pass) {
-			pass.WriteColor(sceneColorHandle, clearColorBuffer ? LoadOp::Clear : LoadOp::Load, StoreOp::Store, clearColor);
-			if (viewportDepthHandle.IsValid()) {
-				pass.WriteDepth(sceneDepthHandle, clearColorBuffer ? LoadOp::Clear : LoadOp::Load);
-			}
-			pass.SetExecute([this](RenderPassContext& context) {
-				m_OpaquePass.Execute(context);
-			});
-		});
-		graph.AddGraphicsPass("PostProcess", [this, sceneColorHandle, viewportColorHandle, clearColor](RenderGraphPassBuilder& pass) {
-			pass.Read(sceneColorHandle, ResourceState::ShaderRead);
-			pass.WriteColor(viewportColorHandle, LoadOp::Clear, StoreOp::Store, clearColor);
-			pass.SetExecute([this, sceneColorHandle](RenderPassContext& context) {
-				m_PostProcessPass.Execute(context, sceneColorHandle);
-			});
-		});
+		m_OpaquePass.Configure(sceneColorHandle, sceneDepthHandle, viewportDepthHandle.IsValid(), clearColor, clearColorBuffer);
+		m_PostProcessPass.Configure(sceneColorHandle, viewportColorHandle, clearColor);
+		graph.AddGraphicsPass("ForwardOpaque", m_OpaquePass);
+		graph.AddGraphicsPass("PostProcess", m_PostProcessPass);
 	}
 
 	bool ForwardRenderPipeline::EnsureGraphCompiled(const RenderView& view, RenderResult& result) {

@@ -31,6 +31,25 @@ namespace {
 			.Format = RenderTargetTextureFormat::RGBA8
 		});
 	}
+
+	class ObjectPass final : public RenderGraphPass {
+	public:
+		explicit ObjectPass(RenderGraphResourceHandle color) : m_Color(color) {}
+
+		void Setup(RenderGraphPassBuilder& builder) override {
+			builder.Write(m_Color, ResourceState::RenderTarget);
+		}
+
+		void Execute(RenderPassContext&) override {
+			m_Executed = true;
+		}
+
+		[[nodiscard]] bool WasExecuted() const { return m_Executed; }
+
+	private:
+		RenderGraphResourceHandle m_Color;
+		bool m_Executed = false;
+	};
 }
 
 int main() {
@@ -132,6 +151,15 @@ int main() {
 	});
 	Require(dependencyGraph.Compile(), "Expected explicit dependency graph to compile");
 	Require(dependencyGraph.Execute(emptyContext) && dependencyExecution == std::vector<std::string>{ "first", "second" }, "Expected explicit dependency execution");
+
+	PassGraph objectPassGraph;
+	RenderGraphBuilder objectPassBuilder(objectPassGraph);
+	const auto objectPassColor = CreateTexture(objectPassBuilder, "ObjectPassColor");
+	ObjectPass objectPass(objectPassColor);
+	objectPassBuilder.AddGraphicsPass("ObjectPass", objectPass);
+	objectPassBuilder.Export(objectPassColor);
+	Require(objectPassGraph.Compile(), "Expected object pass graph to compile");
+	Require(objectPassGraph.Execute(emptyContext) && objectPass.WasExecuted(), "Expected object pass setup and execute binding");
 
 	std::vector<std::string> culledExecution;
 	PassGraph cullingGraph;

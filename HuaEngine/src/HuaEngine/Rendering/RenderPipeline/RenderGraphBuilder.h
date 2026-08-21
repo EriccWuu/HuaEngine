@@ -32,6 +32,14 @@ namespace HE::Rendering {
 		PassGraphPassDesc& m_Pass;
 	};
 
+	class RenderGraphPass {
+	public:
+		virtual ~RenderGraphPass() = default;
+
+		virtual void Setup(RenderGraphPassBuilder& builder) = 0;
+		virtual void Execute(RenderPassContext& context) = 0;
+	};
+
 	class RenderGraphBuilder {
 	public:
 		explicit RenderGraphBuilder(PassGraph& graph);
@@ -44,6 +52,9 @@ namespace HE::Rendering {
 		PassGraphPassHandle AddGraphicsPass(const std::string& name, const std::function<void(RenderGraphPassBuilder&)>& setup);
 		PassGraphPassHandle AddComputePass(const std::string& name, const std::function<void(RenderGraphPassBuilder&)>& setup);
 		PassGraphPassHandle AddCopyPass(const std::string& name, const std::function<void(RenderGraphPassBuilder&)>& setup);
+		PassGraphPassHandle AddGraphicsPass(const std::string& name, RenderGraphPass& pass);
+		PassGraphPassHandle AddComputePass(const std::string& name, RenderGraphPass& pass);
+		PassGraphPassHandle AddCopyPass(const std::string& name, RenderGraphPass& pass);
 		void Export(RenderGraphResourceHandle resource);
 
 	private:
@@ -51,6 +62,7 @@ namespace HE::Rendering {
 			const std::string& name,
 			PassGraphPassType type,
 			const std::function<void(RenderGraphPassBuilder&)>& setup);
+		PassGraphPassHandle AddPass(const std::string& name, PassGraphPassType type, RenderGraphPass& pass);
 
 		PassGraph& m_Graph;
 	};
