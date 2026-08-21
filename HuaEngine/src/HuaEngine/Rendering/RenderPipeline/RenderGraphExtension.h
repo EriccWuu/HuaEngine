@@ -18,5 +18,9 @@ namespace HE::Rendering {
 			RenderGraphBuilder& graph,
 			const ForwardSceneResources& resources,
 			const RenderView& view) = 0;
+		virtual void AddAfterOpaquePasses(
+			RenderGraphBuilder& graph,
+			const ForwardSceneResources& resources,
+			const RenderView& view) {}
 	};
 }

@@ -76,6 +76,9 @@ namespace HE::Rendering {
 			extension->AddBeforeOpaquePasses(graph, { .Color = sceneColorHandle, .Depth = sceneDepthHandle }, view);
 		}
 		graph.AddPass(m_OpaquePass);
+		if (extension) {
+			extension->AddAfterOpaquePasses(graph, { .Color = sceneColorHandle, .Depth = sceneDepthHandle }, view);
+		}
 		graph.AddPass(m_PostProcessPass);
 	}
 
