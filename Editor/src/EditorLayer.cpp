@@ -1141,6 +1141,7 @@ namespace HE {
             return;
         }
 
+		m_EditorCameraController->Update(m_IsSceneViewportHovered);
 		const auto camera = m_EditorCameraController->BuildRenderCamera();
 		const auto renderResult = Application::GetInstance().GetOperations().RenderSceneViewport(*m_SceneDocument.SceneRef, camera);
         if (!renderResult.Succeeded()) {
@@ -1149,6 +1150,12 @@ namespace HE {
         }
         m_SceneDocument.SceneRef->Update();
     }
+
+	void EditorLayer::OnEvent(Event& event) {
+		if (m_EditorCameraController && m_IsSceneViewportHovered) {
+			m_EditorCameraController->OnEvent(event);
+		}
+	}
 
     void EditorLayer::CaptureOperationResult(const ResultEnvelope& result) {
         m_LastOperationResult = result;
@@ -1719,6 +1726,7 @@ namespace HE {
         ImGui::Image(m_RenderTarget->GetColorAttachmentView().NativeHandle,
             { m_SceneViewportSize.x , m_SceneViewportSize.y },
             { 0, 1 }, { 1, 0 });
+		m_IsSceneViewportHovered = ImGui::IsItemHovered();
         m_EditorCameraController->SetViewport(m_SceneViewportSize.x, m_SceneViewportSize.y);
 
         if (ImGui::IsWindowHovered()) {

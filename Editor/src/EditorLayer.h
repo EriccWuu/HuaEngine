@@ -56,6 +56,7 @@ namespace HE {
         void OnAttach() override;
         void OnUpdate() override;
         void OnGuiRender() override;
+		void OnEvent(Event& event) override;
 
     private:
         bool InitializeStartupProjectSession();
@@ -143,6 +144,7 @@ namespace HE {
         bool m_ShowScenePanel = true;
 
         glm::vec2 m_SceneViewportSize = { 0, 0 };
+		bool m_IsSceneViewportHovered = false;
         int m_GizmoOperation = 7;
         bool m_GizmoWasUsing = false;
         EntityUuid m_GizmoEntityUuid;

@@ -3,13 +3,48 @@
 
 #define GLM_ENABLE_EXPERIMENTAL
 #include "glm/gtx/quaternion.hpp"
+#include "HuaEngine/Core/Input.h"
+#include "HuaEngine/Core/KeyCodes.h"
+#include "HuaEngine/Core/MouseCodes.h"
+#include "HuaEngine/Events/MouseEvent.h"
 
 namespace HE::Editor {
 	EditorCameraController::EditorCameraController(float fov, float aspectRatio, float nearClip, float farClip)
 		:m_Fov(fov), m_AspectRatio(aspectRatio), m_Near(nearClip), m_Far(farClip) {}
 
 	void EditorCameraController::OnEvent(Event& event) {
-		HE_CORE_WARN("EditorCameraController::OnEvent not implemented!");
+		EventDispatcher dispatcher(event);
+		dispatcher.Dispatch<MouseScrolledEvent>([this](MouseScrolledEvent& mouseEvent) {
+			m_Position += GetForwardDirection() * mouseEvent.GetYOffset() * m_ScrollSpeed;
+			return false;
+		});
+	}
+
+	void EditorCameraController::Update(bool isActive) {
+		const auto now = std::chrono::steady_clock::now();
+		const float deltaTime = std::chrono::duration<float>(now - m_LastUpdateTime).count();
+		m_LastUpdateTime = now;
+
+		const glm::vec2 mousePosition = { Input::GetMouseX(), Input::GetMouseY() };
+		if (isActive) {
+			const float moveDistance = m_MoveSpeed * deltaTime;
+			if (Input::IsKeyPressed(Key::W)) m_Position += GetForwardDirection() * moveDistance;
+			if (Input::IsKeyPressed(Key::S)) m_Position -= GetForwardDirection() * moveDistance;
+			if (Input::IsKeyPressed(Key::D)) m_Position += GetRightDirection() * moveDistance;
+			if (Input::IsKeyPressed(Key::A)) m_Position -= GetRightDirection() * moveDistance;
+		}
+
+		if (isActive && Input::IsMousePressed(Mouse::ButtonRight)) {
+			if (m_HasMousePosition) {
+				const glm::vec2 delta = mousePosition - m_LastMousePosition;
+				m_Yaw += delta.x * m_MouseSensitivity;
+				m_Pitch = glm::clamp(m_Pitch + delta.y * m_MouseSensitivity, -1.55f, 1.55f);
+			}
+			m_HasMousePosition = true;
+		} else {
+			m_HasMousePosition = false;
+		}
+		m_LastMousePosition = mousePosition;
 	}
 
 	const glm::vec3 EditorCameraController::GetUpDirection() const {
