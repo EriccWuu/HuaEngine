@@ -123,7 +123,7 @@ namespace HE::Editor {
 			.VertexLayout = { { Rendering::ShaderDataType::Float3, "a_Position" } },
 			.Topology = Rendering::PrimitiveTopology::TriangleList,
 			.ColorTargets = { { .Format = Rendering::RenderTargetTextureFormat::RGBA8 } },
-			.DepthStencil = { .Format = Rendering::RenderTargetTextureFormat::DEPTH24_STENCIL8, .DepthTestEnabled = true, .DepthWriteEnabled = false, .DepthCompare = Rendering::CompareOp::LessEqual },
+			.DepthStencil = { .Format = Rendering::RenderTargetTextureFormat::DEPTH24_STENCIL8, .DepthTestEnabled = true, .DepthWriteEnabled = true, .DepthCompare = Rendering::CompareOp::LessEqual },
 			.BindGroupLayouts = { { .Slot = 0, .Layout = frameLayout }, { .Slot = 1, .Layout = objectLayout }, { .Slot = 2, .Layout = idLayout } }
 		});
 		if (!pipeline) {
