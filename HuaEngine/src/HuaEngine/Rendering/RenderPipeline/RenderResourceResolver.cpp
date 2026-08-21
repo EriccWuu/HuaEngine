@@ -227,7 +227,9 @@ namespace HE::Rendering {
 		}
 
 		for (const auto& [parameterName, value] : item.MaterialOverrides.Parameters) {
-			materialInstance->SetParameter(parameterName, value);
+			if (baseMaterial->HasParameter(parameterName)) {
+				materialInstance->SetParameter(parameterName, value);
+			}
 		}
 
 		if (usedFallback) {

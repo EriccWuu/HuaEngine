@@ -999,7 +999,6 @@ namespace HE {
         secondSquare.AddComponent<MeshComponent>(MakeBuiltinMeshComponent(BuiltinAssetGuids::QuadMesh));
         auto& secondMaterial = secondSquare.AddComponent<MaterialComponent>(MakeBuiltinMaterialComponent());
         secondMaterial.Overrides.SetVec4("u_Color", glm::vec4(0.8f, 0.4f, 0.9f, 1.0f));
-        secondMaterial.Overrides.Parameters["u_TextureScale"] = glm::vec2(2.0f, 2.0f);
         auto& secondTransform = secondSquare.GetComponent<TransformComponent>();
         secondTransform.Position.z -= 3.0f;
         secondTransform.Position -= glm::vec3{ 0.5f, 0.5f, 0.0f };
