@@ -92,6 +92,9 @@ add_subdirectory(Editor)
 add_subdirectory(ProjectHub)
 add_subdirectory(CLI)
 
+# Editor launches ProjectHub as a sibling host from its output directory.
+add_dependencies(Editor ProjectHub)
+
 set(SMOKE_RUNTIME_OUTPUT_DIRECTORY
     "${CMAKE_BINARY_DIR}/bin/$<CONFIG>-${CMAKE_SYSTEM_NAME}-${ARCHITECTURE}/smoke")
 
