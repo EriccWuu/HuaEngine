@@ -1,9 +1,9 @@
 #pragma once
 
-#include "HuaEngine/Rendering/RenderGraph/GraphPasses/BeginRendererPass.h"
-#include "HuaEngine/Rendering/RenderGraph/GraphPasses/EndRendererPass.h"
-#include "HuaEngine/Rendering/RenderGraph/GraphPasses/ForwardOpaquePass.h"
-#include "HuaEngine/Rendering/RenderGraph/GraphPasses/PostProcessPass.h"
+#include "HuaEngine/Rendering/RenderPipeline/GraphPasses/BeginRendererPass.h"
+#include "HuaEngine/Rendering/RenderPipeline/GraphPasses/EndRendererPass.h"
+#include "HuaEngine/Rendering/RenderPipeline/GraphPasses/ForwardOpaquePass.h"
+#include "HuaEngine/Rendering/RenderPipeline/GraphPasses/PostProcessPass.h"
 #include "HuaEngine/Rendering/RenderGraph/RenderGraph.h"
 #include "HuaEngine/Rendering/RenderPipeline/RenderPipeline.h"
 #include "HuaEngine/Rendering/RHI/ResourceStateTracker.h"
