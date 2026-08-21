@@ -10,6 +10,7 @@
 #include "HuaEngine/Asset/AssetService.h"
 #include "HuaEngine/Rendering/RHI/RenderTarget.h"
 #include "HuaEngine/Validation/ValidationService.h"
+#include "Module/Rendering/CameraSystem.h"
 #include "Module/Rendering/RenderSystem.h"
 #include "Module/Rendering/RenderingComponent.h"
 
@@ -611,6 +612,12 @@ namespace HE {
 			return result;
 		}
 
+		auto cameraSystem = scene->FindSystem<CameraSystem>();
+		if (!cameraSystem) {
+			cameraSystem = CreateRef<CameraSystem>(scene);
+			scene->AddSystem(cameraSystem);
+		}
+
 		auto renderSystem = scene->FindSystem<RenderSystem>();
 		const bool createdNewSystem = !renderSystem;
 		if (createdNewSystem) {
@@ -618,6 +625,7 @@ namespace HE {
 			scene->AddSystem(renderSystem);
 		}
 
+		cameraSystem->SetRenderTarget(renderTarget);
 		renderSystem->SetRenderTarget(renderTarget);
 		renderSystem->SetAssetResolver(&m_Services->GetAssetResolver());
 

@@ -1,4 +1,5 @@
 #include "enginepch.h"
+#include "CameraSystem.h"
 #include "HuaEngine/ECS/Components.h"
 #include "HuaEngine/Rendering/RenderPipeline/ForwardRenderPipeline.h"
 #include "RenderingComponent.h"
@@ -12,9 +13,9 @@ namespace HE {
 		SystemDescriptor descriptor;
 		descriptor.Name = "RenderSystem";
 		descriptor.Stage = SystemStage::Render;
+		descriptor.After = { "CameraSystem" };
 		descriptor.Reads = {
 			ComponentTypeIdOf<TransformComponent>(),
-			ComponentTypeIdOf<Rendering::CameraComponent>(),
 			ComponentTypeIdOf<Rendering::MeshComponent>(),
 			ComponentTypeIdOf<Rendering::MaterialComponent>()
 		};
@@ -22,16 +23,10 @@ namespace HE {
 	}
 
 	void RenderSystem::Update(SystemContext& context) {
-		auto cameraQuery = context.WorldRef().Query<TransformComponent, Rendering::CameraComponent>();
-		cameraQuery.ForEach([&](Entity, TransformComponent& transform, Rendering::CameraComponent& camera) {
-			if (camera.Primary) {
-				const float aspectRatio = camera.FixedAspectRatio || !m_RenderTarget
-					? camera.AspectRatio
-					: static_cast<float>(m_RenderTarget->GetSpecification().Width) / static_cast<float>(m_RenderTarget->GetSpecification().Height);
-				const auto projection = glm::perspective(glm::radians(camera.VerticalFovDegrees), aspectRatio, camera.NearClip, camera.FarClip);
-				RenderSingleCamera(context.WorldRef(), Rendering::RenderCamera(projection, glm::inverse(transform.GetTransformMat())));
-			}
-		});
+		const auto cameraSystem = m_Scene ? m_Scene->FindSystem<CameraSystem>() : nullptr;
+		if (cameraSystem && cameraSystem->GetActiveCamera()) {
+			RenderSingleCamera(context.WorldRef(), *cameraSystem->GetActiveCamera());
+		}
 	}
 
 	void RenderSystem::Update() {

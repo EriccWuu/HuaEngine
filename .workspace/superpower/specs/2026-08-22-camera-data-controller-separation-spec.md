@@ -8,10 +8,10 @@
 
 - 新增纯 `RenderCamera`，仅携带 view/projection 矩阵。
 - `CameraComponent` 保存可序列化的投影参数，不再持有 `RuntimeCamera`。
-- `RenderSystem` 由 `TransformComponent + CameraComponent` 构建 `RenderCamera`。
+- `CameraSystem` 由 `TransformComponent + CameraComponent` 构建 `RenderCamera`，`RenderSystem` 只消费该快照。
 - 视口渲染入口只消费 `RenderCamera`。
 
-已完成。`RenderSystem` 查询 `TransformComponent + CameraComponent` 并为 Primary 相机生成渲染快照。
+已完成。`CameraSystem` 查询 `TransformComponent + CameraComponent` 并为首个 Primary 相机生成渲染快照；`RenderSystem` 在同一 Render 阶段后置消费该快照。
 
 ## P2：编辑器控制器化
 
