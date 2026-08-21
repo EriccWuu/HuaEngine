@@ -38,14 +38,14 @@ Builder 支持 `Ref<RenderGraphPass>` 重载，图执行回调会持有对象，
 
 ## 目录结构
 
-`RenderPipeline/GraphPasses` 保存具体 Pass 的定义和实现。目前包括：
+`Rendering/RenderGraph/GraphPasses` 保存具体 Pass 的定义和实现。目前包括：
 
 - `BeginRendererPass`
 - `ForwardOpaquePass`
 - `PostProcessPass`
 - `EndRendererPass`
 
-`ForwardRenderPipeline` 只保留资源拓扑构建、图编译和提交控制流；具体 Pass 的资源声明与执行逻辑由各自文件维护。
+`Rendering/RenderGraph` 同时承载 RenderGraph 核心、资源 allocator、Builder 和 GraphPasses。`RenderPipeline` 保留管线策略、Forward pipeline、资源解析、绑定组和渲染类型；`ForwardRenderPipeline` 只保留资源拓扑构建、图编译和提交控制流。
 
 ## 验收结果
 

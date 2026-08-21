@@ -5,7 +5,7 @@
 
 #include "HuaEngine.h"
 #include "HuaEngine/Core/ResourcePaths.h"
-#include "HuaEngine/Rendering/RenderPipeline/RenderGraphBuilder.h"
+#include "HuaEngine/Rendering/RenderGraph/RenderGraphBuilder.h"
 #include "HuaEngine/Rendering/RHI/CommandList.h"
 #include "HuaEngine/Rendering/RHI/ResourceBarrier.h"
 #include "HuaEngine/Rendering/RHI/ResourceStateTracker.h"

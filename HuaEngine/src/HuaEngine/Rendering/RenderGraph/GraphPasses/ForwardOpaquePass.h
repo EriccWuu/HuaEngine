@@ -1,6 +1,6 @@
 #pragma once
 
-#include "HuaEngine/Rendering/RenderPipeline/RenderGraphBuilder.h"
+#include "HuaEngine/Rendering/RenderGraph/RenderGraphBuilder.h"
 
 namespace HE::Rendering {
 	class ForwardOpaquePass final : public RenderGraphPass {

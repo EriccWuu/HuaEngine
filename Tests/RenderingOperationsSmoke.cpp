@@ -132,10 +132,10 @@ namespace {
 				: std::string{};
 		};
 
-		const auto sourceRoot = std::filesystem::current_path() / "HuaEngine" / "src" / "HuaEngine" / "Rendering" / "RenderPipeline";
-		const auto pipelineContent = readSource(sourceRoot / "ForwardRenderPipeline.cpp");
-		const auto opaqueContent = readSource(sourceRoot / "GraphPasses" / "ForwardOpaquePass.cpp");
-		const auto postProcessContent = readSource(sourceRoot / "GraphPasses" / "PostProcessPass.cpp");
+		const auto renderingRoot = std::filesystem::current_path() / "HuaEngine" / "src" / "HuaEngine" / "Rendering";
+		const auto pipelineContent = readSource(renderingRoot / "RenderPipeline" / "ForwardRenderPipeline.cpp");
+		const auto opaqueContent = readSource(renderingRoot / "RenderGraph" / "GraphPasses" / "ForwardOpaquePass.cpp");
+		const auto postProcessContent = readSource(renderingRoot / "RenderGraph" / "GraphPasses" / "PostProcessPass.cpp");
 		return opaqueContent.find("SetVertexBuffer(") != std::string::npos
 			&& postProcessContent.find("SetIndexBuffer(") != std::string::npos
 			&& postProcessContent.find("void PostProcessPass::Execute") != std::string::npos

@@ -10,7 +10,7 @@
 
 #include "HuaEngine.h"
 #include "HuaEngine/Rendering/Camera.h"
-#include "HuaEngine/Rendering/RenderPipeline/RenderGraphBuilder.h"
+#include "HuaEngine/Rendering/RenderGraph/RenderGraphBuilder.h"
 #include "HuaEngine/Rendering/RHI/CommandList.h"
 #include "HuaEngine/Rendering/RHI/RenderPass.h"
 #include "HuaEngine/Rendering/RHI/RenderHardwareInterface.h"

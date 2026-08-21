@@ -1,7 +1,7 @@
 #include "enginepch.h"
 #include "ForwardRenderPipeline.h"
 
-#include "HuaEngine/Rendering/RenderPipeline/RenderGraphBuilder.h"
+#include "HuaEngine/Rendering/RenderGraph/RenderGraphBuilder.h"
 #include "HuaEngine/Rendering/RenderPipeline/RenderBindGroupBuilder.h"
 #include "HuaEngine/Rendering/RenderPipeline/RenderResourceResolver.h"
 #include "HuaEngine/Rendering/RHI/CommandBufferRecorder.h"

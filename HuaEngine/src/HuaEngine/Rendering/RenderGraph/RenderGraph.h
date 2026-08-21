@@ -6,7 +6,7 @@
 #include <string>
 #include <vector>
 
-#include "HuaEngine/Rendering/RenderPipeline/RenderGraphResource.h"
+#include "HuaEngine/Rendering/RenderGraph/RenderGraphResource.h"
 #include "HuaEngine/Rendering/RenderPipeline/RenderTypes.h"
 #include "HuaEngine/Rendering/RHI/ResourceBarrier.h"
 #include "HuaEngine/Rendering/RHI/RenderPass.h"

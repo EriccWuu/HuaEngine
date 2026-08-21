@@ -3,7 +3,7 @@
 #include <string>
 #include <vector>
 
-#include "HuaEngine/Rendering/RenderPipeline/RenderGraphBuilder.h"
+#include "HuaEngine/Rendering/RenderGraph/RenderGraphBuilder.h"
 
 namespace {
 	using namespace HE::Rendering;

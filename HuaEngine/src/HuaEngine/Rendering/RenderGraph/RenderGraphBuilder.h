@@ -3,7 +3,7 @@
 #include <functional>
 #include <string>
 
-#include "HuaEngine/Rendering/RenderPipeline/RenderGraph.h"
+#include "HuaEngine/Rendering/RenderGraph/RenderGraph.h"
 
 namespace HE::Rendering {
 	class RenderGraphPassBuilder {
