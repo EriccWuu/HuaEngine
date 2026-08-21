@@ -1742,38 +1742,49 @@ namespace HE {
 		ImGuizmo::SetAxisLimit(0.0f);
 		const auto camera = m_EditorCameraController->BuildRenderCamera();
 		const auto viewProjection = camera.GetProjection() * camera.GetView();
-		auto projectToViewport = [&](const glm::vec3& worldPosition, ImVec2& screenPosition) {
-			const auto clipPosition = viewProjection * glm::vec4(worldPosition, 1.0f);
-			if (clipPosition.w <= 0.0001f) {
+		auto projectGridSegment = [&](const glm::vec3& worldStart, const glm::vec3& worldEnd, ImVec2& screenStart, ImVec2& screenEnd) {
+			glm::vec4 clipStart = viewProjection * glm::vec4(worldStart, 1.0f);
+			glm::vec4 clipEnd = viewProjection * glm::vec4(worldEnd, 1.0f);
+			constexpr float minimumW = 0.0001f;
+			if (clipStart.w <= minimumW && clipEnd.w <= minimumW) {
 				return false;
 			}
 
-			const auto ndcPosition = glm::vec3(clipPosition) / clipPosition.w;
-			screenPosition = {
-				viewportOrigin.x + (ndcPosition.x * 0.5f + 0.5f) * m_SceneViewportSize.x,
-				viewportOrigin.y + (1.0f - (ndcPosition.y * 0.5f + 0.5f)) * m_SceneViewportSize.y
+			if (clipStart.w <= minimumW || clipEnd.w <= minimumW) {
+				const float interpolation = (minimumW - clipStart.w) / (clipEnd.w - clipStart.w);
+				if (clipStart.w <= minimumW) {
+					clipStart = glm::mix(clipStart, clipEnd, interpolation);
+				} else {
+					clipEnd = glm::mix(clipStart, clipEnd, interpolation);
+				}
+			}
+
+			auto projectClipPosition = [&](const glm::vec4& clipPosition) {
+				const auto ndcPosition = glm::vec3(clipPosition) / clipPosition.w;
+				return ImVec2{
+					viewportOrigin.x + (ndcPosition.x * 0.5f + 0.5f) * m_SceneViewportSize.x,
+					viewportOrigin.y + (1.0f - (ndcPosition.y * 0.5f + 0.5f)) * m_SceneViewportSize.y
+				};
 			};
+			screenStart = projectClipPosition(clipStart);
+			screenEnd = projectClipPosition(clipEnd);
 			return true;
 		};
 
 		ImDrawList* drawList = ImGui::GetWindowDrawList();
 		const ImVec2 viewportEnd = { viewportOrigin.x + m_SceneViewportSize.x, viewportOrigin.y + m_SceneViewportSize.y };
 		drawList->PushClipRect(viewportOrigin, viewportEnd, true);
-		const int gridHalfExtent = 32;
-		const int gridCenterX = static_cast<int>(std::floor(m_EditorCameraController->GetPosition().x));
-		const int gridCenterZ = static_cast<int>(std::floor(m_EditorCameraController->GetPosition().z));
+		const int gridHalfExtent = 128;
 		for (int offset = -gridHalfExtent; offset <= gridHalfExtent; ++offset) {
-			const int x = gridCenterX + offset;
-			const int z = gridCenterZ + offset;
+			const int x = offset;
+			const int z = offset;
 			const ImU32 lineColor = (x % 5 == 0 || z % 5 == 0) ? IM_COL32(82, 90, 104, 170) : IM_COL32(57, 63, 74, 120);
 			ImVec2 start;
 			ImVec2 end;
-			if (projectToViewport({ static_cast<float>(x), 0.0f, static_cast<float>(gridCenterZ - gridHalfExtent) }, start)
-				&& projectToViewport({ static_cast<float>(x), 0.0f, static_cast<float>(gridCenterZ + gridHalfExtent) }, end)) {
+			if (projectGridSegment({ static_cast<float>(x), 0.0f, static_cast<float>(-gridHalfExtent) }, { static_cast<float>(x), 0.0f, static_cast<float>(gridHalfExtent) }, start, end)) {
 				drawList->AddLine(start, end, x == 0 ? IM_COL32(210, 72, 72, 220) : lineColor, x == 0 ? 1.5f : 1.0f);
 			}
-			if (projectToViewport({ static_cast<float>(gridCenterX - gridHalfExtent), 0.0f, static_cast<float>(z) }, start)
-				&& projectToViewport({ static_cast<float>(gridCenterX + gridHalfExtent), 0.0f, static_cast<float>(z) }, end)) {
+			if (projectGridSegment({ static_cast<float>(-gridHalfExtent), 0.0f, static_cast<float>(z) }, { static_cast<float>(gridHalfExtent), 0.0f, static_cast<float>(z) }, start, end)) {
 				drawList->AddLine(start, end, z == 0 ? IM_COL32(72, 118, 210, 220) : lineColor, z == 0 ? 1.5f : 1.0f);
 			}
 		}
