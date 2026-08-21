@@ -24,8 +24,8 @@
 #include "HuaEngine/Rendering/Material/Material.h"
 #include "HuaEngine/Rendering/Material/MaterialTypes.h"
 #include "HuaEngine/Rendering/Material/MaterialLibrary.h"
-#include "HuaEngine/Rendering/Camera.h"
-#include "HuaEngine/Rendering/EditorCamera.h"
+#include "HuaEngine/Rendering/RenderCamera.h"
+#include "HuaEngine/Rendering/EditorCameraController.h"
 
 // ECS
 #include "HuaEngine/ECS/CommandBuffer.h"
@@ -59,7 +59,7 @@
 // Rendering type aliases for external code convenience
 namespace HE {
 	// Core rendering type aliases
-	using Camera = Rendering::Camera;
+	using RenderCamera = Rendering::RenderCamera;
 	using Renderer = Rendering::Renderer;
 
 	// Vertex layout related

@@ -9,7 +9,7 @@
 #include <glad/glad.h>
 
 #include "HuaEngine.h"
-#include "HuaEngine/Rendering/Camera.h"
+#include "HuaEngine/Rendering/RenderCamera.h"
 #include "HuaEngine/Rendering/RenderGraph/RenderGraphBuilder.h"
 #include "HuaEngine/Rendering/RHI/CommandList.h"
 #include "HuaEngine/Rendering/RHI/RenderPass.h"
@@ -205,8 +205,7 @@ int main() {
 	});
 	Require(static_cast<bool>(shaderProgram), "Expected shader program creation to succeed");
 
-	HE::Rendering::EditorCamera camera;
-	camera.SetViewport(64.0f, 64.0f);
+	HE::Rendering::RenderCamera camera;
 
 	auto frameBindGroupLayout = device.CreateBindGroupLayout({
 		.Scope = HE::Rendering::BindGroupScope::Frame,

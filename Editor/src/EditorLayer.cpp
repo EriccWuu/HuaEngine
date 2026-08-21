@@ -122,7 +122,7 @@ namespace HE {
 
     EditorLayer::EditorLayer(EditorLayerSpecification specification)
         : Layer("EditorLayer"), m_Specification(std::move(specification)) {
-        m_EditorCamera.reset(new Rendering::EditorCamera());
+        m_EditorCameraController.reset(new Rendering::EditorCameraController());
         m_ProjectPanel.reset(new ProjectPanel());
         m_ProjectPanel->SetWorkbenchState(&m_WorkbenchState);
         m_Inspector.reset(new InspectorPanel);
@@ -1139,8 +1139,8 @@ namespace HE {
             return;
         }
 
-        m_EditorCamera->OnUpdate();
-        const auto renderResult = Application::GetInstance().GetOperations().RenderSceneViewport(*m_SceneDocument.SceneRef, *m_EditorCamera);
+		const auto camera = m_EditorCameraController->BuildRenderCamera();
+		const auto renderResult = Application::GetInstance().GetOperations().RenderSceneViewport(*m_SceneDocument.SceneRef, camera);
         if (!renderResult.Succeeded()) {
             CaptureOperationResult(renderResult);
             m_WorkbenchReady = false;
@@ -1715,7 +1715,7 @@ namespace HE {
         ImGui::Image(m_RenderTarget->GetColorAttachmentView().NativeHandle,
             { m_SceneViewportSize.x , m_SceneViewportSize.y },
             { 0, 1 }, { 1, 0 });
-        m_EditorCamera->SetViewport(m_SceneViewportSize.x, m_SceneViewportSize.y);
+        m_EditorCameraController->SetViewport(m_SceneViewportSize.x, m_SceneViewportSize.y);
         ImGui::End();
         ImGui::PopStyleVar();
     }

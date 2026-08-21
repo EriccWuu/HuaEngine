@@ -1,17 +1,16 @@
 #pragma once
 
 #include "HuaEngine/Events/Event.h"
-#include "Camera.h"
+#include "HuaEngine/Rendering/RenderCamera.h"
 
 namespace HE::Rendering {
-	class EditorCamera : public Camera {
+	class EditorCameraController {
 	public:
-		EditorCamera() = default;
-		EditorCamera(float fov, float aspectRatio, float nearClip, float farClip);
-		~EditorCamera() = default;
+		EditorCameraController() = default;
+		EditorCameraController(float fov, float aspectRatio, float nearClip, float farClip);
 
-		virtual void OnUpdate() override;
 		void OnEvent(Event& event);
+		[[nodiscard]] RenderCamera BuildRenderCamera() const;
 
 		inline void SetViewport(float width, float height) { m_Viewport = { width, height }; }
 		const glm::vec3 GetUpDirection() const;
@@ -21,11 +20,6 @@ namespace HE::Rendering {
 		inline const glm::vec3 GetPosition() { return m_Position; }
 		float GetPitch() const { return m_Pitch; }
 		float GetYaw() const { return m_Yaw; }
-
-	private:
-		void UpdateProjectionMat();
-		void UpdateViewMat();
-
 
 	private:
 		float m_Fov = 45.0f;

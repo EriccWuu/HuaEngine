@@ -118,7 +118,7 @@ namespace HE {
         bool m_WorkbenchReady = false;
         bool m_DockLayoutInitialized = false;
         Ref<RenderTarget> m_RenderTarget;
-        Ref<Rendering::EditorCamera> m_EditorCamera;
+        Ref<Rendering::EditorCameraController> m_EditorCameraController;
         Ref<Material> m_SandboxMaterial;
         Ref<ProjectPanel> m_ProjectPanel;
         Ref<HierarchyPanel> m_HierarchyPanel;

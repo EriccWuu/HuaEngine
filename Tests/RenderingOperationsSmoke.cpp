@@ -211,9 +211,9 @@ int main() {
 	auto renderTarget = HE::Rendering::RenderHardwareInterface::GetDevice().CreateRenderTarget({ .Specification = specification });
 	Require(static_cast<bool>(renderTarget), "Expected render target creation to succeed");
 
-	HE::Rendering::EditorCamera camera;
-	camera.SetViewport(320.0f, 180.0f);
-	camera.OnUpdate();
+	HE::Rendering::EditorCameraController cameraController;
+	cameraController.SetViewport(320.0f, 180.0f);
+	const auto camera = cameraController.BuildRenderCamera();
 	auto renderWithoutAttach = operations.RenderSceneViewport(*scene, camera);
 	Require(renderWithoutAttach.Failed(), "Expected rendering.render_scene_viewport to fail before attach");
 

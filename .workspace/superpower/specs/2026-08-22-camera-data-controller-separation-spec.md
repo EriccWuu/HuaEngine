@@ -11,8 +11,16 @@
 - `RenderSystem` 由 `TransformComponent + CameraComponent` 构建 `RenderCamera`。
 - 视口渲染入口只消费 `RenderCamera`。
 
+已完成。`RenderSystem` 查询 `TransformComponent + CameraComponent` 并为 Primary 相机生成渲染快照。
+
 ## P2：编辑器控制器化
 
 - 将 `EditorCamera` 改为不继承渲染相机数据的控制器。
 - 控制器根据编辑器状态和视口尺寸输出 `RenderCamera`。
 - Editor 与 smoke 改为使用控制器输出的相机快照。
+
+已完成。`EditorCameraController` 不再继承渲染相机，`BuildRenderCamera()` 是它与渲染层的唯一数据交界。
+
+## 后续
+
+`CameraComponent` 的投影字段已存在于 ECS 数据中；在扩展 Inspector 相机参数前，需要重新生成反射代码，使这些字段进入运行时编辑与场景序列化描述。
