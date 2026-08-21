@@ -53,5 +53,5 @@
 ## Pass 对象收敛
 
 - 新增 `RenderGraphPass` 接口，统一 `Setup(RenderGraphPassBuilder&)` 与 `Execute(RenderPassContext&)`。
-- Builder 支持直接接收 Pass 对象，并自动完成 setup 与执行回调绑定。
+- Builder 统一通过 `AddPass(pass)` 接收 Pass 对象，并自动完成 setup 与执行回调绑定；Pass 自身提供名称和队列类型。
 - Forward opaque 与 post-process Pass 自身持有构图资源句柄和配置，`BuildGraph()` 只负责资源拓扑与 Pass 排列，不再维护资源相关 lambda capture。

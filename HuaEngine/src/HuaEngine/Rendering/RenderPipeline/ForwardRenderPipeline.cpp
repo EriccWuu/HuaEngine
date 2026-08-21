@@ -311,8 +311,8 @@ namespace HE::Rendering {
 		});
 		m_OpaquePass.Configure(sceneColorHandle, sceneDepthHandle, viewportDepthHandle.IsValid(), clearColor, clearColorBuffer);
 		m_PostProcessPass.Configure(sceneColorHandle, viewportColorHandle, clearColor);
-		graph.AddGraphicsPass("ForwardOpaque", m_OpaquePass);
-		graph.AddGraphicsPass("PostProcess", m_PostProcessPass);
+		graph.AddPass(m_OpaquePass);
+		graph.AddPass(m_PostProcessPass);
 	}
 
 	bool ForwardRenderPipeline::EnsureGraphCompiled(const RenderView& view, RenderResult& result) {

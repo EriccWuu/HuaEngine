@@ -454,7 +454,7 @@ int main() {
 	HE::Rendering::RenderGraphBuilder attachmentSamplingBuilder(attachmentSamplingGraph);
 	const auto sourceAttachmentHandle = attachmentSamplingBuilder.ImportTexture("SourceAttachment", samplingSourceTarget->GetColorAttachmentTexture());
 	bool readerBoundRuntimeAttachment = false;
-	attachmentSamplingBuilder.AddGraphicsPass("WriteSourceAttachment", [&](HE::Rendering::RenderGraphPassBuilder& pass) {
+	attachmentSamplingBuilder.AddPass("WriteSourceAttachment", HE::Rendering::PassGraphPassType::Graphics, [&](HE::Rendering::RenderGraphPassBuilder& pass) {
 		pass.Write(sourceAttachmentHandle, HE::Rendering::ResourceState::RenderTarget);
 		pass.SetExecute([&](HE::Rendering::RenderPassContext& context) {
 			context.Commands->BeginRenderPass({
@@ -470,7 +470,7 @@ int main() {
 			context.Commands->EndRenderPass();
 		});
 	});
-	attachmentSamplingBuilder.AddGraphicsPass("SampleSourceAttachment", [&](HE::Rendering::RenderGraphPassBuilder& pass) {
+	attachmentSamplingBuilder.AddPass("SampleSourceAttachment", HE::Rendering::PassGraphPassType::Graphics, [&](HE::Rendering::RenderGraphPassBuilder& pass) {
 		pass.Read(sourceAttachmentHandle, HE::Rendering::ResourceState::ShaderRead);
 		pass.SetExecute([&](HE::Rendering::RenderPassContext& context) {
 			const auto* runtimeResource = context.GraphResources->GetRuntimeResource(sourceAttachmentHandle);

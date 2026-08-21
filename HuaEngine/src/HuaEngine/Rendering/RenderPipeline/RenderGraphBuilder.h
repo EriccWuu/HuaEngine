@@ -36,6 +36,8 @@ namespace HE::Rendering {
 	public:
 		virtual ~RenderGraphPass() = default;
 
+		[[nodiscard]] virtual const char* GetName() const = 0;
+		[[nodiscard]] virtual PassGraphPassType GetType() const = 0;
 		virtual void Setup(RenderGraphPassBuilder& builder) = 0;
 		virtual void Execute(RenderPassContext& context) = 0;
 	};
@@ -49,21 +51,15 @@ namespace HE::Rendering {
 		RenderGraphResourceHandle CreateTexture(std::string name, RenderGraphTextureDesc desc);
 		RenderGraphResourceHandle CreateBuffer(std::string name, RenderGraphBufferDesc desc);
 
-		PassGraphPassHandle AddGraphicsPass(const std::string& name, const std::function<void(RenderGraphPassBuilder&)>& setup);
-		PassGraphPassHandle AddComputePass(const std::string& name, const std::function<void(RenderGraphPassBuilder&)>& setup);
-		PassGraphPassHandle AddCopyPass(const std::string& name, const std::function<void(RenderGraphPassBuilder&)>& setup);
-		PassGraphPassHandle AddGraphicsPass(const std::string& name, RenderGraphPass& pass);
-		PassGraphPassHandle AddComputePass(const std::string& name, RenderGraphPass& pass);
-		PassGraphPassHandle AddCopyPass(const std::string& name, RenderGraphPass& pass);
-		void Export(RenderGraphResourceHandle resource);
-
-	private:
 		PassGraphPassHandle AddPass(
 			const std::string& name,
 			PassGraphPassType type,
 			const std::function<void(RenderGraphPassBuilder&)>& setup);
-		PassGraphPassHandle AddPass(const std::string& name, PassGraphPassType type, RenderGraphPass& pass);
+		PassGraphPassHandle AddPass(RenderGraphPass& pass);
+		PassGraphPassHandle AddPass(const Ref<RenderGraphPass>& pass);
+		void Export(RenderGraphResourceHandle resource);
 
+	private:
 		PassGraph& m_Graph;
 	};
 }

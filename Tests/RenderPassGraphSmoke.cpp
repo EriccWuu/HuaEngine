@@ -36,6 +36,9 @@ namespace {
 	public:
 		explicit ObjectPass(RenderGraphResourceHandle color) : m_Color(color) {}
 
+		[[nodiscard]] const char* GetName() const override { return "ObjectPass"; }
+		[[nodiscard]] PassGraphPassType GetType() const override { return PassGraphPassType::Graphics; }
+
 		void Setup(RenderGraphPassBuilder& builder) override {
 			builder.Write(m_Color, ResourceState::RenderTarget);
 		}
@@ -58,14 +61,14 @@ int main() {
 
 	PassGraph duplicateGraph;
 	RenderGraphBuilder duplicateBuilder(duplicateGraph);
-	duplicateBuilder.AddGraphicsPass("Forward", [](RenderGraphPassBuilder& pass) { pass.SetExecute([](RenderPassContext&) {}); });
-	duplicateBuilder.AddGraphicsPass("Forward", [](RenderGraphPassBuilder& pass) { pass.SetExecute([](RenderPassContext&) {}); });
+	duplicateBuilder.AddPass("Forward", PassGraphPassType::Graphics, [](RenderGraphPassBuilder& pass) { pass.SetExecute([](RenderPassContext&) {}); });
+	duplicateBuilder.AddPass("Forward", PassGraphPassType::Graphics, [](RenderGraphPassBuilder& pass) { pass.SetExecute([](RenderPassContext&) {}); });
 	Require(!duplicateGraph.Compile() && HasDiagnostic(duplicateGraph.GetDiagnostics(), PassGraphDiagnosticCode::DuplicatePassName), "Expected duplicate pass diagnostic");
 
 	PassGraph invalidUsageGraph;
 	RenderGraphBuilder invalidUsageBuilder(invalidUsageGraph);
 	const auto invalidUsage = CreateTexture(invalidUsageBuilder, "InvalidUsage");
-	invalidUsageBuilder.AddGraphicsPass("Invalid", [invalidUsage](RenderGraphPassBuilder& pass) {
+	invalidUsageBuilder.AddPass("Invalid", PassGraphPassType::Graphics, [invalidUsage](RenderGraphPassBuilder& pass) {
 		pass.Read(invalidUsage, ResourceState::Undefined);
 		pass.SetExecute([](RenderPassContext&) {});
 	});
@@ -74,11 +77,11 @@ int main() {
 	PassGraph explicitGraph;
 	RenderGraphBuilder explicitBuilder(explicitGraph);
 	const auto color = CreateTexture(explicitBuilder, "Color");
-	explicitBuilder.AddGraphicsPass("Write", [color](RenderGraphPassBuilder& pass) {
+	explicitBuilder.AddPass("Write", PassGraphPassType::Graphics, [color](RenderGraphPassBuilder& pass) {
 		pass.Write(color, ResourceState::RenderTarget);
 		pass.SetExecute([](RenderPassContext&) {});
 	});
-	explicitBuilder.AddGraphicsPass("Read", [color](RenderGraphPassBuilder& pass) {
+	explicitBuilder.AddPass("Read", PassGraphPassType::Graphics, [color](RenderGraphPassBuilder& pass) {
 		pass.Read(color, ResourceState::ShaderRead);
 		pass.SetExecute([](RenderPassContext&) {});
 	});
@@ -90,11 +93,11 @@ int main() {
 	RenderGraphBuilder futureBuilder(futureGraph);
 	const auto futureColor = CreateTexture(futureBuilder, "FutureColor");
 	std::vector<std::string> execution;
-	futureBuilder.AddGraphicsPass("Reader", [&](RenderGraphPassBuilder& pass) {
+	futureBuilder.AddPass("Reader", PassGraphPassType::Graphics, [&](RenderGraphPassBuilder& pass) {
 		pass.Read(futureColor, ResourceState::ShaderRead);
 		pass.SetExecute([&](RenderPassContext&) { execution.push_back("reader"); });
 	});
-	futureBuilder.AddGraphicsPass("Writer", [&](RenderGraphPassBuilder& pass) {
+	futureBuilder.AddPass("Writer", PassGraphPassType::Graphics, [&](RenderGraphPassBuilder& pass) {
 		pass.Write(futureColor, ResourceState::RenderTarget);
 		pass.SetExecute([&](RenderPassContext&) { execution.push_back("writer"); });
 	});
@@ -106,12 +109,12 @@ int main() {
 	RenderGraphBuilder cycleBuilder(cycleGraph);
 	const auto resourceA = CreateTexture(cycleBuilder, "A");
 	const auto resourceB = CreateTexture(cycleBuilder, "B");
-	cycleBuilder.AddGraphicsPass("A", [resourceA, resourceB](RenderGraphPassBuilder& pass) {
+	cycleBuilder.AddPass("A", PassGraphPassType::Graphics, [resourceA, resourceB](RenderGraphPassBuilder& pass) {
 		pass.Write(resourceA, ResourceState::RenderTarget);
 		pass.Read(resourceB, ResourceState::ShaderRead);
 		pass.SetExecute([](RenderPassContext&) {});
 	});
-	cycleBuilder.AddGraphicsPass("B", [resourceA, resourceB](RenderGraphPassBuilder& pass) {
+	cycleBuilder.AddPass("B", PassGraphPassType::Graphics, [resourceA, resourceB](RenderGraphPassBuilder& pass) {
 		pass.Write(resourceB, ResourceState::RenderTarget);
 		pass.Read(resourceA, ResourceState::ShaderRead);
 		pass.SetExecute([](RenderPassContext&) {});
@@ -122,16 +125,16 @@ int main() {
 	RenderGraphBuilder queueBuilder(queueGraph);
 	const auto sceneColor = CreateTexture(queueBuilder, "SceneColor");
 	const auto luminance = CreateTexture(queueBuilder, "Luminance");
-	queueBuilder.AddGraphicsPass("Graphics", [sceneColor](RenderGraphPassBuilder& pass) {
+	queueBuilder.AddPass("Graphics", PassGraphPassType::Graphics, [sceneColor](RenderGraphPassBuilder& pass) {
 		pass.Write(sceneColor, ResourceState::RenderTarget);
 		pass.SetExecute([](RenderPassContext&) {});
 	});
-	queueBuilder.AddComputePass("Compute", [sceneColor, luminance](RenderGraphPassBuilder& pass) {
+	queueBuilder.AddPass("Compute", PassGraphPassType::Compute, [sceneColor, luminance](RenderGraphPassBuilder& pass) {
 		pass.Read(sceneColor, ResourceState::ShaderRead);
 		pass.Write(luminance, ResourceState::CopyDst);
 		pass.SetExecute([](RenderPassContext&) {});
 	});
-	queueBuilder.AddCopyPass("Copy", [luminance](RenderGraphPassBuilder& pass) {
+	queueBuilder.AddPass("Copy", PassGraphPassType::Copy, [luminance](RenderGraphPassBuilder& pass) {
 		pass.Read(luminance, ResourceState::CopySrc);
 		pass.SetExecute([](RenderPassContext&) {});
 	});
@@ -142,10 +145,10 @@ int main() {
 	PassGraph dependencyGraph;
 	RenderGraphBuilder dependencyBuilder(dependencyGraph);
 	std::vector<std::string> dependencyExecution;
-	const auto first = dependencyBuilder.AddGraphicsPass("First", [&](RenderGraphPassBuilder& pass) {
+	const auto first = dependencyBuilder.AddPass("First", PassGraphPassType::Graphics, [&](RenderGraphPassBuilder& pass) {
 		pass.SetExecute([&](RenderPassContext&) { dependencyExecution.push_back("first"); });
 	});
-	dependencyBuilder.AddGraphicsPass("Second", [&](RenderGraphPassBuilder& pass) {
+	dependencyBuilder.AddPass("Second", PassGraphPassType::Graphics, [&](RenderGraphPassBuilder& pass) {
 		pass.DependsOn(first);
 		pass.SetExecute([&](RenderPassContext&) { dependencyExecution.push_back("second"); });
 	});
@@ -156,7 +159,7 @@ int main() {
 	RenderGraphBuilder objectPassBuilder(objectPassGraph);
 	const auto objectPassColor = CreateTexture(objectPassBuilder, "ObjectPassColor");
 	ObjectPass objectPass(objectPassColor);
-	objectPassBuilder.AddGraphicsPass("ObjectPass", objectPass);
+	objectPassBuilder.AddPass(objectPass);
 	objectPassBuilder.Export(objectPassColor);
 	Require(objectPassGraph.Compile(), "Expected object pass graph to compile");
 	Require(objectPassGraph.Execute(emptyContext) && objectPass.WasExecuted(), "Expected object pass setup and execute binding");
@@ -166,11 +169,11 @@ int main() {
 	RenderGraphBuilder cullingBuilder(cullingGraph);
 	const auto finalColor = CreateTexture(cullingBuilder, "Final");
 	const auto unusedColor = CreateTexture(cullingBuilder, "Unused");
-	cullingBuilder.AddGraphicsPass("Final", [&](RenderGraphPassBuilder& pass) {
+	cullingBuilder.AddPass("Final", PassGraphPassType::Graphics, [&](RenderGraphPassBuilder& pass) {
 		pass.Write(finalColor, ResourceState::RenderTarget);
 		pass.SetExecute([&](RenderPassContext&) { culledExecution.push_back("final"); });
 	});
-	cullingBuilder.AddGraphicsPass("Unused", [&](RenderGraphPassBuilder& pass) {
+	cullingBuilder.AddPass("Unused", PassGraphPassType::Graphics, [&](RenderGraphPassBuilder& pass) {
 		pass.Write(unusedColor, ResourceState::RenderTarget);
 		pass.SetExecute([&](RenderPassContext&) { culledExecution.push_back("unused"); });
 	});

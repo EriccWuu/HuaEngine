@@ -13,6 +13,8 @@ namespace HE::Rendering {
 
 	class ForwardOpaquePass final : public RenderGraphPass {
 	public:
+		[[nodiscard]] const char* GetName() const override { return "ForwardOpaque"; }
+		[[nodiscard]] PassGraphPassType GetType() const override { return PassGraphPassType::Graphics; }
 		void Configure(
 			RenderGraphResourceHandle sceneColor,
 			RenderGraphResourceHandle sceneDepth,
@@ -32,6 +34,8 @@ namespace HE::Rendering {
 
 	class PostProcessPass final : public RenderGraphPass {
 	public:
+		[[nodiscard]] const char* GetName() const override { return "PostProcess"; }
+		[[nodiscard]] PassGraphPassType GetType() const override { return PassGraphPassType::Graphics; }
 		void Configure(
 			RenderGraphResourceHandle sceneColor,
 			RenderGraphResourceHandle output,

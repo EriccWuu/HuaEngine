@@ -102,36 +102,6 @@ namespace HE::Rendering {
 		});
 	}
 
-	PassGraphPassHandle RenderGraphBuilder::AddGraphicsPass(
-		const std::string& name,
-		const std::function<void(RenderGraphPassBuilder&)>& setup) {
-		return AddPass(name, PassGraphPassType::Graphics, setup);
-	}
-
-	PassGraphPassHandle RenderGraphBuilder::AddComputePass(
-		const std::string& name,
-		const std::function<void(RenderGraphPassBuilder&)>& setup) {
-		return AddPass(name, PassGraphPassType::Compute, setup);
-	}
-
-	PassGraphPassHandle RenderGraphBuilder::AddCopyPass(
-		const std::string& name,
-		const std::function<void(RenderGraphPassBuilder&)>& setup) {
-		return AddPass(name, PassGraphPassType::Copy, setup);
-	}
-
-	PassGraphPassHandle RenderGraphBuilder::AddGraphicsPass(const std::string& name, RenderGraphPass& pass) {
-		return AddPass(name, PassGraphPassType::Graphics, pass);
-	}
-
-	PassGraphPassHandle RenderGraphBuilder::AddComputePass(const std::string& name, RenderGraphPass& pass) {
-		return AddPass(name, PassGraphPassType::Compute, pass);
-	}
-
-	PassGraphPassHandle RenderGraphBuilder::AddCopyPass(const std::string& name, RenderGraphPass& pass) {
-		return AddPass(name, PassGraphPassType::Copy, pass);
-	}
-
 	void RenderGraphBuilder::Export(RenderGraphResourceHandle resource) {
 		m_Graph.AddOutputResource(resource);
 	}
@@ -148,14 +118,20 @@ namespace HE::Rendering {
 		return m_Graph.AddPass(std::move(pass));
 	}
 
-	PassGraphPassHandle RenderGraphBuilder::AddPass(
-		const std::string& name,
-		PassGraphPassType type,
-		RenderGraphPass& pass) {
-		return AddPass(name, type, [&pass](RenderGraphPassBuilder& builder) {
+	PassGraphPassHandle RenderGraphBuilder::AddPass(RenderGraphPass& pass) {
+		return AddPass(pass.GetName(), pass.GetType(), [&pass](RenderGraphPassBuilder& builder) {
 			pass.Setup(builder);
 			builder.SetExecute([&pass](RenderPassContext& context) {
 				pass.Execute(context);
+			});
+		});
+	}
+
+	PassGraphPassHandle RenderGraphBuilder::AddPass(const Ref<RenderGraphPass>& pass) {
+		return AddPass(pass->GetName(), pass->GetType(), [pass](RenderGraphPassBuilder& builder) {
+			pass->Setup(builder);
+			builder.SetExecute([pass](RenderPassContext& context) {
+				pass->Execute(context);
 			});
 		});
 	}
