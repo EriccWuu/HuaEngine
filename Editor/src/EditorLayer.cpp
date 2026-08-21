@@ -1740,6 +1740,44 @@ namespace HE {
         ImGuizmo::SetOrthographic(false);
 		ImGuizmo::AllowAxisFlip(false);
 		ImGuizmo::SetAxisLimit(0.0f);
+		const auto camera = m_EditorCameraController->BuildRenderCamera();
+		const auto viewProjection = camera.GetProjection() * camera.GetView();
+		auto projectToViewport = [&](const glm::vec3& worldPosition, ImVec2& screenPosition) {
+			const auto clipPosition = viewProjection * glm::vec4(worldPosition, 1.0f);
+			if (clipPosition.w <= 0.0001f) {
+				return false;
+			}
+
+			const auto ndcPosition = glm::vec3(clipPosition) / clipPosition.w;
+			screenPosition = {
+				viewportOrigin.x + (ndcPosition.x * 0.5f + 0.5f) * m_SceneViewportSize.x,
+				viewportOrigin.y + (1.0f - (ndcPosition.y * 0.5f + 0.5f)) * m_SceneViewportSize.y
+			};
+			return true;
+		};
+
+		ImDrawList* drawList = ImGui::GetWindowDrawList();
+		const ImVec2 viewportEnd = { viewportOrigin.x + m_SceneViewportSize.x, viewportOrigin.y + m_SceneViewportSize.y };
+		drawList->PushClipRect(viewportOrigin, viewportEnd, true);
+		const int gridHalfExtent = 32;
+		const int gridCenterX = static_cast<int>(std::floor(m_EditorCameraController->GetPosition().x));
+		const int gridCenterZ = static_cast<int>(std::floor(m_EditorCameraController->GetPosition().z));
+		for (int offset = -gridHalfExtent; offset <= gridHalfExtent; ++offset) {
+			const int x = gridCenterX + offset;
+			const int z = gridCenterZ + offset;
+			const ImU32 lineColor = (x % 5 == 0 || z % 5 == 0) ? IM_COL32(82, 90, 104, 170) : IM_COL32(57, 63, 74, 120);
+			ImVec2 start;
+			ImVec2 end;
+			if (projectToViewport({ static_cast<float>(x), 0.0f, static_cast<float>(gridCenterZ - gridHalfExtent) }, start)
+				&& projectToViewport({ static_cast<float>(x), 0.0f, static_cast<float>(gridCenterZ + gridHalfExtent) }, end)) {
+				drawList->AddLine(start, end, x == 0 ? IM_COL32(210, 72, 72, 220) : lineColor, x == 0 ? 1.5f : 1.0f);
+			}
+			if (projectToViewport({ static_cast<float>(gridCenterX - gridHalfExtent), 0.0f, static_cast<float>(z) }, start)
+				&& projectToViewport({ static_cast<float>(gridCenterX + gridHalfExtent), 0.0f, static_cast<float>(z) }, end)) {
+				drawList->AddLine(start, end, z == 0 ? IM_COL32(72, 118, 210, 220) : lineColor, z == 0 ? 1.5f : 1.0f);
+			}
+		}
+		drawList->PopClipRect();
 
         auto selectedEntity = Selection::HasSingleSelection()
             ? Selection::ResolvePrimarySelection(m_SceneDocument.SceneRef->GetWorld())
@@ -1747,7 +1785,6 @@ namespace HE {
         if (selectedEntity.IsValid() && selectedEntity.HasComponent<TransformComponent>()) {
             auto& transform = selectedEntity.GetComponent<TransformComponent>();
             auto transformMatrix = transform.GetTransformMat();
-            const auto camera = m_EditorCameraController->BuildRenderCamera();
             ImGuizmo::Manipulate(
                 glm::value_ptr(camera.GetView()),
                 glm::value_ptr(camera.GetProjection()),
