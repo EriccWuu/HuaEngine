@@ -1742,7 +1742,7 @@ namespace HE {
                 glm::value_ptr(camera.GetView()),
                 glm::value_ptr(camera.GetProjection()),
                 static_cast<ImGuizmo::OPERATION>(m_GizmoOperation),
-                ImGuizmo::WORLD,
+                ImGuizmo::LOCAL,
                 glm::value_ptr(transformMatrix));
 
             const bool isUsing = ImGuizmo::IsUsing();
