@@ -37,10 +37,16 @@ int main() {
 	auto registerMesh = services.Assets().RegisterMeshAsset(projectContext, "Meshes/ServicesQuad.mesh", runtimeMesh, &meshHandle);
 	Require(registerMesh.Succeeded(), "Expected ApplicationServices asset registration to succeed");
 	Require(meshHandle != 0, "Expected ApplicationServices asset registration to assign a handle");
+	HE::AssetRecord meshRecord;
+	auto resolveMesh = services.Assets().ResolveAsset("Meshes/ServicesQuad.mesh", meshRecord);
+	Require(resolveMesh.Succeeded(), "Expected ApplicationServices asset registration to expose an asset record");
+	Require(!meshRecord.Guid.empty(), "Expected ApplicationServices mesh asset record to expose a stable guid");
+	HE::MeshAssetRef meshReference;
+	meshReference.Reference.Guid = meshRecord.Guid;
 
 	HE::Scene scene("ApplicationServicesScene");
 	auto entity = scene.GetWorld().CreateEntity();
-	entity.AddComponent<HE::MeshComponent>("ServicesQuad");
+	entity.AddComponent<HE::MeshComponent>(meshReference);
 	entity.AddComponent<HE::MaterialComponent>();
 
 	HE::ValidationRequest request;

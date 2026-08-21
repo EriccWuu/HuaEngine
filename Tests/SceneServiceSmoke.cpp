@@ -49,7 +49,9 @@ int main() {
 	secondEntity.AddComponent<HE::TransformComponent>().Position = { -2.0f, 0.5f, 4.0f };
 	auto renderEntity = scene->GetWorld().CreateEntity("Render Entity");
 	renderEntity.AddComponent<HE::TransformComponent>();
-	renderEntity.AddComponent<HE::MeshComponent>("SmokeMesh");
+	HE::MeshAssetRef meshReference;
+	meshReference.Reference.Guid = HE::BuiltinAssetGuids::QuadMesh;
+	renderEntity.AddComponent<HE::MeshComponent>(meshReference);
 	renderEntity.AddComponent<HE::MaterialComponent>();
 	Require(scene->GetWorld().GetEntityCount() == 3, "Expected scene world to track created entities");
 
