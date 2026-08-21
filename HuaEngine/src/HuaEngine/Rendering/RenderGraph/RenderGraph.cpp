@@ -75,8 +75,13 @@ namespace HE::Rendering {
 			return false;
 		}
 
+		struct ResourceWriter {
+			uint32_t PassIndex = 0;
+		};
+
 		std::unordered_set<std::string> passNames, resources, readResources;
-		std::unordered_map<std::string, uint32_t> writers, firstUses, lastUses;
+		std::unordered_map<std::string, std::vector<ResourceWriter>> writers;
+		std::unordered_map<std::string, uint32_t> firstUses, lastUses;
 		std::unordered_map<std::string, std::vector<uint32_t>> readers;
 		std::unordered_map<std::string, ResourceState> declarationStates;
 		std::vector<std::vector<uint32_t>> dependencyEdges(m_Passes.size());
@@ -110,11 +115,14 @@ namespace HE::Rendering {
 			}
 
 			auto usages = pass.ResourceUsages;
-			for (const auto &attachment : pass.RenderPassAttachments)
+			std::unordered_map<uint32_t, LoadOp> attachmentLoads;
+			for (const auto &attachment : pass.RenderPassAttachments) {
 				usages.push_back({attachment.Resource, RenderGraphResourceUsage::Access::Write,
 								  attachment.Kind == RenderGraphRenderPassAttachmentKind::Color
 									  ? ResourceState::RenderTarget
 									  : ResourceState::DepthStencilWrite});
+				attachmentLoads.emplace(attachment.Resource.Index, attachment.Load);
+			}
 			std::unordered_set<std::string> passResources;
 			for (const auto &usage : usages) {
 				const auto *resource = m_ResourceAllocator.GetDesc(usage.Resource);
@@ -156,23 +164,41 @@ namespace HE::Rendering {
 					readers[name].push_back(passIndex);
 					readResources.insert(name);
 					++accessEdgeCount;
-				} else if (!writers.emplace(name, passIndex).second)
-					AddDiagnostic(m_Diagnostics, RenderGraphDiagnosticCode::DuplicateResourceWriter, pass.Name,
-								  "Render graph resource must not have multiple writers");
+				} else {
+					auto& resourceWriters = writers[name];
+					const auto attachment = attachmentLoads.find(usage.Resource.Index);
+					if (!resourceWriters.empty()) {
+						if (attachment == attachmentLoads.end() || attachment->second != LoadOp::Load) {
+							AddDiagnostic(m_Diagnostics, RenderGraphDiagnosticCode::DuplicateResourceWriter, pass.Name,
+										  "Only render-pass attachments using LoadOp::Load may write a resource after another pass");
+						} else
+							dependencyEdges[resourceWriters.back().PassIndex].push_back(passIndex);
+					}
+					resourceWriters.push_back({ passIndex });
+				}
 			}
 		}
 		for (const auto &[name, resourceReaders] : readers) {
-			const auto writer = writers.find(name);
-			if (writer == writers.end()) {
+			const auto writerIt = writers.find(name);
+			if (writerIt == writers.end()) {
 				const auto *desc = m_ResourceAllocator.GetDesc(m_ResourceAllocator.FindByName(name));
 				if (!desc || desc->Storage != RenderGraphResourceStorage::Imported)
 					for (const auto reader : resourceReaders)
 						AddDiagnostic(m_Diagnostics, RenderGraphDiagnosticCode::MissingResourceProducer,
 									  m_Passes[reader].Name,
 									  "Render pass reads a resource that has no producer or imported source");
-			} else
-				for (const auto reader : resourceReaders)
-					dependencyEdges[writer->second].push_back(reader);
+			} else {
+				const auto& resourceWriters = writerIt->second;
+				for (const auto reader : resourceReaders) {
+					const auto precedingWriter = std::find_if(resourceWriters.rbegin(), resourceWriters.rend(), [reader](const ResourceWriter& writer) {
+						return writer.PassIndex < reader;
+					});
+					const auto writer = precedingWriter != resourceWriters.rend()
+						? precedingWriter->PassIndex
+						: resourceWriters.front().PassIndex;
+					dependencyEdges[writer].push_back(reader);
+				}
+			}
 		}
 		if (!m_Diagnostics.empty()) {
 			m_Compiled = false;
@@ -225,9 +251,10 @@ namespace HE::Rendering {
 					m_Compiled = false;
 					return false;
 				}
-				if (!required[writer->second]) {
-					required[writer->second] = true;
-					pending.push_back(writer->second);
+				const auto outputWriter = writer->second.back().PassIndex;
+				if (!required[outputWriter]) {
+					required[outputWriter] = true;
+					pending.push_back(outputWriter);
 				}
 				++m_Stats.OutputCount;
 			}
@@ -243,7 +270,7 @@ namespace HE::Rendering {
 			std::erase_if(m_ExecutionOrder, [&required](uint32_t pass) { return !required[pass]; });
 			m_Stats.CulledPassCount = static_cast<uint32_t>(m_Passes.size() - m_ExecutionOrder.size());
 		} else
-			for (const auto &[name, writer] : writers)
+			for (const auto &[name, resourceWriters] : writers)
 				if (!readResources.contains(name))
 					++m_Stats.OutputCount;
 

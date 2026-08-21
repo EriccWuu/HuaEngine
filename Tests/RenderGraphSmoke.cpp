@@ -105,6 +105,41 @@ int main() {
 	RenderPassContext emptyContext;
 	Require(futureGraph.Execute(emptyContext) && execution == std::vector<std::string>{ "writer", "reader" }, "Expected typed future producer execution");
 
+	RenderGraph sequentialAttachmentGraph;
+	RenderGraphBuilder sequentialAttachmentBuilder(sequentialAttachmentGraph);
+	const auto sequentialColor = CreateTexture(sequentialAttachmentBuilder, "SequentialColor");
+	const auto sequentialDepth = sequentialAttachmentBuilder.CreateTexture("SequentialDepth", {
+		.Width = 64,
+		.Height = 64,
+		.Format = RenderTargetTextureFormat::DEPTH24_STENCIL8
+	});
+	sequentialAttachmentBuilder.AddPass("Grid", RenderGraphPassType::Graphics, [sequentialColor, sequentialDepth](RenderGraphPassBuilder& pass) {
+		pass.WriteColor(sequentialColor, LoadOp::Clear);
+		pass.WriteDepth(sequentialDepth, LoadOp::Clear);
+		pass.SetExecute([](RenderPassContext&) {});
+	});
+	sequentialAttachmentBuilder.AddPass("Opaque", RenderGraphPassType::Graphics, [sequentialColor, sequentialDepth](RenderGraphPassBuilder& pass) {
+		pass.WriteColor(sequentialColor, LoadOp::Load);
+		pass.WriteDepth(sequentialDepth, LoadOp::Load);
+		pass.SetExecute([](RenderPassContext&) {});
+	});
+	sequentialAttachmentBuilder.Export(sequentialColor);
+	Require(sequentialAttachmentGraph.Compile(), "Expected sequential attachment writers to compile");
+	Require(sequentialAttachmentGraph.GetExecutionOrder() == std::vector<uint32_t>{ 0, 1 }, "Expected attachment writers to preserve declaration order");
+
+	RenderGraph invalidSequentialAttachmentGraph;
+	RenderGraphBuilder invalidSequentialAttachmentBuilder(invalidSequentialAttachmentGraph);
+	const auto invalidSequentialColor = CreateTexture(invalidSequentialAttachmentBuilder, "InvalidSequentialColor");
+	invalidSequentialAttachmentBuilder.AddPass("First", RenderGraphPassType::Graphics, [invalidSequentialColor](RenderGraphPassBuilder& pass) {
+		pass.WriteColor(invalidSequentialColor, LoadOp::Clear);
+		pass.SetExecute([](RenderPassContext&) {});
+	});
+	invalidSequentialAttachmentBuilder.AddPass("Second", RenderGraphPassType::Graphics, [invalidSequentialColor](RenderGraphPassBuilder& pass) {
+		pass.WriteColor(invalidSequentialColor, LoadOp::Clear);
+		pass.SetExecute([](RenderPassContext&) {});
+	});
+	Require(!invalidSequentialAttachmentGraph.Compile() && HasDiagnostic(invalidSequentialAttachmentGraph.GetDiagnostics(), RenderGraphDiagnosticCode::DuplicateResourceWriter), "Expected unordered attachment writer diagnostic");
+
 	RenderGraph cycleGraph;
 	RenderGraphBuilder cycleBuilder(cycleGraph);
 	const auto resourceA = CreateTexture(cycleBuilder, "A");
