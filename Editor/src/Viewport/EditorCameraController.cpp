@@ -41,6 +41,13 @@ namespace HE::Editor {
 				m_Pitch = glm::clamp(m_Pitch + delta.y * m_MouseSensitivity, -1.55f, 1.55f);
 			}
 			m_HasMousePosition = true;
+		} else if (isActive && Input::IsMousePressed(Mouse::ButtonMiddle)) {
+			if (m_HasMousePosition) {
+				const glm::vec2 delta = mousePosition - m_LastMousePosition;
+				m_Position -= GetRightDirection() * delta.x * m_PanSpeed;
+				m_Position += GetUpDirection() * delta.y * m_PanSpeed;
+			}
+			m_HasMousePosition = true;
 		} else {
 			m_HasMousePosition = false;
 		}

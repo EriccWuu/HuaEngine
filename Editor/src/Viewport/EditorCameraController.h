@@ -38,5 +38,6 @@ namespace HE::Editor {
 		float m_MoveSpeed = 4.0f;
 		float m_MouseSensitivity = 0.003f;
 		float m_ScrollSpeed = 1.5f;
+		float m_PanSpeed = 0.01f;
 	};
 }
