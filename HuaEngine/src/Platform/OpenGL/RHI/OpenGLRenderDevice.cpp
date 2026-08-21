@@ -927,11 +927,14 @@ namespace HE::Rendering {
 		return m_Height;
 	}
 
-	void OpenGLTextureResource::BindForCommandList(uint32_t slot) {
-		const uint32_t renderID = m_AttachmentStorage
+	uint32_t OpenGLTextureResource::GetRendererID() const {
+		return m_AttachmentStorage
 			? (m_IsDepthStencilAttachment ? m_AttachmentStorage->GetDepthAttachment() : m_AttachmentStorage->GetColorAttachment(m_AttachmentIndex))
 			: m_RenderID;
-		glBindTextureUnit(slot, renderID);
+	}
+
+	void OpenGLTextureResource::BindForCommandList(uint32_t slot) {
+		glBindTextureUnit(slot, GetRendererID());
 	}
 
 	void OpenGLTextureResource::UpdateAttachmentDesc(const TextureDesc& desc) {
@@ -1048,7 +1051,7 @@ namespace HE::Rendering {
 	}
 
 	void OpenGLCommandList::BeginRenderPass(const RenderPassDesc& desc) {
-		if (m_CurrentRenderTargetStorage) {
+		if (m_CurrentRenderTargetStorage || m_CurrentRenderPassFramebuffer != 0) {
 			HE_CORE_WARN("OpenGLCommandList::BeginRenderPass skipped because a render pass is already active");
 			return;
 		}
@@ -1058,28 +1061,20 @@ namespace HE::Rendering {
 			return;
 		}
 
-		if (desc.ColorAttachments.size() > 1) {
-			HE_CORE_WARN("OpenGLCommandList::BeginRenderPass skipped because multiple color attachments are not supported yet");
-			return;
+		std::vector<Ref<TextureView>> colorViews;
+		colorViews.reserve(desc.ColorAttachments.size());
+		for (const auto& colorAttachment : desc.ColorAttachments) {
+			auto colorView = colorAttachment.View
+				? colorAttachment.View
+				: (colorAttachment.Target ? colorAttachment.Target->GetColorAttachmentTextureView(colorAttachment.AttachmentIndex) : nullptr);
+			if (!colorView || !colorView->GetDesc().Texture) {
+				HE_CORE_WARN("OpenGLCommandList::BeginRenderPass skipped because a color attachment view is null");
+				return;
+			}
+			colorViews.push_back(std::move(colorView));
 		}
 
-		const auto& colorAttachment = desc.ColorAttachments[0];
-		const auto colorView = colorAttachment.View
-			? colorAttachment.View
-			: (colorAttachment.Target ? colorAttachment.Target->GetColorAttachmentTextureView(colorAttachment.AttachmentIndex) : nullptr);
-		if (!colorView || !colorView->GetDesc().Texture) {
-			HE_CORE_WARN("OpenGLCommandList::BeginRenderPass skipped because the first color attachment view is null");
-			return;
-		}
-
-		auto& colorTexture = static_cast<OpenGLTextureResource&>(*colorView->GetDesc().Texture);
-		auto* colorStorage = colorTexture.GetAttachmentStorage();
-		if (!colorStorage) {
-			HE_CORE_WARN("OpenGLCommandList::BeginRenderPass skipped because the color attachment view is not render-target backed");
-			return;
-		}
-
-		Ref<TextureView> depthStencilView;
+		Ref<TextureView> depthStencilView = nullptr;
 		if (desc.DepthStencilAttachment) {
 			const auto& depthAttachment = *desc.DepthStencilAttachment;
 			depthStencilView = depthAttachment.View
@@ -1090,40 +1085,87 @@ namespace HE::Rendering {
 				return;
 			}
 
-			auto& depthTexture = static_cast<OpenGLTextureResource&>(*depthStencilView->GetDesc().Texture);
-			if (depthTexture.GetAttachmentStorage() != colorStorage) {
-				HE_CORE_WARN("OpenGLCommandList::BeginRenderPass skipped because independent depth/stencil targets are not supported yet");
-				return;
+		}
+
+		auto& firstColorTexture = static_cast<OpenGLTextureResource&>(*colorViews.front()->GetDesc().Texture);
+		auto* const attachmentStorage = firstColorTexture.GetAttachmentStorage();
+		const bool sharesAttachmentStorage = attachmentStorage
+			&& std::all_of(colorViews.begin(), colorViews.end(), [attachmentStorage](const Ref<TextureView>& view) {
+				return static_cast<OpenGLTextureResource&>(*view->GetDesc().Texture).GetAttachmentStorage() == attachmentStorage;
+			})
+			&& (!depthStencilView || static_cast<OpenGLTextureResource&>(*depthStencilView->GetDesc().Texture).GetAttachmentStorage() == attachmentStorage);
+		if (sharesAttachmentStorage) {
+			m_CurrentRenderTargetStorage = attachmentStorage;
+			m_CurrentColorAttachmentFormat = colorViews.front()->GetDesc().Format;
+			m_CurrentDepthStencilAttachmentFormat = depthStencilView ? depthStencilView->GetDesc().Format : RenderTargetTextureFormat::None;
+			m_CurrentRenderTargetStorage->BeginForCommandList();
+
+			GLbitfield clearMask = 0;
+			if (desc.ColorAttachments.front().Load == LoadOp::Clear) {
+				const auto& clear = desc.ColorAttachments.front().ClearColor;
+				glColorMask(GL_TRUE, GL_TRUE, GL_TRUE, GL_TRUE);
+				glClearColor(clear.r, clear.g, clear.b, clear.a);
+				clearMask |= GL_COLOR_BUFFER_BIT;
+			}
+			if (desc.DepthStencilAttachment && desc.DepthStencilAttachment->DepthLoad == LoadOp::Clear) {
+				glDepthMask(GL_TRUE);
+				glClearDepth(desc.DepthStencilAttachment->ClearDepth);
+				clearMask |= GL_DEPTH_BUFFER_BIT;
+			}
+			if (clearMask != 0) {
+				glClear(clearMask);
+			}
+			return;
+		}
+
+		glGenFramebuffers(1, &m_CurrentRenderPassFramebuffer);
+		glBindFramebuffer(GL_FRAMEBUFFER, m_CurrentRenderPassFramebuffer);
+		std::vector<GLenum> drawBuffers;
+		drawBuffers.reserve(colorViews.size());
+		for (uint32_t index = 0; index < colorViews.size(); ++index) {
+			auto& texture = static_cast<OpenGLTextureResource&>(*colorViews[index]->GetDesc().Texture);
+			const GLenum target = texture.GetDesc().Samples > 1 ? GL_TEXTURE_2D_MULTISAMPLE : GL_TEXTURE_2D;
+			glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0 + index, target, texture.GetRendererID(), 0);
+			drawBuffers.push_back(GL_COLOR_ATTACHMENT0 + index);
+		}
+		glDrawBuffers(static_cast<GLsizei>(drawBuffers.size()), drawBuffers.data());
+		if (depthStencilView) {
+			auto& texture = static_cast<OpenGLTextureResource&>(*depthStencilView->GetDesc().Texture);
+			const GLenum target = texture.GetDesc().Samples > 1 ? GL_TEXTURE_2D_MULTISAMPLE : GL_TEXTURE_2D;
+			glFramebufferTexture2D(GL_FRAMEBUFFER, GL_DEPTH_STENCIL_ATTACHMENT, target, texture.GetRendererID(), 0);
+		}
+		if (glCheckFramebufferStatus(GL_FRAMEBUFFER) != GL_FRAMEBUFFER_COMPLETE) {
+			HE_CORE_WARN("OpenGLCommandList::BeginRenderPass skipped because the framebuffer is incomplete");
+			glBindFramebuffer(GL_FRAMEBUFFER, 0);
+			glDeleteFramebuffers(1, &m_CurrentRenderPassFramebuffer);
+			m_CurrentRenderPassFramebuffer = 0;
+			return;
+		}
+
+		m_CurrentColorAttachmentFormat = colorViews.front()->GetDesc().Format;
+		m_CurrentDepthStencilAttachmentFormat = depthStencilView ? depthStencilView->GetDesc().Format : RenderTargetTextureFormat::None;
+		glViewport(0, 0, static_cast<GLsizei>(colorViews.front()->GetDesc().Texture->GetWidth()), static_cast<GLsizei>(colorViews.front()->GetDesc().Texture->GetHeight()));
+
+		for (uint32_t index = 0; index < desc.ColorAttachments.size(); ++index) {
+			if (desc.ColorAttachments[index].Load == LoadOp::Clear) {
+				const auto& clear = desc.ColorAttachments[index].ClearColor;
+				const GLfloat values[] = { clear.r, clear.g, clear.b, clear.a };
+				glClearBufferfv(GL_COLOR, static_cast<GLint>(index), values);
 			}
 		}
 
-		m_CurrentRenderTarget = colorAttachment.Target.get();
-		m_CurrentRenderTargetStorage = colorStorage;
-		m_CurrentColorAttachmentFormat = colorView->GetDesc().Format;
-		m_CurrentDepthStencilAttachmentFormat = depthStencilView ? depthStencilView->GetDesc().Format : RenderTargetTextureFormat::None;
-		m_CurrentRenderTargetStorage->BeginForCommandList();
-
-		GLbitfield clearMask = 0;
-		if (colorAttachment.Load == LoadOp::Clear) {
-			const auto& clear = colorAttachment.ClearColor;
-			glColorMask(GL_TRUE, GL_TRUE, GL_TRUE, GL_TRUE);
-			glClearColor(clear.r, clear.g, clear.b, clear.a);
-			clearMask |= GL_COLOR_BUFFER_BIT;
-		}
-
 		if (desc.DepthStencilAttachment && desc.DepthStencilAttachment->DepthLoad == LoadOp::Clear) {
-			glDepthMask(GL_TRUE);
-			glClearDepth(desc.DepthStencilAttachment->ClearDepth);
-			clearMask |= GL_DEPTH_BUFFER_BIT;
-		}
-
-		if (clearMask != 0) {
-			glClear(clearMask);
+			const GLfloat clearDepth = desc.DepthStencilAttachment->ClearDepth;
+			glClearBufferfv(GL_DEPTH, 0, &clearDepth);
 		}
 	}
 
 	void OpenGLCommandList::EndRenderPass() {
-		if (m_CurrentRenderTargetStorage) {
+		if (m_CurrentRenderPassFramebuffer != 0) {
+			glBindFramebuffer(GL_FRAMEBUFFER, 0);
+			glDeleteFramebuffers(1, &m_CurrentRenderPassFramebuffer);
+			m_CurrentRenderPassFramebuffer = 0;
+		} else if (m_CurrentRenderTargetStorage) {
 			m_CurrentRenderTargetStorage->EndForCommandList();
 		}
 
@@ -1366,7 +1408,7 @@ namespace HE::Rendering {
 			return;
 		}
 
-		if (!m_CurrentRenderTargetStorage) {
+		if (!m_CurrentRenderTargetStorage && m_CurrentRenderPassFramebuffer == 0) {
 			HE_CORE_WARN("CommandList::DrawIndexed skipped because no render target is active");
 			return;
 		}

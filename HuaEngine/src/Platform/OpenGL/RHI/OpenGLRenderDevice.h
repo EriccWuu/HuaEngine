@@ -36,6 +36,7 @@ namespace HE::Rendering {
 
 		RenderTarget* m_CurrentRenderTarget = nullptr;
 		OpenGLRenderTargetStorage* m_CurrentRenderTargetStorage = nullptr;
+		uint32_t m_CurrentRenderPassFramebuffer = 0;
 		RenderTargetTextureFormat m_CurrentColorAttachmentFormat = RenderTargetTextureFormat::None;
 		RenderTargetTextureFormat m_CurrentDepthStencilAttachmentFormat = RenderTargetTextureFormat::None;
 		ShaderProgram* m_CurrentShaderProgram = nullptr;
@@ -217,6 +218,7 @@ namespace HE::Rendering {
 		const TextureDesc& GetDesc() const override;
 		uint32_t GetWidth() const override;
 		uint32_t GetHeight() const override;
+		uint32_t GetRendererID() const;
 		void BindForCommandList(uint32_t slot = 0);
 		void UpdateAttachmentDesc(const TextureDesc& desc);
 		OpenGLRenderTargetStorage* GetAttachmentStorage() const;
