@@ -11,7 +11,8 @@
 
 namespace HE::Rendering {
 	enum class PrimitiveTopology : uint8_t {
-		TriangleList = 0
+		TriangleList = 0,
+		LineList
 	};
 
 	enum class BlendFactor : uint8_t {

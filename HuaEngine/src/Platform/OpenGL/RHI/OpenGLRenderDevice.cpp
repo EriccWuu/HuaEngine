@@ -101,6 +101,8 @@ namespace {
 		switch (topology) {
 			case HE::Rendering::PrimitiveTopology::TriangleList:
 				return GL_TRIANGLES;
+			case HE::Rendering::PrimitiveTopology::LineList:
+				return GL_LINES;
 		}
 
 		HE_CORE_ASSERT(false, "Unknown primitive topology");
