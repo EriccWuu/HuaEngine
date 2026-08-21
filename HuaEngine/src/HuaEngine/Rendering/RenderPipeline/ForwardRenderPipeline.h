@@ -28,6 +28,7 @@ namespace HE::Rendering {
 		ResourceStateTracker m_ResourceStates;
 		DeferredReleaseQueue m_DeferredReleaseQueue;
 		BeginRendererPass m_BeginRendererPass;
+		EditorGridPass m_EditorGridPass;
 		ForwardOpaquePass m_OpaquePass;
 		PostProcessPass m_PostProcessPass;
 		EndRendererPass m_EndRendererPass;

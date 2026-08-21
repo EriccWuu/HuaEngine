@@ -2,13 +2,26 @@
 #include "EditorGridPass.h"
 
 #include "HuaEngine/Rendering/RenderPipeline/RenderBindGroupBuilder.h"
-#include "HuaEngine/Rendering/RenderGraph/RenderGraphResource.h"
 #include "HuaEngine/Rendering/RHI/CommandSubmission.h"
 #include "HuaEngine/Rendering/RHI/CommandList.h"
 #include "HuaEngine/Rendering/RHI/RenderDevice.h"
 
 namespace HE::Rendering {
-	void EditorGridPass::Execute(RenderPassContext& context) const {
+	void EditorGridPass::Configure(
+		RenderGraphResourceHandle sceneColor,
+		RenderGraphResourceHandle sceneDepth,
+		const glm::vec4& clearColor) {
+		m_SceneColor = sceneColor;
+		m_SceneDepth = sceneDepth;
+		m_ClearColor = clearColor;
+	}
+
+	void EditorGridPass::Setup(RenderGraphPassBuilder& builder) {
+		builder.WriteColor(m_SceneColor, LoadOp::Clear, StoreOp::Store, m_ClearColor);
+		builder.WriteDepth(m_SceneDepth, LoadOp::Clear);
+	}
+
+	void EditorGridPass::Execute(RenderPassContext& context) {
 		if (!context.View || !context.View->CameraRef || !context.View->Target || !context.Device || !context.Commands || !context.Stats) return;
 
 		std::vector<glm::vec3> vertices;

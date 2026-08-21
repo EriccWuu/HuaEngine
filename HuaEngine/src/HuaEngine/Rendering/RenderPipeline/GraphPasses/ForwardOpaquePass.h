@@ -1,7 +1,6 @@
 #pragma once
 
 #include "HuaEngine/Rendering/RenderGraph/RenderGraphBuilder.h"
-#include "EditorGridPass.h"
 
 namespace HE::Rendering {
 	class ForwardOpaquePass final : public RenderGraphPass {
@@ -13,8 +12,7 @@ namespace HE::Rendering {
 			RenderGraphResourceHandle sceneDepth,
 			bool writeDepth,
 			const glm::vec4& clearColor,
-			bool clearColorBuffer,
-			bool drawEditorGrid);
+			bool clearColorBuffer);
 		void Setup(RenderGraphPassBuilder& builder) override;
 		void Execute(RenderPassContext& context) override;
 
@@ -24,7 +22,5 @@ namespace HE::Rendering {
 		bool m_WriteDepth = false;
 		glm::vec4 m_ClearColor = glm::vec4(0.0f);
 		bool m_ClearColorBuffer = true;
-		bool m_DrawEditorGrid = false;
-		EditorGridPass m_EditorGridPass;
 	};
 }

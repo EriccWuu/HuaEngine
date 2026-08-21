@@ -135,11 +135,15 @@ namespace {
 
 		const auto renderingRoot = std::filesystem::current_path() / "HuaEngine" / "src" / "HuaEngine" / "Rendering";
 		const auto pipelineContent = readSource(renderingRoot / "RenderPipeline" / "ForwardRenderPipeline.cpp");
+		const auto gridContent = readSource(renderingRoot / "RenderPipeline" / "GraphPasses" / "EditorGridPass.cpp");
 		const auto opaqueContent = readSource(renderingRoot / "RenderPipeline" / "GraphPasses" / "ForwardOpaquePass.cpp");
 		const auto postProcessContent = readSource(renderingRoot / "RenderPipeline" / "GraphPasses" / "PostProcessPass.cpp");
 		return opaqueContent.find("SetVertexBuffer(") != std::string::npos
 			&& postProcessContent.find("SetIndexBuffer(") != std::string::npos
 			&& postProcessContent.find("void PostProcessPass::Execute") != std::string::npos
+			&& gridContent.find("void EditorGridPass::Setup") != std::string::npos
+			&& pipelineContent.find("graph.AddPass(m_EditorGridPass)") != std::string::npos
+			&& opaqueContent.find("m_EditorGridPass") == std::string::npos
 			&& pipelineContent.find("BoundRenderTarget") == std::string::npos
 			&& pipelineContent.find("ClearedSceneColor") == std::string::npos
 			&& pipelineContent.find("graph.AddPass(m_OpaquePass)") != std::string::npos

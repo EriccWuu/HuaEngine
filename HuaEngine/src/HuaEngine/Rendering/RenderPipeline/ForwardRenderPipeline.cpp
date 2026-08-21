@@ -68,8 +68,13 @@ namespace HE::Rendering {
 				.Format = RenderTargetTextureFormat::DEPTH24_STENCIL8,
 				.AttachmentGroup = "ForwardScene"
 		});
-		m_OpaquePass.Configure(sceneColorHandle, sceneDepthHandle, viewportDepthHandle.IsValid(), clearColor, clearColorBuffer, view.DrawEditorGrid);
+		const bool writeSceneDepth = viewportDepthHandle.IsValid() || view.DrawEditorGrid;
+		m_OpaquePass.Configure(sceneColorHandle, sceneDepthHandle, writeSceneDepth, clearColor, clearColorBuffer && !view.DrawEditorGrid);
 		m_PostProcessPass.Configure(sceneColorHandle, viewportColorHandle, clearColor);
+		if (view.DrawEditorGrid) {
+			m_EditorGridPass.Configure(sceneColorHandle, sceneDepthHandle, clearColor);
+			graph.AddPass(m_EditorGridPass);
+		}
 		graph.AddPass(m_OpaquePass);
 		graph.AddPass(m_PostProcessPass);
 	}
