@@ -29,9 +29,9 @@ namespace HE {
 				return;
 			}
 
-			const float aspectRatio = camera.FixedAspectRatio || !m_RenderTarget
+			const float aspectRatio = camera.FixedAspectRatio || m_ViewportWidth == 0 || m_ViewportHeight == 0
 				? camera.AspectRatio
-				: static_cast<float>(m_RenderTarget->GetSpecification().Width) / static_cast<float>(m_RenderTarget->GetSpecification().Height);
+				: static_cast<float>(m_ViewportWidth) / static_cast<float>(m_ViewportHeight);
 			const auto projection = glm::perspective(
 				glm::radians(camera.VerticalFovDegrees),
 				aspectRatio,

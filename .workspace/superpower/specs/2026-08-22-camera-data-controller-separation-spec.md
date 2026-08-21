@@ -13,6 +13,8 @@
 
 已完成。`CameraSystem` 查询 `TransformComponent + CameraComponent` 并为首个 Primary 相机生成渲染快照；`RenderSystem` 在同一 Render 阶段后置消费该快照。
 
+`CameraSystem` 仅接收渲染视口宽高，不持有 RHI `RenderTarget`；尺寸由视口宿主在附加渲染器时同步。
+
 ## P2：编辑器控制器化
 
 - 将 `EditorCamera` 改为不继承渲染相机数据的控制器。

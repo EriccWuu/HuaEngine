@@ -625,7 +625,8 @@ namespace HE {
 			scene->AddSystem(renderSystem);
 		}
 
-		cameraSystem->SetRenderTarget(renderTarget);
+		const auto& renderTargetSpecification = renderTarget->GetSpecification();
+		cameraSystem->SetRenderViewportSize(renderTargetSpecification.Width, renderTargetSpecification.Height);
 		renderSystem->SetRenderTarget(renderTarget);
 		renderSystem->SetAssetResolver(&m_Services->GetAssetResolver());
 
