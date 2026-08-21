@@ -31,7 +31,7 @@ namespace HE {
 		RenderSingleCamera(context.WorldRef(), *renderFrame->ActiveCamera);
 	}
 
-	void RenderSystem::RenderSingleCamera(World& world, const Rendering::RenderCamera& camera) {
+	void RenderSystem::RenderSingleCamera(World& world, const Rendering::RenderCamera& camera, bool drawEditorGrid) {
 		m_LastRenderResult = {};
 		if (!m_RenderTarget) {
 			HE_CORE_WARN("RenderSystem::RenderSingleCamera skipped because no render target is attached");
@@ -41,6 +41,7 @@ namespace HE {
 		Rendering::RenderView view;
 		view.CameraRef = CreateRef<Rendering::RenderCamera>(camera);
 		view.Target = m_RenderTarget;
+		view.DrawEditorGrid = drawEditorGrid;
 
 		auto renderItems = m_Extractor.Extract(world);
 		m_LastRenderResult = m_RenderPipeline->Render(view, renderItems, m_ResourceResolver);

@@ -13,12 +13,14 @@ namespace HE::Rendering {
 		RenderGraphResourceHandle sceneDepth,
 		bool writeDepth,
 		const glm::vec4& clearColor,
-		bool clearColorBuffer) {
+		bool clearColorBuffer,
+		bool drawEditorGrid) {
 		m_SceneColor = sceneColor;
 		m_SceneDepth = sceneDepth;
 		m_WriteDepth = writeDepth;
 		m_ClearColor = clearColor;
 		m_ClearColorBuffer = clearColorBuffer;
+		m_DrawEditorGrid = drawEditorGrid;
 	}
 
 	void ForwardOpaquePass::Setup(RenderGraphPassBuilder& builder) {
@@ -51,6 +53,9 @@ namespace HE::Rendering {
 		}
 		if (context.RecordingCommandBuffer) {
 			context.RecordingCommandBuffer->RetainResource(frameBindGroup);
+		}
+		if (m_DrawEditorGrid) {
+			m_EditorGridPass.Execute(context);
 		}
 
 		for (const auto& item : *context.RenderItems) {

@@ -44,3 +44,13 @@
 - Game View 使用 ECS 的 Primary `CameraComponent` 经 `CameraSystem` 生成的渲染相机，展示运行时游戏画面。
 - 两个视图未来使用各自的 `RenderTarget`；`RenderSystem` 应演进为消费多个明确的 `RenderView` 请求，而非持有唯一目标。
 - 本阶段只实现 Scene View Gizmo，不实现 Game View 与多视图渲染调度。
+
+## EditorGridPass 目标
+
+- Scene View 网格必须由渲染管线绘制并参与深度测试，不能作为 ImGui 前景叠加层。
+- `RenderView` 需要显式区分 Editor Scene View 与 Game View；仅 Scene View 请求 `EditorGridPass`。
+- `EditorGridPass` 在场景几何之前写入或测试 `SceneDepthAttachment`，使被场景物体遮挡的网格不可见。
+- 需要补齐最小 RHI 能力：线段或等价的三角形带绘制、可配置的深度测试/深度写入，以及专用网格 shader 与 GPU buffer 生命周期。
+- ImGui 投影网格为过渡实现，`EditorGridPass` 落地后删除，ImGuizmo 保持为 Scene View 的最后一层工具叠加。
+
+已完成：`RenderView::DrawEditorGrid` 仅由外部 Scene View 渲染入口启用；网格通过 `EditorGridPass` 在 `ForwardOpaquePass` 的同一 graphics pass 中先绘制，启用深度测试但不写深度，随后场景几何以相同 depth attachment 遮挡网格。Game/ECS 路径默认关闭。

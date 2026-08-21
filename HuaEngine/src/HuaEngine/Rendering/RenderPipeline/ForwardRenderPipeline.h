@@ -2,6 +2,7 @@
 
 #include "HuaEngine/Rendering/RenderPipeline/GraphPasses/BeginRendererPass.h"
 #include "HuaEngine/Rendering/RenderPipeline/GraphPasses/EndRendererPass.h"
+#include "HuaEngine/Rendering/RenderPipeline/GraphPasses/EditorGridPass.h"
 #include "HuaEngine/Rendering/RenderPipeline/GraphPasses/ForwardOpaquePass.h"
 #include "HuaEngine/Rendering/RenderPipeline/GraphPasses/PostProcessPass.h"
 #include "HuaEngine/Rendering/RenderGraph/RenderGraph.h"

@@ -647,7 +647,7 @@ namespace HE {
 			return result;
 		}
 
-		renderSystem->RenderSingleCamera(scene.GetWorld(), camera);
+		renderSystem->RenderSingleCamera(scene.GetWorld(), camera, true);
 		const auto& renderResult = renderSystem->GetLastRenderResult();
 		if (!renderResult.Succeeded) {
 			auto result = ResultEnvelope::Failure("rendering.render_scene_viewport", scene.GetName(), "Scene viewport render failed");

@@ -16,7 +16,7 @@ namespace HE {
 		SystemDescriptor Describe() const override;
 		void Update(SystemContext& context) override;
 
-		void RenderSingleCamera(World& world, const Rendering::RenderCamera& camera);
+		void RenderSingleCamera(World& world, const Rendering::RenderCamera& camera, bool drawEditorGrid = false);
 		[[nodiscard]] const Rendering::RenderResult& GetLastRenderResult() const { return m_LastRenderResult; }
 		void SetRenderTarget(const Ref<Rendering::RenderTarget>& renderTarget) { m_RenderTarget = renderTarget; }
 		void SetAssetResolver(AssetResolver* resolver) { m_ResourceResolver.SetAssetResolver(resolver); }
