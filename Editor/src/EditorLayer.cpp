@@ -1429,7 +1429,6 @@ namespace HE {
         if (m_ShowConsolePanel) {
             m_Concole->OnGuiRender();
         }
-        OnUnsavedChangesPopup();
     }
 
     void EditorLayer::OnProjectHubShell() {
@@ -1699,6 +1698,7 @@ namespace HE {
             ImGui::EndPopup();
         }
 
+		OnUnsavedChangesPopup();
         ImGui::End();
     }
 
