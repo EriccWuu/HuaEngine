@@ -1,11 +1,9 @@
 #include "enginepch.h"
 #include "Scene.h"
 
-namespace HE{
+	namespace HE{
 	void Scene::Update() {
-		for (auto system : m_Systems) {
-			system->Update();
-		}
+		OnUpdate();
 	}
 
 	void Scene::OnRuntimeStart() {
@@ -13,7 +11,7 @@ namespace HE{
 	}
 
 	void Scene::OnUpdate(float deltaTime) {
-		SystemContext context{m_World, deltaTime};
+		SystemContext context{m_World, m_FrameContext, deltaTime};
 		m_Scheduler.Update(context);
 	}
 

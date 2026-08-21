@@ -19,6 +19,10 @@ namespace {
 		int Value = 0;
 	};
 
+	struct FrameCounter {
+		int Value = 0;
+	};
+
 	class FirstSystem final : public HE::System {
 	public:
 		FirstSystem(std::vector<int>& order, HE::EntityId target)
@@ -28,12 +32,14 @@ namespace {
 			HE::SystemDescriptor descriptor;
 			descriptor.Name = "FirstSystem";
 			descriptor.Stage = HE::SystemStage::Update;
+			descriptor.ResourceWrites = { "Smoke.FrameCounter" };
 			return descriptor;
 		}
 
 		void Update(HE::SystemContext& context) override {
 			assert(context.DeltaTime() > 0.0f);
 			context.Commands().AddComponent<DeferredTag>(m_Target, DeferredTag{42});
+			context.Frame().GetOrCreate<FrameCounter>().Value = 42;
 			m_Order.push_back(1);
 		}
 
@@ -51,7 +57,7 @@ namespace {
 			HE::SystemDescriptor descriptor;
 			descriptor.Name = "SecondSystem";
 			descriptor.Stage = HE::SystemStage::Update;
-			descriptor.After = { "FirstSystem" };
+			descriptor.ResourceReads = { "Smoke.FrameCounter" };
 			return descriptor;
 		}
 
@@ -59,6 +65,9 @@ namespace {
 			auto* tag = context.WorldRef().TryGetComponent<DeferredTag>(m_Target);
 			assert(tag != nullptr);
 			assert(tag->Value == 42);
+			const auto* frameCounter = context.Frame().TryGet<FrameCounter>();
+			assert(frameCounter != nullptr);
+			assert(frameCounter->Value == 42);
 			m_Order.push_back(2);
 		}
 

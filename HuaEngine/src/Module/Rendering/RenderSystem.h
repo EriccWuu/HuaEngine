@@ -1,7 +1,6 @@
 #pragma once
 
 #include "HuaEngine/ECS/System.h"
-#include "HuaEngine/Scene/Scene.h"
 #include "HuaEngine/Rendering/Renderer.h"
 #include "HuaEngine/Rendering/RenderPipeline/RenderPipeline.h"
 #include "HuaEngine/Rendering/RenderPipeline/RenderResourceResolver.h"
@@ -13,10 +12,9 @@ namespace HE {
 
 	class RenderSystem : public System {
 	public:
-		explicit RenderSystem(Ref<Scene> scene);
+		RenderSystem();
 		SystemDescriptor Describe() const override;
 		void Update(SystemContext& context) override;
-		void Update() override;
 
 		void RenderSingleCamera(World& world, const Rendering::RenderCamera& camera);
 		[[nodiscard]] const Rendering::RenderResult& GetLastRenderResult() const { return m_LastRenderResult; }
@@ -24,7 +22,6 @@ namespace HE {
 		void SetAssetResolver(AssetResolver* resolver) { m_ResourceResolver.SetAssetResolver(resolver); }
 
 	private:
-		Ref<Scene> m_Scene;
 		Ref<Rendering::RenderTarget> m_RenderTarget;
 		SceneRenderExtractor m_Extractor;
 		Rendering::RenderResourceResolver m_ResourceResolver;

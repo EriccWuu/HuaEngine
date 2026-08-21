@@ -614,14 +614,14 @@ namespace HE {
 
 		auto cameraSystem = scene->FindSystem<CameraSystem>();
 		if (!cameraSystem) {
-			cameraSystem = CreateRef<CameraSystem>(scene);
+			cameraSystem = CreateRef<CameraSystem>();
 			scene->AddSystem(cameraSystem);
 		}
 
 		auto renderSystem = scene->FindSystem<RenderSystem>();
 		const bool createdNewSystem = !renderSystem;
 		if (createdNewSystem) {
-			renderSystem = CreateRef<RenderSystem>(scene);
+			renderSystem = CreateRef<RenderSystem>();
 			scene->AddSystem(renderSystem);
 		}
 

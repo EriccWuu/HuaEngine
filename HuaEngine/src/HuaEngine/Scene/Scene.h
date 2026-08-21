@@ -27,6 +27,8 @@ namespace HE {
 		void AddSyetem(Ref<System> system) { AddSystem(system); }
 		World& GetWorld() { return m_World; }
 		const World& GetWorld() const { return m_World; }
+		FrameContext& GetFrameContext() { return m_FrameContext; }
+		const FrameContext& GetFrameContext() const { return m_FrameContext; }
 		Scheduler& GetScheduler() { return m_Scheduler; }
 
 		template<typename T>
@@ -44,6 +46,7 @@ namespace HE {
 	private:
 		std::string m_Name;
 		World m_World;
+		FrameContext m_FrameContext;
 		Scheduler m_Scheduler;
 		std::vector<Ref<System>> m_Systems;
 	};

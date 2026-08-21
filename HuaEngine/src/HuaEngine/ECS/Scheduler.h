@@ -48,6 +48,18 @@ namespace HE {
 					return false;
 				}
 
+				const auto producesRequiredResource = [](const SystemDescriptor& producer, const SystemDescriptor& consumer) {
+					return std::any_of(producer.ResourceWrites.begin(), producer.ResourceWrites.end(), [&consumer](const std::string& resourceName) {
+						return std::find(consumer.ResourceReads.begin(), consumer.ResourceReads.end(), resourceName) != consumer.ResourceReads.end();
+					});
+				};
+
+				const bool lhsProducesForRhs = producesRequiredResource(lhs, rhs);
+				const bool rhsProducesForLhs = producesRequiredResource(rhs, lhs);
+				if (lhsProducesForRhs != rhsProducesForLhs) {
+					return lhsProducesForRhs;
+				}
+
 				return lhs.Name < rhs.Name;
 			});
 
@@ -59,6 +71,7 @@ namespace HE {
 				(void)Build();
 			}
 
+			context.Frame().BeginFrame();
 			CommandBuffer commandBuffer;
 			context.SetCommandBuffer(&commandBuffer);
 			for (const size_t systemIndex : m_Order) {

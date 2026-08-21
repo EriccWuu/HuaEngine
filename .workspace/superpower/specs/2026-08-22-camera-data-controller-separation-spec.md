@@ -25,6 +25,14 @@
 
 已完成迁移：`EditorCameraController` 位于 `Editor/src/Viewport`，属于 `HE::Editor`；引擎公共头、Rendering 模块和引擎 smoke 均不再依赖它。
 
+## P3：ECS 帧上下文
+
+- 新增场景持有的 `FrameContext`，作为一次 Scheduler 更新内的 typed resource 容器，并在每帧开始清空。
+- `CameraSystem` 写入 `RenderFrameData::ActiveCamera`，`RenderSystem` 读取该资源；两者不再通过 `FindSystem` 或系统 getter 通信。
+- Scheduler 根据 `ResourceWrites` 与 `ResourceReads` 排序同阶段系统，使资源声明参与实际执行顺序。
+
+已完成。
+
 ## 后续
 
 `CameraComponent` 的投影字段已存在于 ECS 数据中；在扩展 Inspector 相机参数前，需要重新生成反射代码，使这些字段进入运行时编辑与场景序列化描述。
