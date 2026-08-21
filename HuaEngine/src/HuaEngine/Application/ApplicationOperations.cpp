@@ -49,7 +49,6 @@ namespace {
 
 	HE::Rendering::CameraComponent MakeDefaultCameraComponent() {
 		HE::Rendering::CameraComponent component;
-		component.RuntimeCamera = HE::CreateRef<HE::Rendering::Camera>();
 		component.Primary = true;
 		component.FixedAspectRatio = false;
 		return component;
@@ -630,7 +629,7 @@ namespace HE {
 
 	ResultEnvelope ApplicationOperations::RenderSceneViewport(
 		Scene& scene,
-		Rendering::Camera& camera) const
+		const Rendering::RenderCamera& camera) const
 	{
 		auto renderSystem = scene.FindSystem<RenderSystem>();
 		if (!renderSystem) {

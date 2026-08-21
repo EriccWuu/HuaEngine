@@ -18,15 +18,15 @@ namespace HE {
 		void Update(SystemContext& context) override;
 		void Update() override;
 
-		void RenderSingleCamera(World& world, Rendering::Camera& camera);
+		void RenderSingleCamera(World& world, const Rendering::RenderCamera& camera);
 		[[nodiscard]] const Rendering::RenderResult& GetLastRenderResult() const { return m_LastRenderResult; }
-		void SetCamera(Ref<Rendering::Camera>& camera) { m_Camera = camera; };
+		void SetCamera(Ref<Rendering::RenderCamera>& camera) { m_Camera = camera; };
 		void SetRenderTarget(const Ref<Rendering::RenderTarget>& renderTarget) { m_RenderTarget = renderTarget; }
 		void SetAssetResolver(AssetResolver* resolver) { m_ResourceResolver.SetAssetResolver(resolver); }
 
 	private:
 		Ref<Scene> m_Scene;
-		Ref<Rendering::Camera> m_Camera;
+		Ref<Rendering::RenderCamera> m_Camera;
 		Ref<Rendering::RenderTarget> m_RenderTarget;
 		SceneRenderExtractor m_Extractor;
 		Rendering::RenderResourceResolver m_ResourceResolver;

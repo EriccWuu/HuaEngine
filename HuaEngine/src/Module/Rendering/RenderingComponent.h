@@ -3,7 +3,6 @@
 #include "HuaEngine/Core/Core.h"
 #include "HuaEngine/ECS/Components.h"
 #include "HuaEngine/Asset/AssetTypes.h"
-#include "HuaEngine/Rendering/Camera.h"
 #include "HuaEngine/Rendering/RHI/ShaderProgram.h"
 #include "HuaEngine/Rendering/RHI/TextureResource.h"
 #include "HuaEngine/Rendering/Material/Material.h"
@@ -25,16 +24,18 @@ namespace HE::Rendering {
 
 	HE_REFLECT_COMPONENT(DisplayName="Camera", Category="Rendering")
 	struct CameraComponent : Component {
-		CameraComponent() = default;
-		CameraComponent(const Ref<HE::Rendering::Camera>& camera) 
-			: RuntimeCamera(camera) {}
-
-		// Runtime camera is rebuilt or synchronized from component data and is not serialized.
-		Ref<HE::Rendering::Camera> RuntimeCamera;
 		HE_REFLECT_FIELD()
 		bool Primary = true;
 		HE_REFLECT_FIELD()
 		bool FixedAspectRatio = false;
+		HE_REFLECT_FIELD()
+		float VerticalFovDegrees = 45.0f;
+		HE_REFLECT_FIELD()
+		float NearClip = 0.1f;
+		HE_REFLECT_FIELD()
+		float FarClip = 100.0f;
+		HE_REFLECT_FIELD()
+		float AspectRatio = 16.0f / 9.0f;
 	};
 
 	struct MaterialOverrideSet {

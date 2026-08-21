@@ -9,7 +9,7 @@
 
 #include "HuaEngine/Core/Core.h"
 #include "HuaEngine/ECS/Entity.h"
-#include "HuaEngine/Rendering/Camera.h"
+#include "HuaEngine/Rendering/RenderCamera.h"
 #include "HuaEngine/Rendering/Material/Material.h"
 #include "HuaEngine/Rendering/RHI/BindGroup.h"
 #include "HuaEngine/Rendering/RHI/PipelineState.h"
@@ -29,7 +29,7 @@ namespace HE::Rendering {
 	struct RenderPassDesc;
 
 	struct RenderView {
-		Ref<Camera> CameraRef;
+		Ref<RenderCamera> CameraRef;
 		Ref<RenderTarget> Target;
 		glm::vec4 ClearColor = { 0.1f, 0.1f, 0.1f, 1.0f };
 		bool ClearColorBuffer = true;

@@ -22,10 +22,14 @@ namespace HE {
 	}
 
 	void RenderSystem::Update(SystemContext& context) {
-		auto cameraQuery = context.WorldRef().Query<Rendering::CameraComponent>();
-		cameraQuery.ForEach([&](Entity, Rendering::CameraComponent& camera) {
-			if (camera.RuntimeCamera) {
-				RenderSingleCamera(context.WorldRef(), *camera.RuntimeCamera);
+		auto cameraQuery = context.WorldRef().Query<TransformComponent, Rendering::CameraComponent>();
+		cameraQuery.ForEach([&](Entity, TransformComponent& transform, Rendering::CameraComponent& camera) {
+			if (camera.Primary) {
+				const float aspectRatio = camera.FixedAspectRatio || !m_RenderTarget
+					? camera.AspectRatio
+					: static_cast<float>(m_RenderTarget->GetSpecification().Width) / static_cast<float>(m_RenderTarget->GetSpecification().Height);
+				const auto projection = glm::perspective(glm::radians(camera.VerticalFovDegrees), aspectRatio, camera.NearClip, camera.FarClip);
+				RenderSingleCamera(context.WorldRef(), Rendering::RenderCamera(projection, glm::inverse(transform.GetTransformMat())));
 			}
 		});
 	}
@@ -39,7 +43,7 @@ namespace HE {
 		Update(context);
 	}
 
-	void RenderSystem::RenderSingleCamera(World& world, Rendering::Camera& camera) {
+	void RenderSystem::RenderSingleCamera(World& world, const Rendering::RenderCamera& camera) {
 		m_LastRenderResult = {};
 		if (!m_RenderTarget) {
 			HE_CORE_WARN("RenderSystem::RenderSingleCamera skipped because no render target is attached");
@@ -47,7 +51,7 @@ namespace HE {
 		}
 
 		Rendering::RenderView view;
-		view.CameraRef = CreateRef<Rendering::Camera>(camera);
+		view.CameraRef = CreateRef<Rendering::RenderCamera>(camera);
 		view.Target = m_RenderTarget;
 
 		auto renderItems = m_Extractor.Extract(world);

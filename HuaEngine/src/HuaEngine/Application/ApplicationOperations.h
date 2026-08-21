@@ -25,7 +25,7 @@ namespace HE {
 	struct ValidationReport;
 
 	namespace Rendering {
-		class Camera;
+		class RenderCamera;
 		class RenderTarget;
 		class Mesh;
 		class Material;
@@ -185,7 +185,7 @@ namespace HE {
 			const Ref<Rendering::RenderTarget>& renderTarget) const;
 		[[nodiscard]] ResultEnvelope RenderSceneViewport(
 			Scene& scene,
-			Rendering::Camera& camera) const;
+			const Rendering::RenderCamera& camera) const;
 
 		[[nodiscard]] ResultEnvelope Validate(const ApplicationValidationRequest& request, ValidationReport* outReport = nullptr) const;
 		[[nodiscard]] ResultEnvelope ScanReflection(const ReflectionToolRequest& request) const;
