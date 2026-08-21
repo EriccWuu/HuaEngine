@@ -25,7 +25,6 @@
 #include "HuaEngine/Rendering/Material/MaterialTypes.h"
 #include "HuaEngine/Rendering/Material/MaterialLibrary.h"
 #include "HuaEngine/Rendering/RenderCamera.h"
-#include "HuaEngine/Rendering/EditorCameraController.h"
 
 // ECS
 #include "HuaEngine/ECS/CommandBuffer.h"

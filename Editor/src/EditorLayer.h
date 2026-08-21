@@ -17,6 +17,7 @@
 #include "Workbench/EditorSessionStorage.h"
 #include "Workbench/ProjectSession.h"
 #include "Workbench/SceneDocument.h"
+#include "Viewport/EditorCameraController.h"
 
 namespace HE {
     enum class EditorWorkbenchMode {
@@ -118,7 +119,7 @@ namespace HE {
         bool m_WorkbenchReady = false;
         bool m_DockLayoutInitialized = false;
         Ref<RenderTarget> m_RenderTarget;
-        Ref<Rendering::EditorCameraController> m_EditorCameraController;
+        Ref<Editor::EditorCameraController> m_EditorCameraController;
         Ref<Material> m_SandboxMaterial;
         Ref<ProjectPanel> m_ProjectPanel;
         Ref<HierarchyPanel> m_HierarchyPanel;

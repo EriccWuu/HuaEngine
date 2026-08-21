@@ -122,7 +122,7 @@ namespace HE {
 
     EditorLayer::EditorLayer(EditorLayerSpecification specification)
         : Layer("EditorLayer"), m_Specification(std::move(specification)) {
-        m_EditorCameraController.reset(new Rendering::EditorCameraController());
+        m_EditorCameraController = CreateRef<Editor::EditorCameraController>();
         m_ProjectPanel.reset(new ProjectPanel());
         m_ProjectPanel->SetWorkbenchState(&m_WorkbenchState);
         m_Inspector.reset(new InspectorPanel);

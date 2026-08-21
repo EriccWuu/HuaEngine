@@ -7,6 +7,7 @@
 #include <string>
 
 #include <glm/glm.hpp>
+#include <glm/gtc/matrix_transform.hpp>
 
 #include "HuaEngine.h"
 #include "HuaEngine/Core/ResourcePaths.h"
@@ -211,9 +212,9 @@ int main() {
 	auto renderTarget = HE::Rendering::RenderHardwareInterface::GetDevice().CreateRenderTarget({ .Specification = specification });
 	Require(static_cast<bool>(renderTarget), "Expected render target creation to succeed");
 
-	HE::Rendering::EditorCameraController cameraController;
-	cameraController.SetViewport(320.0f, 180.0f);
-	const auto camera = cameraController.BuildRenderCamera();
+	const auto camera = HE::Rendering::RenderCamera(
+		glm::perspective(glm::radians(45.0f), 320.0f / 180.0f, 0.1f, 100.0f),
+		glm::mat4(1.0f));
 	auto renderWithoutAttach = operations.RenderSceneViewport(*scene, camera);
 	Require(renderWithoutAttach.Failed(), "Expected rendering.render_scene_viewport to fail before attach");
 

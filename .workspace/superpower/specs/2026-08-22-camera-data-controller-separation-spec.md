@@ -21,6 +21,8 @@
 
 已完成。`EditorCameraController` 不再继承渲染相机，`BuildRenderCamera()` 是它与渲染层的唯一数据交界。
 
+已完成迁移：`EditorCameraController` 位于 `Editor/src/Viewport`，属于 `HE::Editor`；引擎公共头、Rendering 模块和引擎 smoke 均不再依赖它。
+
 ## 后续
 
 `CameraComponent` 的投影字段已存在于 ECS 数据中；在扩展 Inspector 相机参数前，需要重新生成反射代码，使这些字段进入运行时编辑与场景序列化描述。

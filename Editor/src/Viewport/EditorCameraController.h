@@ -3,14 +3,14 @@
 #include "HuaEngine/Events/Event.h"
 #include "HuaEngine/Rendering/RenderCamera.h"
 
-namespace HE::Rendering {
+namespace HE::Editor {
 	class EditorCameraController {
 	public:
 		EditorCameraController() = default;
 		EditorCameraController(float fov, float aspectRatio, float nearClip, float farClip);
 
 		void OnEvent(Event& event);
-		[[nodiscard]] RenderCamera BuildRenderCamera() const;
+		[[nodiscard]] Rendering::RenderCamera BuildRenderCamera() const;
 
 		inline void SetViewport(float width, float height) { m_Viewport = { width, height }; }
 		const glm::vec3 GetUpDirection() const;
