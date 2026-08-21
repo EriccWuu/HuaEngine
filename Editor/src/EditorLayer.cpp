@@ -1307,6 +1307,7 @@ namespace HE {
     }
 
     void EditorLayer::OnGuiRender() {
+		ImGuizmo::BeginFrame();
         if (m_Mode == EditorWorkbenchMode::ProjectHub) {
             OnProjectHubShell();
             OnUnsavedChangesPopup();
