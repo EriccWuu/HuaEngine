@@ -13,8 +13,10 @@
 #include "HuaEngine/Core/ResourcePaths.h"
 #include "HuaEngine/Rendering/RHI/RenderHardwareInterface.h"
 #include "Interaction/EditorSceneCommands.h"
+#include "ImGuizmo.h"
 #include "imgui.h"
 #include <imgui_internal.h>
+#include <glm/gtc/type_ptr.hpp>
 #include "Module/Rendering/RenderingComponent.h"
 #include "Selection.h"
 
@@ -1680,7 +1682,7 @@ namespace HE {
         ImGui::DockBuilderDockWindow("Hierarchy", hierarchyDockId);
         ImGui::DockBuilderDockWindow("Inspector", rightDockId);
         ImGui::DockBuilderDockWindow("Console", bottomDockId);
-        ImGui::DockBuilderDockWindow("Game", centerDockId);
+        ImGui::DockBuilderDockWindow("Scene", centerDockId);
         ImGui::DockBuilderFinish(dockspaceId);
     }
 
@@ -1690,7 +1692,7 @@ namespace HE {
         }
 
         ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2{ 0, 0 });
-        ImGui::Begin("Game");
+        ImGui::Begin("Scene");
         if (!m_SceneDocument.SceneRef) {
             ImGui::TextUnformatted("No scene loaded.");
             ImGui::TextWrapped("Use the Scene menu or the Project panel to create or open a scene document inside the current project.");
@@ -1712,10 +1714,59 @@ namespace HE {
             m_SceneViewportSize = newViewportSize;
         }
 
+        const ImVec2 viewportOrigin = ImGui::GetCursorScreenPos();
         ImGui::Image(m_RenderTarget->GetColorAttachmentView().NativeHandle,
             { m_SceneViewportSize.x , m_SceneViewportSize.y },
             { 0, 1 }, { 1, 0 });
         m_EditorCameraController->SetViewport(m_SceneViewportSize.x, m_SceneViewportSize.y);
+
+        if (ImGui::IsWindowHovered()) {
+            if (ImGui::IsKeyPressed(ImGuiKey_W)) m_GizmoOperation = ImGuizmo::TRANSLATE;
+            if (ImGui::IsKeyPressed(ImGuiKey_E)) m_GizmoOperation = ImGuizmo::ROTATE;
+            if (ImGui::IsKeyPressed(ImGuiKey_R)) m_GizmoOperation = ImGuizmo::SCALE;
+        }
+
+        ImGuizmo::SetDrawlist();
+        ImGuizmo::SetRect(viewportOrigin.x, viewportOrigin.y, m_SceneViewportSize.x, m_SceneViewportSize.y);
+        ImGuizmo::SetOrthographic(false);
+
+        auto selectedEntity = Selection::HasSingleSelection()
+            ? Selection::ResolvePrimarySelection(m_SceneDocument.SceneRef->GetWorld())
+            : Entity{};
+        if (selectedEntity.IsValid() && selectedEntity.HasComponent<TransformComponent>()) {
+            auto& transform = selectedEntity.GetComponent<TransformComponent>();
+            auto transformMatrix = transform.GetTransformMat();
+            const auto camera = m_EditorCameraController->BuildRenderCamera();
+            ImGuizmo::Manipulate(
+                glm::value_ptr(camera.GetView()),
+                glm::value_ptr(camera.GetProjection()),
+                static_cast<ImGuizmo::OPERATION>(m_GizmoOperation),
+                ImGuizmo::WORLD,
+                glm::value_ptr(transformMatrix));
+
+            const bool isUsing = ImGuizmo::IsUsing();
+            if (isUsing) {
+                if (!m_GizmoWasUsing || m_GizmoEntityUuid != selectedEntity.GetUuid()) {
+                    m_GizmoInitialTransform = transform;
+                    m_GizmoEntityUuid = selectedEntity.GetUuid();
+                }
+
+                float translation[3];
+                float rotationDegrees[3];
+                float scale[3];
+                ImGuizmo::DecomposeMatrixToComponents(glm::value_ptr(transformMatrix), translation, rotationDegrees, scale);
+                transform.Position = { translation[0], translation[1], translation[2] };
+                transform.Rotation = glm::radians(glm::vec3(rotationDegrees[0], rotationDegrees[1], rotationDegrees[2]));
+                transform.Scale = { scale[0], scale[1], scale[2] };
+            } else if (m_GizmoWasUsing && m_GizmoEntityUuid == selectedEntity.GetUuid()) {
+                ExecuteEditorCommand(CreateSetTransformCommand(selectedEntity, m_GizmoInitialTransform, transform));
+                m_GizmoEntityUuid = {};
+            }
+            m_GizmoWasUsing = isUsing;
+        } else {
+            m_GizmoWasUsing = false;
+            m_GizmoEntityUuid = {};
+        }
         ImGui::End();
         ImGui::PopStyleVar();
     }

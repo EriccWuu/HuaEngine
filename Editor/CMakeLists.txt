@@ -15,6 +15,9 @@ file(GLOB_RECURSE EDITOR_SOURCES
 
 # Create the Editor executable
 add_executable(Editor ${EDITOR_SOURCES})
+target_sources(Editor PRIVATE
+    "${CMAKE_SOURCE_DIR}/Dependencies/ImGuizmo/ImGuizmo.cpp"
+)
 
 # Create source groups to maintain folder structure in Visual Studio
 foreach(source IN ITEMS ${EDITOR_SOURCES})
@@ -36,6 +39,7 @@ target_include_directories(Editor PRIVATE
     ${SPDLOG_INCLUDE_DIR}
     ${GLM_INCLUDE_DIR}
     ${IMGUI_INCLUDE_DIR}
+    ${CMAKE_SOURCE_DIR}/Dependencies/ImGuizmo
     ${STB_IMAGE_INCLUDE_DIR}
 )
 

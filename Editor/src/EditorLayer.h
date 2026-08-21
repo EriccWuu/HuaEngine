@@ -143,5 +143,9 @@ namespace HE {
         bool m_ShowScenePanel = true;
 
         glm::vec2 m_SceneViewportSize = { 0, 0 };
+        int m_GizmoOperation = 7;
+        bool m_GizmoWasUsing = false;
+        EntityUuid m_GizmoEntityUuid;
+        TransformComponent m_GizmoInitialTransform;
     };
 }

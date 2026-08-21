@@ -36,3 +36,11 @@
 ## 后续
 
 `CameraComponent` 的投影字段已存在于 ECS 数据中；在扩展 Inspector 相机参数前，需要重新生成反射代码，使这些字段进入运行时编辑与场景序列化描述。
+
+## 视图边界目标
+
+- Editor 需要同时支持独立的 Scene View 与 Game View，不以二选一方式切换。
+- Scene View 使用 `EditorCameraController`，服务于选择、Gizmo 和场景编辑，不修改游戏相机数据。
+- Game View 使用 ECS 的 Primary `CameraComponent` 经 `CameraSystem` 生成的渲染相机，展示运行时游戏画面。
+- 两个视图未来使用各自的 `RenderTarget`；`RenderSystem` 应演进为消费多个明确的 `RenderView` 请求，而非持有唯一目标。
+- 本阶段只实现 Scene View Gizmo，不实现 Game View 与多视图渲染调度。

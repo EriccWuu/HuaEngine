@@ -550,6 +550,46 @@ namespace HE {
             Entity m_Entity;
             Rendering::MaterialComponent m_Component;
         };
+
+        class SetTransformCommand final : public IEditorCommand {
+        public:
+            SetTransformCommand(EntityUuid entityUuid, TransformComponent before, TransformComponent after)
+                : m_EntityUuid(entityUuid), m_Before(std::move(before)), m_After(std::move(after)) {}
+
+            std::string GetLabel() const override { return "Transform Entity"; }
+
+            ResultEnvelope Execute(const EditorCommandContext& context) override {
+                return Apply(context, m_After, "editor.transform", "Updated entity transform");
+            }
+
+            ResultEnvelope Undo(const EditorCommandContext& context) override {
+                return Apply(context, m_Before, "editor.transform.undo", "Restored entity transform");
+            }
+
+        private:
+            ResultEnvelope Apply(const EditorCommandContext& context, const TransformComponent& transform, std::string operation, std::string summary) const {
+                auto scene = GetScene(context);
+                auto* operations = GetOperations(context);
+                if (!scene || !operations) {
+                    return !operations ? MakeOperationsMissingResult(std::move(operation)) : ResultEnvelope::Failure(std::move(operation), "scene", "An active scene is required before changing a transform");
+                }
+
+                const auto entity = scene->GetWorld().GetEntity(m_EntityUuid);
+                if (!entity.IsValid()) {
+                    return ResultEnvelope::Failure(std::move(operation), "entity", "The transformed entity is no longer available");
+                }
+
+                auto result = operations->UpsertSceneEntityTransform(*scene, entity.GetUid(), transform);
+                result.Operation = std::move(operation);
+                result.Target = entity.GetName();
+                result.Summary = std::move(summary);
+                return result;
+            }
+
+            EntityUuid m_EntityUuid;
+            TransformComponent m_Before;
+            TransformComponent m_After;
+        };
     }
 
     const std::vector<EditorInspectableComponentDescriptor>& GetEditorInspectableComponents() {
@@ -620,5 +660,9 @@ namespace HE {
             default:
                 return nullptr;
         }
+    }
+
+    EditorCommandPtr CreateSetTransformCommand(const Entity& entity, const TransformComponent& before, const TransformComponent& after) {
+        return std::make_unique<SetTransformCommand>(entity.GetUuid(), before, after);
     }
 }
