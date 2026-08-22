@@ -1,5 +1,6 @@
 #include <cstdlib>
 #include <algorithm>
+#include <array>
 #include <filesystem>
 #include <fstream>
 #include <iostream>
@@ -126,11 +127,52 @@ namespace {
 		Require(std::filesystem::is_regular_file(artifactPath), "Expected mesh artifact file");
 
 		const auto firstWriteTime = std::filesystem::last_write_time(artifactPath);
+		HE::AssetArtifact firstArtifact;
+		Require(assetService.GetLibrary().ReadArtifact(meshRecord.Guid, firstArtifact).Succeeded(), "Expected first mesh artifact read");
 		HE::AssetImportReport secondReport;
 		Require(assetService.InitializeProjectAssets(context, &secondReport).Succeeded(), "Expected repeated project asset initialization");
 		Require(secondReport.ImportedAssets == 0, "Expected repeated initialization not to import mesh");
 		Require(secondReport.SkippedAssets == 1, "Expected repeated initialization to skip compatible mesh");
 		Require(std::filesystem::last_write_time(artifactPath) == firstWriteTime, "Expected skipped mesh artifact not to be rewritten");
+
+		const auto replacementMesh = HE::Rendering::Mesh::CreateQuad("ReimportedQuad");
+		Require(HE::Rendering::Mesh::SaveToFile(*replacementMesh, meshPath.generic_string()), "Expected replacement mesh source save");
+		HE::AssetImportService importService(assetService.GetImporterRegistry(), assetService.GetLibrary());
+		const std::array<HE::AssetGuid, 1> forceGuids = { meshRecord.Guid };
+		HE::AssetImportReport forceReport;
+		Require(
+			importService.ImportAssets(
+				context,
+				assetService.GetManifest(),
+				forceGuids,
+				HE::AssetImportPolicy::Force,
+				&forceReport).Succeeded(),
+			"Expected forced mesh import");
+		Require(forceReport.ImportedAssets == 1, "Expected forced import to rewrite an existing artifact");
+		Require(forceReport.SkippedAssets == 0, "Expected forced import not to skip a compatible artifact");
+		HE::AssetArtifact replacementArtifact;
+		Require(assetService.GetLibrary().ReadArtifact(meshRecord.Guid, replacementArtifact).Succeeded(), "Expected replacement artifact read");
+		Require(replacementArtifact.Payload != firstArtifact.Payload, "Expected forced import to update artifact payload");
+
+		{
+			std::ofstream invalidSource(meshPath, std::ios::out | std::ios::binary | std::ios::trunc);
+			Require(invalidSource.good(), "Expected invalid mesh fixture open");
+			invalidSource << "not a mesh";
+		}
+		HE::AssetImportReport failedForceReport;
+		Require(
+			importService.ImportAssets(
+				context,
+				assetService.GetManifest(),
+				forceGuids,
+				HE::AssetImportPolicy::Force,
+				&failedForceReport).Succeeded(),
+			"Expected batch import to report per-asset failure without infrastructure failure");
+		Require(failedForceReport.FailedAssets == 1, "Expected invalid source import failure");
+		HE::AssetArtifact preservedArtifact;
+		Require(assetService.GetLibrary().ReadArtifact(meshRecord.Guid, preservedArtifact).Succeeded(), "Expected preserved artifact read");
+		Require(preservedArtifact.Payload == replacementArtifact.Payload, "Expected failed reimport to preserve the last good artifact");
+		Require(HE::Rendering::Mesh::SaveToFile(*replacementMesh, meshPath.generic_string()), "Expected valid source restore after failed reimport");
 
 		std::filesystem::remove(artifactPath);
 		HE::AssetImportReport rebuildReport;
@@ -144,7 +186,7 @@ namespace {
 		HE::Ref<HE::Rendering::Mesh> resolvedMesh;
 		Require(resolver.ResolveMesh(meshRecord.Guid, resolvedMesh).Succeeded(), "Expected mesh resolve from Library after source removal");
 		Require(static_cast<bool>(resolvedMesh), "Expected mesh resolved from artifact");
-		Require(resolvedMesh->GetName() == "ImportedQuad", "Expected Library-only mesh payload");
+		Require(resolvedMesh->GetName() == "ReimportedQuad", "Expected Library-only mesh payload");
 	}
 
 	void WriteTextFile(const std::filesystem::path& path, const std::string& text) {

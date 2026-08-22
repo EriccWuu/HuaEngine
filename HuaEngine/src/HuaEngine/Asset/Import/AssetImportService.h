@@ -1,6 +1,8 @@
 #pragma once
 
 #include <cstdint>
+#include <span>
+#include <vector>
 
 #include "AssetImporterRegistry.h"
 #include "HuaEngine/Asset/AssetManifest.h"
@@ -9,11 +11,17 @@
 #include "HuaEngine/Project/ProjectContext.h"
 
 namespace HE {
+	enum class AssetImportPolicy {
+		MissingOnly,
+		Force
+	};
+
 	struct AssetImportReport {
 		uint32_t TotalFileAssets = 0;
 		uint32_t ImportedAssets = 0;
 		uint32_t SkippedAssets = 0;
 		uint32_t FailedAssets = 0;
+		std::vector<AssetGuid> ImportedAssetGuids;
 	};
 
 	class AssetImportService {
@@ -26,6 +34,13 @@ namespace HE {
 		ResultEnvelope ImportMissingAssets(
 			const ProjectContext& context,
 			const AssetManifest& manifest,
+			AssetImportReport* outReport = nullptr) const;
+
+		ResultEnvelope ImportAssets(
+			const ProjectContext& context,
+			const AssetManifest& manifest,
+			std::span<const AssetGuid> assetGuids,
+			AssetImportPolicy policy,
 			AssetImportReport* outReport = nullptr) const;
 
 	private:

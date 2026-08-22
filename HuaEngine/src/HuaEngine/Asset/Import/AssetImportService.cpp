@@ -2,42 +2,81 @@
 #include "AssetImportService.h"
 
 #include <filesystem>
+#include <vector>
 
 namespace HE {
 	ResultEnvelope AssetImportService::ImportMissingAssets(
 		const ProjectContext& context,
 		const AssetManifest& manifest,
 		AssetImportReport* outReport) const {
-		AssetImportReport report;
-		auto result = ResultEnvelope::Success("asset.import_missing", context.GetTargetId(), "Missing asset artifacts imported");
+		std::vector<AssetGuid> fileAssetGuids;
+		manifest.ForEachRecord([&fileAssetGuids](const AssetManifestRecord& record) {
+			if (record.Source == AssetSource::File) {
+				fileAssetGuids.push_back(record.Guid);
+			}
+		});
 
-		manifest.ForEachRecord([&](const AssetManifestRecord& record) {
-			if (record.Source != AssetSource::File) {
-				return;
+		AssetImportReport report;
+		auto result = ImportAssets(
+			context,
+			manifest,
+			fileAssetGuids,
+			AssetImportPolicy::MissingOnly,
+			&report);
+		result.Operation = "asset.import_missing";
+		if (result.Succeeded() && report.FailedAssets == 0) {
+			result.Summary = "Missing asset artifacts imported";
+		}
+		if (outReport) {
+			*outReport = std::move(report);
+		}
+		return result;
+	}
+
+	ResultEnvelope AssetImportService::ImportAssets(
+		const ProjectContext& context,
+		const AssetManifest& manifest,
+		std::span<const AssetGuid> assetGuids,
+		AssetImportPolicy policy,
+		AssetImportReport* outReport) const {
+		AssetImportReport report;
+		auto result = ResultEnvelope::Success("asset.import_assets", context.GetTargetId(), "Asset artifacts imported");
+
+		for (const auto& guid : assetGuids) {
+			const auto* record = manifest.FindByGuid(guid);
+			if (!record || record->Source != AssetSource::File) {
+				++report.FailedAssets;
+				result.AddDetail({
+					DiagnosticSeverity::Warning,
+					"asset.import.record_missing",
+					"Asset import requires a file-backed manifest record",
+					guid
+				});
+				continue;
 			}
 			++report.TotalFileAssets;
 
-			const auto sourcePath = (context.GetAssetRootPath() / record.RelativePath).lexically_normal();
-			const auto* importer = m_Registry->Find(record.Kind, sourcePath.extension().string());
+			const auto sourcePath = (context.GetAssetRootPath() / record->RelativePath).lexically_normal();
+			const auto* importer = m_Registry->Find(record->Kind, sourcePath.extension().string());
 			if (!importer) {
 				++report.FailedAssets;
 				result.AddDetail({
 					DiagnosticSeverity::Warning,
 					"asset.import.importer_missing",
 					"No asset importer supports the manifest kind and source extension",
-					record.AssetId
+					record->AssetId
 				});
-				return;
+				continue;
 			}
 
-			if (m_Library->IsArtifactAvailable(
-				record.Guid,
-				record.Kind,
+			if (policy == AssetImportPolicy::MissingOnly && m_Library->IsArtifactAvailable(
+				record->Guid,
+				record->Kind,
 				importer->GetId(),
 				importer->GetVersion(),
 				importer->GetArtifactVersion())) {
 				++report.SkippedAssets;
-				return;
+				continue;
 			}
 
 			std::error_code errorCode;
@@ -49,12 +88,12 @@ namespace HE {
 					"Asset source file is missing",
 					sourcePath.generic_string()
 				});
-				return;
+				continue;
 			}
 
 			const AssetImportContext importContext{
 				.Project = context,
-				.SourceAsset = record,
+				.SourceAsset = *record,
 				.SourcePath = sourcePath,
 				.Manifest = &manifest
 			};
@@ -64,11 +103,11 @@ namespace HE {
 				for (auto& diagnostic : importResult.Diagnostics) {
 					result.AddDetail(std::move(diagnostic));
 				}
-				return;
+				continue;
 			}
 
 			auto commitResult = m_Library->CommitArtifact(
-				record.Guid,
+				record->Guid,
 				importer->GetId(),
 				importer->GetVersion(),
 				importResult.Artifact);
@@ -77,18 +116,19 @@ namespace HE {
 				for (auto& diagnostic : commitResult.Details) {
 					result.AddDetail(std::move(diagnostic));
 				}
-				return;
+				continue;
 			}
 
 			++report.ImportedAssets;
-		});
+			report.ImportedAssetGuids.push_back(record->Guid);
+		}
 
 		auto saveResult = m_Library->Save();
 		if (!saveResult.Succeeded()) {
 			if (outReport) {
 				*outReport = report;
 			}
-			saveResult.Operation = "asset.import_missing";
+			saveResult.Operation = "asset.import_assets";
 			return saveResult;
 		}
 
