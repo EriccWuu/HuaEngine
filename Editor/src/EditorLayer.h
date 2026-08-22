@@ -74,7 +74,6 @@ namespace HE {
         bool SeedDemoProjectAssets();
         bool EnsureMeshAvailable(std::string_view meshName);
         bool EnsureMaterialAvailable(std::string_view materialName);
-        bool WarmupSceneAssets(const Ref<Scene>& scene);
         bool CreateNewSceneDocument(std::string_view sceneName);
         bool OpenSceneDocument(const std::filesystem::path& scenePath);
         bool SaveActiveSceneDocument();

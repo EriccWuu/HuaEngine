@@ -259,7 +259,7 @@ int main() {
 		"Expected texture source registration");
 	HE::AssetImportReport textureImportReport;
 	Require(textureAssetService.InitializeProjectAssets(textureProject, &textureImportReport).Succeeded(), "Expected texture asset initialization");
-	Require(textureImportReport.ImportedAssets == 1 && textureImportReport.FailedAssets == 0, "Expected PNG artifact import");
+	Require(textureImportReport.ImportedAssets == 7 && textureImportReport.FailedAssets == 0, "Expected PNG artifact and six builtin asset imports");
 
 	HE::AssetRecord importedTextureRecord;
 	Require(textureAssetService.ResolveAsset(importedTextureHandle, importedTextureRecord).Succeeded(), "Expected imported texture record");

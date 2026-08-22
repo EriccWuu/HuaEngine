@@ -18,6 +18,10 @@ namespace HE::Rendering {
 		}
 	}
 
+	bool RenderHardwareInterface::IsInitialized() {
+		return static_cast<bool>(s_Device);
+	}
+
 	Scope<RenderDevice> RenderHardwareInterface::CreateRenderDevice(const RenderDeviceDesc& desc) {
 		switch (desc.Backend) {
 			case RenderBackendType::OpenGL:

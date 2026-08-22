@@ -17,8 +17,5 @@ namespace HE {
 
 	private:
 		AssetService* m_Service = nullptr;
-
-		[[nodiscard]] Ref<Rendering::Mesh> CreateBuiltinMesh(const AssetManifestRecord& record) const;
-		[[nodiscard]] Ref<Rendering::Material> CreateBuiltinMaterial(const AssetManifestRecord& record) const;
 	};
 }

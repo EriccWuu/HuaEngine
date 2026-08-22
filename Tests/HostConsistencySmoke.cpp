@@ -176,6 +176,9 @@ int main() {
 	HE::ProjectContext context;
 	auto resolveContext = application.GetOperations().ResolveProjectContext(smokeRoot / "Project", context);
 	Require(resolveContext.Succeeded(), "Expected project.resolve_context to succeed");
+	Require(
+		application.GetOperations().InitializeProjectAssets(context).Succeeded(),
+		"Expected project assets to initialize before host validation");
 
 	HE::Ref<HE::Scene> scene;
 	auto loadScene = application.GetOperations().LoadScene(context.GetAssetRootPath() / "consistency.scene", scene);

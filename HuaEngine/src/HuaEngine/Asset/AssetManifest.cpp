@@ -509,27 +509,6 @@ namespace HE {
 		return AssetImportState::Unknown;
 	}
 
-	bool IsBuiltinAssetNameLegal(AssetKind kind, std::string_view builtinName) {
-		if (builtinName.empty()) {
-			return false;
-		}
-
-		switch (kind) {
-		case AssetKind::Mesh:
-			return builtinName == "quad" ||
-				builtinName == "cube" ||
-				builtinName == "sphere" ||
-				builtinName == "fallback";
-		case AssetKind::Material:
-			return builtinName == "default" ||
-				builtinName == "fallback";
-		case AssetKind::Texture2D:
-		case AssetKind::Unknown:
-		default:
-			return false;
-		}
-	}
-
 	const AssetManifestRecord* AssetManifest::FindByGuid(const AssetGuid& guid) const {
 		const auto it = m_GuidIndex.find(guid);
 		return it != m_GuidIndex.end() ? &m_Records[it->second] : nullptr;

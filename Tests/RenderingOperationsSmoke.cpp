@@ -236,6 +236,16 @@ int main() {
 	auto& operations = application.GetOperations();
 	Require(operations.Supports("rendering.attach_scene_viewport"), "Expected rendering.attach_scene_viewport to be registered");
 	Require(operations.Supports("rendering.render_scene_viewport"), "Expected rendering.render_scene_viewport to be registered");
+	const auto smokeRoot = std::filesystem::temp_directory_path() / "HuaEngineRenderingOperationsSmoke";
+	std::error_code errorCode;
+	std::filesystem::remove_all(smokeRoot, errorCode);
+	HE::ProjectContext projectContext;
+	Require(
+		operations.InitializeProject(smokeRoot / "SmokeProject", &projectContext, "RenderingSmokeProject").Succeeded(),
+		"Expected rendering smoke project initialization");
+	Require(
+		operations.InitializeProjectAssets(projectContext).Succeeded(),
+		"Expected builtin render artifacts to initialize");
 
 	HE::Ref<HE::Scene> scene;
 	auto createScene = operations.CreateScene("RenderingSmoke", scene);
@@ -402,6 +412,8 @@ int main() {
 	const auto& loadedRenderStats = loadedRenderSystem->GetLastRenderResult().Stats;
 	Require(loadedRenderStats.BindGroupLayoutCacheHits > 0, "Expected multi-item render to reuse standard bind group layouts");
 	Require(loadedRenderStats.PipelineStateCacheHits > 0, "Expected multi-item render to reuse pipeline state");
+	std::filesystem::remove_all(smokeRoot, errorCode);
+	Require(!errorCode, "Expected rendering smoke temporary project cleanup");
 
 	std::cout << "RenderingOperationsSmoke passed" << std::endl;
 	return 0;

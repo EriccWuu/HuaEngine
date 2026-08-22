@@ -79,19 +79,6 @@ namespace HE {
             return fileName;
         }
 
-        std::string MeshNameFromGuid(const AssetGuid& guid) {
-            if (guid == BuiltinAssetGuids::QuadMesh || guid == BuiltinAssetGuids::FallbackMesh) {
-                return "Quad";
-            }
-            if (guid == BuiltinAssetGuids::CubeMesh) {
-                return "Cube";
-            }
-            if (guid == BuiltinAssetGuids::SphereMesh) {
-                return "Sphere";
-            }
-            return {};
-        }
-
         uint32_t DecodeObjectId(Rendering::RenderTargetPixelRGBA8 pixel) {
             return static_cast<uint32_t>(pixel.R)
                 | (static_cast<uint32_t>(pixel.G) << 8u)
@@ -903,37 +890,6 @@ namespace HE {
         return false;
     }
 
-    bool EditorLayer::WarmupSceneAssets(const Ref<Scene>& scene) {
-        if (!scene) {
-            return true;
-        }
-
-        MeshManager::Instance().LoadDefaultMeshes();
-        bool meshesAvailable = true;
-        scene->GetWorld().Query<Rendering::MeshComponent>().ForEach([&](Entity, Rendering::MeshComponent& meshComponent) {
-            const std::string meshName = MeshNameFromGuid(meshComponent.Mesh.Reference.Guid);
-            if (!meshName.empty() && !EnsureMeshAvailable(meshName)) {
-                meshesAvailable = false;
-                return;
-            }
-        });
-
-        bool materialsAvailable = true;
-        scene->GetWorld().Query<Rendering::MaterialComponent>().ForEach([&](Entity, Rendering::MaterialComponent& materialComponent) {
-			const auto& materialGuid = materialComponent.Material.Reference.Guid;
-			if (materialGuid == BuiltinAssetGuids::DefaultMaterial || materialGuid == BuiltinAssetGuids::FallbackMaterial) {
-				if (!Rendering::MaterialLibrary::Instance().GetDefaultMaterial()) {
-					Rendering::MaterialLibrary::Instance().CreateDefaultMaterials();
-				}
-				return;
-			}
-
-			// Non-builtin material GUID resolution is handled by the asset resolver integration phase.
-        });
-
-        return meshesAvailable && materialsAvailable;
-    }
-
     bool EditorLayer::BootstrapDemoScene() {
         if (!EnsureSandboxAssetsLoaded()) {
             m_WorkbenchReady = false;
@@ -952,10 +908,6 @@ namespace HE {
             Ref<Scene> loadedScene;
             CaptureOperationResult(operations.LoadScene(path, loadedScene));
             if (!m_LastOperationResult.Succeeded() || !loadedScene) {
-                return false;
-            }
-
-            if (!WarmupSceneAssets(loadedScene)) {
                 return false;
             }
 
@@ -1115,10 +1067,6 @@ namespace HE {
         Ref<Scene> scene;
         CaptureOperationResult(Application::GetInstance().GetOperations().LoadScene(resolvedPath, scene));
         if (!m_LastOperationResult.Succeeded() || !scene) {
-            return false;
-        }
-
-        if (!WarmupSceneAssets(scene)) {
             return false;
         }
 

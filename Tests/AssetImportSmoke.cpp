@@ -486,6 +486,38 @@ namespace {
 		Require(assetService.GetManifest().Size() == manifestSize, "Expected outside path not to mutate manifest");
 		Require(assetService.ReimportAssets(context, unsupportedPath).RequiresManualIntervention(), "Expected unsupported single file manual intervention");
 	}
+
+	void TestBuiltinResolverRequiresLibraryArtifacts(const std::filesystem::path& root) {
+		HE::AssetService uninitializedService;
+		HE::AssetResolver uninitializedResolver(uninitializedService);
+		HE::Ref<HE::Rendering::Mesh> uninitializedMesh;
+		Require(
+			uninitializedResolver.ResolveMesh(HE::BuiltinAssetGuids::QuadMesh, uninitializedMesh).Failed(),
+			"Expected builtin resolution to require initialized project assets");
+
+		HE::ProjectService projectService;
+		HE::ProjectContext context;
+		Require(projectService.InitializeProject(root, &context, "BuiltinArtifactProject").Succeeded(), "Expected builtin artifact project initialization");
+
+		HE::AssetService assetService;
+		Require(assetService.InitializeProjectAssets(context).Succeeded(), "Expected builtin artifacts to initialize");
+		const auto* meshRecord = assetService.GetLibrary().Find(HE::BuiltinAssetGuids::QuadMesh);
+		const auto* materialRecord = assetService.GetLibrary().Find(HE::BuiltinAssetGuids::DefaultMaterial);
+		Require(meshRecord != nullptr, "Expected builtin mesh Library record");
+		Require(materialRecord != nullptr, "Expected builtin material Library record");
+
+		const auto meshArtifactPath = assetService.GetLibrary().GetRootPath() / meshRecord->ArtifactRelativePath;
+		const auto materialArtifactPath = assetService.GetLibrary().GetRootPath() / materialRecord->ArtifactRelativePath;
+		Require(std::filesystem::remove(meshArtifactPath), "Expected builtin mesh artifact removal");
+		Require(std::filesystem::remove(materialArtifactPath), "Expected builtin material artifact removal");
+		assetService.GetRuntimeCache() = HE::AssetRuntimeCache();
+
+		HE::AssetResolver resolver(assetService);
+		HE::Ref<HE::Rendering::Mesh> mesh;
+		HE::Ref<HE::Rendering::Material> material;
+		Require(resolver.ResolveMesh(HE::BuiltinAssetGuids::QuadMesh, mesh).Failed(), "Expected missing builtin mesh artifact not to use a runtime factory");
+		Require(resolver.ResolveMaterial(HE::BuiltinAssetGuids::DefaultMaterial, material).Failed(), "Expected missing builtin material artifact not to use a runtime factory");
+	}
 }
 
 int main() {
@@ -505,6 +537,7 @@ int main() {
 	TestMaterialImportPipeline(smokeRoot / "MaterialProject");
 	TestPngTextureImport(smokeRoot / "TextureSource");
 	TestAssetReimportPipeline(smokeRoot / "ReimportProject");
+	TestBuiltinResolverRequiresLibraryArtifacts(smokeRoot / "BuiltinArtifactProject");
 	std::filesystem::remove_all(smokeRoot, errorCode);
 	Require(!errorCode, "Expected import smoke cleanup after test");
 

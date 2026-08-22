@@ -367,9 +367,9 @@ int main() {
 	HE::AssetResolver builtinTextureResolver(builtinTextureAssetService);
 	HE::Ref<HE::TextureResource> unsupportedBuiltinTexture;
 	auto unsupportedBuiltinTextureResult = builtinTextureResolver.ResolveTexture(builtinTextureRecord.Guid, unsupportedBuiltinTexture);
-	Require(unsupportedBuiltinTextureResult.RequiresManualIntervention(), "Expected unsupported builtin texture resolve to require manual intervention");
-	Require(!unsupportedBuiltinTextureResult.Details.empty(), "Expected unsupported builtin texture resolve to include diagnostics");
-	Require(unsupportedBuiltinTextureResult.Details.front().Code == "asset.texture.builtin_unsupported", "Expected unsupported builtin texture diagnostic code");
+	Require(unsupportedBuiltinTextureResult.RequiresManualIntervention(), "Expected builtin texture without an artifact to require manual intervention");
+	Require(!unsupportedBuiltinTextureResult.Details.empty(), "Expected missing builtin texture artifact to include diagnostics");
+	Require(unsupportedBuiltinTextureResult.Details.front().Code == "asset.texture.artifact_unavailable", "Expected missing builtin texture artifact diagnostic code");
 
 	auto missingTextureResult = assetService.RegisterTextureAsset(projectContext, "Textures/MissingTexture.txt");
 	Require(missingTextureResult.RequiresManualIntervention(), "Expected missing texture source file to require manual intervention");
@@ -439,10 +439,10 @@ int main() {
 	Require(assetService.GetAssetRegistry().GetAssetCount() == 6, "Expected registry reload to contain only manifest builtin records");
 
 	HE::ApplicationServices applicationServices;
-	Require(applicationServices.Assets().LoadOrCreateManifest(projectContext).Succeeded(), "Expected application asset service to load manifest before local resolver construction");
+	Require(applicationServices.Assets().InitializeProjectAssets(projectContext).Succeeded(), "Expected application asset service to initialize Library artifacts before local resolver construction");
 	HE::AssetResolver applicationResolver(applicationServices.Assets());
 	HE::Ref<HE::Rendering::Mesh> applicationBuiltinQuad;
-	Require(applicationResolver.ResolveMesh(HE::BuiltinAssetGuids::QuadMesh, applicationBuiltinQuad).Succeeded(), "Expected local application resolver to use loaded manifest metadata");
+	Require(applicationResolver.ResolveMesh(HE::BuiltinAssetGuids::QuadMesh, applicationBuiltinQuad).Succeeded(), "Expected local application resolver to use imported builtin mesh artifacts");
 
 	std::filesystem::remove_all(smokeRoot, errorCode);
 	Require(!errorCode, "Expected asset smoke temporary directory cleanup to succeed");
