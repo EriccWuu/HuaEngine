@@ -18,6 +18,7 @@ namespace HE {
 
 	struct AssetImportReport {
 		uint32_t TotalFileAssets = 0;
+		uint32_t TotalBuiltinAssets = 0;
 		uint32_t ImportedAssets = 0;
 		uint32_t SkippedAssets = 0;
 		uint32_t FailedAssets = 0;

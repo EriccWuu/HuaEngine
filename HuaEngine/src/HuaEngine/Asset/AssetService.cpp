@@ -6,6 +6,8 @@
 #include <vector>
 
 #include "AssetResolver.h"
+#include "AssetSourcePath.h"
+#include "BuiltinAssetCatalog.h"
 #include "HuaEngine/Asset/Import/MeshAssetImporter.h"
 #include "HuaEngine/Asset/Import/MaterialAssetImporter.h"
 #include "HuaEngine/Asset/Import/PngTextureImporter.h"
@@ -218,8 +220,9 @@ namespace {
 		record.RelativePath = manifestRecord.RelativePath;
 		record.BuiltinName = manifestRecord.BuiltinName;
 		record.ImportState = manifestRecord.ImportState;
-		if (record.Source == HE::AssetSource::File) {
-			record.AbsolutePath = (context.GetAssetRootPath() / record.RelativePath).lexically_normal();
+		if (record.Source == HE::AssetSource::File || record.Source == HE::AssetSource::Builtin) {
+			HE::AssetManifestRecord sourceRecord = manifestRecord;
+			(void)HE::ResolveAssetSourcePath(context, sourceRecord, record.AbsolutePath);
 			std::error_code errorCode;
 			record.ExistsOnDisk = std::filesystem::is_regular_file(record.AbsolutePath, errorCode);
 		}
@@ -507,7 +510,15 @@ namespace HE {
 			return result;
 		}
 
-		SeedBuiltinAssets(loadedManifest);
+		AssetManifest builtinCatalog;
+		auto catalogResult = LoadBuiltinAssetCatalog(builtinCatalog);
+		if (!catalogResult.Succeeded()) {
+			return catalogResult;
+		}
+		auto mergeResult = MergeBuiltinAssetCatalog(builtinCatalog, loadedManifest);
+		if (!mergeResult.Succeeded()) {
+			return mergeResult;
+		}
 		m_Registry = AssetRegistry();
 		m_RuntimeCache = AssetRuntimeCache();
 		m_Manifest = std::move(loadedManifest);
@@ -928,10 +939,7 @@ namespace HE {
 			++report.TotalAssets;
 
 			bool hasMetadataBlockingIssue = false;
-			const auto resolvedAbsolutePath = record.AbsolutePath.empty()
-				? (assetRoot / record.RelativePath).lexically_normal()
-				: record.AbsolutePath.lexically_normal();
-			if (IsOutsideAssetRoot(assetRoot, resolvedAbsolutePath)) {
+			if (record.Source == AssetSource::File && IsOutsideAssetRoot(assetRoot, record.AbsolutePath.lexically_normal())) {
 				++report.AssetsOutsideProjectRoot;
 				hasMetadataBlockingIssue = true;
 			}
@@ -944,17 +952,28 @@ namespace HE {
 				++report.MissingFileAssets;
 				hasMetadataBlockingIssue = true;
 			}
-			if (record.Source == AssetSource::Builtin && !IsBuiltinAssetNameLegal(record.Kind, record.BuiltinName)) {
-				++report.BuiltinMetadataIssues;
-				hasMetadataBlockingIssue = true;
+			if (record.Source == AssetSource::Builtin) {
+				if (!IsSafeAssetRelativePath(record.RelativePath) || record.AssetId.rfind("builtin/", 0) != 0) {
+					++report.BuiltinMetadataIssues;
+					hasMetadataBlockingIssue = true;
+				}
+				else if (!record.ExistsOnDisk) {
+					++report.MissingBuiltinAssets;
+					hasMetadataBlockingIssue = true;
+				}
 			}
 			if (record.Guid == BuiltinAssetGuids::FallbackMesh || record.Guid == BuiltinAssetGuids::FallbackMaterial) {
 				++report.FallbackAssets;
 			}
-			if (record.Source == AssetSource::File && !hasMetadataBlockingIssue) {
+			if ((record.Source == AssetSource::File || record.Source == AssetSource::Builtin) && !hasMetadataBlockingIssue) {
 				const auto* importer = m_ImporterRegistry.Find(record.Kind, record.RelativePath.extension().string());
 				if (!importer) {
-					++report.FileAssetsWithoutImporter;
+					if (record.Source == AssetSource::Builtin) {
+						++report.BuiltinAssetsWithoutImporter;
+					}
+					else {
+						++report.FileAssetsWithoutImporter;
+					}
 				}
 				else if (!m_Library.IsArtifactAvailable(
 					record.Guid,
@@ -962,7 +981,12 @@ namespace HE {
 					importer->GetId(),
 					importer->GetVersion(),
 					importer->GetArtifactVersion())) {
-					++report.FileAssetsMissingArtifacts;
+					if (record.Source == AssetSource::Builtin) {
+						++report.BuiltinAssetsMissingArtifacts;
+					}
+					else {
+						++report.FileAssetsMissingArtifacts;
+					}
 				}
 			}
 
@@ -1002,9 +1026,12 @@ namespace HE {
 		result.SetPayloadValue("invalid_asset_record_count", CountToString(report.InvalidAssetRecords));
 		result.SetPayloadValue("assets_outside_project_root", CountToString(report.AssetsOutsideProjectRoot));
 		result.SetPayloadValue("missing_file_asset_count", CountToString(report.MissingFileAssets));
+		result.SetPayloadValue("missing_builtin_asset_count", CountToString(report.MissingBuiltinAssets));
 		result.SetPayloadValue("builtin_metadata_issue_count", CountToString(report.BuiltinMetadataIssues));
 		result.SetPayloadValue("file_assets_missing_artifact_count", CountToString(report.FileAssetsMissingArtifacts));
 		result.SetPayloadValue("file_assets_without_importer_count", CountToString(report.FileAssetsWithoutImporter));
+		result.SetPayloadValue("builtin_assets_missing_artifact_count", CountToString(report.BuiltinAssetsMissingArtifacts));
+		result.SetPayloadValue("builtin_assets_without_importer_count", CountToString(report.BuiltinAssetsWithoutImporter));
 
 		if (report.UnknownKindAssets > 0) {
 			result.AddDetail({ DiagnosticSeverity::Error, "asset.kind.unknown", "One or more asset records have an unknown asset kind", CountToString(report.UnknownKindAssets) });
@@ -1018,14 +1045,23 @@ namespace HE {
 		if (report.MissingFileAssets > 0) {
 			result.AddDetail({ DiagnosticSeverity::Error, "asset.file.missing", "One or more file asset records are missing on disk", CountToString(report.MissingFileAssets) });
 		}
+		if (report.MissingBuiltinAssets > 0) {
+			result.AddDetail({ DiagnosticSeverity::Error, "asset.builtin.missing", "One or more builtin asset source files are missing", CountToString(report.MissingBuiltinAssets) });
+		}
 		if (report.BuiltinMetadataIssues > 0) {
-			result.AddDetail({ DiagnosticSeverity::Error, "asset.builtin.invalid", "One or more builtin asset records have an illegal kind/name combination", CountToString(report.BuiltinMetadataIssues) });
+			result.AddDetail({ DiagnosticSeverity::Error, "asset.builtin.invalid", "One or more builtin asset records have invalid source metadata", CountToString(report.BuiltinMetadataIssues) });
 		}
 		if (report.FileAssetsMissingArtifacts > 0) {
 			result.AddDetail({ DiagnosticSeverity::Warning, "asset.artifact.missing", "One or more file assets are missing compatible Library artifacts", CountToString(report.FileAssetsMissingArtifacts) });
 		}
 		if (report.FileAssetsWithoutImporter > 0) {
 			result.AddDetail({ DiagnosticSeverity::Warning, "asset.importer.missing", "One or more file assets have no importer for their kind and extension", CountToString(report.FileAssetsWithoutImporter) });
+		}
+		if (report.BuiltinAssetsMissingArtifacts > 0) {
+			result.AddDetail({ DiagnosticSeverity::Warning, "asset.builtin_artifact.missing", "One or more builtin assets are missing compatible Library artifacts", CountToString(report.BuiltinAssetsMissingArtifacts) });
+		}
+		if (report.BuiltinAssetsWithoutImporter > 0) {
+			result.AddDetail({ DiagnosticSeverity::Error, "asset.builtin_importer.missing", "One or more builtin assets have no importer for their kind and extension", CountToString(report.BuiltinAssetsWithoutImporter) });
 		}
 
 		return result;

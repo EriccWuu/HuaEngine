@@ -7,7 +7,7 @@
       "kind": "mesh",
       "source": "builtin",
       "relative_path": "Meshes/Quad.mesh",
-      "builtin_name": "",
+      "builtin_name": "quad",
       "import_state": "builtin"
     },
     {
@@ -16,7 +16,7 @@
       "kind": "mesh",
       "source": "builtin",
       "relative_path": "Meshes/Cube.mesh",
-      "builtin_name": "",
+      "builtin_name": "cube",
       "import_state": "builtin"
     },
     {
@@ -25,7 +25,7 @@
       "kind": "mesh",
       "source": "builtin",
       "relative_path": "Meshes/Sphere.mesh",
-      "builtin_name": "",
+      "builtin_name": "sphere",
       "import_state": "builtin"
     },
     {
@@ -34,7 +34,7 @@
       "kind": "material",
       "source": "builtin",
       "relative_path": "Materials/Default.material",
-      "builtin_name": "",
+      "builtin_name": "default",
       "import_state": "builtin"
     },
     {
@@ -43,7 +43,7 @@
       "kind": "mesh",
       "source": "builtin",
       "relative_path": "Meshes/Fallback.mesh",
-      "builtin_name": "",
+      "builtin_name": "fallback",
       "import_state": "builtin"
     },
     {
@@ -52,7 +52,7 @@
       "kind": "material",
       "source": "builtin",
       "relative_path": "Materials/Fallback.material",
-      "builtin_name": "",
+      "builtin_name": "fallback",
       "import_state": "builtin"
     }
   ]

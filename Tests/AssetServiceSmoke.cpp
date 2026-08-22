@@ -8,6 +8,7 @@
 #include "HuaEngine/Asset/AssetManifest.h"
 #include "HuaEngine/Asset/AssetResolver.h"
 #include "HuaEngine/Asset/AssetService.h"
+#include "HuaEngine/Asset/BuiltinAssetCatalog.h"
 #include "HuaEngine/Application/ApplicationServices.h"
 #include "HuaEngine/Project/ProjectService.h"
 
@@ -67,6 +68,48 @@ namespace {
 		record.ImportState = HE::AssetImportState::Registered;
 		return record;
 	}
+
+	void TestBuiltinCatalogValidation(const std::filesystem::path& smokeRoot) {
+		const auto catalogRoot = smokeRoot / "InvalidBuiltinCatalog";
+		const auto catalogPath = catalogRoot / "manifest.json";
+		HE::AssetManifest catalog;
+
+		WriteFileText(catalogPath,
+			"{\n"
+			"  \"version\": 1,\n"
+			"  \"assets\": [\n"
+			"    { \"guid\": \"bad-source\", \"asset_id\": \"builtin/mesh/bad\", \"kind\": \"mesh\", \"source\": \"file\", \"relative_path\": \"Meshes/Bad.mesh\", \"builtin_name\": \"\", \"import_state\": \"builtin\" }\n"
+			"  ]\n"
+			"}\n");
+		Require(HE::LoadBuiltinAssetCatalog(catalogRoot, catalog).Failed(), "Expected builtin catalog to reject file source records");
+
+		WriteFileText(catalogPath,
+			"{\n"
+			"  \"version\": 1,\n"
+			"  \"assets\": [\n"
+			"    { \"guid\": \"bad-path\", \"asset_id\": \"builtin/mesh/bad\", \"kind\": \"mesh\", \"source\": \"builtin\", \"relative_path\": \"../Bad.mesh\", \"builtin_name\": \"\", \"import_state\": \"builtin\" }\n"
+			"  ]\n"
+			"}\n");
+		Require(HE::LoadBuiltinAssetCatalog(catalogRoot, catalog).Failed(), "Expected builtin catalog to reject escaping source paths");
+
+		Require(HE::LoadBuiltinAssetCatalog(catalog).Succeeded(), "Expected packaged builtin catalog to load");
+		HE::AssetManifest conflictingProjectManifest;
+		Require(conflictingProjectManifest.Upsert({
+			.Guid = HE::BuiltinAssetGuids::FallbackMaterial,
+			.AssetId = "builtin/material/fallback",
+			.Kind = HE::AssetKind::Material,
+			.Source = HE::AssetSource::File,
+			.RelativePath = "Materials/ClaimedFallback.material",
+			.ImportState = HE::AssetImportState::Registered
+		}), "Expected conflicting project fixture");
+		Require(
+			HE::MergeBuiltinAssetCatalog(catalog, conflictingProjectManifest).Failed(),
+			"Expected project metadata to reject reserved builtin identities");
+		Require(conflictingProjectManifest.Size() == 1, "Expected failed catalog merge to remain atomic");
+		Require(
+			conflictingProjectManifest.FindByGuid(HE::BuiltinAssetGuids::QuadMesh) == nullptr,
+			"Expected failed catalog merge not to insert earlier builtin records");
+	}
 }
 
 int main() {
@@ -76,6 +119,7 @@ int main() {
 	const auto smokeRoot = std::filesystem::temp_directory_path() / "HuaEngineAssetServiceSmoke";
 	std::error_code errorCode;
 	std::filesystem::remove_all(smokeRoot, errorCode);
+	TestBuiltinCatalogValidation(smokeRoot);
 
 	HE::ProjectService projectService;
 	HE::ProjectContext projectContext;
@@ -210,12 +254,13 @@ int main() {
 		"    { \"guid\": \"bad-builtin\", \"asset_id\": \"builtin/mesh/bad\", \"kind\": \"mesh\", \"source\": \"builtin\", \"relative_path\": \"\", \"builtin_name\": \"not-a-builtin\", \"import_state\": \"builtin\" }\n"
 		"  ]\n"
 		"}\n");
-	Require(HE::LoadAssetManifest(projectContext, badManifest).Failed(), "Expected illegal builtin manifest metadata to fail load");
+	Require(HE::LoadAssetManifest(projectContext, badManifest).Succeeded(), "Expected legacy builtin metadata to remain parseable before catalog merge");
+	Require(HE::LoadOrCreateAssetManifest(projectContext, badManifest).Failed(), "Expected catalog merge to reject undeclared builtin metadata");
 	WriteFileText(manifestPath, originalManifestText);
 
 	HE::AssetService assetService;
-	auto serviceManifestResult = assetService.LoadOrCreateManifest(projectContext);
-	Require(serviceManifestResult.Succeeded(), "Expected asset service manifest initialization to succeed");
+	auto serviceManifestResult = assetService.InitializeProjectAssets(projectContext);
+	Require(serviceManifestResult.Succeeded(), "Expected asset service project assets to initialize");
 
 	HE::AssetResolver resolver(assetService);
 	HE::Ref<HE::Rendering::Mesh> builtinQuad;
@@ -350,7 +395,7 @@ int main() {
 	auto missingCachedMeshValidation = assetService.ValidateRegistry(projectContext, &missingCachedMeshValidationReport);
 	Require(missingCachedMeshValidation.RequiresManualIntervention(), "Expected missing cached mesh validation to require manual intervention");
 	Require(missingCachedMeshValidationReport.MissingFileAssets == 1, "Expected missing cached mesh validation to count the missing file");
-	Require(missingCachedMeshValidationReport.MetadataIssueCount() == 1, "Expected missing cached mesh validation to report one metadata issue");
+	Require(missingCachedMeshValidationReport.MetadataIssueCount() == 2, "Expected validation to report the missing file and forged builtin metadata");
 	Require(
 		missingCachedMeshValidationReport.FileAssetsMissingArtifacts == 1,
 		"Expected one missing artifact after the mesh record kind mutation, got " + std::to_string(missingCachedMeshValidationReport.FileAssetsMissingArtifacts));
@@ -358,7 +403,7 @@ int main() {
 		missingCachedMeshValidationReport.FileAssetsWithoutImporter == 1,
 		"Expected one unsupported importer, got " + std::to_string(missingCachedMeshValidationReport.FileAssetsWithoutImporter));
 	Require(missingCachedMeshValidationReport.RuntimeIssueCount() == 2, "Expected validation to count one missing artifact and one unsupported texture importer");
-	Require(missingCachedMeshValidation.Payload.at("metadata_issue_count") == "1", "Expected missing cached mesh metadata issue payload");
+	Require(missingCachedMeshValidation.Payload.at("metadata_issue_count") == "2", "Expected missing cached mesh metadata issue payload");
 	Require(missingCachedMeshValidation.Payload.at("runtime_issue_count") == "2", "Expected missing cached mesh runtime issue payload");
 	Require(missingCachedMeshValidation.Payload.at("fallback_asset_count") == "2", "Expected fallback asset payload to remain stable");
 

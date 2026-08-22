@@ -1,6 +1,8 @@
 #include "enginepch.h"
 #include "AssetManifest.h"
 
+#include "BuiltinAssetCatalog.h"
+
 #include <cctype>
 #include <fstream>
 #include <iomanip>
@@ -363,21 +365,6 @@ namespace {
 		return true;
 	}
 
-	HE::AssetManifestRecord MakeBuiltinRecord(
-		HE::AssetGuid guid,
-		std::string assetId,
-		HE::AssetKind kind,
-		std::string builtinName) {
-		HE::AssetManifestRecord record;
-		record.Guid = std::move(guid);
-		record.AssetId = std::move(assetId);
-		record.Kind = kind;
-		record.Source = HE::AssetSource::Builtin;
-		record.BuiltinName = std::move(builtinName);
-		record.ImportState = HE::AssetImportState::Builtin;
-		return record;
-	}
-
 	bool ValidateRecord(const HE::AssetManifestRecord& record, std::string& outError) {
 		if (record.Guid.empty()) {
 			outError = "Asset guid must not be empty";
@@ -408,10 +395,6 @@ namespace {
 				outError = "File asset relative_path escapes the asset root";
 				return false;
 			}
-		}
-		if (record.Source == HE::AssetSource::Builtin && !HE::IsBuiltinAssetNameLegal(record.Kind, record.BuiltinName)) {
-			outError = "Builtin asset metadata has an illegal kind/name combination";
-			return false;
 		}
 		return true;
 	}
@@ -601,45 +584,49 @@ namespace HE {
 		return context.RootPath / ".huaengine" / "assets.json";
 	}
 
-	void SeedBuiltinAssets(AssetManifest& manifest) {
-		(void)manifest.Upsert(MakeBuiltinRecord(BuiltinAssetGuids::QuadMesh, "builtin/mesh/quad", AssetKind::Mesh, "quad"));
-		(void)manifest.Upsert(MakeBuiltinRecord(BuiltinAssetGuids::CubeMesh, "builtin/mesh/cube", AssetKind::Mesh, "cube"));
-		(void)manifest.Upsert(MakeBuiltinRecord(BuiltinAssetGuids::SphereMesh, "builtin/mesh/sphere", AssetKind::Mesh, "sphere"));
-		(void)manifest.Upsert(MakeBuiltinRecord(BuiltinAssetGuids::DefaultMaterial, "builtin/material/default", AssetKind::Material, "default"));
-		(void)manifest.Upsert(MakeBuiltinRecord(BuiltinAssetGuids::FallbackMesh, "builtin/mesh/fallback", AssetKind::Mesh, "fallback"));
-		(void)manifest.Upsert(MakeBuiltinRecord(BuiltinAssetGuids::FallbackMaterial, "builtin/material/fallback", AssetKind::Material, "fallback"));
-	}
-
 	ResultEnvelope LoadOrCreateAssetManifest(const ProjectContext& context, AssetManifest& outManifest) {
 		const auto manifestPath = GetAssetManifestPath(context);
 		std::error_code errorCode;
-		if (std::filesystem::is_regular_file(manifestPath, errorCode)) {
+		const bool manifestExists = std::filesystem::is_regular_file(manifestPath, errorCode);
+		if (manifestExists) {
 			auto result = LoadAssetManifest(context, outManifest);
 			if (!result.Succeeded()) {
 				return result;
 			}
-
-			SeedBuiltinAssets(outManifest);
-			auto saveResult = SaveAssetManifest(context, outManifest);
-			if (!saveResult.Succeeded()) {
-				return saveResult;
-			}
-
-			return ResultEnvelope::Success("asset.manifest.init", manifestPath.generic_string(), "Asset manifest loaded");
+		}
+		else {
+			outManifest = AssetManifest();
 		}
 
-		outManifest = AssetManifest();
-		SeedBuiltinAssets(outManifest);
+		AssetManifest builtinCatalog;
+		auto catalogResult = LoadBuiltinAssetCatalog(builtinCatalog);
+		if (!catalogResult.Succeeded()) {
+			catalogResult.Operation = "asset.manifest.init";
+			return catalogResult;
+		}
+		auto mergeResult = MergeBuiltinAssetCatalog(builtinCatalog, outManifest);
+		if (!mergeResult.Succeeded()) {
+			mergeResult.Operation = "asset.manifest.init";
+			return mergeResult;
+		}
+
 		auto saveResult = SaveAssetManifest(context, outManifest);
 		if (!saveResult.Succeeded()) {
 			return saveResult;
 		}
 
-		return ResultEnvelope::Success("asset.manifest.init", manifestPath.generic_string(), "Asset manifest created");
+		return ResultEnvelope::Success(
+			"asset.manifest.init",
+			manifestPath.generic_string(),
+			manifestExists ? "Asset manifest loaded" : "Asset manifest created");
 	}
 
 	ResultEnvelope LoadAssetManifest(const ProjectContext& context, AssetManifest& outManifest) {
 		const auto manifestPath = GetAssetManifestPath(context);
+		return LoadAssetManifest(manifestPath, outManifest);
+	}
+
+	ResultEnvelope LoadAssetManifest(const std::filesystem::path& manifestPath, AssetManifest& outManifest) {
 		std::ifstream stream(manifestPath, std::ios::in | std::ios::binary);
 		if (!stream.good()) {
 			auto result = ResultEnvelope::Failure("asset.manifest.load", manifestPath.generic_string(), "Asset manifest file could not be opened");

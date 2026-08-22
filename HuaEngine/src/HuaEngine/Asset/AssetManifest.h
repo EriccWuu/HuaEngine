@@ -45,8 +45,8 @@ namespace HE {
 
 	ResultEnvelope LoadOrCreateAssetManifest(const ProjectContext& context, AssetManifest& outManifest);
 	ResultEnvelope LoadAssetManifest(const ProjectContext& context, AssetManifest& outManifest);
+	ResultEnvelope LoadAssetManifest(const std::filesystem::path& manifestPath, AssetManifest& outManifest);
 	ResultEnvelope SaveAssetManifest(const ProjectContext& context, const AssetManifest& manifest);
-	void SeedBuiltinAssets(AssetManifest& manifest);
 	bool IsBuiltinAssetNameLegal(AssetKind kind, std::string_view builtinName);
 	std::filesystem::path GetAssetManifestPath(const ProjectContext& context);
 }

@@ -4,15 +4,17 @@
 #include <filesystem>
 #include <vector>
 
+#include "HuaEngine/Asset/AssetSourcePath.h"
+
 namespace HE {
 	ResultEnvelope AssetImportService::ImportMissingAssets(
 		const ProjectContext& context,
 		const AssetManifest& manifest,
 		AssetImportReport* outReport) const {
-		std::vector<AssetGuid> fileAssetGuids;
-		manifest.ForEachRecord([&fileAssetGuids](const AssetManifestRecord& record) {
-			if (record.Source == AssetSource::File) {
-				fileAssetGuids.push_back(record.Guid);
+		std::vector<AssetGuid> assetGuids;
+		manifest.ForEachRecord([&assetGuids](const AssetManifestRecord& record) {
+			if (record.Source == AssetSource::File || record.Source == AssetSource::Builtin) {
+				assetGuids.push_back(record.Guid);
 			}
 		});
 
@@ -20,7 +22,7 @@ namespace HE {
 		auto result = ImportAssets(
 			context,
 			manifest,
-			fileAssetGuids,
+			assetGuids,
 			AssetImportPolicy::MissingOnly,
 			&report);
 		result.Operation = "asset.import_missing";
@@ -41,25 +43,41 @@ namespace HE {
 		AssetImportReport* outReport) const {
 		AssetImportReport report;
 		auto result = ResultEnvelope::Success("asset.import_assets", context.GetTargetId(), "Asset artifacts imported");
+		bool builtinFailure = false;
 
 		for (const auto& guid : assetGuids) {
 			const auto* record = manifest.FindByGuid(guid);
-			if (!record || record->Source != AssetSource::File) {
+			if (!record || (record->Source != AssetSource::File && record->Source != AssetSource::Builtin)) {
 				++report.FailedAssets;
 				result.AddDetail({
 					DiagnosticSeverity::Warning,
 					"asset.import.record_missing",
-					"Asset import requires a file-backed manifest record",
+					"Asset import requires a file-backed or builtin manifest record",
 					guid
 				});
 				continue;
 			}
-			++report.TotalFileAssets;
+			if (record->Source == AssetSource::Builtin) {
+				++report.TotalBuiltinAssets;
+			}
+			else {
+				++report.TotalFileAssets;
+			}
 
-			const auto sourcePath = (context.GetAssetRootPath() / record->RelativePath).lexically_normal();
+			std::filesystem::path sourcePath;
+			auto sourceResult = ResolveAssetSourcePath(context, *record, sourcePath);
+			if (!sourceResult.Succeeded()) {
+				++report.FailedAssets;
+				builtinFailure |= record->Source == AssetSource::Builtin;
+				for (auto& diagnostic : sourceResult.Details) {
+					result.AddDetail(std::move(diagnostic));
+				}
+				continue;
+			}
 			const auto* importer = m_Registry->Find(record->Kind, sourcePath.extension().string());
 			if (!importer) {
 				++report.FailedAssets;
+				builtinFailure |= record->Source == AssetSource::Builtin;
 				result.AddDetail({
 					DiagnosticSeverity::Warning,
 					"asset.import.importer_missing",
@@ -82,6 +100,7 @@ namespace HE {
 			std::error_code errorCode;
 			if (!std::filesystem::is_regular_file(sourcePath, errorCode)) {
 				++report.FailedAssets;
+				builtinFailure |= record->Source == AssetSource::Builtin;
 				result.AddDetail({
 					DiagnosticSeverity::Error,
 					"asset.import.source_missing",
@@ -100,6 +119,7 @@ namespace HE {
 			auto importResult = importer->Import(importContext);
 			if (!importResult.Success) {
 				++report.FailedAssets;
+				builtinFailure |= record->Source == AssetSource::Builtin;
 				for (auto& diagnostic : importResult.Diagnostics) {
 					result.AddDetail(std::move(diagnostic));
 				}
@@ -113,6 +133,7 @@ namespace HE {
 				importResult.Artifact);
 			if (!commitResult.Succeeded()) {
 				++report.FailedAssets;
+				builtinFailure |= record->Source == AssetSource::Builtin;
 				for (auto& diagnostic : commitResult.Details) {
 					result.AddDetail(std::move(diagnostic));
 				}
@@ -133,11 +154,16 @@ namespace HE {
 		}
 
 		result.SetPayloadValue("total_file_assets", std::to_string(report.TotalFileAssets));
+		result.SetPayloadValue("total_builtin_assets", std::to_string(report.TotalBuiltinAssets));
 		result.SetPayloadValue("imported_assets", std::to_string(report.ImportedAssets));
 		result.SetPayloadValue("skipped_assets", std::to_string(report.SkippedAssets));
 		result.SetPayloadValue("failed_assets", std::to_string(report.FailedAssets));
 		if (report.FailedAssets > 0) {
 			result.Summary = "Asset import completed with per-asset failures";
+		}
+		if (builtinFailure) {
+			result.Status = OperationStatus::Failure;
+			result.Summary = "Builtin asset import failed";
 		}
 		if (outReport) {
 			*outReport = report;

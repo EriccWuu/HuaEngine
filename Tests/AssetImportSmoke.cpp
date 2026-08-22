@@ -116,8 +116,15 @@ namespace {
 		const auto firstInitialize = assetService.InitializeProjectAssets(context, &firstReport);
 		Require(firstInitialize.Succeeded(), "Expected first project asset initialization");
 		Require(firstReport.TotalFileAssets == 1, "Expected one file asset in import report");
-		Require(firstReport.ImportedAssets == 1, "Expected first initialization to import mesh");
+		Require(firstReport.TotalBuiltinAssets == 6, "Expected six builtin assets in import report");
+		Require(firstReport.ImportedAssets == 7, "Expected first initialization to import project and builtin assets");
 		Require(firstReport.SkippedAssets == 0, "Expected first initialization not to skip mesh");
+		Require(assetService.GetLibrary().Find(HE::BuiltinAssetGuids::QuadMesh) != nullptr, "Expected builtin quad artifact");
+		Require(assetService.GetLibrary().Find(HE::BuiltinAssetGuids::CubeMesh) != nullptr, "Expected builtin cube artifact");
+		Require(assetService.GetLibrary().Find(HE::BuiltinAssetGuids::SphereMesh) != nullptr, "Expected builtin sphere artifact");
+		Require(assetService.GetLibrary().Find(HE::BuiltinAssetGuids::FallbackMesh) != nullptr, "Expected builtin fallback mesh artifact");
+		Require(assetService.GetLibrary().Find(HE::BuiltinAssetGuids::DefaultMaterial) != nullptr, "Expected builtin default material artifact");
+		Require(assetService.GetLibrary().Find(HE::BuiltinAssetGuids::FallbackMaterial) != nullptr, "Expected builtin fallback material artifact");
 
 		HE::AssetRecord meshRecord;
 		Require(assetService.ResolveAsset("Meshes/ImportedQuad.mesh", meshRecord).Succeeded(), "Expected imported mesh record");
@@ -132,7 +139,8 @@ namespace {
 		HE::AssetImportReport secondReport;
 		Require(assetService.InitializeProjectAssets(context, &secondReport).Succeeded(), "Expected repeated project asset initialization");
 		Require(secondReport.ImportedAssets == 0, "Expected repeated initialization not to import mesh");
-		Require(secondReport.SkippedAssets == 1, "Expected repeated initialization to skip compatible mesh");
+		Require(secondReport.TotalBuiltinAssets == 6, "Expected repeated initialization to include builtin assets");
+		Require(secondReport.SkippedAssets == 7, "Expected repeated initialization to skip compatible project and builtin assets");
 		Require(std::filesystem::last_write_time(artifactPath) == firstWriteTime, "Expected skipped mesh artifact not to be rewritten");
 
 		const auto replacementMesh = HE::Rendering::Mesh::CreateQuad("ReimportedQuad");
@@ -384,7 +392,7 @@ namespace {
 
 		HE::AssetImportReport report;
 		Require(assetService.InitializeProjectAssets(context, &report).Succeeded(), "Expected material project asset initialization");
-		Require(report.ImportedAssets == 1 && report.FailedAssets == 0, "Expected material artifact import");
+		Require(report.ImportedAssets == 7 && report.FailedAssets == 0, "Expected material and builtin artifact import");
 
 		HE::AssetRecord record;
 		Require(assetService.ResolveAsset("Materials/ImportedMaterial.material", record).Succeeded(), "Expected imported material record");

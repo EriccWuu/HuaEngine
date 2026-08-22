@@ -34,9 +34,12 @@ namespace HE {
 		uint32_t InvalidAssetRecords = 0;
 		uint32_t AssetsOutsideProjectRoot = 0;
 		uint32_t MissingFileAssets = 0;
+		uint32_t MissingBuiltinAssets = 0;
 		uint32_t BuiltinMetadataIssues = 0;
 		uint32_t FileAssetsMissingArtifacts = 0;
 		uint32_t FileAssetsWithoutImporter = 0;
+		uint32_t BuiltinAssetsMissingArtifacts = 0;
+		uint32_t BuiltinAssetsWithoutImporter = 0;
 		uint32_t FallbackAssets = 0;
 
 		[[nodiscard]] bool IsOperational() const {
@@ -44,17 +47,20 @@ namespace HE {
 				InvalidAssetRecords == 0 &&
 				AssetsOutsideProjectRoot == 0 &&
 				MissingFileAssets == 0 &&
+				MissingBuiltinAssets == 0 &&
 				BuiltinMetadataIssues == 0 &&
 				FileAssetsMissingArtifacts == 0 &&
-				FileAssetsWithoutImporter == 0;
+				FileAssetsWithoutImporter == 0 &&
+				BuiltinAssetsMissingArtifacts == 0 &&
+				BuiltinAssetsWithoutImporter == 0;
 		}
 
 		[[nodiscard]] uint32_t MetadataIssueCount() const {
-			return UnknownKindAssets + InvalidAssetRecords + AssetsOutsideProjectRoot + MissingFileAssets + BuiltinMetadataIssues;
+			return UnknownKindAssets + InvalidAssetRecords + AssetsOutsideProjectRoot + MissingFileAssets + MissingBuiltinAssets + BuiltinMetadataIssues;
 		}
 
 		[[nodiscard]] uint32_t RuntimeIssueCount() const {
-			return FileAssetsMissingArtifacts + FileAssetsWithoutImporter;
+			return FileAssetsMissingArtifacts + FileAssetsWithoutImporter + BuiltinAssetsMissingArtifacts + BuiltinAssetsWithoutImporter;
 		}
 
 		[[nodiscard]] bool HasIssues() const {

@@ -105,6 +105,7 @@ add_subdirectory(Editor)
 add_subdirectory(ProjectHub)
 add_subdirectory(CLI)
 
+add_dependencies(HuaEngine HuaEngineResources)
 add_dependencies(Editor HuaEngineResources)
 add_dependencies(ProjectHub HuaEngineResources)
 add_dependencies(HuaEngineCLI HuaEngineResources)
