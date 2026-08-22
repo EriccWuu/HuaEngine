@@ -32,6 +32,10 @@ int main() {
 
 	auto runtimeMesh = HE::Mesh::CreateQuad("ServicesQuad");
 	Require(static_cast<bool>(runtimeMesh), "Expected runtime mesh creation to succeed");
+	const auto meshPath = projectContext.GetAssetRootPath() / "Meshes" / "ServicesQuad.mesh";
+	std::filesystem::create_directories(meshPath.parent_path(), errorCode);
+	Require(!errorCode, "Expected ApplicationServices mesh directory creation");
+	Require(HE::Mesh::SaveToFile(*runtimeMesh, meshPath.generic_string()), "Expected ApplicationServices mesh source persistence");
 
 	HE::AssetHandle meshHandle = 0;
 	auto registerMesh = services.Assets().RegisterMeshAsset(projectContext, "Meshes/ServicesQuad.mesh", runtimeMesh, &meshHandle);
@@ -58,7 +62,10 @@ int main() {
 	auto validationResult = services.Validation().Validate(request, &report);
 	Require(validationResult.Succeeded(), "Expected ApplicationServices validation to succeed through the shared composition root");
 	Require(report.DomainCount == 3, "Expected ApplicationServices validation to cover three domains");
-	Require(report.AssetStatus.TotalAssets == 1, "Expected ApplicationServices validation to observe the asset registered through the same service root");
+	Require(
+		report.AssetStatus.TotalAssets == services.Assets().GetAssetRegistry().GetAssetCount(),
+		"Expected ApplicationServices validation to observe the shared asset registry");
+	Require(report.AssetStatus.MeshAssets >= 1, "Expected ApplicationServices validation to include the registered mesh");
 
 	std::filesystem::remove_all(smokeRoot, errorCode);
 	Require(!errorCode, "Expected ApplicationServices smoke temporary directory cleanup to succeed");

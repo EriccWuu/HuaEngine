@@ -4,6 +4,7 @@
 #include <system_error>
 
 #include "AssetResolver.h"
+#include "HuaEngine/Asset/Import/MeshAssetImporter.h"
 #include "HuaEngine/Rendering/Material/MaterialLibrary.h"
 #include "HuaEngine/Rendering/Material/MaterialSerializer.h"
 #include "HuaEngine/Rendering/Mesh/MeshManager.h"
@@ -181,6 +182,11 @@ namespace {
 }
 
 namespace HE {
+	AssetService::AssetService() {
+		const bool registered = m_ImporterRegistry.Register(std::make_unique<MeshAssetImporter>());
+		HE_CORE_ASSERT(registered, "Failed to register the mesh asset importer");
+	}
+
 	ResultEnvelope AssetService::LoadOrCreateManifest(const ProjectContext& context) {
 		AssetManifest loadedManifest;
 		auto result = LoadOrCreateAssetManifest(context, loadedManifest);
@@ -194,6 +200,28 @@ namespace HE {
 		m_Manifest.ForEachRecord([&](const AssetManifestRecord& manifestRecord) {
 			(void)m_Registry.Upsert(MakeRegistryRecord(context, manifestRecord));
 		});
+		return result;
+	}
+
+	ResultEnvelope AssetService::InitializeProjectAssets(
+		const ProjectContext& context,
+		AssetImportReport* outReport) {
+		auto manifestResult = LoadOrCreateManifest(context);
+		if (!manifestResult.Succeeded()) {
+			manifestResult.Operation = "asset.initialize_project";
+			return manifestResult;
+		}
+
+		auto libraryResult = m_Library.Open(context);
+		if (!libraryResult.Succeeded()) {
+			libraryResult.Operation = "asset.initialize_project";
+			return libraryResult;
+		}
+
+		AssetImportService importService(m_ImporterRegistry, m_Library);
+		auto result = importService.ImportMissingAssets(context, m_Manifest, outReport);
+		result.Operation = "asset.initialize_project";
+		result.SetPayloadValue("library_path", m_Library.GetRootPath().generic_string());
 		return result;
 	}
 

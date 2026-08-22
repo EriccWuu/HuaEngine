@@ -426,6 +426,26 @@ if(WIN32)
 endif()
 configure_smoke_target(AssetLibrarySmoke)
 
+add_executable(AssetImportSmoke Tests/AssetImportSmoke.cpp)
+target_include_directories(AssetImportSmoke PRIVATE
+    ${CMAKE_SOURCE_DIR}/HuaEngine/src
+    ${SPDLOG_INCLUDE_DIR}
+    ${GLM_INCLUDE_DIR}
+    ${IMGUI_INCLUDE_DIR}
+    ${STB_IMAGE_INCLUDE_DIR}
+)
+target_link_libraries(AssetImportSmoke PRIVATE HuaEngine)
+if(WIN32)
+    target_compile_definitions(AssetImportSmoke PRIVATE GLFW_INCLUDE_NONE)
+    if(MSVC)
+        set_target_properties(AssetImportSmoke PROPERTIES
+            MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>"
+        )
+        target_compile_options(AssetImportSmoke PRIVATE /utf-8)
+    endif()
+endif()
+configure_smoke_target(AssetImportSmoke)
+
 add_executable(ValidationServiceSmoke Tests/ValidationServiceSmoke.cpp)
 target_include_directories(ValidationServiceSmoke PRIVATE
     ${CMAKE_SOURCE_DIR}/HuaEngine/src
@@ -770,6 +790,7 @@ set_property(TARGET ProjectServiceSmoke PROPERTY FOLDER "Tests")
 set_property(TARGET SceneServiceSmoke PROPERTY FOLDER "Tests")
 set_property(TARGET AssetServiceSmoke PROPERTY FOLDER "Tests")
 set_property(TARGET AssetLibrarySmoke PROPERTY FOLDER "Tests")
+set_property(TARGET AssetImportSmoke PROPERTY FOLDER "Tests")
 set_property(TARGET ValidationServiceSmoke PROPERTY FOLDER "Tests")
 set_property(TARGET ApplicationServicesSmoke PROPERTY FOLDER "Tests")
 set_property(TARGET ApplicationOperationsSmoke PROPERTY FOLDER "Tests")

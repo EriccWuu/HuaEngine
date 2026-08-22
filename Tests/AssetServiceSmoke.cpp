@@ -357,7 +357,7 @@ int main() {
 	Require(missingCachedMeshValidation.Payload.at("fallback_asset_count") == "2", "Expected fallback asset payload to remain stable");
 
 	HE::AssetService badBuiltinAssetService;
-	Require(badBuiltinAssetService.LoadOrCreateManifest(projectContext).Succeeded(), "Expected bad-builtin asset service manifest initialization to succeed");
+	Require(badBuiltinAssetService.InitializeProjectAssets(projectContext).Succeeded(), "Expected bad-builtin asset service pipeline initialization to succeed");
 	HE::AssetRecord badBuiltinMeshRecord;
 	badBuiltinMeshRecord.Guid = "bad-builtin-validation-mesh";
 	badBuiltinMeshRecord.Kind = HE::AssetKind::Mesh;

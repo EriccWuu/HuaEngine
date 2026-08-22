@@ -5,6 +5,9 @@
 #include "AssetManifest.h"
 #include "AssetRegistry.h"
 #include "AssetRuntimeCache.h"
+#include "HuaEngine/Asset/Import/AssetImporterRegistry.h"
+#include "HuaEngine/Asset/Import/AssetImportService.h"
+#include "HuaEngine/Asset/Library/AssetLibrary.h"
 #include "HuaEngine/Core/ResultEnvelope.h"
 #include "HuaEngine/Project/ProjectContext.h"
 #include "HuaEngine/Rendering/Material/Material.h"
@@ -52,8 +55,13 @@ namespace HE {
 
 	class ENGINE_API AssetService {
 	public:
+		AssetService();
+
 		[[nodiscard]] ResultEnvelope LoadOrCreateManifest(const ProjectContext& context);
 		[[nodiscard]] ResultEnvelope LoadManifestReadOnly(const ProjectContext& context);
+		[[nodiscard]] ResultEnvelope InitializeProjectAssets(
+			const ProjectContext& context,
+			AssetImportReport* outReport = nullptr);
 
 		[[nodiscard]] ResultEnvelope CreateBuiltinMeshAsset(
 			const ProjectContext& context,
@@ -103,6 +111,10 @@ namespace HE {
 		[[nodiscard]] AssetManifest& GetManifest() { return m_Manifest; }
 		[[nodiscard]] AssetRuntimeCache& GetRuntimeCache() { return m_RuntimeCache; }
 		[[nodiscard]] const AssetRuntimeCache& GetRuntimeCache() const { return m_RuntimeCache; }
+		[[nodiscard]] AssetLibrary& GetLibrary() { return m_Library; }
+		[[nodiscard]] const AssetLibrary& GetLibrary() const { return m_Library; }
+		[[nodiscard]] AssetImporterRegistry& GetImporterRegistry() { return m_ImporterRegistry; }
+		[[nodiscard]] const AssetImporterRegistry& GetImporterRegistry() const { return m_ImporterRegistry; }
 		[[nodiscard]] bool IsManifestLoaded() const { return !m_Manifest.Empty(); }
 		[[nodiscard]] const AssetRecord* FindRecordByGuid(const AssetGuid& guid) const;
 
@@ -110,5 +122,7 @@ namespace HE {
 		AssetRegistry m_Registry;
 		AssetManifest m_Manifest;
 		AssetRuntimeCache m_RuntimeCache;
+		AssetLibrary m_Library;
+		AssetImporterRegistry m_ImporterRegistry;
 	};
 }

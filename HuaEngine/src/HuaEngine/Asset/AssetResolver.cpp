@@ -1,6 +1,8 @@
 #include "enginepch.h"
 #include "AssetResolver.h"
 
+#include "HuaEngine/Asset/Artifact/MeshArtifact.h"
+
 #include "AssetService.h"
 #include "HuaEngine/Rendering/Material/MaterialLibrary.h"
 #include "HuaEngine/Rendering/RHI/ShaderProgramLoader.h"
@@ -175,7 +177,20 @@ namespace HE {
 			});
 		}
 		else if (record->Source == AssetSource::File) {
-			mesh = Rendering::Mesh::LoadFromFile(record->AbsolutePath.generic_string());
+			AssetArtifact artifact;
+			auto readResult = m_Service->GetLibrary().ReadArtifact(guid, artifact);
+			if (!readResult.Succeeded()) {
+				auto result = ResultEnvelope::ManualIntervention("asset.resolve_mesh", guid, "Mesh artifact is unavailable");
+				result.AddDetail({ DiagnosticSeverity::Warning, "asset.mesh.artifact_unavailable", readResult.Summary, record->AssetId });
+				return result;
+			}
+
+			auto decodeResult = DecodeMeshArtifact(artifact, mesh);
+			if (!decodeResult.Succeeded()) {
+				auto result = ResultEnvelope::ManualIntervention("asset.resolve_mesh", guid, "Mesh artifact could not be decoded");
+				result.AddDetail({ DiagnosticSeverity::Warning, "asset.mesh.artifact_decode_failed", decodeResult.Summary, record->AssetId });
+				return result;
+			}
 		}
 
 		if (!mesh) {
