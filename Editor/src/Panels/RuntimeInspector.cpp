@@ -136,8 +136,7 @@ namespace HE::Editor {
 			std::span<const AssetPickerOption> options) {
 			const AssetPickerPreview preview = GetAssetPickerPreview(options, guid);
 			bool changed = false;
-			const float pickerWidth = (std::min)(240.0f, ImGui::GetContentRegionAvail().x);
-			ImGui::SetNextItemWidth(pickerWidth);
+			ImGui::SetNextItemWidth(-1.0f);
 			const bool comboOpen = ImGui::BeginCombo("##AssetValue", preview.DisplayName.c_str(), ImGuiComboFlags_HeightLarge);
 			const bool comboHovered = ImGui::IsItemHovered();
 			if (comboOpen) {

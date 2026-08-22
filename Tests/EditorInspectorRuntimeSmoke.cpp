@@ -128,6 +128,9 @@ int main() {
 		runtimeInspectorSource.find("field.Type == \"MeshAssetRef\" || field.Type == \"MaterialAssetRef\"") != std::string::npos,
 		"Expected both mesh and material refs to use the shared picker");
 	Require(
+		runtimeInspectorSource.find("const float pickerWidth") == std::string::npos,
+		"Expected asset pickers to fill the remaining property column width");
+	Require(
 		runtimeInspectorSource.find("DrawRuntimeFieldEditorRow") != std::string::npos,
 		"Expected all reflected fields to use one property-row implementation");
 	Require(
