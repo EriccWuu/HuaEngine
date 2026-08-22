@@ -13,6 +13,15 @@ namespace {
 }
 
 namespace HE {
+	ProjectPanelAction MakeProjectReimportAction(
+		const std::filesystem::path& targetPath,
+		bool reimportAll) {
+		return {
+			reimportAll ? ProjectPanelActionType::ReimportAll : ProjectPanelActionType::ReimportPath,
+			reimportAll ? std::filesystem::path{} : targetPath
+		};
+	}
+
 	std::optional<ProjectPanelAction> ProjectPanel::ConsumePendingAction() {
 		auto action = m_PendingAction;
 		m_PendingAction.reset();
@@ -63,7 +72,17 @@ namespace HE {
 	}
 
 	void ProjectPanel::DrawDirectorySection(const char* label, const std::filesystem::path& rootPath) {
-		if (!ImGui::CollapsingHeader(label, ImGuiTreeNodeFlags_DefaultOpen)) {
+		const auto rootId = rootPath.generic_string();
+		ImGui::PushID(rootId.c_str());
+		const bool open = ImGui::CollapsingHeader(label, ImGuiTreeNodeFlags_DefaultOpen);
+		if (ImGui::BeginPopupContextItem("AssetsHeaderContext")) {
+			if (ImGui::MenuItem("Reimport All")) {
+				m_PendingAction = MakeProjectReimportAction({}, true);
+			}
+			ImGui::EndPopup();
+		}
+		ImGui::PopID();
+		if (!open) {
 			return;
 		}
 
@@ -72,6 +91,7 @@ namespace HE {
 			return;
 		}
 
+		ImGui::BeginChild("AssetsBrowser", ImVec2(0.0f, 0.0f), ImGuiChildFlags_None);
 		std::vector<std::filesystem::directory_entry> entries;
 		for (const auto& entry : std::filesystem::directory_iterator(rootPath)) {
 			entries.push_back(entry);
@@ -88,12 +108,30 @@ namespace HE {
 		for (const auto& entry : entries) {
 			DrawEntry(entry);
 		}
+
+		if (ImGui::BeginPopupContextWindow(
+			"AssetsBrowserContext",
+			ImGuiPopupFlags_MouseButtonRight | ImGuiPopupFlags_NoOpenOverItems)) {
+			if (ImGui::MenuItem("Reimport All")) {
+				m_PendingAction = MakeProjectReimportAction({}, true);
+			}
+			ImGui::EndPopup();
+		}
+		ImGui::EndChild();
 	}
 
 	void ProjectPanel::DrawEntry(const std::filesystem::directory_entry& entry) {
 		const auto fileName = entry.path().filename().string();
+		const auto entryId = entry.path().lexically_normal().generic_string();
+		ImGui::PushID(entryId.c_str());
 		if (entry.is_directory()) {
 			const bool open = ImGui::TreeNode(fileName.c_str());
+			if (ImGui::BeginPopupContextItem("DirectoryContext")) {
+				if (ImGui::MenuItem("Reimport")) {
+					m_PendingAction = MakeProjectReimportAction(entry.path(), false);
+				}
+				ImGui::EndPopup();
+			}
 			if (open) {
 				std::vector<std::filesystem::directory_entry> children;
 				for (const auto& child : std::filesystem::directory_iterator(entry.path())) {
@@ -113,6 +151,7 @@ namespace HE {
 				}
 				ImGui::TreePop();
 			}
+			ImGui::PopID();
 			return;
 		}
 
@@ -125,5 +164,19 @@ namespace HE {
 		if (ImGui::IsItemHovered() && IsSceneFile(entry.path()) && ImGui::IsMouseDoubleClicked(ImGuiMouseButton_Left)) {
 			m_PendingAction = ProjectPanelAction{ ProjectPanelActionType::OpenScene, entry.path() };
 		}
+
+		if (ImGui::BeginPopupContextItem("FileContext")) {
+			const bool canReimport = m_CanReimport && m_CanReimport(entry.path());
+			ImGui::BeginDisabled(!canReimport);
+			if (ImGui::MenuItem("Reimport")) {
+				m_PendingAction = MakeProjectReimportAction(entry.path(), false);
+			}
+			ImGui::EndDisabled();
+			if (!canReimport) {
+				ImGui::SetItemTooltip("No importer supports this file type.");
+			}
+			ImGui::EndPopup();
+		}
+		ImGui::PopID();
 	}
 }

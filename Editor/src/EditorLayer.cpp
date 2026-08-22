@@ -135,6 +135,9 @@ namespace HE {
         m_EditorCameraController = CreateRef<Editor::EditorCameraController>();
         m_ProjectPanel.reset(new ProjectPanel());
         m_ProjectPanel->SetWorkbenchState(&m_WorkbenchState);
+		m_ProjectPanel->SetCanReimportCallback([](const std::filesystem::path& sourcePath) {
+			return Application::GetInstance().GetOperations().CanImportAssetSource(sourcePath);
+		});
         m_Inspector.reset(new InspectorPanel);
         m_Inspector->SetWorkbenchState(&m_WorkbenchState);
         m_Inspector->SetInteractionHost(&m_InteractionHost);
@@ -587,6 +590,19 @@ namespace HE {
 
 		m_Inspector->SetAssetRecords(records);
 		return true;
+	}
+
+	void EditorLayer::ReimportProjectAssets(const std::filesystem::path& targetPath) {
+		if (!m_ProjectSession.IsLoaded()) {
+			return;
+		}
+
+		auto result = Application::GetInstance().GetOperations().ReimportAssets(
+			m_ProjectSession.Context,
+			targetPath);
+		CaptureOperationResult(result);
+		RefreshInspectorAssetCatalog();
+		RefreshWorkbenchValidation();
 	}
 
     std::filesystem::path EditorLayer::ResolveScenePathInput(const std::filesystem::path& scenePath) const {
@@ -1444,6 +1460,14 @@ namespace HE {
                             }
                         }
                         break;
+					case ProjectPanelActionType::ReimportPath:
+						ReimportProjectAssets(action->Path);
+						break;
+					case ProjectPanelActionType::ReimportAll:
+						if (m_ProjectSession.IsLoaded()) {
+							ReimportProjectAssets(m_ProjectSession.Context.GetAssetRootPath());
+						}
+						break;
                     default:
                         break;
                 }
