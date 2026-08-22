@@ -1,13 +1,19 @@
 #pragma once
 
 #include <functional>
+#include <span>
 #include <string>
 #include <string_view>
 #include <unordered_map>
 
 #include "HuaEngine/Reflection/Reflection.h"
+#include "Panels/AssetPickerModel.h"
 
 namespace HE::Editor {
+	struct RuntimeInspectorContext {
+		std::span<const AssetPickerOption> MeshAssets;
+	};
+
 	using RuntimeComponentEditorOverride =
 		std::function<bool(const Refl::RuntimeTypeDescriptor&, void*)>;
 
@@ -23,9 +29,13 @@ namespace HE::Editor {
 	[[nodiscard]] bool IsRuntimeFieldEditable(const Refl::RuntimeFieldDescriptor& field);
 	[[nodiscard]] std::string GetRuntimeComponentDisplayName(const Refl::RuntimeTypeDescriptor& type);
 
-	bool DrawRuntimeFieldEditor(const Refl::RuntimeFieldDescriptor& field, void* component);
+	bool DrawRuntimeFieldEditor(
+		const Refl::RuntimeFieldDescriptor& field,
+		void* component,
+		RuntimeInspectorContext context = {});
 	bool DrawRuntimeComponentInspector(
 		const Refl::RuntimeTypeDescriptor& type,
 		void* component,
-		const RuntimeComponentEditorOverrideRegistry& overrides);
+		const RuntimeComponentEditorOverrideRegistry& overrides,
+		RuntimeInspectorContext context = {});
 }

@@ -68,6 +68,10 @@ namespace HE {
         RegisterCoreComponents(m_ComponentRegistry);
     }
 
+	void InspectorPanel::SetAssetRecords(std::span<const AssetRecord> records) {
+		m_MeshAssetOptions = Editor::BuildAssetPickerOptions(records, AssetKind::Mesh);
+	}
+
 	bool InspectorPanel::OnGuiRender() {
 		bool changed = false;
 		ImGui::Begin("Inspector");
@@ -185,7 +189,11 @@ namespace HE {
                         ImGui::TextDisabled("Runtime descriptor is not available.");
                     }
                     else {
-                        changed |= Editor::DrawRuntimeComponentInspector(*metadata->RuntimeType, component, m_RuntimeOverrides);
+						changed |= Editor::DrawRuntimeComponentInspector(
+							*metadata->RuntimeType,
+							component,
+							m_RuntimeOverrides,
+							{ m_MeshAssetOptions });
                     }
                     ImGui::TreePop();
                 }

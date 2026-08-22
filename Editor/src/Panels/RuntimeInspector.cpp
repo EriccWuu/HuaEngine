@@ -102,11 +102,75 @@ namespace HE::Editor {
 			return nullptr;
 		}
 
-		bool DrawRuntimeAssetRefField(const Refl::RuntimeFieldDescriptor& field, void* value, const char* label) {
+		bool DrawMeshAssetRefField(
+			AssetGuid& guid,
+			const char* label,
+			std::span<const AssetPickerOption> options) {
+			const AssetPickerPreview preview = GetAssetPickerPreview(options, guid);
+			bool changed = false;
+			ImGui::SetNextItemWidth(-1.0f);
+			if (ImGui::BeginCombo(label, preview.DisplayName.c_str(), ImGuiComboFlags_HeightLarge)) {
+				static std::array<char, 128> searchBuffer{};
+				if (ImGui::IsWindowAppearing()) {
+					searchBuffer.fill('\0');
+				}
+
+				ImGui::SetNextItemWidth(-1.0f);
+				ImGui::InputTextWithHint("##MeshSearch", "Search meshes...", searchBuffer.data(), searchBuffer.size());
+				ImGui::Separator();
+
+				const bool noneSelected = guid.empty();
+				if (ImGui::Selectable("None", noneSelected)) {
+					guid.clear();
+					changed = true;
+				}
+				if (noneSelected) {
+					ImGui::SetItemDefaultFocus();
+				}
+
+				bool hasMatchingAsset = false;
+				for (const AssetPickerOption& option : options) {
+					if (!AssetPickerOptionMatches(option, searchBuffer.data())) {
+						continue;
+					}
+
+					hasMatchingAsset = true;
+					ImGui::PushID(option.Guid.c_str());
+					const bool selected = option.Guid == guid;
+					if (ImGui::Selectable(option.DisplayName.c_str(), selected)) {
+						guid = option.Guid;
+						changed = true;
+					}
+					if (selected) {
+						ImGui::SetItemDefaultFocus();
+					}
+					ImGui::PopID();
+				}
+
+				if (!hasMatchingAsset) {
+					ImGui::TextDisabled("No matching mesh assets");
+				}
+				ImGui::EndCombo();
+			}
+
+			if (preview.Missing && ImGui::IsItemHovered()) {
+				ImGui::SetTooltip("Mesh asset is not present in the current project: %s", guid.c_str());
+			}
+			return changed;
+		}
+
+		bool DrawRuntimeAssetRefField(
+			const Refl::RuntimeFieldDescriptor& field,
+			void* value,
+			const char* label,
+			RuntimeInspectorContext context) {
 			AssetGuid* guid = GetAssetRefGuid(field, value);
 			if (guid == nullptr) {
 				ImGui::TextDisabled("%s: unsupported asset ref %.*s", label, static_cast<int>(field.Type.size()), field.Type.data());
 				return false;
+			}
+			if (field.Type == "MeshAssetRef") {
+				return DrawMeshAssetRefField(*guid, label, context.MeshAssets);
 			}
 
 			std::array<char, 256> editedGuid{};
@@ -152,7 +216,10 @@ namespace HE::Editor {
 		return std::string(type.QualifiedName);
 	}
 
-	bool DrawRuntimeFieldEditor(const Refl::RuntimeFieldDescriptor& field, void* component) {
+	bool DrawRuntimeFieldEditor(
+		const Refl::RuntimeFieldDescriptor& field,
+		void* component,
+		RuntimeInspectorContext context) {
 		if (component == nullptr || field.GetMutable == nullptr) {
 			ImGui::TextDisabled("%s: unavailable", FieldLabel(field));
 			return false;
@@ -207,7 +274,7 @@ namespace HE::Editor {
 				changed = DrawRuntimeEnumField(field, component, label);
 				break;
 			case Refl::RuntimeFieldValueKind::AssetRef:
-				changed = DrawRuntimeAssetRefField(field, value, label);
+				changed = DrawRuntimeAssetRefField(field, value, label, context);
 				break;
 			case Refl::RuntimeFieldValueKind::Unsupported:
 			case Refl::RuntimeFieldValueKind::Object:
@@ -222,7 +289,8 @@ namespace HE::Editor {
 	bool DrawRuntimeComponentInspector(
 		const Refl::RuntimeTypeDescriptor& type,
 		void* component,
-		const RuntimeComponentEditorOverrideRegistry& overrides) {
+		const RuntimeComponentEditorOverrideRegistry& overrides,
+		RuntimeInspectorContext context) {
 		if (component == nullptr) {
 			return false;
 		}
@@ -233,7 +301,7 @@ namespace HE::Editor {
 
 		bool changed = false;
 		for (const Refl::RuntimeFieldDescriptor& field : type.Fields) {
-			changed |= DrawRuntimeFieldEditor(field, component);
+			changed |= DrawRuntimeFieldEditor(field, component, context);
 		}
 		return changed;
 	}

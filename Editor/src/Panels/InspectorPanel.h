@@ -1,6 +1,8 @@
 #pragma once
 
 #include <functional>
+#include <span>
+#include <vector>
 
 #include "HuaEngine/Core/Core.h"
 #include "HuaEngine/ECS/ComponentRegistry.h"
@@ -24,7 +26,9 @@ namespace HE {
 		void SetSelection(const Ref<Entity>& target) { m_Selection = target; }
         void SetInteractionHost(EditorInteractionHost* host) { m_InteractionHost = host; }
         void SetAddComponentCallback(std::function<void(EditorInspectableComponent)> callback) { m_AddComponentCallback = std::move(callback); }
-        void SetRemoveComponentCallback(std::function<void(EditorInspectableComponent)> callback) { m_RemoveComponentCallback = std::move(callback); }
+		void SetRemoveComponentCallback(std::function<void(EditorInspectableComponent)> callback) { m_RemoveComponentCallback = std::move(callback); }
+		void SetAssetRecords(std::span<const AssetRecord> records);
+		void ClearAssetRecords() { m_MeshAssetOptions.clear(); }
 
 	private:
         bool DrawRegisteredContextMenu(std::string_view contextId);
@@ -38,6 +42,7 @@ namespace HE {
         std::function<void(EditorInspectableComponent)> m_RemoveComponentCallback;
         ComponentRegistry m_ComponentRegistry;
         Editor::RuntimeComponentEditorOverrideRegistry m_RuntimeOverrides;
+		std::vector<Editor::AssetPickerOption> m_MeshAssetOptions;
         bool m_ShowAddComponentWindow = false;
 	};
 }

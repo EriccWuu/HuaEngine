@@ -6,6 +6,7 @@
 #include <cstring>
 #include <filesystem>
 #include <system_error>
+#include <vector>
 
 #include "HuaEngine/Application/ApplicationOperations.h"
 #include "HuaEngine/Asset/AssetTypes.h"
@@ -243,6 +244,10 @@ namespace HE {
 			CloseProjectSession(true, "Project assets failed to initialize");
 			return false;
 		}
+		if (!RefreshInspectorAssetCatalog()) {
+			CloseProjectSession(true, "Project asset catalog failed to load");
+			return false;
+		}
 
         if (!InitializeWorkbenchShell()) {
             CloseProjectSession(true, "Workbench shell failed to initialize");
@@ -365,6 +370,7 @@ namespace HE {
 
         m_ProjectSession.Reset();
         m_SceneDocument.Reset();
+		m_Inspector->ClearAssetRecords();
         SetSceneContext(nullptr);
         SyncWorkbenchSessionState();
         SyncSceneDocumentState();
@@ -564,6 +570,24 @@ namespace HE {
             CopyToBuffer(m_SceneDocument.DisplayName, m_NewSceneNameInput.data(), m_NewSceneNameInput.size());
         }
     }
+
+	bool EditorLayer::RefreshInspectorAssetCatalog() {
+		if (!m_ProjectSession.IsLoaded()) {
+			m_Inspector->ClearAssetRecords();
+			return true;
+		}
+
+		std::vector<AssetRecord> records;
+		auto result = Application::GetInstance().GetOperations().ListAssets(m_ProjectSession.Context, records);
+		if (!result.Succeeded()) {
+			CaptureOperationResult(result);
+			m_Inspector->ClearAssetRecords();
+			return false;
+		}
+
+		m_Inspector->SetAssetRecords(records);
+		return true;
+	}
 
     std::filesystem::path EditorLayer::ResolveScenePathInput(const std::filesystem::path& scenePath) const {
         if (scenePath.empty()) {

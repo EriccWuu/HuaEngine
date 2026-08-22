@@ -743,6 +743,7 @@ configure_smoke_target(EditorInteractionSmoke)
 
 add_executable(EditorInspectorRuntimeSmoke
     Tests/EditorInspectorRuntimeSmoke.cpp
+    Editor/src/Panels/AssetPickerModel.cpp
     Editor/src/Panels/RuntimeInspector.cpp
 )
 target_include_directories(EditorInspectorRuntimeSmoke PRIVATE
@@ -764,6 +765,30 @@ if(WIN32)
     endif()
 endif()
 configure_smoke_target(EditorInspectorRuntimeSmoke)
+
+add_executable(EditorAssetPickerSmoke
+    Tests/EditorAssetPickerSmoke.cpp
+    Editor/src/Panels/AssetPickerModel.cpp
+)
+target_include_directories(EditorAssetPickerSmoke PRIVATE
+    ${CMAKE_SOURCE_DIR}/Editor/src
+    ${CMAKE_SOURCE_DIR}/HuaEngine/src
+    ${SPDLOG_INCLUDE_DIR}
+    ${GLM_INCLUDE_DIR}
+    ${IMGUI_INCLUDE_DIR}
+    ${STB_IMAGE_INCLUDE_DIR}
+)
+target_link_libraries(EditorAssetPickerSmoke PRIVATE HuaEngine)
+if(WIN32)
+    target_compile_definitions(EditorAssetPickerSmoke PRIVATE GLFW_INCLUDE_NONE)
+    if(MSVC)
+        set_target_properties(EditorAssetPickerSmoke PROPERTIES
+            MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>"
+        )
+        target_compile_options(EditorAssetPickerSmoke PRIVATE /utf-8)
+    endif()
+endif()
+configure_smoke_target(EditorAssetPickerSmoke)
 
 # Set ProjectHub as the startup project for Visual Studio
 set_property(DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR} PROPERTY VS_STARTUP_PROJECT ProjectHub)
@@ -807,3 +832,4 @@ set_property(TARGET HostConsistencySmoke PROPERTY FOLDER "Tests")
 set_property(TARGET ProjectWorkbenchSmoke PROPERTY FOLDER "Tests")
 set_property(TARGET EditorInteractionSmoke PROPERTY FOLDER "Tests")
 set_property(TARGET EditorInspectorRuntimeSmoke PROPERTY FOLDER "Tests")
+set_property(TARGET EditorAssetPickerSmoke PROPERTY FOLDER "Tests")

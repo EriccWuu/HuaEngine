@@ -90,6 +90,7 @@ namespace HE {
         void SyncSceneDocumentState();
         void RefreshInteractionHost();
         void RefreshCommandInputs();
+		bool RefreshInspectorAssetCatalog();
         std::filesystem::path ResolveScenePathInput(const std::filesystem::path& scenePath) const;
         void PersistCurrentProjectSession();
         void ClearPersistedProjectSession();
