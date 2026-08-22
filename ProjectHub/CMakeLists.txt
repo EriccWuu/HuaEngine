@@ -60,12 +60,3 @@ set_target_properties(ProjectHub PROPERTIES
     RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/bin/$<CONFIG>-${CMAKE_SYSTEM_NAME}-${ARCHITECTURE}"
     VS_DEBUGGER_WORKING_DIRECTORY "${CMAKE_BINARY_DIR}/bin/$<CONFIG>-${CMAKE_SYSTEM_NAME}-${ARCHITECTURE}"
 )
-
-if(EXISTS "${CMAKE_SOURCE_DIR}/Resources")
-    add_custom_command(TARGET ProjectHub POST_BUILD
-        COMMAND ${CMAKE_COMMAND} -E rm -rf "$<TARGET_FILE_DIR:ProjectHub>/assets"
-        COMMAND ${CMAKE_COMMAND} -E copy_directory
-        "${CMAKE_SOURCE_DIR}/Resources"
-        "$<TARGET_FILE_DIR:ProjectHub>/Resources"
-    )
-endif()

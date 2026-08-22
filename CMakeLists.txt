@@ -34,6 +34,19 @@ foreach(config ${CMAKE_CONFIGURATION_TYPES})
     set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY_${config_upper} ${CMAKE_BINARY_DIR}/bin/${config}-${CMAKE_SYSTEM_NAME}-${ARCHITECTURE})
 endforeach()
 
+set(HUAENGINE_RUNTIME_OUTPUT_DIRECTORY
+    "${CMAKE_BINARY_DIR}/bin/$<CONFIG>-${CMAKE_SYSTEM_NAME}-${ARCHITECTURE}")
+
+add_custom_target(HuaEngineResources ALL
+    COMMAND ${CMAKE_COMMAND} -E rm -rf
+        "${HUAENGINE_RUNTIME_OUTPUT_DIRECTORY}/Resources"
+    COMMAND ${CMAKE_COMMAND} -E copy_directory
+        "${CMAKE_SOURCE_DIR}/Resources"
+        "${HUAENGINE_RUNTIME_OUTPUT_DIRECTORY}/Resources"
+    COMMENT "Copying HuaEngine resources"
+    VERBATIM
+)
+
 # Include directories
 set(SPDLOG_INCLUDE_DIR "${CMAKE_SOURCE_DIR}/Dependencies/spdlog/include")
 set(GLFW_INCLUDE_DIR "${CMAKE_SOURCE_DIR}/Dependencies/glfw/include")
@@ -91,6 +104,10 @@ add_subdirectory(HuaEngine)
 add_subdirectory(Editor)
 add_subdirectory(ProjectHub)
 add_subdirectory(CLI)
+
+add_dependencies(Editor HuaEngineResources)
+add_dependencies(ProjectHub HuaEngineResources)
+add_dependencies(HuaEngineCLI HuaEngineResources)
 
 # Editor launches ProjectHub as a sibling host from its output directory.
 add_dependencies(Editor ProjectHub)
@@ -445,6 +462,27 @@ if(WIN32)
     endif()
 endif()
 configure_smoke_target(AssetImportSmoke)
+
+add_executable(BuiltinAssetResourcesSmoke Tests/BuiltinAssetResourcesSmoke.cpp)
+target_include_directories(BuiltinAssetResourcesSmoke PRIVATE
+    ${CMAKE_SOURCE_DIR}/HuaEngine/src
+    ${SPDLOG_INCLUDE_DIR}
+    ${GLM_INCLUDE_DIR}
+    ${IMGUI_INCLUDE_DIR}
+    ${STB_IMAGE_INCLUDE_DIR}
+)
+target_link_libraries(BuiltinAssetResourcesSmoke PRIVATE HuaEngine)
+if(WIN32)
+    target_compile_definitions(BuiltinAssetResourcesSmoke PRIVATE GLFW_INCLUDE_NONE)
+    if(MSVC)
+        set_target_properties(BuiltinAssetResourcesSmoke PROPERTIES
+            MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>"
+        )
+        target_compile_options(BuiltinAssetResourcesSmoke PRIVATE /utf-8)
+    endif()
+endif()
+configure_smoke_target(BuiltinAssetResourcesSmoke)
+add_dependencies(BuiltinAssetResourcesSmoke HuaEngineResources)
 
 add_executable(ValidationServiceSmoke Tests/ValidationServiceSmoke.cpp)
 target_include_directories(ValidationServiceSmoke PRIVATE

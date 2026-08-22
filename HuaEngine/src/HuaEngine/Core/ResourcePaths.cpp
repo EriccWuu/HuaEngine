@@ -64,6 +64,11 @@ namespace HE {
 			return NormalizePath(executableRoot);
 		}
 
+		const auto parentExecutableRoot = GetExecutableDirectory().parent_path() / "Resources";
+		if (std::filesystem::exists(parentExecutableRoot, errorCode)) {
+			return NormalizePath(parentExecutableRoot);
+		}
+
 		const auto currentRoot = std::filesystem::current_path(errorCode) / "Resources";
 		if (!errorCode && std::filesystem::exists(currentRoot, errorCode)) {
 			return NormalizePath(currentRoot);
