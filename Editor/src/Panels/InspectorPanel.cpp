@@ -70,6 +70,7 @@ namespace HE {
 
 	void InspectorPanel::SetAssetRecords(std::span<const AssetRecord> records) {
 		m_MeshAssetOptions = Editor::BuildAssetPickerOptions(records, AssetKind::Mesh);
+		m_MaterialAssetOptions = Editor::BuildAssetPickerOptions(records, AssetKind::Material);
 	}
 
 	bool InspectorPanel::OnGuiRender() {
@@ -140,6 +141,7 @@ namespace HE {
                 return changed;
             }
 
+			ImGui::PushID(static_cast<int>(selection.GetUid()));
 			ImGui::Text("%s", selection.GetName().c_str());
             if (ImGui::BeginPopupContextWindow("InspectorEntityContextMenu")) {
                 if (ImGui::MenuItem("Add Component...")) {
@@ -193,13 +195,17 @@ namespace HE {
 							*metadata->RuntimeType,
 							component,
 							m_RuntimeOverrides,
-							{ m_MeshAssetOptions });
+							{
+								.MeshAssets = m_MeshAssetOptions,
+								.MaterialAssets = m_MaterialAssetOptions
+							});
                     }
                     ImGui::TreePop();
                 }
                 ImGui::PopID();
             }
             DrawAddComponentWindow();
+			ImGui::PopID();
 		}
 		else {
 			ImGui::TextUnformatted("No entity selected.");

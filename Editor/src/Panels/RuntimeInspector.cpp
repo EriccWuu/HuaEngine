@@ -102,21 +102,56 @@ namespace HE::Editor {
 			return nullptr;
 		}
 
-		bool DrawMeshAssetRefField(
+		const char* AssetKindDisplayName(AssetKind kind) {
+			switch (kind) {
+			case AssetKind::Mesh:
+				return "mesh";
+			case AssetKind::Material:
+				return "material";
+			case AssetKind::Texture2D:
+				return "texture";
+			case AssetKind::Unknown:
+			default:
+				return "asset";
+			}
+		}
+
+		bool DrawAssetRefField(
 			AssetGuid& guid,
 			const char* label,
+			AssetKind kind,
 			std::span<const AssetPickerOption> options) {
 			const AssetPickerPreview preview = GetAssetPickerPreview(options, guid);
 			bool changed = false;
-			ImGui::SetNextItemWidth(-1.0f);
-			if (ImGui::BeginCombo(label, preview.DisplayName.c_str(), ImGuiComboFlags_HeightLarge)) {
+			bool comboHovered = false;
+			const ImGuiTableFlags tableFlags = ImGuiTableFlags_SizingStretchProp |
+				ImGuiTableFlags_NoSavedSettings |
+				ImGuiTableFlags_NoPadOuterX;
+			if (!ImGui::BeginTable("##AssetRefProperty", 2, tableFlags)) {
+				return false;
+			}
+
+			const float labelWidth = (std::max)(72.0f, ImGui::CalcTextSize(label).x + 12.0f);
+			ImGui::TableSetupColumn("Label", ImGuiTableColumnFlags_WidthFixed, labelWidth);
+			ImGui::TableSetupColumn("Value", ImGuiTableColumnFlags_WidthStretch);
+			ImGui::TableNextRow();
+			ImGui::TableSetColumnIndex(0);
+			ImGui::AlignTextToFramePadding();
+			ImGui::TextUnformatted(label);
+			ImGui::TableSetColumnIndex(1);
+			const float pickerWidth = (std::min)(240.0f, ImGui::GetContentRegionAvail().x);
+			ImGui::SetNextItemWidth(pickerWidth);
+			const bool comboOpen = ImGui::BeginCombo("##AssetValue", preview.DisplayName.c_str(), ImGuiComboFlags_HeightLarge);
+			comboHovered = ImGui::IsItemHovered();
+			if (comboOpen) {
 				static std::array<char, 128> searchBuffer{};
 				if (ImGui::IsWindowAppearing()) {
 					searchBuffer.fill('\0');
 				}
 
 				ImGui::SetNextItemWidth(-1.0f);
-				ImGui::InputTextWithHint("##MeshSearch", "Search meshes...", searchBuffer.data(), searchBuffer.size());
+				const std::string searchHint = std::string("Search ") + AssetKindDisplayName(kind) + " assets...";
+				ImGui::InputTextWithHint("##AssetSearch", searchHint.c_str(), searchBuffer.data(), searchBuffer.size());
 				ImGui::Separator();
 
 				const bool noneSelected = guid.empty();
@@ -148,13 +183,19 @@ namespace HE::Editor {
 				}
 
 				if (!hasMatchingAsset) {
-					ImGui::TextDisabled("No matching mesh assets");
+					ImGui::TextDisabled("No matching %s assets", AssetKindDisplayName(kind));
 				}
 				ImGui::EndCombo();
 			}
+			ImGui::EndTable();
 
-			if (preview.Missing && ImGui::IsItemHovered()) {
-				ImGui::SetTooltip("Mesh asset is not present in the current project: %s", guid.c_str());
+			if (comboHovered) {
+				if (preview.Missing) {
+					ImGui::SetTooltip("%s asset is not present in the current project: %s", AssetKindDisplayName(kind), guid.c_str());
+				}
+				else {
+					ImGui::SetTooltip("%s", preview.DisplayName.c_str());
+				}
 			}
 			return changed;
 		}
@@ -169,8 +210,9 @@ namespace HE::Editor {
 				ImGui::TextDisabled("%s: unsupported asset ref %.*s", label, static_cast<int>(field.Type.size()), field.Type.data());
 				return false;
 			}
-			if (field.Type == "MeshAssetRef") {
-				return DrawMeshAssetRefField(*guid, label, context.MeshAssets);
+			if (field.Type == "MeshAssetRef" || field.Type == "MaterialAssetRef") {
+				const AssetKind kind = field.Type == "MeshAssetRef" ? AssetKind::Mesh : AssetKind::Material;
+				return DrawAssetRefField(*guid, label, kind, context.GetAssetOptions(kind));
 			}
 
 			std::array<char, 256> editedGuid{};

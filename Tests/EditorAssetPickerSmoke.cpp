@@ -5,6 +5,7 @@
 
 #include "HuaEngine/Asset/AssetRegistry.h"
 #include "Panels/AssetPickerModel.h"
+#include "Panels/RuntimeInspector.h"
 
 namespace {
 	void Require(bool condition, const std::string& message) {
@@ -19,6 +20,8 @@ int main() {
 	const std::vector<HE::AssetRecord> records = {
 		{ .Guid = "mesh-zebra", .Kind = HE::AssetKind::Mesh, .Source = HE::AssetSource::File, .AssetId = "Meshes/Zebra.mesh" },
 		{ .Guid = "material-default", .Kind = HE::AssetKind::Material, .Source = HE::AssetSource::Builtin, .AssetId = "builtin/material/default" },
+		{ .Guid = "material-metal", .Kind = HE::AssetKind::Material, .Source = HE::AssetSource::File, .AssetId = "Materials/Metal.mat" },
+		{ .Guid = "material-plastic", .Kind = HE::AssetKind::Material, .Source = HE::AssetSource::File, .AssetId = "Materials/Plastic.mat" },
 		{ .Guid = "mesh-alpha", .Kind = HE::AssetKind::Mesh, .Source = HE::AssetSource::File, .AssetId = "Meshes/alpha.mesh" }
 	};
 
@@ -47,6 +50,20 @@ int main() {
 	Require(
 		!HE::Editor::AssetPickerOptionMatches(options[0], "sphere"),
 		"Expected unrelated assets to be filtered out");
+
+	const auto materialOptions = HE::Editor::BuildAssetPickerOptions(records, HE::AssetKind::Material);
+	Require(materialOptions.size() == 3, "Expected the picker to include material assets");
+	Require(materialOptions[0].Guid == "material-default", "Expected builtin material in sorted options");
+	Require(materialOptions[1].Guid == "material-metal", "Expected imported material in sorted options");
+	Require(materialOptions[2].Guid == "material-plastic", "Expected all imported materials in sorted options");
+
+	const HE::Editor::RuntimeInspectorContext context{
+		.MeshAssets = options,
+		.MaterialAssets = materialOptions
+	};
+	Require(context.GetAssetOptions(HE::AssetKind::Mesh).front().Guid == "mesh-alpha", "Expected mesh options selected by kind");
+	Require(context.GetAssetOptions(HE::AssetKind::Material).front().Guid == "material-default", "Expected material options selected by kind");
+	Require(context.GetAssetOptions(HE::AssetKind::Texture2D).empty(), "Expected unsupported picker kind to return no options");
 
 	std::cout << "EditorAssetPickerSmoke passed" << std::endl;
 	return 0;

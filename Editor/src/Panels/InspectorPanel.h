@@ -28,7 +28,10 @@ namespace HE {
         void SetAddComponentCallback(std::function<void(EditorInspectableComponent)> callback) { m_AddComponentCallback = std::move(callback); }
 		void SetRemoveComponentCallback(std::function<void(EditorInspectableComponent)> callback) { m_RemoveComponentCallback = std::move(callback); }
 		void SetAssetRecords(std::span<const AssetRecord> records);
-		void ClearAssetRecords() { m_MeshAssetOptions.clear(); }
+		void ClearAssetRecords() {
+			m_MeshAssetOptions.clear();
+			m_MaterialAssetOptions.clear();
+		}
 
 	private:
         bool DrawRegisteredContextMenu(std::string_view contextId);
@@ -43,6 +46,7 @@ namespace HE {
         ComponentRegistry m_ComponentRegistry;
         Editor::RuntimeComponentEditorOverrideRegistry m_RuntimeOverrides;
 		std::vector<Editor::AssetPickerOption> m_MeshAssetOptions;
+		std::vector<Editor::AssetPickerOption> m_MaterialAssetOptions;
         bool m_ShowAddComponentWindow = false;
 	};
 }

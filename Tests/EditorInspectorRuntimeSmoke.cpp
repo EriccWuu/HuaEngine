@@ -121,6 +121,13 @@ int main() {
 		runtimeInspectorSource.find("DrawRuntimeAssetRefField") != std::string::npos,
 		"Expected RuntimeInspector to draw typed asset refs explicitly");
 	Require(
+		runtimeInspectorSource.find("DrawAssetRefField") != std::string::npos &&
+			runtimeInspectorSource.find("DrawMeshAssetRefField") == std::string::npos,
+		"Expected mesh and material refs to share the parameterized asset picker");
+	Require(
+		runtimeInspectorSource.find("field.Type == \"MeshAssetRef\" || field.Type == \"MaterialAssetRef\"") != std::string::npos,
+		"Expected both mesh and material refs to use the shared picker");
+	Require(
 		runtimeInspectorSource.find("case Refl::RuntimeFieldValueKind::AssetRef") != std::string::npos,
 		"Expected RuntimeInspector AssetRef switch case");
 	Require(
@@ -132,6 +139,9 @@ int main() {
 	Require(
 		inspectorSource.find("ListComponentTypes") != std::string::npos,
 		"Expected InspectorPanel to enumerate entity runtime component types");
+	Require(
+		inspectorSource.find("PushID(static_cast<int>(selection.GetUid()))") != std::string::npos,
+		"Expected inspector widget IDs to be scoped by selected entity");
 	Require(
 		inspectorSource.find("GetAll()") != std::string::npos,
 		"Expected Add Component candidates to come from ComponentRegistry::GetAll()");

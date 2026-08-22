@@ -12,6 +12,20 @@
 namespace HE::Editor {
 	struct RuntimeInspectorContext {
 		std::span<const AssetPickerOption> MeshAssets;
+		std::span<const AssetPickerOption> MaterialAssets;
+
+		[[nodiscard]] std::span<const AssetPickerOption> GetAssetOptions(AssetKind kind) const {
+			switch (kind) {
+			case AssetKind::Mesh:
+				return MeshAssets;
+			case AssetKind::Material:
+				return MaterialAssets;
+			case AssetKind::Texture2D:
+			case AssetKind::Unknown:
+			default:
+				return {};
+			}
+		}
 	};
 
 	using RuntimeComponentEditorOverride =
