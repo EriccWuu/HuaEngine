@@ -408,13 +408,18 @@ namespace {
 		const auto batchDirectory = context.GetAssetRootPath() / "ReimportBatch";
 		const auto meshPath = batchDirectory / "Batch.mesh";
 		const auto texturePath = batchDirectory / "Nested" / "Batch.png";
+		const auto materialPath = batchDirectory / "Batch.mat";
 		const auto unsupportedPath = batchDirectory / "Notes.txt";
 		std::filesystem::create_directories(batchDirectory);
 		Require(HE::Rendering::Mesh::SaveToFile(*HE::Rendering::Mesh::CreateQuad("BatchMesh"), meshPath.generic_string()), "Expected batch mesh fixture");
 		WriteBinaryFile(texturePath, MakePngFixtureBytes());
+		auto sourceMaterial = HE::Rendering::Material::Create("BatchMaterial", HE::Rendering::MaterialType::Unlit);
+		sourceMaterial->AddParameter({ "u_Color", HE::Rendering::MaterialParameterType::Vec4, glm::vec4(0.3f, 0.6f, 0.9f, 1.0f) });
+		Require(HE::Serialization::SaveMaterial(*sourceMaterial, materialPath.generic_string()), "Expected batch material fixture");
 		WriteTextFile(unsupportedPath, "unsupported");
 
 		HE::AssetService assetService;
+		assetService.GetRuntimeCache().StoreMesh("unrelated-guid", HE::Rendering::Mesh::CreateQuad("UnrelatedMesh"));
 		Require(assetService.CanImportSource(meshPath), "Expected mesh source support query");
 		Require(assetService.CanImportSource(texturePath), "Expected PNG source support query");
 		Require(!assetService.CanImportSource(unsupportedPath), "Expected unsupported source query rejection");
@@ -422,24 +427,29 @@ namespace {
 		HE::AssetReimportReport firstReport;
 		const auto firstResult = assetService.ReimportAssets(context, batchDirectory, &firstReport);
 		Require(firstResult.Succeeded(), "Expected directory reimport success");
-		Require(firstReport.ScannedFiles == 3, "Expected recursive scan count");
-		Require(firstReport.SupportedFiles == 2, "Expected supported asset count");
-		Require(firstReport.RegisteredAssets == 2, "Expected unregistered assets to be registered");
-		Require(firstReport.ReimportedAssets == 2, "Expected supported assets to be imported");
+		Require(firstReport.ScannedFiles == 4, "Expected recursive scan count");
+		Require(firstReport.SupportedFiles == 3, "Expected supported asset count");
+		Require(firstReport.RegisteredAssets == 3, "Expected unregistered assets to be registered");
+		Require(firstReport.ReimportedAssets == 3, "Expected supported assets to be imported");
 		Require(firstReport.SkippedFiles == 1, "Expected unsupported file skip");
+		Require(assetService.GetRuntimeCache().FindMesh("unrelated-guid") != nullptr, "Expected initial reimport to preserve unrelated runtime cache entries");
 
 		HE::AssetRecord meshRecord;
 		HE::AssetRecord textureRecord;
+		HE::AssetRecord materialRecord;
 		Require(assetService.ResolveAsset("ReimportBatch/Batch.mesh", meshRecord).Succeeded(), "Expected auto-registered mesh record");
 		Require(assetService.ResolveAsset("ReimportBatch/Nested/Batch.png", textureRecord).Succeeded(), "Expected auto-registered texture record");
+		Require(assetService.ResolveAsset("ReimportBatch/Batch.mat", materialRecord).Succeeded(), "Expected auto-registered material record");
 		const auto stableMeshGuid = meshRecord.Guid;
 		const auto stableTextureGuid = textureRecord.Guid;
+		const auto stableMaterialGuid = materialRecord.Guid;
 
 		HE::AssetReimportReport secondReport;
 		Require(assetService.ReimportAssets(context, batchDirectory, &secondReport).Succeeded(), "Expected repeated directory reimport success");
 		Require(secondReport.RegisteredAssets == 0, "Expected repeated reimport not to register assets again");
 		Require(assetService.ResolveAsset("ReimportBatch/Batch.mesh", meshRecord).Succeeded() && meshRecord.Guid == stableMeshGuid, "Expected stable mesh GUID after reimport");
 		Require(assetService.ResolveAsset("ReimportBatch/Nested/Batch.png", textureRecord).Succeeded() && textureRecord.Guid == stableTextureGuid, "Expected stable texture GUID after reimport");
+		Require(assetService.ResolveAsset("ReimportBatch/Batch.mat", materialRecord).Succeeded() && materialRecord.Guid == stableMaterialGuid, "Expected stable material GUID after reimport");
 
 		HE::AssetResolver resolver(assetService);
 		HE::Ref<HE::Rendering::Mesh> firstMesh;

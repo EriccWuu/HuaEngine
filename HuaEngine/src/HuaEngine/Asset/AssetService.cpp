@@ -255,6 +255,12 @@ namespace HE {
 	}
 
 	ResultEnvelope AssetService::LoadOrCreateManifest(const ProjectContext& context) {
+		return LoadOrCreateManifestInternal(context, true);
+	}
+
+	ResultEnvelope AssetService::LoadOrCreateManifestInternal(
+		const ProjectContext& context,
+		bool resetRuntimeCache) {
 		AssetManifest loadedManifest;
 		auto result = LoadOrCreateAssetManifest(context, loadedManifest);
 		if (!result.Succeeded()) {
@@ -262,7 +268,9 @@ namespace HE {
 		}
 
 		m_Registry = AssetRegistry();
-		m_RuntimeCache = AssetRuntimeCache();
+		if (resetRuntimeCache) {
+			m_RuntimeCache = AssetRuntimeCache();
+		}
 		m_Manifest = std::move(loadedManifest);
 		m_Manifest.ForEachRecord([&](const AssetManifestRecord& manifestRecord) {
 			(void)m_Registry.Upsert(MakeRegistryRecord(context, manifestRecord));
@@ -384,7 +392,7 @@ namespace HE {
 		}
 
 		if (m_Manifest.Empty()) {
-			auto manifestResult = LoadOrCreateManifest(context);
+			auto manifestResult = LoadOrCreateManifestInternal(context, false);
 			if (!manifestResult.Succeeded()) {
 				manifestResult.Operation = "asset.reimport";
 				return publishReport(std::move(manifestResult));
@@ -464,6 +472,9 @@ namespace HE {
 		AssetImportReport importReport;
 		AssetImportService importService(m_ImporterRegistry, m_Library);
 		auto importResult = importService.ImportAssets(context, m_Manifest, importGuids, AssetImportPolicy::Force, &importReport);
+		for (const auto& guid : importReport.ImportedAssetGuids) {
+			m_RuntimeCache.Invalidate(guid);
+		}
 		if (!importResult.Succeeded()) {
 			importResult.Operation = "asset.reimport";
 			report.ReimportedAssets = importReport.ImportedAssets;
@@ -472,9 +483,6 @@ namespace HE {
 		}
 		for (const auto& detail : importResult.Details) {
 			result.AddDetail(detail);
-		}
-		for (const auto& guid : importReport.ImportedAssetGuids) {
-			m_RuntimeCache.Invalidate(guid);
 		}
 		report.ReimportedAssets = importReport.ImportedAssets;
 		report.FailedAssets += importReport.FailedAssets;

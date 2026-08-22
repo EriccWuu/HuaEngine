@@ -133,6 +133,10 @@ namespace HE {
 		[[nodiscard]] const AssetRecord* FindRecordByGuid(const AssetGuid& guid) const;
 
 	private:
+		[[nodiscard]] ResultEnvelope LoadOrCreateManifestInternal(
+			const ProjectContext& context,
+			bool resetRuntimeCache);
+
 		AssetRegistry m_Registry;
 		AssetManifest m_Manifest;
 		AssetRuntimeCache m_RuntimeCache;
