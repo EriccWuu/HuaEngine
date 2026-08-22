@@ -25,9 +25,8 @@ namespace HE {
 		uint32_t AssetsOutsideProjectRoot = 0;
 		uint32_t MissingFileAssets = 0;
 		uint32_t BuiltinMetadataIssues = 0;
-		uint32_t MeshAssetsMissingRuntimePayload = 0;
-		uint32_t MaterialAssetsMissingRuntimePayload = 0;
-		uint32_t SourceOnlyTextureAssets = 0;
+		uint32_t FileAssetsMissingArtifacts = 0;
+		uint32_t FileAssetsWithoutImporter = 0;
 		uint32_t FallbackAssets = 0;
 
 		[[nodiscard]] bool IsOperational() const {
@@ -36,8 +35,8 @@ namespace HE {
 				AssetsOutsideProjectRoot == 0 &&
 				MissingFileAssets == 0 &&
 				BuiltinMetadataIssues == 0 &&
-				MeshAssetsMissingRuntimePayload == 0 &&
-				MaterialAssetsMissingRuntimePayload == 0;
+				FileAssetsMissingArtifacts == 0 &&
+				FileAssetsWithoutImporter == 0;
 		}
 
 		[[nodiscard]] uint32_t MetadataIssueCount() const {
@@ -45,7 +44,7 @@ namespace HE {
 		}
 
 		[[nodiscard]] uint32_t RuntimeIssueCount() const {
-			return MeshAssetsMissingRuntimePayload + MaterialAssetsMissingRuntimePayload;
+			return FileAssetsMissingArtifacts + FileAssetsWithoutImporter;
 		}
 
 		[[nodiscard]] bool HasIssues() const {
@@ -103,7 +102,7 @@ namespace HE {
 		[[nodiscard]] ResultEnvelope ResolveMeshAsset(AssetHandle handle, Ref<Rendering::Mesh>& outMesh) const;
 		[[nodiscard]] ResultEnvelope ResolveMaterialAsset(AssetHandle handle, Ref<Rendering::Material>& outMaterial) const;
 		[[nodiscard]] ResultEnvelope ResolveTextureAsset(AssetHandle handle, Ref<Rendering::TextureResource>& outTexture) const;
-		[[nodiscard]] ResultEnvelope ValidateRegistry(const ProjectContext& context, AssetValidationReport* outReport = nullptr) const;
+		[[nodiscard]] ResultEnvelope ValidateRegistry(const ProjectContext& context, AssetValidationReport* outReport = nullptr);
 
 		[[nodiscard]] const AssetRegistry& GetAssetRegistry() const { return m_Registry; }
 		[[nodiscard]] AssetRegistry& GetAssetRegistry() { return m_Registry; }

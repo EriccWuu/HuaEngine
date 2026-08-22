@@ -45,6 +45,7 @@ int main() {
 	auto resolveMesh = services.Assets().ResolveAsset("Meshes/ServicesQuad.mesh", meshRecord);
 	Require(resolveMesh.Succeeded(), "Expected ApplicationServices asset registration to expose an asset record");
 	Require(!meshRecord.Guid.empty(), "Expected ApplicationServices mesh asset record to expose a stable guid");
+	Require(services.Assets().InitializeProjectAssets(projectContext).Succeeded(), "Expected shared AssetService project initialization");
 	HE::MeshAssetRef meshReference;
 	meshReference.Reference.Guid = meshRecord.Guid;
 

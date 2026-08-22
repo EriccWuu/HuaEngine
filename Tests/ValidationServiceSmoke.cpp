@@ -73,6 +73,12 @@ int main() {
 	validationRequest.Project = &projectContext;
 	validationRequest.SceneTarget = &scene;
 	validationRequest.Assets = &assetService;
+	HE::ValidationReport missingArtifactReport;
+	auto missingArtifactValidation = validationService.Validate(validationRequest, &missingArtifactReport);
+	Require(missingArtifactValidation.RequiresManualIntervention(), "Expected registered file assets without Library artifacts to require intervention");
+	Require(missingArtifactReport.AssetStatus.FileAssetsMissingArtifacts == 2, "Expected validation to count missing mesh and material artifacts");
+	Require(missingArtifactReport.AssetStatus.RuntimeIssueCount() == 2, "Expected missing artifacts to count as runtime issues");
+	Require(assetService.InitializeProjectAssets(projectContext).Succeeded(), "Expected validation assets to initialize into Library");
 
 	HE::ValidationReport healthyReport;
 	auto healthyValidation = validationService.Validate(validationRequest, &healthyReport);

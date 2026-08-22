@@ -633,7 +633,7 @@ namespace HE {
 		return m_Registry.FindByGuid(guid);
 	}
 
-	ResultEnvelope AssetService::ValidateRegistry(const ProjectContext& context, AssetValidationReport* outReport) const {
+	ResultEnvelope AssetService::ValidateRegistry(const ProjectContext& context, AssetValidationReport* outReport) {
 		AssetValidationReport report;
 		if (!context.IsLoaded()) {
 			auto result = ResultEnvelope::Failure("asset.validate", {}, "Project context is not loaded");
@@ -654,8 +654,13 @@ namespace HE {
 			}
 			return result;
 		}
+		auto libraryResult = m_Library.Open(context);
+		if (!libraryResult.Succeeded()) {
+			libraryResult.Operation = "asset.validate";
+			if (outReport) *outReport = report;
+			return libraryResult;
+		}
 
-		AssetResolver resolver(const_cast<AssetService&>(*this));
 		m_Registry.ForEachRecord([&](const AssetRecord& record) {
 			++report.TotalAssets;
 
@@ -683,33 +688,30 @@ namespace HE {
 			if (record.Guid == BuiltinAssetGuids::FallbackMesh || record.Guid == BuiltinAssetGuids::FallbackMaterial) {
 				++report.FallbackAssets;
 			}
+			if (record.Source == AssetSource::File && !hasMetadataBlockingIssue) {
+				const auto* importer = m_ImporterRegistry.Find(record.Kind, record.RelativePath.extension().string());
+				if (!importer) {
+					++report.FileAssetsWithoutImporter;
+				}
+				else if (!m_Library.IsArtifactAvailable(
+					record.Guid,
+					record.Kind,
+					importer->GetId(),
+					importer->GetVersion(),
+					importer->GetArtifactVersion())) {
+					++report.FileAssetsMissingArtifacts;
+				}
+			}
 
 			switch (record.Kind) {
 			case AssetKind::Mesh:
 				++report.MeshAssets;
-				if (!hasMetadataBlockingIssue) {
-					Ref<Rendering::Mesh> mesh;
-					const auto resolveResult = resolver.ResolveMesh(record.Guid, mesh);
-					if (!resolveResult.Succeeded() || !mesh) {
-						++report.MeshAssetsMissingRuntimePayload;
-					}
-				}
 				break;
 			case AssetKind::Material:
 				++report.MaterialAssets;
-				if (!hasMetadataBlockingIssue) {
-					Ref<Rendering::Material> material;
-					const auto resolveResult = resolver.ResolveMaterial(record.Guid, material);
-					if (!resolveResult.Succeeded() || !material) {
-						++report.MaterialAssetsMissingRuntimePayload;
-					}
-				}
 				break;
 			case AssetKind::Texture2D:
 				++report.TextureAssets;
-				if (record.ExistsOnDisk) {
-					++report.SourceOnlyTextureAssets;
-				}
 				break;
 			case AssetKind::Unknown:
 			default:
@@ -738,9 +740,8 @@ namespace HE {
 		result.SetPayloadValue("assets_outside_project_root", CountToString(report.AssetsOutsideProjectRoot));
 		result.SetPayloadValue("missing_file_asset_count", CountToString(report.MissingFileAssets));
 		result.SetPayloadValue("builtin_metadata_issue_count", CountToString(report.BuiltinMetadataIssues));
-		result.SetPayloadValue("mesh_assets_missing_runtime_payload", CountToString(report.MeshAssetsMissingRuntimePayload));
-		result.SetPayloadValue("material_assets_missing_runtime_payload", CountToString(report.MaterialAssetsMissingRuntimePayload));
-		result.SetPayloadValue("source_only_texture_asset_count", CountToString(report.SourceOnlyTextureAssets));
+		result.SetPayloadValue("file_assets_missing_artifact_count", CountToString(report.FileAssetsMissingArtifacts));
+		result.SetPayloadValue("file_assets_without_importer_count", CountToString(report.FileAssetsWithoutImporter));
 
 		if (report.UnknownKindAssets > 0) {
 			result.AddDetail({ DiagnosticSeverity::Error, "asset.kind.unknown", "One or more asset records have an unknown asset kind", CountToString(report.UnknownKindAssets) });
@@ -757,14 +758,11 @@ namespace HE {
 		if (report.BuiltinMetadataIssues > 0) {
 			result.AddDetail({ DiagnosticSeverity::Error, "asset.builtin.invalid", "One or more builtin asset records have an illegal kind/name combination", CountToString(report.BuiltinMetadataIssues) });
 		}
-		if (report.MeshAssetsMissingRuntimePayload > 0) {
-			result.AddDetail({ DiagnosticSeverity::Warning, "asset.mesh.unloaded", "One or more mesh asset records are missing runtime mesh payloads", CountToString(report.MeshAssetsMissingRuntimePayload) });
+		if (report.FileAssetsMissingArtifacts > 0) {
+			result.AddDetail({ DiagnosticSeverity::Warning, "asset.artifact.missing", "One or more file assets are missing compatible Library artifacts", CountToString(report.FileAssetsMissingArtifacts) });
 		}
-		if (report.MaterialAssetsMissingRuntimePayload > 0) {
-			result.AddDetail({ DiagnosticSeverity::Warning, "asset.material.unloaded", "One or more material asset records are missing runtime material payloads", CountToString(report.MaterialAssetsMissingRuntimePayload) });
-		}
-		if (report.SourceOnlyTextureAssets > 0) {
-			result.AddDetail({ DiagnosticSeverity::Info, "asset.texture.source_only", "One or more texture assets currently exist as source-file-only records", CountToString(report.SourceOnlyTextureAssets) });
+		if (report.FileAssetsWithoutImporter > 0) {
+			result.AddDetail({ DiagnosticSeverity::Warning, "asset.importer.missing", "One or more file assets have no importer for their kind and extension", CountToString(report.FileAssetsWithoutImporter) });
 		}
 
 		return result;

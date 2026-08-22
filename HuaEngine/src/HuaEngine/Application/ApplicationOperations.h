@@ -21,6 +21,7 @@ namespace HE {
 	struct ProjectStatusReport;
 	struct SceneValidationReport;
 	struct AssetValidationReport;
+	struct AssetImportReport;
 	struct TransformComponent;
 	struct ValidationReport;
 
@@ -157,6 +158,9 @@ namespace HE {
 			AssetHandle* outHandle = nullptr);
 
 		[[nodiscard]] ResultEnvelope InitializeAssetManifest(const ProjectContext& context) const;
+		[[nodiscard]] ResultEnvelope InitializeProjectAssets(
+			const ProjectContext& context,
+			AssetImportReport* outReport = nullptr) const;
 		[[nodiscard]] ResultEnvelope ImportAsset(
 			const ProjectContext& context,
 			std::string_view assetId,

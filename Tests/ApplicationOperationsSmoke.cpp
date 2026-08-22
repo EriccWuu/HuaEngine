@@ -7,6 +7,9 @@
 #include <vector>
 
 #include "HuaEngine.h"
+#include "HuaEngine/Application/ApplicationServices.h"
+#include "HuaEngine/Asset/Import/AssetImportService.h"
+#include "HuaEngine/Core/ResourcePaths.h"
 
 namespace {
 	void Require(bool condition, const std::string& message) {
@@ -27,6 +30,8 @@ namespace {
 	public:
 		SmokeApplication()
 			: HE::Application(MakeApplicationSpecification()) {}
+
+		HE::ApplicationServices& Services() { return GetServices(); }
 	};
 }
 
@@ -42,6 +47,7 @@ int main() {
 	Require(operations.Supports("scene.entity.create"), "Expected scene.entity.create to be published through the operation registry");
 	Require(operations.Supports("scene.component.add"), "Expected scene.component.add to be published through the operation registry");
 	Require(operations.Supports("asset.manifest.init"), "Expected asset.manifest.init to be published");
+	Require(operations.Supports("asset.initialize"), "Expected asset.initialize to be published");
 	Require(operations.Supports("asset.import"), "Expected asset.import to be published");
 	Require(operations.Supports("asset.list"), "Expected asset.list to be published");
 	Require(operations.Supports("asset.register_mesh"), "Expected asset.register_mesh to be published through the operation registry");
@@ -65,6 +71,12 @@ int main() {
 	Require(manifestInit.Succeeded(), "Expected manifest init operation to succeed");
 	Require(manifestInit.Payload.find("manifest_path") != manifestInit.Payload.end(), "Expected manifest path payload");
 	Require(!manifestInit.Payload.at("manifest_path").empty(), "Expected manifest path payload to be non-empty");
+	HE::AssetImportReport emptyImportReport;
+	auto initializeAssets = operations.InitializeProjectAssets(projectContext, &emptyImportReport);
+	Require(initializeAssets.Succeeded(), "Expected asset.initialize to succeed through ApplicationOperations");
+	Require(initializeAssets.Operation == "asset.initialize", "Expected stable asset.initialize operation id");
+	Require(emptyImportReport.TotalFileAssets == 0, "Expected empty project asset initialization report");
+	Require(std::filesystem::is_directory(projectContext.RootPath / "Library" / "Artifacts"), "Expected project Library creation");
 
 	HE::Ref<HE::Scene> scene;
 	auto createScene = operations.CreateScene("OperationsScene", scene);
@@ -94,21 +106,26 @@ int main() {
 	Require(importMesh.Succeeded(), "Expected asset.import to succeed through ApplicationOperations");
 	Require(importMesh.Operation == "asset.import", "Expected asset.import result to preserve the stable operation id");
 	Require(!importedGuid.empty(), "Expected asset.import to return an asset guid");
+	const auto* importedMeshArtifact = application.Services().Assets().GetLibrary().Find(importedGuid);
+	Require(importedMeshArtifact != nullptr, "Expected asset.import to commit the mesh artifact");
+	Require(
+		std::filesystem::is_regular_file(application.Services().Assets().GetLibrary().GetRootPath() / importedMeshArtifact->ArtifactRelativePath),
+		"Expected asset.import mesh artifact file");
 
-	const auto texturePath = projectContext.GetAssetRootPath() / "Textures" / "SourceOnly.texture2d";
+	const auto texturePath = projectContext.GetAssetRootPath() / "Textures" / "Imported.png";
 	std::filesystem::create_directories(texturePath.parent_path(), errorCode);
 	Require(!errorCode, "Expected texture source directory creation to succeed");
-	{
-		std::ofstream textureStream(texturePath, std::ios::out | std::ios::binary);
-		textureStream << "source-only texture placeholder";
-	}
+	std::filesystem::copy_file(
+		HE::ResourcePaths::ResolveEngineResourcePath("ret.png"),
+		texturePath,
+		std::filesystem::copy_options::overwrite_existing);
 
 	HE::AssetGuid textureGuid;
-	auto importTexture = operations.ImportAsset(projectContext, "Textures/SourceOnly.texture2d", HE::AssetKind::Texture2D, &textureGuid);
-	Require(importTexture.RequiresManualIntervention(), "Expected texture asset.import to require manual intervention while loader is unsupported");
+	auto importTexture = operations.ImportAsset(projectContext, "Textures/Imported.png", HE::AssetKind::Texture2D, &textureGuid);
+	Require(importTexture.Succeeded(), "Expected PNG asset.import to commit a runtime artifact");
 	Require(importTexture.Operation == "asset.import", "Expected texture asset.import result to preserve the stable operation id");
-	Require(!textureGuid.empty(), "Expected source-only texture import to still return an asset guid");
-	Require(importTexture.Payload.find("source_only") != importTexture.Payload.end(), "Expected texture import to report source_only payload");
+	Require(!textureGuid.empty(), "Expected PNG import to return an asset guid");
+	Require(application.Services().Assets().GetLibrary().Find(textureGuid) != nullptr, "Expected PNG asset.import artifact");
 
 	HE::AssetHandle meshHandle = 0;
 	const auto registeredMeshPath = projectContext.GetAssetRootPath() / "Meshes" / "OperationsQuad.mesh";
@@ -118,6 +135,7 @@ int main() {
 	auto registerMesh = operations.RegisterMeshAsset(projectContext, "Meshes/OperationsQuad.mesh", runtimeMesh, &meshHandle);
 	Require(registerMesh.Succeeded(), "Expected asset.register_mesh to succeed through ApplicationOperations");
 	Require(meshHandle != 0, "Expected asset.register_mesh to assign a stable asset handle");
+	Require(operations.InitializeProjectAssets(projectContext).Succeeded(), "Expected newly registered mesh artifact initialization");
 
 	std::vector<HE::AssetRecord> records;
 	auto listAssets = operations.ListAssets(projectContext, records);

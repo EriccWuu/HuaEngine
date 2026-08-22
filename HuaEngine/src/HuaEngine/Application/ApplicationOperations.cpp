@@ -447,6 +447,16 @@ namespace HE {
 		return result;
 	}
 
+	ResultEnvelope ApplicationOperations::InitializeProjectAssets(
+		const ProjectContext& context,
+		AssetImportReport* outReport) const
+	{
+		auto result = m_Services->Assets().InitializeProjectAssets(context, outReport);
+		result.Operation = "asset.initialize";
+		result.SetPayloadValue("manifest_path", GetAssetManifestPath(context).generic_string());
+		return result;
+	}
+
 	ResultEnvelope ApplicationOperations::ImportAsset(
 		const ProjectContext& context,
 		std::string_view assetId,
@@ -464,17 +474,6 @@ namespace HE {
 			break;
 		case AssetKind::Texture2D:
 			result = m_Services->Assets().RegisterTextureAsset(context, assetId, nullptr, &handle);
-			if (result.Succeeded()) {
-				result.Status = OperationStatus::ManualInterventionRequired;
-				result.Summary = "Texture asset metadata imported as source-only; runtime texture loading is unsupported";
-				result.AddDetail({
-					DiagnosticSeverity::Warning,
-					"asset.texture.loader_unsupported",
-					"Texture source was registered in the manifest, but runtime texture loading is not supported in this phase",
-					std::string(assetId)
-				});
-				result.SetPayloadValue("source_only", "true");
-			}
 			break;
 		case AssetKind::Unknown:
 		default:
@@ -483,20 +482,48 @@ namespace HE {
 			return result;
 		}
 
-		result.Operation = "asset.import";
-		result.SetPayloadValue("asset_kind", std::string(ToString(kind)));
-
 		AssetRecord record;
 		if (result.Status != OperationStatus::Failure && m_Services->Assets().ResolveAsset(std::string(assetId), record).Succeeded()) {
 			result.SetPayloadValue("asset_guid", record.Guid);
 			if (outGuid) {
 				*outGuid = record.Guid;
 			}
+
+			if (result.Succeeded()) {
+				AssetImportReport importReport;
+				auto initializeResult = m_Services->Assets().InitializeProjectAssets(context, &importReport);
+				const bool initializeFailed = initializeResult.Failed();
+				if (initializeFailed) {
+					result = std::move(initializeResult);
+				}
+				const auto* importer = m_Services->Assets().GetImporterRegistry().Find(record.Kind, record.RelativePath.extension().string());
+				const bool artifactAvailable = importer && m_Services->Assets().GetLibrary().IsArtifactAvailable(
+					record.Guid,
+					record.Kind,
+					importer->GetId(),
+					importer->GetVersion(),
+					importer->GetArtifactVersion());
+				if (!initializeFailed && artifactAvailable) {
+					const auto* libraryRecord = m_Services->Assets().GetLibrary().Find(record.Guid);
+					result = ResultEnvelope::Success("asset.import", record.AssetId, "Asset registered and imported into the project Library");
+					for (auto& diagnostic : initializeResult.Details) result.AddDetail(std::move(diagnostic));
+					result.SetPayloadValue("artifact_path", (m_Services->Assets().GetLibrary().GetRootPath() / libraryRecord->ArtifactRelativePath).generic_string());
+				}
+				else if (!initializeFailed) {
+					result = ResultEnvelope::ManualIntervention("asset.import", record.AssetId, "Asset was registered but no compatible artifact was produced");
+					for (auto& diagnostic : initializeResult.Details) result.AddDetail(std::move(diagnostic));
+				}
+				result.SetPayloadValue("asset_guid", record.Guid);
+				result.SetPayloadValue("imported_asset_count", std::to_string(importReport.ImportedAssets));
+				result.SetPayloadValue("failed_asset_count", std::to_string(importReport.FailedAssets));
+			}
 		}
 		else if (outGuid) {
 			*outGuid = {};
 		}
 
+		result.Operation = "asset.import";
+		result.SetPayloadValue("asset_kind", std::string(ToString(kind)));
 		return result;
 	}
 
@@ -728,6 +755,7 @@ namespace HE {
 		m_Registry.Register({ "asset.load_material", OperationDomain::Asset, "Load and register a material asset from disk" });
 		m_Registry.Register({ "asset.register_texture", OperationDomain::Asset, "Register a texture asset into the project asset registry" });
 		m_Registry.Register({ "asset.manifest.init", OperationDomain::Asset, "Initialize the project asset manifest" });
+		m_Registry.Register({ "asset.initialize", OperationDomain::Asset, "Initialize the project asset Library and import missing artifacts" });
 		m_Registry.Register({ "asset.import", OperationDomain::Asset, "Import a single project asset into the manifest" });
 		m_Registry.Register({ "asset.list", OperationDomain::Asset, "List project manifest assets" });
 		m_Registry.Register({ "asset.resolve", OperationDomain::Asset, "Resolve an asset record by GUID, handle, or asset id" });

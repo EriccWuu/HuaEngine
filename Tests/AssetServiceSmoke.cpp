@@ -351,9 +351,15 @@ int main() {
 	Require(missingCachedMeshValidation.RequiresManualIntervention(), "Expected missing cached mesh validation to require manual intervention");
 	Require(missingCachedMeshValidationReport.MissingFileAssets == 1, "Expected missing cached mesh validation to count the missing file");
 	Require(missingCachedMeshValidationReport.MetadataIssueCount() == 1, "Expected missing cached mesh validation to report one metadata issue");
-	Require(missingCachedMeshValidationReport.RuntimeIssueCount() == 0, "Expected missing cached mesh validation to skip runtime issue counting");
+	Require(
+		missingCachedMeshValidationReport.FileAssetsMissingArtifacts == 1,
+		"Expected one missing artifact after the mesh record kind mutation, got " + std::to_string(missingCachedMeshValidationReport.FileAssetsMissingArtifacts));
+	Require(
+		missingCachedMeshValidationReport.FileAssetsWithoutImporter == 1,
+		"Expected one unsupported importer, got " + std::to_string(missingCachedMeshValidationReport.FileAssetsWithoutImporter));
+	Require(missingCachedMeshValidationReport.RuntimeIssueCount() == 2, "Expected validation to count one missing artifact and one unsupported texture importer");
 	Require(missingCachedMeshValidation.Payload.at("metadata_issue_count") == "1", "Expected missing cached mesh metadata issue payload");
-	Require(missingCachedMeshValidation.Payload.at("runtime_issue_count") == "0", "Expected missing cached mesh runtime issue payload");
+	Require(missingCachedMeshValidation.Payload.at("runtime_issue_count") == "2", "Expected missing cached mesh runtime issue payload");
 	Require(missingCachedMeshValidation.Payload.at("fallback_asset_count") == "2", "Expected fallback asset payload to remain stable");
 
 	HE::AssetService badBuiltinAssetService;
@@ -371,9 +377,10 @@ int main() {
 	Require(badBuiltinValidation.RequiresManualIntervention(), "Expected illegal builtin metadata validation to require manual intervention");
 	Require(badBuiltinValidationReport.BuiltinMetadataIssues == 1, "Expected illegal builtin metadata validation to count the bad builtin");
 	Require(badBuiltinValidationReport.MetadataIssueCount() == 1, "Expected illegal builtin metadata validation to report one metadata issue");
-	Require(badBuiltinValidationReport.RuntimeIssueCount() == 0, "Expected illegal builtin metadata validation to skip runtime issue counting");
+	Require(badBuiltinValidationReport.FileAssetsWithoutImporter == 1, "Expected unsupported texture importer to remain reported");
+	Require(badBuiltinValidationReport.RuntimeIssueCount() == 1, "Expected unsupported texture importer to remain visible beside illegal builtin metadata");
 	Require(badBuiltinValidation.Payload.at("metadata_issue_count") == "1", "Expected illegal builtin metadata issue payload");
-	Require(badBuiltinValidation.Payload.at("runtime_issue_count") == "0", "Expected illegal builtin runtime issue payload");
+	Require(badBuiltinValidation.Payload.at("runtime_issue_count") == "1", "Expected illegal builtin runtime issue payload");
 
 	HE::AssetRecord missingRecord;
 	auto missingAssetResult = assetService.ResolveAsset(static_cast<HE::AssetHandle>(9999), missingRecord);

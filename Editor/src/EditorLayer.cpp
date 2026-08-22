@@ -238,6 +238,12 @@ namespace HE {
             m_ProjectSession.Context.GetTargetId(),
             "Project session is ready");
 
+		CaptureOperationResult(Application::GetInstance().GetOperations().InitializeProjectAssets(context));
+		if (m_LastOperationResult.Failed()) {
+			CloseProjectSession(true, "Project assets failed to initialize");
+			return false;
+		}
+
         if (!InitializeWorkbenchShell()) {
             CloseProjectSession(true, "Workbench shell failed to initialize");
             return false;
