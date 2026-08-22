@@ -2,6 +2,7 @@
 #include "AssetImporterRegistry.h"
 
 #include <algorithm>
+#include <array>
 #include <cctype>
 
 namespace {
@@ -39,5 +40,19 @@ namespace HE {
 			return importer->CanImport(kind, normalizedExtension);
 		});
 		return it != m_Importers.end() ? it->get() : nullptr;
+	}
+
+	std::optional<AssetImporterMatch> AssetImporterRegistry::FindByExtension(std::string_view extension) const {
+		constexpr std::array kinds = {
+			AssetKind::Mesh,
+			AssetKind::Material,
+			AssetKind::Texture2D
+		};
+		for (const AssetKind kind : kinds) {
+			if (const AssetImporter* importer = Find(kind, extension)) {
+				return AssetImporterMatch{ kind, importer };
+			}
+		}
+		return std::nullopt;
 	}
 }

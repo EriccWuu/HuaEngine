@@ -15,6 +15,11 @@ namespace HE {
 		void StoreMesh(const AssetGuid& guid, Ref<Rendering::Mesh> mesh) { m_Meshes[guid] = std::move(mesh); }
 		void StoreMaterial(const AssetGuid& guid, Ref<Rendering::Material> material) { m_Materials[guid] = std::move(material); }
 		void StoreTexture(const AssetGuid& guid, Ref<Rendering::TextureResource> texture) { m_Textures[guid] = std::move(texture); }
+		void Invalidate(const AssetGuid& guid) {
+			m_Meshes.erase(guid);
+			m_Materials.erase(guid);
+			m_Textures.erase(guid);
+		}
 
 		[[nodiscard]] Ref<Rendering::Mesh> FindMesh(const AssetGuid& guid) const {
 			const auto it = m_Meshes.find(guid);

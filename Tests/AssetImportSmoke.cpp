@@ -32,6 +32,7 @@ namespace {
 	void TestImporterSelection() {
 		HE::AssetImporterRegistry registry;
 		Require(registry.Register(std::make_unique<HE::MeshAssetImporter>()), "Expected mesh importer registration");
+		Require(registry.Register(std::make_unique<HE::MaterialAssetImporter>()), "Expected material importer registration");
 		Require(registry.Register(std::make_unique<HE::PngTextureImporter>()), "Expected PNG importer registration");
 
 		const auto* importer = registry.Find(HE::AssetKind::Mesh, ".mesh");
@@ -41,6 +42,27 @@ namespace {
 		Require(registry.Find(HE::AssetKind::Material, ".mesh") == nullptr, "Expected kind mismatch to reject importer");
 		Require(registry.Find(HE::AssetKind::Mesh, ".obj") == nullptr, "Expected unsupported extension rejection");
 		Require(registry.Find(HE::AssetKind::Texture2D, ".PNG") != nullptr, "Expected case-insensitive PNG importer lookup");
+
+		const auto meshMatch = registry.FindByExtension(".MESH");
+		Require(meshMatch && meshMatch->Kind == HE::AssetKind::Mesh, "Expected mesh kind inference");
+		const auto pngMatch = registry.FindByExtension(".png");
+		Require(pngMatch && pngMatch->Kind == HE::AssetKind::Texture2D, "Expected texture kind inference");
+		const auto materialMatch = registry.FindByExtension(".MAT");
+		Require(materialMatch && materialMatch->Kind == HE::AssetKind::Material, "Expected material kind inference");
+		Require(!registry.FindByExtension(".obj"), "Expected unsupported extension inference rejection");
+	}
+
+	void TestRuntimeCacheInvalidation() {
+		HE::AssetRuntimeCache cache;
+		cache.StoreMesh("target-guid", HE::Rendering::Mesh::CreateQuad("TargetMesh"));
+		cache.StoreMaterial("target-guid", HE::Rendering::Material::Create("TargetMaterial"));
+		cache.StoreMesh("other-guid", HE::Rendering::Mesh::CreateQuad("OtherMesh"));
+
+		cache.Invalidate("target-guid");
+
+		Require(!cache.FindMesh("target-guid"), "Expected target mesh cache invalidation");
+		Require(!cache.FindMaterial("target-guid"), "Expected target material cache invalidation");
+		Require(cache.FindMesh("other-guid") != nullptr, "Expected unrelated cache entry preservation");
 	}
 
 	void TestMeshArtifactRoundTrip() {
@@ -338,6 +360,7 @@ int main() {
 	HE::Serialization::InitializeSerialization();
 
 	TestImporterSelection();
+	TestRuntimeCacheInvalidation();
 	TestMeshArtifactRoundTrip();
 
 	const auto smokeRoot = std::filesystem::temp_directory_path() / "HuaEngineAssetImportSmoke";
