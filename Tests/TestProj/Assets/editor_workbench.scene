@@ -7,11 +7,11 @@ entities:
       TransformComponent:
         Position:
           x: 1.5
-          y: 0.299827933
+          y: 0.466652006
           z: -3.35205245
         Rotation:
           x: 0
-          y: 0
+          y: -0
           z: 0
         Scale:
           x: 0.5
@@ -69,15 +69,15 @@ entities:
         BlendMode: Opaque
       MeshComponent:
         Mesh:
-          guid: ""
+          guid: builtin-mesh-sphere
   - uuid: 00000000000000000000000000000003
     name: Entity
     components:
       TransformComponent:
         Position:
           x: -1.66577911
-          y: 0.13816978
-          z: -2.68188334
+          y: 0.323667258
+          z: -2.41074324
         Rotation:
           x: -0.600000024
           y: -0
@@ -101,7 +101,7 @@ entities:
         BlendMode: Opaque
       MeshComponent:
         Mesh:
-          guid: Quad
+          guid: 15da0d336597b40d17f6cbf870ece1ff
   - uuid: 00000000000000000000000000000004
     name: Entity
     components:
@@ -133,7 +133,7 @@ entities:
         BlendMode: Opaque
       MeshComponent:
         Mesh:
-          guid: builtin-mesh-quad
+          guid: 15da0d336597b40d17f6cbf870ece1ff
   - uuid: 00000000000000000000000000000005
     name: Entity 1
     components:
@@ -152,7 +152,7 @@ entities:
           z: 0.999986768
       MeshComponent:
         Mesh:
-          guid: builtin-mesh-quad
+          guid: 8ca3d9fac9cb30dac433288bd3b59dfa
       MaterialComponent:
         Material:
           guid: builtin-material-default
