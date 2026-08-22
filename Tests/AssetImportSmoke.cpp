@@ -205,8 +205,8 @@ namespace {
 		Require(stream.good(), "Expected binary fixture write");
 	}
 
-	void TestPngTextureImport(const std::filesystem::path& root) {
-		const std::vector<uint8_t> pngBytes = {
+	std::vector<uint8_t> MakePngFixtureBytes() {
+		return {
 			0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 0x00, 0x00, 0x00, 0x0d, 0x49, 0x48, 0x44, 0x52,
 			0x00, 0x00, 0x00, 0x02, 0x00, 0x00, 0x00, 0x02, 0x08, 0x06, 0x00, 0x00, 0x00, 0x72, 0xb6, 0x0d, 0x24,
 			0x00, 0x00, 0x00, 0x01, 0x73, 0x52, 0x47, 0x42, 0x00, 0xae, 0xce, 0x1c, 0xe9, 0x00, 0x00, 0x00, 0x04,
@@ -216,6 +216,10 @@ namespace {
 			0x19, 0x18, 0xfe, 0xff, 0xff, 0x0f, 0x64, 0x00, 0x00, 0x47, 0xca, 0x08, 0xf8, 0x26, 0x7b, 0x18, 0x99,
 			0x00, 0x00, 0x00, 0x00, 0x49, 0x45, 0x4e, 0x44, 0xae, 0x42, 0x60, 0x82
 		};
+	}
+
+	void TestPngTextureImport(const std::filesystem::path& root) {
+		const auto pngBytes = MakePngFixtureBytes();
 		const auto pngPath = root / "Texture2x2.png";
 		WriteBinaryFile(pngPath, pngBytes);
 
@@ -395,6 +399,75 @@ namespace {
 		Require(resolvedMaterial && resolvedMaterial->GetName() == "ImportedMaterial", "Expected Library-only material payload");
 		Require(resolvedMaterial->HasParameter("u_Color"), "Expected material parameter from artifact");
 	}
+
+	void TestAssetReimportPipeline(const std::filesystem::path& root) {
+		HE::ProjectService projectService;
+		HE::ProjectContext context;
+		Require(projectService.InitializeProject(root, &context, "AssetReimportProject").Succeeded(), "Expected reimport project initialization");
+
+		const auto batchDirectory = context.GetAssetRootPath() / "ReimportBatch";
+		const auto meshPath = batchDirectory / "Batch.mesh";
+		const auto texturePath = batchDirectory / "Nested" / "Batch.png";
+		const auto unsupportedPath = batchDirectory / "Notes.txt";
+		std::filesystem::create_directories(batchDirectory);
+		Require(HE::Rendering::Mesh::SaveToFile(*HE::Rendering::Mesh::CreateQuad("BatchMesh"), meshPath.generic_string()), "Expected batch mesh fixture");
+		WriteBinaryFile(texturePath, MakePngFixtureBytes());
+		WriteTextFile(unsupportedPath, "unsupported");
+
+		HE::AssetService assetService;
+		Require(assetService.CanImportSource(meshPath), "Expected mesh source support query");
+		Require(assetService.CanImportSource(texturePath), "Expected PNG source support query");
+		Require(!assetService.CanImportSource(unsupportedPath), "Expected unsupported source query rejection");
+
+		HE::AssetReimportReport firstReport;
+		const auto firstResult = assetService.ReimportAssets(context, batchDirectory, &firstReport);
+		Require(firstResult.Succeeded(), "Expected directory reimport success");
+		Require(firstReport.ScannedFiles == 3, "Expected recursive scan count");
+		Require(firstReport.SupportedFiles == 2, "Expected supported asset count");
+		Require(firstReport.RegisteredAssets == 2, "Expected unregistered assets to be registered");
+		Require(firstReport.ReimportedAssets == 2, "Expected supported assets to be imported");
+		Require(firstReport.SkippedFiles == 1, "Expected unsupported file skip");
+
+		HE::AssetRecord meshRecord;
+		HE::AssetRecord textureRecord;
+		Require(assetService.ResolveAsset("ReimportBatch/Batch.mesh", meshRecord).Succeeded(), "Expected auto-registered mesh record");
+		Require(assetService.ResolveAsset("ReimportBatch/Nested/Batch.png", textureRecord).Succeeded(), "Expected auto-registered texture record");
+		const auto stableMeshGuid = meshRecord.Guid;
+		const auto stableTextureGuid = textureRecord.Guid;
+
+		HE::AssetReimportReport secondReport;
+		Require(assetService.ReimportAssets(context, batchDirectory, &secondReport).Succeeded(), "Expected repeated directory reimport success");
+		Require(secondReport.RegisteredAssets == 0, "Expected repeated reimport not to register assets again");
+		Require(assetService.ResolveAsset("ReimportBatch/Batch.mesh", meshRecord).Succeeded() && meshRecord.Guid == stableMeshGuid, "Expected stable mesh GUID after reimport");
+		Require(assetService.ResolveAsset("ReimportBatch/Nested/Batch.png", textureRecord).Succeeded() && textureRecord.Guid == stableTextureGuid, "Expected stable texture GUID after reimport");
+
+		HE::AssetResolver resolver(assetService);
+		HE::Ref<HE::Rendering::Mesh> firstMesh;
+		Require(resolver.ResolveMesh(stableMeshGuid, firstMesh).Succeeded() && firstMesh, "Expected imported mesh resolve");
+		Require(firstMesh->GetName() == "BatchMesh", "Expected original imported mesh name");
+		Require(HE::Rendering::Mesh::SaveToFile(*HE::Rendering::Mesh::CreateQuad("UpdatedBatchMesh"), meshPath.generic_string()), "Expected updated mesh fixture");
+
+		HE::AssetReimportReport meshReport;
+		Require(assetService.ReimportAssets(context, meshPath, &meshReport).Succeeded(), "Expected single mesh reimport success");
+		Require(meshReport.ReimportedAssets == 1, "Expected single mesh artifact update");
+		Require(!assetService.GetRuntimeCache().FindMesh(stableMeshGuid), "Expected successful reimport to invalidate runtime mesh cache");
+		HE::Ref<HE::Rendering::Mesh> updatedMesh;
+		Require(resolver.ResolveMesh(stableMeshGuid, updatedMesh).Succeeded() && updatedMesh, "Expected updated mesh resolve");
+		Require(updatedMesh->GetName() == "UpdatedBatchMesh", "Expected updated mesh artifact payload");
+
+		WriteTextFile(meshPath, "invalid mesh");
+		HE::AssetReimportReport failedReport;
+		Require(assetService.ReimportAssets(context, meshPath, &failedReport).Succeeded(), "Expected per-asset reimport failure report");
+		Require(failedReport.FailedAssets == 1, "Expected invalid mesh import failure");
+		Require(assetService.GetRuntimeCache().FindMesh(stableMeshGuid) == updatedMesh, "Expected failed reimport to preserve runtime cache");
+
+		const auto outsidePath = context.RootPath / "Outside.mesh";
+		Require(HE::Rendering::Mesh::SaveToFile(*HE::Rendering::Mesh::CreateQuad("Outside"), outsidePath.generic_string()), "Expected outside mesh fixture");
+		const auto manifestSize = assetService.GetManifest().Size();
+		Require(assetService.ReimportAssets(context, outsidePath).Failed(), "Expected path outside Assets rejection");
+		Require(assetService.GetManifest().Size() == manifestSize, "Expected outside path not to mutate manifest");
+		Require(assetService.ReimportAssets(context, unsupportedPath).RequiresManualIntervention(), "Expected unsupported single file manual intervention");
+	}
 }
 
 int main() {
@@ -413,6 +486,7 @@ int main() {
 	TestMaterialSourceAndArtifact(smokeRoot / "MaterialSource");
 	TestMaterialImportPipeline(smokeRoot / "MaterialProject");
 	TestPngTextureImport(smokeRoot / "TextureSource");
+	TestAssetReimportPipeline(smokeRoot / "ReimportProject");
 	std::filesystem::remove_all(smokeRoot, errorCode);
 	Require(!errorCode, "Expected import smoke cleanup after test");
 

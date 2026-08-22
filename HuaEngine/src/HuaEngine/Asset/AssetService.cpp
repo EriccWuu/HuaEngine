@@ -1,7 +1,9 @@
 #include "enginepch.h"
 #include "AssetService.h"
 
+#include <algorithm>
 #include <system_error>
+#include <vector>
 
 #include "AssetResolver.h"
 #include "HuaEngine/Asset/Import/MeshAssetImporter.h"
@@ -18,6 +20,12 @@ namespace {
 		std::filesystem::path RelativePath;
 		std::filesystem::path AbsolutePath;
 		bool ExistsOnDisk = false;
+	};
+
+	struct ReimportCandidate {
+		std::string AssetId;
+		std::filesystem::path RelativePath;
+		HE::AssetKind Kind = HE::AssetKind::Unknown;
 	};
 
 	std::string HandleToString(HE::AssetHandle handle) {
@@ -44,6 +52,61 @@ namespace {
 		}
 
 		return relativePath.is_absolute() || IsEscapingAssetRoot(relativePath);
+	}
+
+	int GetReimportPriority(HE::AssetKind kind) {
+		switch (kind) {
+		case HE::AssetKind::Texture2D:
+			return 0;
+		case HE::AssetKind::Mesh:
+			return 1;
+		case HE::AssetKind::Material:
+			return 2;
+		case HE::AssetKind::Unknown:
+		default:
+			return 3;
+		}
+	}
+
+	bool TryResolveReimportTarget(
+		const HE::ProjectContext& context,
+		const std::filesystem::path& targetPath,
+		std::filesystem::path& outAssetRoot,
+		std::filesystem::path& outTargetPath,
+		HE::ResultEnvelope& outError) {
+		if (!context.IsLoaded()) {
+			outError = HE::ResultEnvelope::Failure("asset.reimport", targetPath.generic_string(), "Project context is not loaded");
+			outError.AddDetail({ HE::DiagnosticSeverity::Error, "asset.project.unloaded", "Asset operations require a loaded project context", {} });
+			return false;
+		}
+		if (targetPath.empty()) {
+			outError = HE::ResultEnvelope::Failure("asset.reimport", {}, "Reimport target path is empty");
+			outError.AddDetail({ HE::DiagnosticSeverity::Error, "asset.reimport.target_empty", "Reimport requires a file or directory under the project asset root", {} });
+			return false;
+		}
+
+		std::error_code errorCode;
+		outAssetRoot = std::filesystem::weakly_canonical(context.GetAssetRootPath(), errorCode);
+		if (errorCode) {
+			outError = HE::ResultEnvelope::Failure("asset.reimport", context.GetAssetRootPath().generic_string(), "Failed to resolve project asset root");
+			outError.AddDetail({ HE::DiagnosticSeverity::Error, "asset.root.resolve_failed", errorCode.message(), context.GetAssetRootPath().generic_string() });
+			return false;
+		}
+
+		const auto candidatePath = targetPath.is_absolute() ? targetPath : outAssetRoot / targetPath;
+		outTargetPath = std::filesystem::weakly_canonical(candidatePath, errorCode);
+		if (errorCode || IsOutsideAssetRoot(outAssetRoot, outTargetPath)) {
+			outError = HE::ResultEnvelope::Failure("asset.reimport", targetPath.generic_string(), "Reimport target is outside the project asset root");
+			outError.AddDetail({ HE::DiagnosticSeverity::Error, "asset.path.outside_root", errorCode ? errorCode.message() : "Path escapes the asset root", targetPath.generic_string() });
+			return false;
+		}
+
+		if (!std::filesystem::exists(outTargetPath, errorCode) || errorCode) {
+			outError = HE::ResultEnvelope::Failure("asset.reimport", outTargetPath.generic_string(), "Reimport target does not exist");
+			outError.AddDetail({ HE::DiagnosticSeverity::Error, "asset.reimport.target_missing", errorCode ? errorCode.message() : "Target was not found", outTargetPath.generic_string() });
+			return false;
+		}
+		return true;
 	}
 
 	bool TryNormalizeAssetPath(
@@ -227,6 +290,198 @@ namespace HE {
 		result.Operation = "asset.initialize_project";
 		result.SetPayloadValue("library_path", m_Library.GetRootPath().generic_string());
 		return result;
+	}
+
+	bool AssetService::CanImportSource(const std::filesystem::path& sourcePath) const {
+		return m_ImporterRegistry.FindByExtension(sourcePath.extension().string()).has_value();
+	}
+
+	ResultEnvelope AssetService::ReimportAssets(
+		const ProjectContext& context,
+		const std::filesystem::path& targetPath,
+		AssetReimportReport* outReport) {
+		AssetReimportReport report;
+		auto publishReport = [&report, outReport](ResultEnvelope result) {
+			result.SetPayloadValue("scanned_files", CountToString(report.ScannedFiles));
+			result.SetPayloadValue("supported_files", CountToString(report.SupportedFiles));
+			result.SetPayloadValue("registered_assets", CountToString(report.RegisteredAssets));
+			result.SetPayloadValue("reimported_assets", CountToString(report.ReimportedAssets));
+			result.SetPayloadValue("skipped_files", CountToString(report.SkippedFiles));
+			result.SetPayloadValue("failed_assets", CountToString(report.FailedAssets));
+			if (outReport) {
+				*outReport = report;
+			}
+			return result;
+		};
+
+		std::filesystem::path assetRoot;
+		std::filesystem::path resolvedTarget;
+		ResultEnvelope targetError;
+		if (!TryResolveReimportTarget(context, targetPath, assetRoot, resolvedTarget, targetError)) {
+			return publishReport(std::move(targetError));
+		}
+
+		std::vector<std::filesystem::path> sourcePaths;
+		std::error_code errorCode;
+		if (std::filesystem::is_regular_file(resolvedTarget, errorCode)) {
+			sourcePaths.push_back(resolvedTarget);
+		}
+		else if (std::filesystem::is_directory(resolvedTarget, errorCode)) {
+			std::filesystem::recursive_directory_iterator iterator(
+				resolvedTarget,
+				std::filesystem::directory_options::skip_permission_denied,
+				errorCode);
+			const std::filesystem::recursive_directory_iterator end;
+			while (!errorCode && iterator != end) {
+				if (iterator->is_regular_file(errorCode) && !errorCode) {
+					sourcePaths.push_back(std::filesystem::weakly_canonical(iterator->path(), errorCode));
+				}
+				if (!errorCode) {
+					iterator.increment(errorCode);
+				}
+			}
+		}
+		else {
+			errorCode = std::make_error_code(std::errc::invalid_argument);
+		}
+		if (errorCode) {
+			auto result = ResultEnvelope::Failure("asset.reimport", resolvedTarget.generic_string(), "Failed to scan reimport target");
+			result.AddDetail({ DiagnosticSeverity::Error, "asset.reimport.scan_failed", errorCode.message(), resolvedTarget.generic_string() });
+			return publishReport(std::move(result));
+		}
+
+		std::sort(sourcePaths.begin(), sourcePaths.end(), [](const auto& left, const auto& right) {
+			return left.generic_string() < right.generic_string();
+		});
+		report.ScannedFiles = static_cast<uint32_t>(sourcePaths.size());
+
+		std::vector<ReimportCandidate> candidates;
+		for (const auto& sourcePath : sourcePaths) {
+			const auto match = m_ImporterRegistry.FindByExtension(sourcePath.extension().string());
+			if (!match) {
+				++report.SkippedFiles;
+				continue;
+			}
+
+			const auto relativePath = sourcePath.lexically_relative(assetRoot).lexically_normal();
+			if (relativePath.empty() || relativePath.is_absolute() || IsEscapingAssetRoot(relativePath)) {
+				++report.FailedAssets;
+				continue;
+			}
+			++report.SupportedFiles;
+			candidates.push_back({
+				.AssetId = relativePath.generic_string(),
+				.RelativePath = relativePath,
+				.Kind = match->Kind
+			});
+		}
+
+		const bool singleFileTarget = sourcePaths.size() == 1 && std::filesystem::is_regular_file(resolvedTarget, errorCode);
+		if (singleFileTarget && candidates.empty() && report.SkippedFiles == 1) {
+			auto result = ResultEnvelope::ManualIntervention("asset.reimport", resolvedTarget.generic_string(), "No importer supports the selected asset file");
+			result.AddDetail({ DiagnosticSeverity::Warning, "asset.reimport.unsupported", "The selected file extension has no registered importer", resolvedTarget.extension().string() });
+			return publishReport(std::move(result));
+		}
+
+		if (m_Manifest.Empty()) {
+			auto manifestResult = LoadOrCreateManifest(context);
+			if (!manifestResult.Succeeded()) {
+				manifestResult.Operation = "asset.reimport";
+				return publishReport(std::move(manifestResult));
+			}
+		}
+
+		auto result = ResultEnvelope::Success("asset.reimport", resolvedTarget.generic_string(), "Assets reimported");
+		std::vector<ReimportCandidate> importCandidates;
+		for (const auto& candidate : candidates) {
+			const auto* existingRecord = m_Manifest.FindByAssetId(candidate.AssetId);
+			const bool isNewAsset = existingRecord == nullptr;
+			if (existingRecord &&
+				(existingRecord->Guid.empty() || existingRecord->Kind != candidate.Kind || existingRecord->Source != AssetSource::File)) {
+				++report.FailedAssets;
+				result.AddDetail({
+					DiagnosticSeverity::Error,
+					"asset.reimport.metadata_conflict",
+					"Existing asset metadata does not match the source importer",
+					candidate.AssetId
+				});
+				continue;
+			}
+
+			AssetManifestRecord manifestRecord;
+			manifestRecord.Guid = existingRecord
+				? existingRecord->Guid
+				: GetExistingGuidOrGenerate(m_Registry, m_Manifest, candidate.AssetId);
+			manifestRecord.AssetId = candidate.AssetId;
+			manifestRecord.Kind = candidate.Kind;
+			manifestRecord.Source = AssetSource::File;
+			manifestRecord.RelativePath = candidate.RelativePath;
+			manifestRecord.ImportState = AssetImportState::Registered;
+			if (!m_Manifest.Upsert(manifestRecord)) {
+				++report.FailedAssets;
+				result.AddDetail({ DiagnosticSeverity::Error, "asset.reimport.manifest_conflict", "Asset manifest rejected the source record", candidate.AssetId });
+				continue;
+			}
+
+			if (m_Registry.Upsert(MakeRegistryRecord(context, manifestRecord)) == 0) {
+				++report.FailedAssets;
+				result.AddDetail({ DiagnosticSeverity::Error, "asset.reimport.registry_conflict", "Asset registry rejected the source record", candidate.AssetId });
+				continue;
+			}
+			if (isNewAsset) {
+				++report.RegisteredAssets;
+			}
+			importCandidates.push_back(candidate);
+		}
+
+		auto manifestSaveResult = SaveAssetManifest(context, m_Manifest);
+		if (!manifestSaveResult.Succeeded()) {
+			manifestSaveResult.Operation = "asset.reimport";
+			return publishReport(std::move(manifestSaveResult));
+		}
+
+		auto libraryResult = m_Library.Open(context);
+		if (!libraryResult.Succeeded()) {
+			libraryResult.Operation = "asset.reimport";
+			return publishReport(std::move(libraryResult));
+		}
+
+		std::sort(importCandidates.begin(), importCandidates.end(), [](const auto& left, const auto& right) {
+			const auto leftPriority = GetReimportPriority(left.Kind);
+			const auto rightPriority = GetReimportPriority(right.Kind);
+			return leftPriority != rightPriority
+				? leftPriority < rightPriority
+				: left.AssetId < right.AssetId;
+		});
+		std::vector<AssetGuid> importGuids;
+		importGuids.reserve(importCandidates.size());
+		for (const auto& candidate : importCandidates) {
+			if (const auto* record = m_Manifest.FindByAssetId(candidate.AssetId)) {
+				importGuids.push_back(record->Guid);
+			}
+		}
+
+		AssetImportReport importReport;
+		AssetImportService importService(m_ImporterRegistry, m_Library);
+		auto importResult = importService.ImportAssets(context, m_Manifest, importGuids, AssetImportPolicy::Force, &importReport);
+		if (!importResult.Succeeded()) {
+			importResult.Operation = "asset.reimport";
+			report.ReimportedAssets = importReport.ImportedAssets;
+			report.FailedAssets += importReport.FailedAssets;
+			return publishReport(std::move(importResult));
+		}
+		for (const auto& detail : importResult.Details) {
+			result.AddDetail(detail);
+		}
+		for (const auto& guid : importReport.ImportedAssetGuids) {
+			m_RuntimeCache.Invalidate(guid);
+		}
+		report.ReimportedAssets = importReport.ImportedAssets;
+		report.FailedAssets += importReport.FailedAssets;
+		if (report.FailedAssets > 0) {
+			result.Summary = "Asset reimport completed with per-asset failures";
+		}
+		return publishReport(std::move(result));
 	}
 
 	ResultEnvelope AssetService::LoadManifestReadOnly(const ProjectContext& context) {

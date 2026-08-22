@@ -49,6 +49,7 @@ int main() {
 	Require(operations.Supports("asset.manifest.init"), "Expected asset.manifest.init to be published");
 	Require(operations.Supports("asset.initialize"), "Expected asset.initialize to be published");
 	Require(operations.Supports("asset.import"), "Expected asset.import to be published");
+	Require(operations.Supports("asset.reimport"), "Expected asset.reimport to be published");
 	Require(operations.Supports("asset.list"), "Expected asset.list to be published");
 	Require(operations.Supports("asset.register_mesh"), "Expected asset.register_mesh to be published through the operation registry");
 	Require(operations.Supports("validation.validate"), "Expected validation.validate to be published through the operation registry");
@@ -126,6 +127,13 @@ int main() {
 	Require(importTexture.Operation == "asset.import", "Expected texture asset.import result to preserve the stable operation id");
 	Require(!textureGuid.empty(), "Expected PNG import to return an asset guid");
 	Require(application.Services().Assets().GetLibrary().Find(textureGuid) != nullptr, "Expected PNG asset.import artifact");
+	Require(operations.CanImportAssetSource(texturePath), "Expected application import capability query");
+	Require(!operations.CanImportAssetSource(texturePath.parent_path() / "Unsupported.txt"), "Expected unsupported application import capability query");
+	HE::AssetReimportReport reimportReport;
+	auto reimportTexture = operations.ReimportAssets(projectContext, texturePath, &reimportReport);
+	Require(reimportTexture.Succeeded(), "Expected asset.reimport to succeed through ApplicationOperations");
+	Require(reimportTexture.Operation == "asset.reimport", "Expected stable asset.reimport operation id");
+	Require(reimportReport.ReimportedAssets == 1, "Expected application reimport report");
 
 	HE::AssetHandle meshHandle = 0;
 	const auto registeredMeshPath = projectContext.GetAssetRootPath() / "Meshes" / "OperationsQuad.mesh";

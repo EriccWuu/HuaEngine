@@ -527,6 +527,21 @@ namespace HE {
 		return result;
 	}
 
+	bool ApplicationOperations::CanImportAssetSource(const std::filesystem::path& sourcePath) const
+	{
+		return m_Services->Assets().CanImportSource(sourcePath);
+	}
+
+	ResultEnvelope ApplicationOperations::ReimportAssets(
+		const ProjectContext& context,
+		const std::filesystem::path& targetPath,
+		AssetReimportReport* outReport) const
+	{
+		auto result = m_Services->Assets().ReimportAssets(context, targetPath, outReport);
+		result.Operation = "asset.reimport";
+		return result;
+	}
+
 	ResultEnvelope ApplicationOperations::ListAssets(
 		const ProjectContext& context,
 		std::vector<AssetRecord>& outRecords) const
@@ -757,6 +772,7 @@ namespace HE {
 		m_Registry.Register({ "asset.manifest.init", OperationDomain::Asset, "Initialize the project asset manifest" });
 		m_Registry.Register({ "asset.initialize", OperationDomain::Asset, "Initialize the project asset Library and import missing artifacts" });
 		m_Registry.Register({ "asset.import", OperationDomain::Asset, "Import a single project asset into the manifest" });
+		m_Registry.Register({ "asset.reimport", OperationDomain::Asset, "Reimport project asset files into the Library" });
 		m_Registry.Register({ "asset.list", OperationDomain::Asset, "List project manifest assets" });
 		m_Registry.Register({ "asset.resolve", OperationDomain::Asset, "Resolve an asset record by GUID, handle, or asset id" });
 		m_Registry.Register({ "asset.validate", OperationDomain::Asset, "Validate project asset registry health" });

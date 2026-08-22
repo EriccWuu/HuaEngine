@@ -22,6 +22,7 @@ namespace HE {
 	struct SceneValidationReport;
 	struct AssetValidationReport;
 	struct AssetImportReport;
+	struct AssetReimportReport;
 	struct TransformComponent;
 	struct ValidationReport;
 
@@ -166,6 +167,11 @@ namespace HE {
 			std::string_view assetId,
 			AssetKind kind,
 			AssetGuid* outGuid = nullptr) const;
+		[[nodiscard]] bool CanImportAssetSource(const std::filesystem::path& sourcePath) const;
+		[[nodiscard]] ResultEnvelope ReimportAssets(
+			const ProjectContext& context,
+			const std::filesystem::path& targetPath,
+			AssetReimportReport* outReport = nullptr) const;
 		[[nodiscard]] ResultEnvelope ListAssets(
 			const ProjectContext& context,
 			std::vector<AssetRecord>& outRecords) const;

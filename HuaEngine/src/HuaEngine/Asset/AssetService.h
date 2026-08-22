@@ -1,5 +1,6 @@
 #pragma once
 
+#include <filesystem>
 #include <string_view>
 
 #include "AssetManifest.h"
@@ -15,6 +16,15 @@
 #include "HuaEngine/Rendering/RHI/TextureResource.h"
 
 namespace HE {
+	struct AssetReimportReport {
+		uint32_t ScannedFiles = 0;
+		uint32_t SupportedFiles = 0;
+		uint32_t RegisteredAssets = 0;
+		uint32_t ReimportedAssets = 0;
+		uint32_t SkippedFiles = 0;
+		uint32_t FailedAssets = 0;
+	};
+
 	struct AssetValidationReport {
 		uint32_t TotalAssets = 0;
 		uint32_t MeshAssets = 0;
@@ -61,6 +71,11 @@ namespace HE {
 		[[nodiscard]] ResultEnvelope InitializeProjectAssets(
 			const ProjectContext& context,
 			AssetImportReport* outReport = nullptr);
+		[[nodiscard]] bool CanImportSource(const std::filesystem::path& sourcePath) const;
+		[[nodiscard]] ResultEnvelope ReimportAssets(
+			const ProjectContext& context,
+			const std::filesystem::path& targetPath,
+			AssetReimportReport* outReport = nullptr);
 
 		[[nodiscard]] ResultEnvelope CreateBuiltinMeshAsset(
 			const ProjectContext& context,
