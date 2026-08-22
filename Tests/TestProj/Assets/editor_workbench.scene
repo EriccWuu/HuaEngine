@@ -101,7 +101,7 @@ entities:
         BlendMode: Opaque
       MeshComponent:
         Mesh:
-          guid: builtin-mesh-cube
+          guid: Quad
   - uuid: 00000000000000000000000000000004
     name: Entity
     components:
