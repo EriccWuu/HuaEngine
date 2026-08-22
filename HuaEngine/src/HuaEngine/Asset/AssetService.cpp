@@ -5,6 +5,7 @@
 
 #include "AssetResolver.h"
 #include "HuaEngine/Asset/Import/MeshAssetImporter.h"
+#include "HuaEngine/Asset/Import/MaterialAssetImporter.h"
 #include "HuaEngine/Rendering/Material/MaterialLibrary.h"
 #include "HuaEngine/Rendering/Material/MaterialSerializer.h"
 #include "HuaEngine/Rendering/Mesh/MeshManager.h"
@@ -183,8 +184,9 @@ namespace {
 
 namespace HE {
 	AssetService::AssetService() {
-		const bool registered = m_ImporterRegistry.Register(std::make_unique<MeshAssetImporter>());
-		HE_CORE_ASSERT(registered, "Failed to register the mesh asset importer");
+		const bool meshRegistered = m_ImporterRegistry.Register(std::make_unique<MeshAssetImporter>());
+		const bool materialRegistered = m_ImporterRegistry.Register(std::make_unique<MaterialAssetImporter>());
+		HE_CORE_ASSERT(meshRegistered && materialRegistered, "Failed to register core asset importers");
 	}
 
 	ResultEnvelope AssetService::LoadOrCreateManifest(const ProjectContext& context) {

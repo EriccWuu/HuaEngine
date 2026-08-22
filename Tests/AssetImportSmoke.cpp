@@ -1,4 +1,5 @@
 #include <cstdlib>
+#include <algorithm>
 #include <filesystem>
 #include <fstream>
 #include <iostream>
@@ -6,12 +7,16 @@
 #include <string>
 
 #include "HuaEngine/Asset/Artifact/MeshArtifact.h"
+#include "HuaEngine/Asset/Artifact/MaterialArtifact.h"
 #include "HuaEngine/Asset/AssetResolver.h"
 #include "HuaEngine/Asset/AssetService.h"
 #include "HuaEngine/Asset/Import/AssetImporterRegistry.h"
+#include "HuaEngine/Asset/Import/MaterialAssetImporter.h"
 #include "HuaEngine/Asset/Import/MeshAssetImporter.h"
 #include "HuaEngine/Project/ProjectService.h"
 #include "HuaEngine/Rendering/Mesh/MeshCore.h"
+#include "HuaEngine/Rendering/Material/MaterialSourceData.h"
+#include "HuaEngine/Rendering/Material/MaterialSerializer.h"
 #include "HuaEngine/Serialization/Serialization.h"
 
 namespace {
@@ -115,6 +120,156 @@ namespace {
 		Require(static_cast<bool>(resolvedMesh), "Expected mesh resolved from artifact");
 		Require(resolvedMesh->GetName() == "ImportedQuad", "Expected Library-only mesh payload");
 	}
+
+	void WriteTextFile(const std::filesystem::path& path, const std::string& text) {
+		std::filesystem::create_directories(path.parent_path());
+		std::ofstream stream(path, std::ios::out | std::ios::binary | std::ios::trunc);
+		Require(stream.good(), "Expected text fixture open");
+		stream << text;
+		Require(stream.good(), "Expected text fixture write");
+	}
+
+	void TestMaterialSourceAndArtifact(const std::filesystem::path& root) {
+		const auto materialPath = root / "CpuOnly.material";
+		WriteTextFile(materialPath,
+			"name: CpuOnlyMaterial\n"
+			"material_type: Unlit\n"
+			"shader_path: ''\n"
+			"parameters:\n"
+			"  u_Int:\n"
+			"    value_type: Int\n"
+			"    value: -7\n"
+			"  u_Float:\n"
+			"    value_type: Float\n"
+			"    value: 0.5\n"
+			"  u_Vec2:\n"
+			"    value_type: Vec2\n"
+			"    value: { x: 1.0, y: 2.0 }\n"
+			"  u_Vec3:\n"
+			"    value_type: Vec3\n"
+			"    value: { x: 1.0, y: 2.0, z: 3.0 }\n"
+			"  u_Color:\n"
+			"    value_type: Vec4\n"
+			"    value: { x: 0.1, y: 0.2, z: 0.3, w: 1.0 }\n"
+			"  u_Mat3:\n"
+			"    value_type: Mat3\n"
+			"    value: [1, 0, 0, 0, 1, 0, 0, 0, 1]\n"
+			"  u_Mat4:\n"
+			"    value_type: Mat4\n"
+			"    value: [1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1]\n"
+			"  u_Indices:\n"
+			"    value_type: IntArray\n"
+			"    value: [1, -2, 3]\n"
+			"  u_Weights:\n"
+			"    value_type: FloatArray\n"
+			"    value: [0.25, 0.75]\n"
+			"  u_Texture:\n"
+			"    value_type: Texture2D\n"
+			"    value: Textures/Checker.png\n"
+			"  u_EmptyTexture:\n"
+			"    value_type: Texture2D\n"
+			"    value: ''\n"
+			"texture_slots:\n"
+			"  u_Texture: 2\n");
+
+		HE::Rendering::MaterialSourceData sourceData;
+		Require(HE::Rendering::LoadMaterialSourceData(materialPath, sourceData).Succeeded(), "Expected CPU-only material source parse");
+		Require(sourceData.Name == "CpuOnlyMaterial", "Expected material source name");
+		Require(sourceData.Type == HE::Rendering::MaterialType::Unlit, "Expected material source type");
+		Require(sourceData.Parameters.size() == 11, "Expected all supported material source parameters");
+		Require(
+			std::get<std::string>(sourceData.Parameters.at("u_Texture").Value) == "Textures/Checker.png",
+			"Expected texture source path to remain CPU data");
+		Require(sourceData.TextureSlots.at("u_Texture") == 2, "Expected material texture slot");
+
+		HE::Rendering::MaterialSourceData reordered = sourceData;
+		reordered.Parameters.clear();
+		std::vector<std::string> parameterNames;
+		parameterNames.reserve(sourceData.Parameters.size());
+		for (const auto& [name, parameter] : sourceData.Parameters) {
+			(void)parameter;
+			parameterNames.push_back(name);
+		}
+		std::sort(parameterNames.rbegin(), parameterNames.rend());
+		for (const auto& name : parameterNames) reordered.Parameters.emplace(name, sourceData.Parameters.at(name));
+
+		HE::AssetArtifact firstArtifact;
+		HE::AssetArtifact secondArtifact;
+		Require(HE::EncodeMaterialArtifact(sourceData, firstArtifact).Succeeded(), "Expected material artifact encoding");
+		Require(HE::EncodeMaterialArtifact(reordered, secondArtifact).Succeeded(), "Expected reordered material artifact encoding");
+		Require(firstArtifact.Payload == secondArtifact.Payload, "Expected deterministic material artifact encoding");
+
+		HE::Rendering::MaterialSourceData decodedData;
+		Require(HE::DecodeMaterialArtifact(firstArtifact, decodedData).Succeeded(), "Expected material artifact decoding");
+		Require(decodedData.Name == sourceData.Name, "Expected material name round-trip");
+		Require(decodedData.Parameters.size() == sourceData.Parameters.size(), "Expected material parameter count round-trip");
+		Require(std::get<int>(decodedData.Parameters.at("u_Int").Value) == -7, "Expected signed integer round-trip");
+		Require(std::get<std::string>(decodedData.Parameters.at("u_EmptyTexture").Value).empty(), "Expected empty texture round-trip");
+		Require(decodedData.TextureSlots == sourceData.TextureSlots, "Expected material slots round-trip");
+
+		HE::AssetManifest manifest;
+		const HE::AssetGuid textureGuid = "texture-guid-for-material-import";
+		Require(manifest.Upsert({
+			.Guid = textureGuid,
+			.AssetId = "Textures/Checker.png",
+			.Kind = HE::AssetKind::Texture2D,
+			.Source = HE::AssetSource::File,
+			.RelativePath = "Textures/Checker.png",
+			.ImportState = HE::AssetImportState::Registered
+		}), "Expected texture manifest fixture");
+		const HE::AssetManifestRecord materialRecord{
+			.Guid = "material-guid-for-import",
+			.AssetId = "CpuOnly.material",
+			.Kind = HE::AssetKind::Material,
+			.Source = HE::AssetSource::File,
+			.RelativePath = "CpuOnly.material",
+			.ImportState = HE::AssetImportState::Registered
+		};
+		const HE::ProjectContext projectContext{ .RootPath = root };
+		const HE::MaterialAssetImporter importer;
+		const auto importResult = importer.Import({ projectContext, materialRecord, materialPath, &manifest });
+		Require(importResult.Success, "Expected material importer success");
+		Require(importResult.Artifact.Dependencies == std::vector<HE::AssetGuid>{ textureGuid }, "Expected material texture dependency");
+		HE::Rendering::MaterialSourceData importedData;
+		Require(HE::DecodeMaterialArtifact(importResult.Artifact, importedData).Succeeded(), "Expected imported material decode");
+		Require(
+			std::get<std::string>(importedData.Parameters.at("u_Texture").Value) == textureGuid,
+			"Expected material texture reference converted to guid");
+	}
+
+	void TestMaterialImportPipeline(const std::filesystem::path& root) {
+		HE::ProjectService projectService;
+		HE::ProjectContext context;
+		Require(projectService.InitializeProject(root, &context, "MaterialImportProject").Succeeded(), "Expected material import project initialization");
+
+		auto sourceMaterial = HE::Rendering::Material::Create("ImportedMaterial", HE::Rendering::MaterialType::Unlit);
+		sourceMaterial->AddParameter({ "u_Color", HE::Rendering::MaterialParameterType::Vec4, glm::vec4(0.2f, 0.4f, 0.6f, 1.0f) });
+		sourceMaterial->AddParameter({ "u_Roughness", HE::Rendering::MaterialParameterType::Float, 0.35f });
+		const auto materialPath = context.GetAssetRootPath() / "Materials" / "ImportedMaterial.material";
+		std::filesystem::create_directories(materialPath.parent_path());
+		Require(HE::Serialization::SaveMaterial(*sourceMaterial, materialPath.generic_string()), "Expected material source save");
+
+		HE::AssetService assetService;
+		HE::AssetHandle materialHandle = 0;
+		Require(assetService.LoadMaterialAsset(context, "Materials/ImportedMaterial.material", &materialHandle).Succeeded(), "Expected material source registration");
+
+		HE::AssetImportReport report;
+		Require(assetService.InitializeProjectAssets(context, &report).Succeeded(), "Expected material project asset initialization");
+		Require(report.ImportedAssets == 1 && report.FailedAssets == 0, "Expected material artifact import");
+
+		HE::AssetRecord record;
+		Require(assetService.ResolveAsset("Materials/ImportedMaterial.material", record).Succeeded(), "Expected imported material record");
+		const auto* libraryRecord = assetService.GetLibrary().Find(record.Guid);
+		Require(libraryRecord && libraryRecord->Kind == HE::AssetKind::Material, "Expected material library record");
+
+		std::filesystem::remove(materialPath);
+		assetService.GetRuntimeCache() = HE::AssetRuntimeCache();
+		HE::AssetResolver resolver(assetService);
+		HE::Ref<HE::Rendering::Material> resolvedMaterial;
+		Require(resolver.ResolveMaterial(record.Guid, resolvedMaterial).Succeeded(), "Expected material resolve from Library after source removal");
+		Require(resolvedMaterial && resolvedMaterial->GetName() == "ImportedMaterial", "Expected Library-only material payload");
+		Require(resolvedMaterial->HasParameter("u_Color"), "Expected material parameter from artifact");
+	}
 }
 
 int main() {
@@ -129,6 +284,8 @@ int main() {
 	std::filesystem::remove_all(smokeRoot, errorCode);
 	Require(!errorCode, "Expected import smoke cleanup before test");
 	TestMeshImportPipeline(smokeRoot / "Project");
+	TestMaterialSourceAndArtifact(smokeRoot / "MaterialSource");
+	TestMaterialImportPipeline(smokeRoot / "MaterialProject");
 	std::filesystem::remove_all(smokeRoot, errorCode);
 	Require(!errorCode, "Expected import smoke cleanup after test");
 

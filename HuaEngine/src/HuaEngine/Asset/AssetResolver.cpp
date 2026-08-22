@@ -2,6 +2,7 @@
 #include "AssetResolver.h"
 
 #include "HuaEngine/Asset/Artifact/MeshArtifact.h"
+#include "HuaEngine/Asset/Artifact/MaterialArtifact.h"
 
 #include "AssetService.h"
 #include "HuaEngine/Rendering/Material/MaterialLibrary.h"
@@ -265,10 +266,43 @@ namespace HE {
 			});
 		}
 		else if (record->Source == AssetSource::File) {
-			material = Rendering::Material::CreateFromDeserialization();
-			if (!material || !Serialization::LoadMaterial(record->AbsolutePath.generic_string(), *material)) {
-				material = nullptr;
+			AssetArtifact artifact;
+			auto readResult = m_Service->GetLibrary().ReadArtifact(guid, artifact);
+			if (!readResult.Succeeded()) {
+				auto result = ResultEnvelope::ManualIntervention("asset.resolve_material", guid, "Material artifact is unavailable");
+				result.AddDetail({ DiagnosticSeverity::Warning, "asset.material.artifact_unavailable", readResult.Summary, record->AssetId });
+				return result;
 			}
+
+			Rendering::MaterialSourceData sourceData;
+			auto decodeResult = DecodeMaterialArtifact(artifact, sourceData);
+			if (!decodeResult.Succeeded()) {
+				auto result = ResultEnvelope::ManualIntervention("asset.resolve_material", guid, "Material artifact could not be decoded");
+				result.AddDetail({ DiagnosticSeverity::Warning, "asset.material.artifact_decode_failed", decodeResult.Summary, record->AssetId });
+				return result;
+			}
+
+			material = Rendering::Material::Create(sourceData.Name, sourceData.Type);
+			if (!sourceData.ShaderPath.empty()) {
+				auto shader = Rendering::ShaderProgramLoader::CreateFromFile(sourceData.ShaderPath);
+				material->SetShaderProgram(shader, sourceData.ShaderPath);
+			}
+			for (const auto& [name, sourceParameter] : sourceData.Parameters) {
+				Rendering::MaterialParameterValue value;
+				if (sourceParameter.Type == Rendering::MaterialParameterType::Texture2D) {
+					value = Ref<Rendering::TextureResource>();
+				}
+				else {
+					std::visit([&](const auto& sourceValue) {
+						using ValueType = std::decay_t<decltype(sourceValue)>;
+						if constexpr (!std::is_same_v<ValueType, std::string>) value = sourceValue;
+					}, sourceParameter.Value);
+				}
+				material->AddParameter({ name, sourceParameter.Type, std::move(value) });
+			}
+			for (const auto& [name, slot] : sourceData.TextureSlots) material->SetTextureSlot(name, slot);
+			Rendering::MaterialLibrary::Instance().RegisterMaterial(record->AssetId, material);
+			if (material->GetName() != record->AssetId) Rendering::MaterialLibrary::Instance().RegisterMaterial(material->GetName(), material);
 		}
 
 		if (!material) {
