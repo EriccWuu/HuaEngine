@@ -3,9 +3,11 @@
 
 #include "HuaEngine/Asset/Artifact/MeshArtifact.h"
 #include "HuaEngine/Asset/Artifact/MaterialArtifact.h"
+#include "HuaEngine/Asset/Artifact/TextureArtifact.h"
 
 #include "AssetService.h"
 #include "HuaEngine/Rendering/Material/MaterialLibrary.h"
+#include "HuaEngine/Rendering/RHI/RenderHardwareInterface.h"
 #include "HuaEngine/Rendering/RHI/ShaderProgramLoader.h"
 #include "HuaEngine/Serialization/Serialization.h"
 #include "glad/glad.h"
@@ -254,6 +256,7 @@ namespace HE {
 		}
 
 		Ref<Rendering::Material> material = nullptr;
+		std::vector<DiagnosticEntry> materialDiagnostics;
 		if (record->Source == AssetSource::Builtin) {
 			material = CreateBuiltinMaterial(AssetManifestRecord{
 				.Guid = record->Guid,
@@ -290,7 +293,20 @@ namespace HE {
 			for (const auto& [name, sourceParameter] : sourceData.Parameters) {
 				Rendering::MaterialParameterValue value;
 				if (sourceParameter.Type == Rendering::MaterialParameterType::Texture2D) {
-					value = Ref<Rendering::TextureResource>();
+					Ref<Rendering::TextureResource> texture;
+					const auto& textureGuid = std::get<std::string>(sourceParameter.Value);
+					if (!textureGuid.empty()) {
+						auto textureResult = ResolveTexture(textureGuid, texture);
+						if (!textureResult.Succeeded()) {
+							materialDiagnostics.push_back({
+								DiagnosticSeverity::Warning,
+								"asset.material.texture_unresolved",
+								textureResult.Summary,
+								textureGuid
+							});
+						}
+					}
+					value = std::move(texture);
 				}
 				else {
 					std::visit([&](const auto& sourceValue) {
@@ -313,7 +329,9 @@ namespace HE {
 
 		m_Service->GetRuntimeCache().StoreMaterial(guid, material);
 		outMaterial = material;
-		return ResultEnvelope::Success("asset.resolve_material", guid, "Material asset resolved");
+		auto result = ResultEnvelope::Success("asset.resolve_material", guid, "Material asset resolved");
+		for (auto& diagnostic : materialDiagnostics) result.AddDetail(std::move(diagnostic));
+		return result;
 	}
 
 	ResultEnvelope AssetResolver::ResolveTexture(const AssetGuid& guid, Ref<Rendering::TextureResource>& outTexture) {
@@ -343,9 +361,40 @@ namespace HE {
 		}
 
 		if (record->Source == AssetSource::File) {
-			auto result = ResultEnvelope::ManualIntervention("asset.resolve_texture", guid, "Texture file loader is not supported by AssetResolver");
-			result.AddDetail({ DiagnosticSeverity::Warning, "asset.texture.loader_unsupported", "Texture metadata was found, but source=file loading is not enabled in this resolver path", record->AssetId });
-			return result;
+			AssetArtifact artifact;
+			auto readResult = m_Service->GetLibrary().ReadArtifact(guid, artifact);
+			if (!readResult.Succeeded()) {
+				auto result = ResultEnvelope::ManualIntervention("asset.resolve_texture", guid, "Texture artifact is unavailable");
+				result.AddDetail({ DiagnosticSeverity::Warning, "asset.texture.artifact_unavailable", readResult.Summary, record->AssetId });
+				return result;
+			}
+
+			TextureArtifactData textureData;
+			auto decodeResult = DecodeTextureArtifact(artifact, textureData);
+			if (!decodeResult.Succeeded()) {
+				auto result = ResultEnvelope::ManualIntervention("asset.resolve_texture", guid, "Texture artifact could not be decoded");
+				result.AddDetail({ DiagnosticSeverity::Warning, "asset.texture.artifact_decode_failed", decodeResult.Summary, record->AssetId });
+				return result;
+			}
+
+			auto& device = Rendering::RenderHardwareInterface::GetDevice();
+			auto texture = device.CreateTexture({
+				.Width = textureData.Width,
+				.Height = textureData.Height,
+				.Format = Rendering::RenderTargetTextureFormat::RGBA8,
+				.Usage = Rendering::TextureUsageSampled | Rendering::TextureUsageCopyDst,
+				.MipLevels = textureData.MipLevels,
+				.Samples = 1
+			});
+			if (!texture || !device.UploadTexture({ .Texture = texture, .MipLevel = 0, .Data = std::move(textureData.Pixels) })) {
+				auto result = ResultEnvelope::ManualIntervention("asset.resolve_texture", guid, "Texture artifact could not be uploaded");
+				result.AddDetail({ DiagnosticSeverity::Warning, "asset.texture.upload_failed", "RenderDevice rejected the texture description or pixel payload", record->AssetId });
+				return result;
+			}
+
+			m_Service->GetRuntimeCache().StoreTexture(guid, texture);
+			outTexture = texture;
+			return ResultEnvelope::Success("asset.resolve_texture", guid, "Texture asset resolved");
 		}
 		if (record->Source == AssetSource::Builtin) {
 			auto result = ResultEnvelope::ManualIntervention("asset.resolve_texture", guid, "Builtin texture loading is not supported by AssetResolver");

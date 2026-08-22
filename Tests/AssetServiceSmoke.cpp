@@ -299,9 +299,9 @@ int main() {
 
 	HE::Ref<HE::TextureResource> unresolvedTexture;
 	auto resolveTextureResult = assetService.ResolveTextureAsset(textureHandle, unresolvedTexture);
-	Require(resolveTextureResult.RequiresManualIntervention(), "Expected metadata-only texture registration to require manual intervention for runtime resolve");
-	Require(!resolveTextureResult.Details.empty(), "Expected source-only texture resolve to include diagnostics");
-	Require(resolveTextureResult.Details.front().Code == "asset.texture.loader_unsupported", "Expected source-only texture resolve to report unsupported loader");
+	Require(resolveTextureResult.RequiresManualIntervention(), "Expected texture without an artifact to require manual intervention for runtime resolve");
+	Require(!resolveTextureResult.Details.empty(), "Expected missing texture artifact resolve to include diagnostics");
+	Require(resolveTextureResult.Details.front().Code == "asset.texture.artifact_unavailable", "Expected missing texture artifact diagnostic");
 
 	assetService.GetRuntimeCache().StoreTexture(textureRecord.Guid, HE::CreateRef<FakeTextureResource>());
 	HE::Ref<HE::TextureResource> cachedTexture;

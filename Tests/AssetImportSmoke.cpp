@@ -8,11 +8,13 @@
 
 #include "HuaEngine/Asset/Artifact/MeshArtifact.h"
 #include "HuaEngine/Asset/Artifact/MaterialArtifact.h"
+#include "HuaEngine/Asset/Artifact/TextureArtifact.h"
 #include "HuaEngine/Asset/AssetResolver.h"
 #include "HuaEngine/Asset/AssetService.h"
 #include "HuaEngine/Asset/Import/AssetImporterRegistry.h"
 #include "HuaEngine/Asset/Import/MaterialAssetImporter.h"
 #include "HuaEngine/Asset/Import/MeshAssetImporter.h"
+#include "HuaEngine/Asset/Import/PngTextureImporter.h"
 #include "HuaEngine/Project/ProjectService.h"
 #include "HuaEngine/Rendering/Mesh/MeshCore.h"
 #include "HuaEngine/Rendering/Material/MaterialSourceData.h"
@@ -30,6 +32,7 @@ namespace {
 	void TestImporterSelection() {
 		HE::AssetImporterRegistry registry;
 		Require(registry.Register(std::make_unique<HE::MeshAssetImporter>()), "Expected mesh importer registration");
+		Require(registry.Register(std::make_unique<HE::PngTextureImporter>()), "Expected PNG importer registration");
 
 		const auto* importer = registry.Find(HE::AssetKind::Mesh, ".mesh");
 		Require(importer != nullptr, "Expected mesh importer lookup");
@@ -37,6 +40,7 @@ namespace {
 		Require(registry.Find(HE::AssetKind::Mesh, ".MESH") == importer, "Expected case-insensitive extension lookup");
 		Require(registry.Find(HE::AssetKind::Material, ".mesh") == nullptr, "Expected kind mismatch to reject importer");
 		Require(registry.Find(HE::AssetKind::Mesh, ".obj") == nullptr, "Expected unsupported extension rejection");
+		Require(registry.Find(HE::AssetKind::Texture2D, ".PNG") != nullptr, "Expected case-insensitive PNG importer lookup");
 	}
 
 	void TestMeshArtifactRoundTrip() {
@@ -127,6 +131,63 @@ namespace {
 		Require(stream.good(), "Expected text fixture open");
 		stream << text;
 		Require(stream.good(), "Expected text fixture write");
+	}
+
+	void WriteBinaryFile(const std::filesystem::path& path, const std::vector<uint8_t>& data) {
+		std::filesystem::create_directories(path.parent_path());
+		std::ofstream stream(path, std::ios::out | std::ios::binary | std::ios::trunc);
+		Require(stream.good(), "Expected binary fixture open");
+		stream.write(reinterpret_cast<const char*>(data.data()), static_cast<std::streamsize>(data.size()));
+		Require(stream.good(), "Expected binary fixture write");
+	}
+
+	void TestPngTextureImport(const std::filesystem::path& root) {
+		const std::vector<uint8_t> pngBytes = {
+			0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 0x00, 0x00, 0x00, 0x0d, 0x49, 0x48, 0x44, 0x52,
+			0x00, 0x00, 0x00, 0x02, 0x00, 0x00, 0x00, 0x02, 0x08, 0x06, 0x00, 0x00, 0x00, 0x72, 0xb6, 0x0d, 0x24,
+			0x00, 0x00, 0x00, 0x01, 0x73, 0x52, 0x47, 0x42, 0x00, 0xae, 0xce, 0x1c, 0xe9, 0x00, 0x00, 0x00, 0x04,
+			0x67, 0x41, 0x4d, 0x41, 0x00, 0x00, 0xb1, 0x8f, 0x0b, 0xfc, 0x61, 0x05, 0x00, 0x00, 0x00, 0x09,
+			0x70, 0x48, 0x59, 0x73, 0x00, 0x00, 0x0e, 0xc3, 0x00, 0x00, 0x0e, 0xc3, 0x01, 0xc7, 0x6f, 0xa8, 0x64,
+			0x00, 0x00, 0x00, 0x16, 0x49, 0x44, 0x41, 0x54, 0x18, 0x57, 0x63, 0xf8, 0xcf, 0xc0, 0xf0, 0x1f, 0x0c,
+			0x19, 0x18, 0xfe, 0xff, 0xff, 0x0f, 0x64, 0x00, 0x00, 0x47, 0xca, 0x08, 0xf8, 0x26, 0x7b, 0x18, 0x99,
+			0x00, 0x00, 0x00, 0x00, 0x49, 0x45, 0x4e, 0x44, 0xae, 0x42, 0x60, 0x82
+		};
+		const auto pngPath = root / "Texture2x2.png";
+		WriteBinaryFile(pngPath, pngBytes);
+
+		const HE::ProjectContext projectContext{ .RootPath = root };
+		const HE::AssetManifestRecord textureRecord{
+			.Guid = "texture-guid-for-png-import",
+			.AssetId = "Texture2x2.png",
+			.Kind = HE::AssetKind::Texture2D,
+			.Source = HE::AssetSource::File,
+			.RelativePath = "Texture2x2.png",
+			.ImportState = HE::AssetImportState::Registered
+		};
+		const HE::PngTextureImporter importer;
+		Require(importer.CanImport(HE::AssetKind::Texture2D, ".png"), "Expected PNG importer selection");
+		Require(!importer.CanImport(HE::AssetKind::Texture2D, ".jpg"), "Expected JPG importer rejection");
+		Require(!importer.CanImport(HE::AssetKind::Mesh, ".png"), "Expected non-texture PNG rejection");
+
+		const auto importResult = importer.Import({ projectContext, textureRecord, pngPath, nullptr });
+		Require(importResult.Success, "Expected 2x2 PNG import");
+		HE::TextureArtifactData textureData;
+		Require(HE::DecodeTextureArtifact(importResult.Artifact, textureData).Succeeded(), "Expected texture artifact decode");
+		Require(textureData.Width == 2 && textureData.Height == 2, "Expected PNG dimensions");
+		Require(textureData.Format == HE::TextureArtifactFormat::RGBA8, "Expected forced RGBA8 texture format");
+		Require(textureData.MipLevels == 1, "Expected one imported mip");
+		const std::vector<uint8_t> expectedFlippedPixels = {
+			0, 0, 255, 255, 255, 255, 0, 255,
+			255, 0, 0, 255, 0, 255, 0, 255
+		};
+		Require(textureData.Pixels == expectedFlippedPixels, "Expected importer-owned vertical flip");
+
+		const auto invalidPath = root / "Invalid.png";
+		WriteBinaryFile(invalidPath, { 0x89, 0x50, 0x4e, 0x47 });
+		auto invalidRecord = textureRecord;
+		invalidRecord.AssetId = "Invalid.png";
+		invalidRecord.RelativePath = "Invalid.png";
+		Require(!importer.Import({ projectContext, invalidRecord, invalidPath, nullptr }).Success, "Expected invalid PNG rejection");
 	}
 
 	void TestMaterialSourceAndArtifact(const std::filesystem::path& root) {
@@ -286,6 +347,7 @@ int main() {
 	TestMeshImportPipeline(smokeRoot / "Project");
 	TestMaterialSourceAndArtifact(smokeRoot / "MaterialSource");
 	TestMaterialImportPipeline(smokeRoot / "MaterialProject");
+	TestPngTextureImport(smokeRoot / "TextureSource");
 	std::filesystem::remove_all(smokeRoot, errorCode);
 	Require(!errorCode, "Expected import smoke cleanup after test");
 

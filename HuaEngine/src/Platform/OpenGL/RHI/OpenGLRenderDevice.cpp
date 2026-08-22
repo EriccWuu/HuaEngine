@@ -859,12 +859,19 @@ namespace HE::Rendering {
 	OpenGLTextureResource::OpenGLTextureResource(const TextureDesc& desc)
 		: m_Desc(desc) {
 		if (!m_Desc.SourcePath.empty()) {
-			stbi_set_flip_vertically_on_load(true);
 			int width = 0;
 			int height = 0;
 			int channels = 0;
 			stbi_uc* data = stbi_load(m_Desc.SourcePath.c_str(), &width, &height, &channels, 4);
 			HE_CORE_ASSERT(data, "Failed to load image data");
+			const size_t rowBytes = static_cast<size_t>(width) * 4;
+			for (int topRow = 0; topRow < height / 2; ++topRow) {
+				const int bottomRow = height - topRow - 1;
+				std::swap_ranges(
+					data + static_cast<size_t>(topRow) * rowBytes,
+					data + static_cast<size_t>(topRow + 1) * rowBytes,
+					data + static_cast<size_t>(bottomRow) * rowBytes);
+			}
 
 			m_Width = static_cast<uint32_t>(width);
 			m_Height = static_cast<uint32_t>(height);

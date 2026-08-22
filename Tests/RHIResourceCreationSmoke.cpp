@@ -1,10 +1,16 @@
 #include <cstdlib>
+#include <filesystem>
+#include <fstream>
 #include <iostream>
 #include <string>
 #include <vector>
 
 #include "HuaEngine.h"
+#include "HuaEngine/Asset/Artifact/TextureArtifact.h"
+#include "HuaEngine/Asset/AssetResolver.h"
+#include "HuaEngine/Asset/AssetService.h"
 #include "HuaEngine/Core/ResourcePaths.h"
+#include "HuaEngine/Project/ProjectService.h"
 #include "HuaEngine/Rendering/RenderGraph/RenderGraphBuilder.h"
 #include "HuaEngine/Rendering/RHI/CommandList.h"
 #include "HuaEngine/Rendering/RHI/ResourceBarrier.h"
@@ -234,6 +240,85 @@ int main() {
 	Require(device.ReadbackTexture(emptyTexture, 0, textureReadbackData), "Expected texture readback to succeed");
 	Require(textureReadbackData == textureUploadData, "Expected texture readback data to match upload");
 	Require(!device.UploadTexture({ .Texture = emptyTexture, .Data = { 1, 2, 3 } }), "Expected invalid texture upload size to fail");
+
+	const auto textureProjectRoot = std::filesystem::temp_directory_path() / "HuaEngineTextureResolverSmoke";
+	std::error_code textureError;
+	std::filesystem::remove_all(textureProjectRoot, textureError);
+	Require(!textureError, "Expected texture project cleanup before test");
+	HE::ProjectService projectService;
+	HE::ProjectContext textureProject;
+	Require(projectService.InitializeProject(textureProjectRoot, &textureProject, "TextureResolverProject").Succeeded(), "Expected texture project initialization");
+	const auto importedTexturePath = textureProject.GetAssetRootPath() / "Textures" / "Imported.png";
+	std::filesystem::create_directories(importedTexturePath.parent_path());
+	std::filesystem::copy_file(texturePath, importedTexturePath, std::filesystem::copy_options::overwrite_existing);
+
+	HE::AssetService textureAssetService;
+	HE::AssetHandle importedTextureHandle = 0;
+	Require(
+		textureAssetService.RegisterTextureAsset(textureProject, "Textures/Imported.png", nullptr, &importedTextureHandle).Succeeded(),
+		"Expected texture source registration");
+	HE::AssetImportReport textureImportReport;
+	Require(textureAssetService.InitializeProjectAssets(textureProject, &textureImportReport).Succeeded(), "Expected texture asset initialization");
+	Require(textureImportReport.ImportedAssets == 1 && textureImportReport.FailedAssets == 0, "Expected PNG artifact import");
+
+	HE::AssetRecord importedTextureRecord;
+	Require(textureAssetService.ResolveAsset(importedTextureHandle, importedTextureRecord).Succeeded(), "Expected imported texture record");
+	HE::AssetArtifact importedTextureArtifact;
+	Require(textureAssetService.GetLibrary().ReadArtifact(importedTextureRecord.Guid, importedTextureArtifact).Succeeded(), "Expected imported texture artifact");
+	HE::TextureArtifactData importedTextureData;
+	Require(HE::DecodeTextureArtifact(importedTextureArtifact, importedTextureData).Succeeded(), "Expected imported texture artifact decode");
+	std::filesystem::remove(importedTexturePath, textureError);
+	Require(!textureError, "Expected imported texture source removal");
+
+	HE::AssetResolver textureResolver(textureAssetService);
+	HE::Ref<HE::Rendering::TextureResource> resolvedTexture;
+	Require(textureResolver.ResolveTexture(importedTextureRecord.Guid, resolvedTexture).Succeeded(), "Expected texture resolve from Library");
+	Require(resolvedTexture && resolvedTexture->GetWidth() == importedTextureData.Width, "Expected resolved texture dimensions");
+	Require(resolvedTexture->GetDesc().SourcePath.empty(), "Expected resolved texture not to retain a source file path");
+	std::vector<uint8_t> resolvedTexturePixels;
+	Require(device.ReadbackTexture(resolvedTexture, 0, resolvedTexturePixels), "Expected resolved texture readback");
+	Require(resolvedTexturePixels == importedTextureData.Pixels, "Expected resolved texture upload to match artifact pixels");
+	HE::Ref<HE::Rendering::TextureResource> cachedResolvedTexture;
+	Require(textureResolver.ResolveTexture(importedTextureRecord.Guid, cachedResolvedTexture).Succeeded(), "Expected cached texture resolve");
+	Require(cachedResolvedTexture == resolvedTexture, "Expected texture runtime cache identity");
+
+	const auto importedMaterialPath = textureProject.GetAssetRootPath() / "Materials" / "ImportedTextured.material";
+	std::filesystem::create_directories(importedMaterialPath.parent_path());
+	std::ofstream materialStream(importedMaterialPath, std::ios::out | std::ios::binary | std::ios::trunc);
+	Require(materialStream.good(), "Expected textured material source open");
+	materialStream <<
+		"name: ImportedTexturedMaterial\n"
+		"material_type: Unlit\n"
+		"shader_path: ''\n"
+		"parameters:\n"
+		"  u_Texture:\n"
+		"    value_type: Texture2D\n"
+		"    value: Textures/Imported.png\n"
+		"texture_slots:\n"
+		"  u_Texture: 0\n";
+	materialStream.close();
+	Require(materialStream.good(), "Expected textured material source write");
+
+	HE::AssetHandle importedMaterialHandle = 0;
+	Require(
+		textureAssetService.LoadMaterialAsset(textureProject, "Materials/ImportedTextured.material", &importedMaterialHandle).Succeeded(),
+		"Expected textured material source registration");
+	HE::AssetImportReport materialImportReport;
+	Require(textureAssetService.InitializeProjectAssets(textureProject, &materialImportReport).Succeeded(), "Expected textured material import");
+	Require(materialImportReport.ImportedAssets == 1 && materialImportReport.FailedAssets == 0, "Expected material artifact import beside skipped texture");
+	textureAssetService.GetRuntimeCache() = HE::AssetRuntimeCache();
+	HE::AssetRecord importedMaterialRecord;
+	Require(textureAssetService.ResolveAsset(importedMaterialHandle, importedMaterialRecord).Succeeded(), "Expected imported material record");
+	HE::Ref<HE::Rendering::Material> resolvedTexturedMaterial;
+	Require(textureResolver.ResolveMaterial(importedMaterialRecord.Guid, resolvedTexturedMaterial).Succeeded(), "Expected textured material resolve from Library");
+	const auto* resolvedTextureParameter = resolvedTexturedMaterial->GetParameter("u_Texture");
+	Require(resolvedTextureParameter != nullptr, "Expected resolved material texture parameter");
+	Require(
+		static_cast<bool>(std::get<HE::Ref<HE::Rendering::TextureResource>>(resolvedTextureParameter->Value)),
+		"Expected material texture GUID resolved to an RHI texture");
+	std::filesystem::remove_all(textureProjectRoot, textureError);
+	Require(!textureError, "Expected texture project cleanup after test");
+
 	Require(!device.CreateTexture({}), "Expected empty texture description to fail");
 	Require(!device.CreateTexture({
 		.Width = 32,
