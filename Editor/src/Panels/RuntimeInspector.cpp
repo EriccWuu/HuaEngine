@@ -26,6 +26,20 @@ namespace HE::Editor {
 			return field.DisplayName.empty() ? field.Name.data() : field.DisplayName.data();
 		}
 
+		bool BeginRuntimeFieldTable(const char* id) {
+			const float availableWidth = ImGui::GetContentRegionAvail().x;
+			const float labelWidth = std::clamp(availableWidth * 0.28f, 72.0f, 112.0f);
+			const ImGuiTableFlags flags = ImGuiTableFlags_SizingStretchProp |
+				ImGuiTableFlags_NoSavedSettings |
+				ImGuiTableFlags_NoPadOuterX;
+			if (!ImGui::BeginTable(id, 2, flags)) {
+				return false;
+			}
+			ImGui::TableSetupColumn("Field", ImGuiTableColumnFlags_WidthFixed, labelWidth);
+			ImGui::TableSetupColumn("Value", ImGuiTableColumnFlags_WidthStretch);
+			return true;
+		}
+
 		ImGuiDataType ScalarTypeForSignedField(const Refl::RuntimeFieldDescriptor& field) {
 			switch (field.Size) {
 				case sizeof(int8_t):
@@ -54,15 +68,15 @@ namespace HE::Editor {
 			}
 		}
 
-		bool DrawRuntimeEnumField(const Refl::RuntimeFieldDescriptor& field, void* component, const char* label) {
+		bool DrawRuntimeEnumField(const Refl::RuntimeFieldDescriptor& field, void* component) {
 			if (field.EnumType == nullptr) {
-				ImGui::TextDisabled("%s: enum metadata unavailable", label);
+				ImGui::TextDisabled("Enum metadata unavailable");
 				return false;
 			}
 
 			int64_t currentValue = 0;
 			if (!Refl::GetRuntimeEnumFieldValue(field, component, currentValue)) {
-				ImGui::TextDisabled("%s: enum value unavailable", label);
+				ImGui::TextDisabled("Enum value unavailable");
 				return false;
 			}
 
@@ -73,7 +87,7 @@ namespace HE::Editor {
 				: "<unknown>";
 
 			bool changed = false;
-			if (ImGui::BeginCombo(label, preview)) {
+			if (ImGui::BeginCombo("##Value", preview)) {
 				for (const Refl::RuntimeEnumValueDescriptor& value : field.EnumType->Values) {
 					const bool selected = value.Value == currentValue;
 					const char* itemLabel = value.DisplayName.empty() ? value.Name.data() : value.DisplayName.data();
@@ -118,31 +132,14 @@ namespace HE::Editor {
 
 		bool DrawAssetRefField(
 			AssetGuid& guid,
-			const char* label,
 			AssetKind kind,
 			std::span<const AssetPickerOption> options) {
 			const AssetPickerPreview preview = GetAssetPickerPreview(options, guid);
 			bool changed = false;
-			bool comboHovered = false;
-			const ImGuiTableFlags tableFlags = ImGuiTableFlags_SizingStretchProp |
-				ImGuiTableFlags_NoSavedSettings |
-				ImGuiTableFlags_NoPadOuterX;
-			if (!ImGui::BeginTable("##AssetRefProperty", 2, tableFlags)) {
-				return false;
-			}
-
-			const float labelWidth = (std::max)(72.0f, ImGui::CalcTextSize(label).x + 12.0f);
-			ImGui::TableSetupColumn("Label", ImGuiTableColumnFlags_WidthFixed, labelWidth);
-			ImGui::TableSetupColumn("Value", ImGuiTableColumnFlags_WidthStretch);
-			ImGui::TableNextRow();
-			ImGui::TableSetColumnIndex(0);
-			ImGui::AlignTextToFramePadding();
-			ImGui::TextUnformatted(label);
-			ImGui::TableSetColumnIndex(1);
 			const float pickerWidth = (std::min)(240.0f, ImGui::GetContentRegionAvail().x);
 			ImGui::SetNextItemWidth(pickerWidth);
 			const bool comboOpen = ImGui::BeginCombo("##AssetValue", preview.DisplayName.c_str(), ImGuiComboFlags_HeightLarge);
-			comboHovered = ImGui::IsItemHovered();
+			const bool comboHovered = ImGui::IsItemHovered();
 			if (comboOpen) {
 				static std::array<char, 128> searchBuffer{};
 				if (ImGui::IsWindowAppearing()) {
@@ -187,7 +184,6 @@ namespace HE::Editor {
 				}
 				ImGui::EndCombo();
 			}
-			ImGui::EndTable();
 
 			if (comboHovered) {
 				if (preview.Missing) {
@@ -203,28 +199,103 @@ namespace HE::Editor {
 		bool DrawRuntimeAssetRefField(
 			const Refl::RuntimeFieldDescriptor& field,
 			void* value,
-			const char* label,
 			RuntimeInspectorContext context) {
 			AssetGuid* guid = GetAssetRefGuid(field, value);
 			if (guid == nullptr) {
-				ImGui::TextDisabled("%s: unsupported asset ref %.*s", label, static_cast<int>(field.Type.size()), field.Type.data());
+				ImGui::TextDisabled("Unsupported asset ref: %.*s", static_cast<int>(field.Type.size()), field.Type.data());
 				return false;
 			}
 			if (field.Type == "MeshAssetRef" || field.Type == "MaterialAssetRef") {
 				const AssetKind kind = field.Type == "MeshAssetRef" ? AssetKind::Mesh : AssetKind::Material;
-				return DrawAssetRefField(*guid, label, kind, context.GetAssetOptions(kind));
+				return DrawAssetRefField(*guid, kind, context.GetAssetOptions(kind));
 			}
 
 			std::array<char, 256> editedGuid{};
 			const size_t copyLength = std::min(guid->size(), editedGuid.size() - 1);
 			std::memcpy(editedGuid.data(), guid->data(), copyLength);
 			const bool changed = ImGui::InputText(
-				label,
+				"##Value",
 				editedGuid.data(),
 				editedGuid.size());
 			if (changed) {
 				*guid = editedGuid.data();
 			}
+			return changed;
+		}
+
+		bool DrawRuntimeFieldEditorRow(
+			const Refl::RuntimeFieldDescriptor& field,
+			void* component,
+			RuntimeInspectorContext context) {
+			ImGui::TableNextRow();
+			ImGui::TableSetColumnIndex(0);
+			ImGui::AlignTextToFramePadding();
+			ImGui::TextUnformatted(FieldLabel(field));
+			ImGui::TableSetColumnIndex(1);
+
+			if (component == nullptr || field.GetMutable == nullptr) {
+				ImGui::TextDisabled("Unavailable");
+				return false;
+			}
+
+			void* value = field.GetMutable(component);
+			if (value == nullptr) {
+				ImGui::TextDisabled("Unavailable");
+				return false;
+			}
+
+			ImGui::PushID(field.Name.data());
+			ImGui::SetNextItemWidth(-1.0f);
+			bool changed = false;
+			switch (Refl::GetRuntimeFieldValueKind(field)) {
+			case Refl::RuntimeFieldValueKind::Bool:
+				changed = ImGui::Checkbox("##Value", static_cast<bool*>(value));
+				break;
+			case Refl::RuntimeFieldValueKind::SignedInteger:
+				changed = ImGui::DragScalar("##Value", ScalarTypeForSignedField(field), value, 1.0f);
+				break;
+			case Refl::RuntimeFieldValueKind::UnsignedInteger:
+				changed = ImGui::DragScalar("##Value", ScalarTypeForUnsignedField(field), value, 1.0f);
+				break;
+			case Refl::RuntimeFieldValueKind::Float:
+				changed = ImGui::DragFloat("##Value", static_cast<float*>(value), 0.1f);
+				break;
+			case Refl::RuntimeFieldValueKind::Double:
+				changed = ImGui::DragScalar("##Value", ImGuiDataType_Double, value, 0.1f);
+				break;
+			case Refl::RuntimeFieldValueKind::String: {
+				auto& text = *static_cast<std::string*>(value);
+				changed = ImGui::InputText(
+					"##Value",
+					text.data(),
+					text.capacity() + 1,
+					ImGuiInputTextFlags_CallbackResize,
+					&ResizeStringInputCallback,
+					&text);
+				break;
+			}
+			case Refl::RuntimeFieldValueKind::Float2:
+				changed = ImGui::DragFloat2("##Value", static_cast<float*>(value), 0.1f);
+				break;
+			case Refl::RuntimeFieldValueKind::Float3:
+				changed = ImGui::DragFloat3("##Value", static_cast<float*>(value), 0.1f);
+				break;
+			case Refl::RuntimeFieldValueKind::Float4:
+				changed = ImGui::DragFloat4("##Value", static_cast<float*>(value), 0.1f);
+				break;
+			case Refl::RuntimeFieldValueKind::Enum:
+				changed = DrawRuntimeEnumField(field, component);
+				break;
+			case Refl::RuntimeFieldValueKind::AssetRef:
+				changed = DrawRuntimeAssetRefField(field, value, context);
+				break;
+			case Refl::RuntimeFieldValueKind::Unsupported:
+			case Refl::RuntimeFieldValueKind::Object:
+			default:
+				ImGui::TextDisabled("Unsupported: %.*s", static_cast<int>(field.Type.size()), field.Type.data());
+				break;
+			}
+			ImGui::PopID();
 			return changed;
 		}
 	}
@@ -262,68 +333,13 @@ namespace HE::Editor {
 		const Refl::RuntimeFieldDescriptor& field,
 		void* component,
 		RuntimeInspectorContext context) {
-		if (component == nullptr || field.GetMutable == nullptr) {
-			ImGui::TextDisabled("%s: unavailable", FieldLabel(field));
-			return false;
-		}
-
-		void* value = field.GetMutable(component);
-		if (value == nullptr) {
-			ImGui::TextDisabled("%s: unavailable", FieldLabel(field));
-			return false;
-		}
-
 		ImGui::PushID(field.Name.data());
-		bool changed = false;
-		const char* label = FieldLabel(field);
-		switch (Refl::GetRuntimeFieldValueKind(field)) {
-			case Refl::RuntimeFieldValueKind::Bool:
-				changed = ImGui::Checkbox(label, static_cast<bool*>(value));
-				break;
-			case Refl::RuntimeFieldValueKind::SignedInteger:
-				changed = ImGui::DragScalar(label, ScalarTypeForSignedField(field), value, 1.0f);
-				break;
-			case Refl::RuntimeFieldValueKind::UnsignedInteger:
-				changed = ImGui::DragScalar(label, ScalarTypeForUnsignedField(field), value, 1.0f);
-				break;
-			case Refl::RuntimeFieldValueKind::Float:
-				changed = ImGui::DragFloat(label, static_cast<float*>(value), 0.1f);
-				break;
-			case Refl::RuntimeFieldValueKind::Double:
-				changed = ImGui::DragScalar(label, ImGuiDataType_Double, value, 0.1f);
-				break;
-			case Refl::RuntimeFieldValueKind::String: {
-				auto& text = *static_cast<std::string*>(value);
-				changed = ImGui::InputText(
-					label,
-					text.data(),
-					text.capacity() + 1,
-					ImGuiInputTextFlags_CallbackResize,
-					&ResizeStringInputCallback,
-					&text);
-				break;
-			}
-			case Refl::RuntimeFieldValueKind::Float2:
-				changed = ImGui::DragFloat2(label, static_cast<float*>(value), 0.1f);
-				break;
-			case Refl::RuntimeFieldValueKind::Float3:
-				changed = ImGui::DragFloat3(label, static_cast<float*>(value), 0.1f);
-				break;
-			case Refl::RuntimeFieldValueKind::Float4:
-				changed = ImGui::DragFloat4(label, static_cast<float*>(value), 0.1f);
-				break;
-			case Refl::RuntimeFieldValueKind::Enum:
-				changed = DrawRuntimeEnumField(field, component, label);
-				break;
-			case Refl::RuntimeFieldValueKind::AssetRef:
-				changed = DrawRuntimeAssetRefField(field, value, label, context);
-				break;
-			case Refl::RuntimeFieldValueKind::Unsupported:
-			case Refl::RuntimeFieldValueKind::Object:
-			default:
-				ImGui::TextDisabled("%s: unsupported %.*s", label, static_cast<int>(field.Type.size()), field.Type.data());
-				break;
+		if (!BeginRuntimeFieldTable("##RuntimeField")) {
+			ImGui::PopID();
+			return false;
 		}
+		const bool changed = DrawRuntimeFieldEditorRow(field, component, context);
+		ImGui::EndTable();
 		ImGui::PopID();
 		return changed;
 	}
@@ -341,10 +357,15 @@ namespace HE::Editor {
 			return (*editor)(type, component);
 		}
 
+		if (!BeginRuntimeFieldTable("##RuntimeFields")) {
+			return false;
+		}
+
 		bool changed = false;
 		for (const Refl::RuntimeFieldDescriptor& field : type.Fields) {
-			changed |= DrawRuntimeFieldEditor(field, component, context);
+			changed |= DrawRuntimeFieldEditorRow(field, component, context);
 		}
+		ImGui::EndTable();
 		return changed;
 	}
 }

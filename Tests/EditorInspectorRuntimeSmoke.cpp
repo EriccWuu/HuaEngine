@@ -128,6 +128,16 @@ int main() {
 		runtimeInspectorSource.find("field.Type == \"MeshAssetRef\" || field.Type == \"MaterialAssetRef\"") != std::string::npos,
 		"Expected both mesh and material refs to use the shared picker");
 	Require(
+		runtimeInspectorSource.find("DrawRuntimeFieldEditorRow") != std::string::npos,
+		"Expected all reflected fields to use one property-row implementation");
+	Require(
+		runtimeInspectorSource.find("BeginRuntimeFieldTable(\"##RuntimeFields\")") != std::string::npos,
+		"Expected each component to share one aligned field table");
+	Require(
+		runtimeInspectorSource.find("TableSetColumnIndex(0)") != std::string::npos &&
+			runtimeInspectorSource.find("TableSetColumnIndex(1)") != std::string::npos,
+		"Expected field labels before values in separate table columns");
+	Require(
 		runtimeInspectorSource.find("case Refl::RuntimeFieldValueKind::AssetRef") != std::string::npos,
 		"Expected RuntimeInspector AssetRef switch case");
 	Require(
