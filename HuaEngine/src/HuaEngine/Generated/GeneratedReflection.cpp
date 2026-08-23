@@ -37,6 +37,10 @@ static constexpr ReflectedEnumInfo ReflectedEnums[] = {
 static constexpr ReflectedFieldInfo Type0Fields[] = {
     {"Primary", "bool"},
     {"FixedAspectRatio", "bool"},
+    {"VerticalFovDegrees", "float"},
+    {"NearClip", "float"},
+    {"FarClip", "float"},
+    {"AspectRatio", "float"},
 };
 
 static constexpr ReflectedFieldInfo Type1Fields[] = {
@@ -126,6 +130,122 @@ static bool Deserialize_HE__Rendering__CameraComponent_FixedAspectRatio(
         return false;
     }
     component.FixedAspectRatio = fieldValue;
+    return true;
+}
+
+static const void* GetConst_HE__Rendering__CameraComponent_VerticalFovDegrees(const void* object) {
+    return &static_cast<const HE::Rendering::CameraComponent*>(object)->VerticalFovDegrees;
+}
+
+static void* GetMutable_HE__Rendering__CameraComponent_VerticalFovDegrees(void* object) {
+    return &static_cast<HE::Rendering::CameraComponent*>(object)->VerticalFovDegrees;
+}
+
+static void Serialize_HE__Rendering__CameraComponent_VerticalFovDegrees(
+    Serialization::SerializationBackend& backend,
+    const std::string& name,
+    const void* object) {
+    const auto& component = *static_cast<const HE::Rendering::CameraComponent*>(object);
+    Serialization::SerializeValue(backend, name, component.VerticalFovDegrees);
+}
+
+static bool Deserialize_HE__Rendering__CameraComponent_VerticalFovDegrees(
+    Serialization::SerializationBackend& backend,
+    const std::string& name,
+    void* object) {
+    auto& component = *static_cast<HE::Rendering::CameraComponent*>(object);
+    auto fieldValue = component.VerticalFovDegrees;
+    if (!Serialization::DeserializeValue(backend, name, fieldValue)) {
+        return false;
+    }
+    component.VerticalFovDegrees = fieldValue;
+    return true;
+}
+
+static const void* GetConst_HE__Rendering__CameraComponent_NearClip(const void* object) {
+    return &static_cast<const HE::Rendering::CameraComponent*>(object)->NearClip;
+}
+
+static void* GetMutable_HE__Rendering__CameraComponent_NearClip(void* object) {
+    return &static_cast<HE::Rendering::CameraComponent*>(object)->NearClip;
+}
+
+static void Serialize_HE__Rendering__CameraComponent_NearClip(
+    Serialization::SerializationBackend& backend,
+    const std::string& name,
+    const void* object) {
+    const auto& component = *static_cast<const HE::Rendering::CameraComponent*>(object);
+    Serialization::SerializeValue(backend, name, component.NearClip);
+}
+
+static bool Deserialize_HE__Rendering__CameraComponent_NearClip(
+    Serialization::SerializationBackend& backend,
+    const std::string& name,
+    void* object) {
+    auto& component = *static_cast<HE::Rendering::CameraComponent*>(object);
+    auto fieldValue = component.NearClip;
+    if (!Serialization::DeserializeValue(backend, name, fieldValue)) {
+        return false;
+    }
+    component.NearClip = fieldValue;
+    return true;
+}
+
+static const void* GetConst_HE__Rendering__CameraComponent_FarClip(const void* object) {
+    return &static_cast<const HE::Rendering::CameraComponent*>(object)->FarClip;
+}
+
+static void* GetMutable_HE__Rendering__CameraComponent_FarClip(void* object) {
+    return &static_cast<HE::Rendering::CameraComponent*>(object)->FarClip;
+}
+
+static void Serialize_HE__Rendering__CameraComponent_FarClip(
+    Serialization::SerializationBackend& backend,
+    const std::string& name,
+    const void* object) {
+    const auto& component = *static_cast<const HE::Rendering::CameraComponent*>(object);
+    Serialization::SerializeValue(backend, name, component.FarClip);
+}
+
+static bool Deserialize_HE__Rendering__CameraComponent_FarClip(
+    Serialization::SerializationBackend& backend,
+    const std::string& name,
+    void* object) {
+    auto& component = *static_cast<HE::Rendering::CameraComponent*>(object);
+    auto fieldValue = component.FarClip;
+    if (!Serialization::DeserializeValue(backend, name, fieldValue)) {
+        return false;
+    }
+    component.FarClip = fieldValue;
+    return true;
+}
+
+static const void* GetConst_HE__Rendering__CameraComponent_AspectRatio(const void* object) {
+    return &static_cast<const HE::Rendering::CameraComponent*>(object)->AspectRatio;
+}
+
+static void* GetMutable_HE__Rendering__CameraComponent_AspectRatio(void* object) {
+    return &static_cast<HE::Rendering::CameraComponent*>(object)->AspectRatio;
+}
+
+static void Serialize_HE__Rendering__CameraComponent_AspectRatio(
+    Serialization::SerializationBackend& backend,
+    const std::string& name,
+    const void* object) {
+    const auto& component = *static_cast<const HE::Rendering::CameraComponent*>(object);
+    Serialization::SerializeValue(backend, name, component.AspectRatio);
+}
+
+static bool Deserialize_HE__Rendering__CameraComponent_AspectRatio(
+    Serialization::SerializationBackend& backend,
+    const std::string& name,
+    void* object) {
+    auto& component = *static_cast<HE::Rendering::CameraComponent*>(object);
+    auto fieldValue = component.AspectRatio;
+    if (!Serialization::DeserializeValue(backend, name, fieldValue)) {
+        return false;
+    }
+    component.AspectRatio = fieldValue;
     return true;
 }
 
@@ -390,6 +510,10 @@ static bool Deserialize_HE__TransformComponent_Scale(
 static constexpr Refl::RuntimeFieldDescriptor RuntimeType0Fields[] = {
     {"Primary", "bool", "", "", offsetof(HE::Rendering::CameraComponent, Primary), sizeof(static_cast<HE::Rendering::CameraComponent*>(nullptr)->Primary), Refl::RuntimeFieldFlags::Serializable | Refl::RuntimeFieldFlags::ComponentField | Refl::RuntimeFieldFlags::Editable, &GetConst_HE__Rendering__CameraComponent_Primary, &GetMutable_HE__Rendering__CameraComponent_Primary, &Serialize_HE__Rendering__CameraComponent_Primary, &Deserialize_HE__Rendering__CameraComponent_Primary, nullptr},
     {"FixedAspectRatio", "bool", "", "", offsetof(HE::Rendering::CameraComponent, FixedAspectRatio), sizeof(static_cast<HE::Rendering::CameraComponent*>(nullptr)->FixedAspectRatio), Refl::RuntimeFieldFlags::Serializable | Refl::RuntimeFieldFlags::ComponentField | Refl::RuntimeFieldFlags::Editable, &GetConst_HE__Rendering__CameraComponent_FixedAspectRatio, &GetMutable_HE__Rendering__CameraComponent_FixedAspectRatio, &Serialize_HE__Rendering__CameraComponent_FixedAspectRatio, &Deserialize_HE__Rendering__CameraComponent_FixedAspectRatio, nullptr},
+    {"VerticalFovDegrees", "float", "", "", offsetof(HE::Rendering::CameraComponent, VerticalFovDegrees), sizeof(static_cast<HE::Rendering::CameraComponent*>(nullptr)->VerticalFovDegrees), Refl::RuntimeFieldFlags::Serializable | Refl::RuntimeFieldFlags::ComponentField | Refl::RuntimeFieldFlags::Editable, &GetConst_HE__Rendering__CameraComponent_VerticalFovDegrees, &GetMutable_HE__Rendering__CameraComponent_VerticalFovDegrees, &Serialize_HE__Rendering__CameraComponent_VerticalFovDegrees, &Deserialize_HE__Rendering__CameraComponent_VerticalFovDegrees, nullptr},
+    {"NearClip", "float", "", "", offsetof(HE::Rendering::CameraComponent, NearClip), sizeof(static_cast<HE::Rendering::CameraComponent*>(nullptr)->NearClip), Refl::RuntimeFieldFlags::Serializable | Refl::RuntimeFieldFlags::ComponentField | Refl::RuntimeFieldFlags::Editable, &GetConst_HE__Rendering__CameraComponent_NearClip, &GetMutable_HE__Rendering__CameraComponent_NearClip, &Serialize_HE__Rendering__CameraComponent_NearClip, &Deserialize_HE__Rendering__CameraComponent_NearClip, nullptr},
+    {"FarClip", "float", "", "", offsetof(HE::Rendering::CameraComponent, FarClip), sizeof(static_cast<HE::Rendering::CameraComponent*>(nullptr)->FarClip), Refl::RuntimeFieldFlags::Serializable | Refl::RuntimeFieldFlags::ComponentField | Refl::RuntimeFieldFlags::Editable, &GetConst_HE__Rendering__CameraComponent_FarClip, &GetMutable_HE__Rendering__CameraComponent_FarClip, &Serialize_HE__Rendering__CameraComponent_FarClip, &Deserialize_HE__Rendering__CameraComponent_FarClip, nullptr},
+    {"AspectRatio", "float", "", "", offsetof(HE::Rendering::CameraComponent, AspectRatio), sizeof(static_cast<HE::Rendering::CameraComponent*>(nullptr)->AspectRatio), Refl::RuntimeFieldFlags::Serializable | Refl::RuntimeFieldFlags::ComponentField | Refl::RuntimeFieldFlags::Editable, &GetConst_HE__Rendering__CameraComponent_AspectRatio, &GetMutable_HE__Rendering__CameraComponent_AspectRatio, &Serialize_HE__Rendering__CameraComponent_AspectRatio, &Deserialize_HE__Rendering__CameraComponent_AspectRatio, nullptr},
 };
 
 static constexpr Refl::RuntimeFieldDescriptor RuntimeType1Fields[] = {

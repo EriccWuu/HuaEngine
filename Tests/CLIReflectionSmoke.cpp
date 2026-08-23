@@ -243,7 +243,7 @@ namespace {
 			workingDirectory);
 
 		Expect(result.ExitCode == 0, std::string(command) + " should exit with code 0\n" + result.Output);
-		ExpectResultEnvelope(result.Output, operation, "5", "1", command);
+		ExpectResultEnvelope(result.Output, operation, "4", "1", command);
 	}
 
 	void ExpectReflectionResult(
