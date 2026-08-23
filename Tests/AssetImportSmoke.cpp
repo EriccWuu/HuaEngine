@@ -119,7 +119,12 @@ namespace {
 		Require(firstReport.TotalBuiltinAssets == 6, "Expected six builtin assets in import report");
 		Require(firstReport.ImportedAssets == 7, "Expected first initialization to import project and builtin assets");
 		Require(firstReport.SkippedAssets == 0, "Expected first initialization not to skip mesh");
-		Require(assetService.GetLibrary().Find(HE::BuiltinAssetGuids::QuadMesh) != nullptr, "Expected builtin quad artifact");
+		const auto* builtinQuadRecord = assetService.GetLibrary().Find(HE::BuiltinAssetGuids::QuadMesh);
+		Require(builtinQuadRecord != nullptr, "Expected builtin quad artifact");
+		Require(builtinQuadRecord->ImporterId == "hua.mesh-obj", "Expected builtin quad to use the OBJ importer");
+		const auto* builtinQuadManifestRecord = assetService.GetManifest().FindByGuid(HE::BuiltinAssetGuids::QuadMesh);
+		Require(builtinQuadManifestRecord != nullptr, "Expected builtin quad manifest record");
+		Require(builtinQuadManifestRecord->RelativePath == std::filesystem::path("Meshes/Quad.obj"), "Expected builtin quad OBJ source path");
 		Require(assetService.GetLibrary().Find(HE::BuiltinAssetGuids::CubeMesh) != nullptr, "Expected builtin cube artifact");
 		Require(assetService.GetLibrary().Find(HE::BuiltinAssetGuids::SphereMesh) != nullptr, "Expected builtin sphere artifact");
 		Require(assetService.GetLibrary().Find(HE::BuiltinAssetGuids::FallbackMesh) != nullptr, "Expected builtin fallback mesh artifact");

@@ -6,7 +6,7 @@
       "asset_id": "builtin/mesh/quad",
       "kind": "mesh",
       "source": "builtin",
-      "relative_path": "Meshes/Quad.mesh",
+      "relative_path": "Meshes/Quad.obj",
       "builtin_name": "quad",
       "import_state": "builtin"
     },

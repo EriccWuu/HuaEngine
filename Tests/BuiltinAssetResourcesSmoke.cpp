@@ -18,7 +18,7 @@ int main() {
 	const auto builtinRoot = HE::ResourcePaths::GetEngineResourceRoot() / "BuiltinAssets";
 	const std::array requiredFiles = {
 		std::filesystem::path("manifest.json"),
-		std::filesystem::path("Meshes/Quad.mesh"),
+		std::filesystem::path("Meshes/Quad.obj"),
 		std::filesystem::path("Meshes/Cube.mesh"),
 		std::filesystem::path("Meshes/Sphere.mesh"),
 		std::filesystem::path("Meshes/Fallback.mesh"),
