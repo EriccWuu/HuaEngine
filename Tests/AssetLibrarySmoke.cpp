@@ -8,6 +8,7 @@
 #include "HuaEngine/Asset/Library/AssetArtifactIO.h"
 #include "HuaEngine/Asset/Library/AssetBinaryIO.h"
 #include "HuaEngine/Asset/Library/AssetLibrary.h"
+#include "HuaEngine/Asset/Import/AssetSourceHash.h"
 #include "HuaEngine/Project/ProjectContext.h"
 
 namespace {
@@ -84,7 +85,25 @@ namespace {
 		Require(stream.good(), "Expected binary file write to succeed");
 	}
 
+	void TestSourceContentHash(const std::filesystem::path& root) {
+		const auto sourcePath = root / "hash-source.bin";
+		WriteFileBytes(sourcePath, { 'a', 'b', 'c' });
+
+		std::string sourceHash;
+		Require(HE::ComputeAssetSourceHash(sourcePath, sourceHash).Succeeded(), "Expected source content hash computation");
+		Require(
+			sourceHash == "ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad",
+			"Expected standard SHA-256 digest");
+
+		WriteFileBytes(sourcePath, std::vector<uint8_t>(1'000'000, 'a'));
+		Require(HE::ComputeAssetSourceHash(sourcePath, sourceHash).Succeeded(), "Expected chunked source content hash computation");
+		Require(
+			sourceHash == "cdc76e5c9914fb9281a1c7e284d73e67f1809a48a497200e046d39ccc7112cd0",
+			"Expected standard chunked SHA-256 digest");
+	}
+
 	void TestArtifactCommitAndCatalogRoundTrip(const std::filesystem::path& root) {
+		constexpr std::string_view SourceHash = "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef";
 		const auto context = MakeProjectContext(root);
 		HE::AssetLibrary library;
 		Require(library.Open(context).Succeeded(), "Expected empty asset library to open");
@@ -96,16 +115,19 @@ namespace {
 		artifact.Payload = { 9, 8, 7, 6 };
 		artifact.Dependencies = { "texture-guid" };
 
-		Require(library.CommitArtifact("mesh-guid", "hua.mesh-yaml", 2, artifact).Succeeded(), "Expected artifact commit to succeed");
+		Require(library.CommitArtifact("mesh-guid", "hua.mesh-yaml", 2, SourceHash, artifact).Succeeded(), "Expected artifact commit to succeed");
 		Require(library.Save().Succeeded(), "Expected asset library catalog save to succeed");
 
 		const auto* record = library.Find("mesh-guid");
 		Require(record != nullptr, "Expected committed library record");
 		Require(record->Kind == HE::AssetKind::Mesh, "Expected committed mesh kind");
 		Require(record->ImporterId == "hua.mesh-yaml", "Expected importer id persistence");
+		Require(record->SourceContentHash == SourceHash, "Expected source content hash persistence");
 		Require(record->Dependencies == artifact.Dependencies, "Expected dependency persistence");
 		Require(library.FindDependents("texture-guid") == std::vector<HE::AssetGuid>{ "mesh-guid" }, "Expected reverse dependency lookup");
 		Require(library.IsArtifactAvailable("mesh-guid", HE::AssetKind::Mesh, "hua.mesh-yaml", 2, 3), "Expected compatible artifact availability");
+		Require(library.IsArtifactCurrent("mesh-guid", HE::AssetKind::Mesh, "hua.mesh-yaml", 2, 3, SourceHash), "Expected matching source hash to be current");
+		Require(!library.IsArtifactCurrent("mesh-guid", HE::AssetKind::Mesh, "hua.mesh-yaml", 2, 3, "abcdef0123456789abcdef0123456789abcdef0123456789abcdef0123456789"), "Expected changed source hash to be stale");
 		Require(!library.IsArtifactAvailable("mesh-guid", HE::AssetKind::Material, "hua.mesh-yaml", 2, 3), "Expected kind mismatch rejection");
 		Require(!library.IsArtifactAvailable("mesh-guid", HE::AssetKind::Mesh, "hua.mesh-yaml", 9, 3), "Expected importer version mismatch rejection");
 		Require(!library.IsArtifactAvailable("mesh-guid", HE::AssetKind::Mesh, "hua.mesh-yaml", 2, 9), "Expected artifact version mismatch rejection");
@@ -119,6 +141,7 @@ namespace {
 		HE::AssetLibrary reopened;
 		Require(reopened.Open(context).Succeeded(), "Expected saved asset library to reopen");
 		Require(reopened.IsArtifactAvailable("mesh-guid", HE::AssetKind::Mesh, "hua.mesh-yaml", 2, 3), "Expected reopened artifact availability");
+		Require(reopened.IsArtifactCurrent("mesh-guid", HE::AssetKind::Mesh, "hua.mesh-yaml", 2, 3, SourceHash), "Expected reopened source hash to remain current");
 
 		const auto reopenedRecord = reopened.Find("mesh-guid");
 		Require(reopenedRecord != nullptr, "Expected reopened record");
@@ -126,13 +149,54 @@ namespace {
 		std::filesystem::remove(artifactPath);
 		Require(!reopened.IsArtifactAvailable("mesh-guid", HE::AssetKind::Mesh, "hua.mesh-yaml", 2, 3), "Expected missing artifact rejection");
 
-		Require(reopened.CommitArtifact("mesh-guid", "hua.mesh-yaml", 2, artifact).Succeeded(), "Expected missing artifact recreation");
+		Require(reopened.CommitArtifact("mesh-guid", "hua.mesh-yaml", 2, SourceHash, artifact).Succeeded(), "Expected missing artifact recreation");
 		std::fstream corruptStream(artifactPath, std::ios::in | std::ios::out | std::ios::binary);
 		Require(corruptStream.good(), "Expected artifact corruption stream");
 		const char badMagic = 'X';
 		corruptStream.write(&badMagic, 1);
 		corruptStream.close();
 		Require(!reopened.IsArtifactAvailable("mesh-guid", HE::AssetKind::Mesh, "hua.mesh-yaml", 2, 3), "Expected corrupt artifact rejection");
+	}
+
+	std::vector<uint8_t> MakeVersionOneCatalog() {
+		HE::AssetBinaryWriter writer;
+		writer.WriteBytes({ 'H', 'U', 'A', 'L', 'I', 'B', 'R', 'Y' });
+		writer.WriteU32(1);
+		writer.WriteU32(1);
+		writer.WriteString("legacy-guid");
+		writer.WriteU32(static_cast<uint32_t>(HE::AssetKind::Mesh));
+		writer.WriteString("hua.mesh-yaml");
+		writer.WriteU32(2);
+		writer.WriteU32(3);
+		writer.WriteString("Artifacts/legacy-guid.huamesh");
+		writer.WriteU32(0);
+		return writer.TakeData();
+	}
+
+	void TestVersionOneCatalogMigration(const std::filesystem::path& root) {
+		const auto context = MakeProjectContext(root);
+		WriteFileBytes(root / "Library" / "AssetLibrary.bin", MakeVersionOneCatalog());
+
+		HE::AssetArtifact artifact;
+		artifact.Kind = HE::AssetKind::Mesh;
+		artifact.ArtifactVersion = 3;
+		artifact.Payload = { 1, 2, 3 };
+		Require(
+			HE::WriteAssetArtifactFile(root / "Library" / "Artifacts" / "legacy-guid.huamesh", artifact).Succeeded(),
+			"Expected legacy artifact fixture");
+
+		HE::AssetLibrary library;
+		Require(library.Open(context).Succeeded(), "Expected version one catalog compatibility");
+		const auto* record = library.Find("legacy-guid");
+		Require(record != nullptr, "Expected version one catalog record");
+		Require(record->SourceContentHash.empty(), "Expected legacy record to have no source hash");
+		Require(library.IsArtifactAvailable("legacy-guid", HE::AssetKind::Mesh, "hua.mesh-yaml", 2, 3), "Expected legacy artifact availability");
+		Require(!library.IsArtifactCurrent("legacy-guid", HE::AssetKind::Mesh, "hua.mesh-yaml", 2, 3, "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"), "Expected legacy artifact to require one reimport");
+		Require(library.Save().Succeeded(), "Expected version one catalog migration save");
+
+		HE::AssetLibrary reopened;
+		Require(reopened.Open(context).Succeeded(), "Expected migrated catalog reopen");
+		Require(reopened.Find("legacy-guid") != nullptr, "Expected migrated record persistence");
 	}
 
 	std::vector<uint8_t> MakeEscapingCatalog() {
@@ -173,7 +237,9 @@ int main() {
 	std::filesystem::remove_all(smokeRoot, errorCode);
 	Require(!errorCode, "Expected smoke root cleanup before test");
 
+	TestSourceContentHash(smokeRoot / "Hash");
 	TestArtifactCommitAndCatalogRoundTrip(smokeRoot / "ValidProject");
+	TestVersionOneCatalogMigration(smokeRoot / "LegacyProject");
 	TestInvalidCatalogRebuildsEmpty(smokeRoot / "InvalidProject");
 
 	std::filesystem::remove_all(smokeRoot, errorCode);

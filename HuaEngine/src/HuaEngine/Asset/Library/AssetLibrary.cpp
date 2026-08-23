@@ -12,6 +12,7 @@
 
 namespace {
 	constexpr std::array<uint8_t, 8> LibraryMagic = { 'H', 'U', 'A', 'L', 'I', 'B', 'R', 'Y' };
+	constexpr uint32_t LegacyAssetLibraryFormatVersion = 1;
 	constexpr uint32_t MaxLibraryRecordCount = 1'000'000;
 	constexpr uint32_t MaxDependencyCount = 1'000'000;
 
@@ -34,6 +35,12 @@ namespace {
 		}
 		return std::all_of(guid.begin(), guid.end(), [](unsigned char value) {
 			return std::isalnum(value) != 0 || value == '-' || value == '_';
+		});
+	}
+
+	bool IsValidSourceContentHash(std::string_view hash) {
+		return hash.size() == 64 && std::all_of(hash.begin(), hash.end(), [](unsigned char value) {
+			return (value >= '0' && value <= '9') || (value >= 'a' && value <= 'f');
 		});
 	}
 
@@ -139,6 +146,7 @@ namespace HE {
 			writer.WriteString(record->ImporterId);
 			writer.WriteU32(record->ImporterVersion);
 			writer.WriteU32(record->ArtifactVersion);
+			writer.WriteString(record->SourceContentHash);
 			writer.WriteString(record->ArtifactRelativePath.generic_string());
 			writer.WriteU32(static_cast<uint32_t>(record->Dependencies.size()));
 			for (const auto& dependency : record->Dependencies) {
@@ -188,16 +196,36 @@ namespace HE {
 		return result.Succeeded() && artifact.Kind == kind && artifact.ArtifactVersion == artifactVersion;
 	}
 
+	bool AssetLibrary::IsArtifactCurrent(
+		const AssetGuid& guid,
+		AssetKind kind,
+		std::string_view importerId,
+		uint32_t importerVersion,
+		uint32_t artifactVersion,
+		std::string_view sourceContentHash) const {
+		const auto* record = Find(guid);
+		return IsValidSourceContentHash(sourceContentHash) &&
+			record &&
+			record->SourceContentHash == sourceContentHash &&
+			IsArtifactAvailable(guid, kind, importerId, importerVersion, artifactVersion);
+	}
+
 	ResultEnvelope AssetLibrary::CommitArtifact(
 		const AssetGuid& guid,
 		std::string_view importerId,
 		uint32_t importerVersion,
+		std::string_view sourceContentHash,
 		const AssetArtifact& artifact) {
 		if (!m_IsOpen) {
 			return MakeLibraryFailure("asset.library.commit", m_RootPath, "asset.library.not_open", "Asset library is not open");
 		}
 		const auto extension = ArtifactExtension(artifact.Kind);
-		if (!IsSafeGuid(guid) || importerId.empty() || importerVersion == 0 || artifact.ArtifactVersion == 0 || extension.empty()) {
+		if (!IsSafeGuid(guid) ||
+			importerId.empty() ||
+			importerVersion == 0 ||
+			artifact.ArtifactVersion == 0 ||
+			!IsValidSourceContentHash(sourceContentHash) ||
+			extension.empty()) {
 			return MakeLibraryFailure("asset.library.commit", m_RootPath, "asset.library.commit_invalid", "Artifact commit metadata is invalid");
 		}
 
@@ -207,6 +235,7 @@ namespace HE {
 		record.ImporterId = std::string(importerId);
 		record.ImporterVersion = importerVersion;
 		record.ArtifactVersion = artifact.ArtifactVersion;
+		record.SourceContentHash = sourceContentHash;
 		record.ArtifactRelativePath = std::filesystem::path("Artifacts") / (guid + std::string(extension));
 		record.Dependencies = artifact.Dependencies;
 
@@ -255,7 +284,8 @@ namespace HE {
 		uint32_t recordCount = 0;
 		if (!reader.ReadBytes(LibraryMagic.size(), magic) ||
 			!std::equal(magic.begin(), magic.end(), LibraryMagic.begin(), LibraryMagic.end()) ||
-			!reader.ReadU32(version) || version != AssetLibraryFormatVersion ||
+			!reader.ReadU32(version) ||
+			(version != LegacyAssetLibraryFormatVersion && version != AssetLibraryFormatVersion) ||
 			!reader.ReadU32(recordCount) || recordCount > MaxLibraryRecordCount) {
 			outError = "Asset library catalog header is invalid or unsupported";
 			return false;
@@ -272,8 +302,15 @@ namespace HE {
 				!reader.ReadU32(kindValue) ||
 				!reader.ReadString(record.ImporterId) ||
 				!reader.ReadU32(record.ImporterVersion) ||
-				!reader.ReadU32(record.ArtifactVersion) ||
-				!reader.ReadString(artifactPath) ||
+				!reader.ReadU32(record.ArtifactVersion)) {
+				outError = "Asset library catalog record is invalid or truncated";
+				return false;
+			}
+			if (version >= AssetLibraryFormatVersion && !reader.ReadString(record.SourceContentHash)) {
+				outError = "Asset library catalog source hash is invalid or truncated";
+				return false;
+			}
+			if (!reader.ReadString(artifactPath) ||
 				!reader.ReadU32(dependencyCount) ||
 				dependencyCount > MaxDependencyCount) {
 				outError = "Asset library catalog record is invalid or truncated";
@@ -287,6 +324,7 @@ namespace HE {
 				record.ImporterId.empty() ||
 				record.ImporterVersion == 0 ||
 				record.ArtifactVersion == 0 ||
+				(!record.SourceContentHash.empty() && !IsValidSourceContentHash(record.SourceContentHash)) ||
 				!IsSafeArtifactPath(record.ArtifactRelativePath)) {
 				outError = "Asset library catalog record metadata is invalid";
 				return false;

@@ -23,11 +23,19 @@ namespace HE {
 			std::string_view importerId,
 			uint32_t importerVersion,
 			uint32_t artifactVersion) const;
+		[[nodiscard]] bool IsArtifactCurrent(
+			const AssetGuid& guid,
+			AssetKind kind,
+			std::string_view importerId,
+			uint32_t importerVersion,
+			uint32_t artifactVersion,
+			std::string_view sourceContentHash) const;
 
 		ResultEnvelope CommitArtifact(
 			const AssetGuid& guid,
 			std::string_view importerId,
 			uint32_t importerVersion,
+			std::string_view sourceContentHash,
 			const AssetArtifact& artifact);
 
 		ResultEnvelope ReadArtifact(

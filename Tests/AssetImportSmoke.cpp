@@ -193,6 +193,14 @@ namespace {
 
 		const auto replacementMesh = HE::Rendering::Mesh::CreateQuad("ReimportedQuad");
 		Require(HE::Rendering::Mesh::SaveToFile(*replacementMesh, meshPath.generic_string()), "Expected replacement mesh source save");
+		HE::AssetImportReport changedSourceReport;
+		Require(assetService.InitializeProjectAssets(context, &changedSourceReport).Succeeded(), "Expected changed source project asset initialization");
+		Require(changedSourceReport.ImportedAssets == 1, "Expected changed source content to reimport automatically");
+		Require(changedSourceReport.SkippedAssets == 7, "Expected unchanged builtin assets to remain skipped");
+		HE::AssetArtifact changedSourceArtifact;
+		Require(assetService.GetLibrary().ReadArtifact(meshRecord.Guid, changedSourceArtifact).Succeeded(), "Expected changed source artifact read");
+		Require(changedSourceArtifact.Payload != firstArtifact.Payload, "Expected changed source content to update the artifact payload");
+
 		HE::AssetImportService importService(assetService.GetImporterRegistry(), assetService.GetLibrary());
 		const std::array<HE::AssetGuid, 1> forceGuids = { meshRecord.Guid };
 		HE::AssetImportReport forceReport;

@@ -5,6 +5,7 @@
 #include <vector>
 
 #include "HuaEngine/Asset/AssetSourcePath.h"
+#include "HuaEngine/Asset/Import/AssetSourceHash.h"
 
 namespace HE {
 	ResultEnvelope AssetImportService::ImportMissingAssets(
@@ -87,18 +88,17 @@ namespace HE {
 				continue;
 			}
 
-			if (policy == AssetImportPolicy::MissingOnly && m_Library->IsArtifactAvailable(
-				record->Guid,
-				record->Kind,
-				importer->GetId(),
-				importer->GetVersion(),
-				importer->GetArtifactVersion())) {
-				++report.SkippedAssets;
-				continue;
-			}
-
 			std::error_code errorCode;
 			if (!std::filesystem::is_regular_file(sourcePath, errorCode)) {
+				if (policy == AssetImportPolicy::MissingOnly && m_Library->IsArtifactAvailable(
+					record->Guid,
+					record->Kind,
+					importer->GetId(),
+					importer->GetVersion(),
+					importer->GetArtifactVersion())) {
+					++report.SkippedAssets;
+					continue;
+				}
 				++report.FailedAssets;
 				builtinFailure |= record->Source == AssetSource::Builtin;
 				result.AddDetail({
@@ -107,6 +107,28 @@ namespace HE {
 					"Asset source file is missing",
 					sourcePath.generic_string()
 				});
+				continue;
+			}
+
+			std::string sourceContentHash;
+			auto hashResult = ComputeAssetSourceHash(sourcePath, sourceContentHash);
+			if (!hashResult.Succeeded()) {
+				++report.FailedAssets;
+				builtinFailure |= record->Source == AssetSource::Builtin;
+				for (auto& diagnostic : hashResult.Details) {
+					result.AddDetail(std::move(diagnostic));
+				}
+				continue;
+			}
+
+			if (policy == AssetImportPolicy::MissingOnly && m_Library->IsArtifactCurrent(
+				record->Guid,
+				record->Kind,
+				importer->GetId(),
+				importer->GetVersion(),
+				importer->GetArtifactVersion(),
+				sourceContentHash)) {
+				++report.SkippedAssets;
 				continue;
 			}
 
@@ -130,6 +152,7 @@ namespace HE {
 				record->Guid,
 				importer->GetId(),
 				importer->GetVersion(),
+				sourceContentHash,
 				importResult.Artifact);
 			if (!commitResult.Succeeded()) {
 				++report.FailedAssets;
