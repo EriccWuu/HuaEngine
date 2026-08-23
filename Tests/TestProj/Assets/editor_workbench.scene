@@ -139,20 +139,20 @@ entities:
     components:
       TransformComponent:
         Position:
-          x: 1.33484352
-          y: -0.608064532
-          z: -3.41639161
+          x: 1.05473804
+          y: -0.834419668
+          z: -2.20837212
         Rotation:
-          x: -5.71127748e-05
-          y: -1.36425757
-          z: -1.02253962
+          x: 0
+          y: 0
+          z: 0
         Scale:
-          x: 0.999987364
-          y: 0.999999285
-          z: 0.999986768
+          x: 0.999987304
+          y: 0.999999166
+          z: 0.99998641
       MeshComponent:
         Mesh:
-          guid: 8ca3d9fac9cb30dac433288bd3b59dfa
+          guid: 479f9040750454d073714c053277ea24
       MaterialComponent:
         Material:
           guid: builtin-material-default

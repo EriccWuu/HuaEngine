@@ -117,6 +117,24 @@
       "relative_path": "textures/hutao.png",
       "builtin_name": "",
       "import_state": "registered"
+    },
+    {
+      "guid": "479f9040750454d073714c053277ea24",
+      "asset_id": "models/Red/Red.obj",
+      "kind": "mesh",
+      "source": "file",
+      "relative_path": "models/Red/Red.obj",
+      "builtin_name": "",
+      "import_state": "registered"
+    },
+    {
+      "guid": "97ef64e25fa78d59c4052d968e938ebd",
+      "asset_id": "models/Red/RedBall.obj",
+      "kind": "mesh",
+      "source": "file",
+      "relative_path": "models/Red/RedBall.obj",
+      "builtin_name": "",
+      "import_state": "registered"
     }
   ]
 }
