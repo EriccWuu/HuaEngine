@@ -523,6 +523,7 @@ namespace HE {
 		}
 
 		result.Operation = "asset.import";
+		result.SetPayloadValue("asset_id", std::string(assetId));
 		result.SetPayloadValue("asset_kind", std::string(ToString(kind)));
 		return result;
 	}
