@@ -6,7 +6,7 @@
       "asset_id": "builtin/mesh/quad",
       "kind": "mesh",
       "source": "builtin",
-      "relative_path": "Meshes/Quad.mesh",
+      "relative_path": "Meshes/Quad.obj",
       "builtin_name": "quad",
       "import_state": "builtin"
     },
@@ -15,7 +15,7 @@
       "asset_id": "builtin/mesh/cube",
       "kind": "mesh",
       "source": "builtin",
-      "relative_path": "Meshes/Cube.mesh",
+      "relative_path": "Meshes/Cube.obj",
       "builtin_name": "cube",
       "import_state": "builtin"
     },
@@ -24,7 +24,7 @@
       "asset_id": "builtin/mesh/sphere",
       "kind": "mesh",
       "source": "builtin",
-      "relative_path": "Meshes/Sphere.mesh",
+      "relative_path": "Meshes/Sphere.obj",
       "builtin_name": "sphere",
       "import_state": "builtin"
     },
@@ -42,7 +42,7 @@
       "asset_id": "builtin/mesh/fallback",
       "kind": "mesh",
       "source": "builtin",
-      "relative_path": "Meshes/Fallback.mesh",
+      "relative_path": "Meshes/Fallback.obj",
       "builtin_name": "fallback",
       "import_state": "builtin"
     },
@@ -57,37 +57,37 @@
     },
     {
       "guid": "8ca3d9fac9cb30dac433288bd3b59dfa",
-      "asset_id": "Cube.mesh",
+      "asset_id": "Cube.obj",
       "kind": "mesh",
       "source": "file",
-      "relative_path": "Cube.mesh",
+      "relative_path": "Cube.obj",
       "builtin_name": "",
       "import_state": "registered"
     },
     {
       "guid": "133f748956880e8cf75c0e6e03a0ed2b",
-      "asset_id": "CustomMesh.mesh",
+      "asset_id": "CustomMesh.obj",
       "kind": "mesh",
       "source": "file",
-      "relative_path": "CustomMesh.mesh",
+      "relative_path": "CustomMesh.obj",
       "builtin_name": "",
       "import_state": "registered"
     },
     {
       "guid": "e75d7efc960b06d836453475c13afdbc",
-      "asset_id": "CustomSquare.mesh",
+      "asset_id": "CustomSquare.obj",
       "kind": "mesh",
       "source": "file",
-      "relative_path": "CustomSquare.mesh",
+      "relative_path": "CustomSquare.obj",
       "builtin_name": "",
       "import_state": "registered"
     },
     {
       "guid": "15da0d336597b40d17f6cbf870ece1ff",
-      "asset_id": "Quad.mesh",
+      "asset_id": "Quad.obj",
       "kind": "mesh",
       "source": "file",
-      "relative_path": "Quad.mesh",
+      "relative_path": "Quad.obj",
       "builtin_name": "",
       "import_state": "registered"
     },

@@ -119,15 +119,20 @@ namespace {
 		Require(firstReport.TotalBuiltinAssets == 6, "Expected six builtin assets in import report");
 		Require(firstReport.ImportedAssets == 7, "Expected first initialization to import project and builtin assets");
 		Require(firstReport.SkippedAssets == 0, "Expected first initialization not to skip mesh");
-		const auto* builtinQuadRecord = assetService.GetLibrary().Find(HE::BuiltinAssetGuids::QuadMesh);
-		Require(builtinQuadRecord != nullptr, "Expected builtin quad artifact");
-		Require(builtinQuadRecord->ImporterId == "hua.mesh-obj", "Expected builtin quad to use the OBJ importer");
-		const auto* builtinQuadManifestRecord = assetService.GetManifest().FindByGuid(HE::BuiltinAssetGuids::QuadMesh);
-		Require(builtinQuadManifestRecord != nullptr, "Expected builtin quad manifest record");
-		Require(builtinQuadManifestRecord->RelativePath == std::filesystem::path("Meshes/Quad.obj"), "Expected builtin quad OBJ source path");
-		Require(assetService.GetLibrary().Find(HE::BuiltinAssetGuids::CubeMesh) != nullptr, "Expected builtin cube artifact");
-		Require(assetService.GetLibrary().Find(HE::BuiltinAssetGuids::SphereMesh) != nullptr, "Expected builtin sphere artifact");
-		Require(assetService.GetLibrary().Find(HE::BuiltinAssetGuids::FallbackMesh) != nullptr, "Expected builtin fallback mesh artifact");
+		const std::array builtinMeshes = {
+			std::pair{ HE::BuiltinAssetGuids::QuadMesh, std::filesystem::path("Meshes/Quad.obj") },
+			std::pair{ HE::BuiltinAssetGuids::CubeMesh, std::filesystem::path("Meshes/Cube.obj") },
+			std::pair{ HE::BuiltinAssetGuids::SphereMesh, std::filesystem::path("Meshes/Sphere.obj") },
+			std::pair{ HE::BuiltinAssetGuids::FallbackMesh, std::filesystem::path("Meshes/Fallback.obj") }
+		};
+		for (const auto& [guid, sourcePath] : builtinMeshes) {
+			const auto* libraryRecord = assetService.GetLibrary().Find(guid);
+			Require(libraryRecord != nullptr, "Expected builtin mesh artifact: " + guid);
+			Require(libraryRecord->ImporterId == "hua.mesh-obj", "Expected builtin mesh to use the OBJ importer: " + guid);
+			const auto* manifestRecord = assetService.GetManifest().FindByGuid(guid);
+			Require(manifestRecord != nullptr, "Expected builtin mesh manifest record: " + guid);
+			Require(manifestRecord->RelativePath == sourcePath, "Expected builtin OBJ source path: " + guid);
+		}
 		Require(assetService.GetLibrary().Find(HE::BuiltinAssetGuids::DefaultMaterial) != nullptr, "Expected builtin default material artifact");
 		Require(assetService.GetLibrary().Find(HE::BuiltinAssetGuids::FallbackMaterial) != nullptr, "Expected builtin fallback material artifact");
 

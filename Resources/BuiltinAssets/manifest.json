@@ -15,7 +15,7 @@
       "asset_id": "builtin/mesh/cube",
       "kind": "mesh",
       "source": "builtin",
-      "relative_path": "Meshes/Cube.mesh",
+      "relative_path": "Meshes/Cube.obj",
       "builtin_name": "cube",
       "import_state": "builtin"
     },
@@ -24,7 +24,7 @@
       "asset_id": "builtin/mesh/sphere",
       "kind": "mesh",
       "source": "builtin",
-      "relative_path": "Meshes/Sphere.mesh",
+      "relative_path": "Meshes/Sphere.obj",
       "builtin_name": "sphere",
       "import_state": "builtin"
     },
@@ -42,7 +42,7 @@
       "asset_id": "builtin/mesh/fallback",
       "kind": "mesh",
       "source": "builtin",
-      "relative_path": "Meshes/Fallback.mesh",
+      "relative_path": "Meshes/Fallback.obj",
       "builtin_name": "fallback",
       "import_state": "builtin"
     },
