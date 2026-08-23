@@ -65,6 +65,14 @@ int main() {
 	Require(assetCreate.Result.Payload.find("asset_handle") != assetCreate.Result.Payload.end(), "Expected runtime handle payload");
 	Require(assetCreate.Result.Payload.at("asset_handle") != "0", "Expected runtime handle payload");
 
+	auto assetInitialize = adapter.Invoke({
+		.Operation = "asset.initialize",
+		.Arguments = { { "project_path", (smokeRoot / "Project").string() } },
+		.WorkingDirectory = smokeRoot
+	});
+	Require(assetInitialize.Result.Succeeded(), "Expected asset.initialize to succeed through the agent adapter");
+	Require(assetInitialize.Result.Operation == "asset.initialize", "Expected asset.initialize to preserve its operation id");
+
 	auto sceneCreate = adapter.Invoke({
 		.Operation = "scene.create",
 		.Arguments = {
@@ -87,6 +95,16 @@ int main() {
 		},
 		.WorkingDirectory = smokeRoot
 	});
+	if (validation.Result.Failed()) {
+		std::cerr << "[AgentHostAdapterSmoke] Validation summary: " << validation.Result.Summary << std::endl;
+		for (const auto& detail : validation.Result.Details) {
+			std::cerr << "[AgentHostAdapterSmoke] " << detail.Code << ": " << detail.Message;
+			if (!detail.Context.empty()) {
+				std::cerr << " (" << detail.Context << ")";
+			}
+			std::cerr << std::endl;
+		}
+	}
 	Require(validation.Result.Succeeded(), "Expected validation.validate to succeed");
 	Require(validation.Result.Operation == "validation.validate", "Expected adapter to preserve stable operation ids");
 

@@ -152,6 +152,16 @@ namespace HE {
 			return { std::move(result) };
 		}
 
+		if (request.Operation == "asset.initialize") {
+			ProjectContext context;
+			ResultEnvelope resolveError;
+			if (!ResolveProjectContext(*m_Operations, request.Arguments, request.WorkingDirectory, context, resolveError)) {
+				return { std::move(resolveError) };
+			}
+
+			return { m_Operations->InitializeProjectAssets(context) };
+		}
+
 		if (request.Operation == "asset.create_builtin_mesh") {
 			const auto assetId = GetArgument(request.Arguments, "asset_id");
 			if (!assetId.has_value() || assetId->empty()) {
