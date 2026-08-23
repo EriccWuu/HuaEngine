@@ -9,7 +9,7 @@
 #include "HuaEngine.h"
 #include "HuaEngine/Application/ApplicationServices.h"
 #include "HuaEngine/Asset/Import/AssetImportService.h"
-#include "HuaEngine/Core/ResourcePaths.h"
+#include "Support/TestTextureFixture.h"
 
 namespace {
 	void Require(bool condition, const std::string& message) {
@@ -114,12 +114,7 @@ int main() {
 		"Expected asset.import mesh artifact file");
 
 	const auto texturePath = projectContext.GetAssetRootPath() / "Textures" / "Imported.png";
-	std::filesystem::create_directories(texturePath.parent_path(), errorCode);
-	Require(!errorCode, "Expected texture source directory creation to succeed");
-	std::filesystem::copy_file(
-		HE::ResourcePaths::ResolveEngineResourcePath("textures/hutao.png"),
-		texturePath,
-		std::filesystem::copy_options::overwrite_existing);
+	Require(HE::Tests::WriteTinyPng(texturePath), "Expected texture source fixture creation to succeed");
 
 	HE::AssetGuid textureGuid;
 	auto importTexture = operations.ImportAsset(projectContext, "Textures/Imported.png", HE::AssetKind::Texture2D, &textureGuid);

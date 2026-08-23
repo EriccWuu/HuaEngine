@@ -9,13 +9,13 @@
 #include "HuaEngine/Asset/Artifact/TextureArtifact.h"
 #include "HuaEngine/Asset/AssetResolver.h"
 #include "HuaEngine/Asset/AssetService.h"
-#include "HuaEngine/Core/ResourcePaths.h"
 #include "HuaEngine/Project/ProjectService.h"
 #include "HuaEngine/Rendering/RenderGraph/RenderGraphBuilder.h"
 #include "HuaEngine/Rendering/RHI/CommandList.h"
 #include "HuaEngine/Rendering/RHI/ResourceBarrier.h"
 #include "HuaEngine/Rendering/RHI/ResourceStateTracker.h"
 #include "HuaEngine/Rendering/RHI/RenderHardwareInterface.h"
+#include "Support/TestTextureFixture.h"
 
 namespace {
 	void Require(bool condition, const std::string& message) {
@@ -64,6 +64,12 @@ namespace {
 
 int main() {
 	HE::Log::Init({ .EnableConsoleOutput = false });
+	const auto smokeRoot = std::filesystem::temp_directory_path() / "HuaEngineRHIResourceCreationSmoke";
+	std::error_code smokeError;
+	std::filesystem::remove_all(smokeRoot, smokeError);
+	Require(!smokeError, "Expected smoke directory cleanup before test");
+	const auto texturePath = smokeRoot / "Fixtures" / "Tiny.png";
+	Require(HE::Tests::WriteTinyPng(texturePath), "Expected texture fixture creation to succeed");
 
 	SmokeApplication application;
 	application.Start();
@@ -206,7 +212,6 @@ int main() {
 	Require(static_cast<bool>(depthAttachmentTextureView), "Expected depth/stencil attachment texture view");
 	Require(depthAttachmentTextureView->GetDesc().Texture == depthAttachmentTexture, "Expected depth/stencil attachment texture view source");
 
-	const auto texturePath = HE::ResourcePaths::ResolveEngineResourcePath("textures/hutao.png");
 	auto texture = device.CreateTexture({ .SourcePath = texturePath.generic_string() });
 	Require(static_cast<bool>(texture), "Expected texture resource creation to succeed");
 	Require(texture->GetWidth() > 0 && texture->GetHeight() > 0, "Expected texture dimensions");
@@ -241,10 +246,8 @@ int main() {
 	Require(textureReadbackData == textureUploadData, "Expected texture readback data to match upload");
 	Require(!device.UploadTexture({ .Texture = emptyTexture, .Data = { 1, 2, 3 } }), "Expected invalid texture upload size to fail");
 
-	const auto textureProjectRoot = std::filesystem::temp_directory_path() / "HuaEngineTextureResolverSmoke";
+	const auto textureProjectRoot = smokeRoot / "TextureResolverProject";
 	std::error_code textureError;
-	std::filesystem::remove_all(textureProjectRoot, textureError);
-	Require(!textureError, "Expected texture project cleanup before test");
 	HE::ProjectService projectService;
 	HE::ProjectContext textureProject;
 	Require(projectService.InitializeProject(textureProjectRoot, &textureProject, "TextureResolverProject").Succeeded(), "Expected texture project initialization");
@@ -316,8 +319,8 @@ int main() {
 	Require(
 		static_cast<bool>(std::get<HE::Ref<HE::Rendering::TextureResource>>(resolvedTextureParameter->Value)),
 		"Expected material texture GUID resolved to an RHI texture");
-	std::filesystem::remove_all(textureProjectRoot, textureError);
-	Require(!textureError, "Expected texture project cleanup after test");
+	std::filesystem::remove_all(smokeRoot, smokeError);
+	Require(!smokeError, "Expected smoke directory cleanup after test");
 
 	Require(!device.CreateTexture({}), "Expected empty texture description to fail");
 	Require(!device.CreateTexture({
