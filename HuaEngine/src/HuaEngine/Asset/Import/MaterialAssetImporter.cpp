@@ -3,8 +3,6 @@
 
 #include <algorithm>
 
-#include "HuaEngine/Asset/AssetSourcePath.h"
-
 namespace HE {
 	bool MaterialAssetImporter::CanImport(AssetKind kind, std::string_view extension) const {
 		return kind == AssetKind::Material && (extension == ".material" || extension == ".mat");
@@ -19,22 +17,18 @@ namespace HE {
 			result.Diagnostics = std::move(loadResult.Details);
 			return result;
 		}
-		if (!sourceData.ShaderPath.empty()) {
-			auto shaderRecord = context.SourceAsset;
-			shaderRecord.RelativePath = sourceData.ShaderPath;
-			std::filesystem::path shaderSourcePath;
-			auto shaderPathResult = ResolveAssetSourcePath(context.Project, shaderRecord, shaderSourcePath);
-			std::error_code errorCode;
-			if (!shaderPathResult.Succeeded() || !std::filesystem::is_regular_file(shaderSourcePath, errorCode)) {
-				result.Diagnostics = std::move(shaderPathResult.Details);
+		if (!sourceData.ShaderGuid.empty()) {
+			const auto* shaderRecord = context.Manifest ? context.Manifest->FindByGuid(sourceData.ShaderGuid) : nullptr;
+			if (!shaderRecord || shaderRecord->Kind != AssetKind::Shader) {
 				result.Diagnostics.push_back({
 					DiagnosticSeverity::Error,
-					"asset.import.material_shader_missing",
-					"Material shader path must reference a file under the material source root",
-					sourceData.ShaderPath
+					"asset.import.material_shader_unresolved",
+					"Material shader GUID must reference a registered shader asset",
+					sourceData.ShaderGuid
 				});
 				return result;
 			}
+			dependencies.push_back(shaderRecord->Guid);
 		}
 
 		for (auto& [name, parameter] : sourceData.Parameters) {

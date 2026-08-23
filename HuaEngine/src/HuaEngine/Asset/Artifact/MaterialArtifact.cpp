@@ -135,7 +135,7 @@ namespace HE {
 		AssetBinaryWriter writer;
 		writer.WriteString(material.Name);
 		writer.WriteU32(static_cast<uint32_t>(material.Type));
-		writer.WriteString(material.ShaderPath);
+		writer.WriteString(material.ShaderGuid);
 		writer.WriteU32(static_cast<uint32_t>(parameters.size()));
 		for (const auto* parameter : parameters) {
 			writer.WriteString(parameter->Name);
@@ -165,7 +165,7 @@ namespace HE {
 		uint32_t parameterCount = 0;
 		if (!reader.ReadString(outMaterial.Name) || outMaterial.Name.empty() || !reader.ReadU32(type) ||
 			type < static_cast<uint32_t>(Rendering::MaterialType::Standard) || type > static_cast<uint32_t>(Rendering::MaterialType::Custom) ||
-			!reader.ReadString(outMaterial.ShaderPath) || !reader.ReadU32(parameterCount) || parameterCount > MaxMaterialParameterCount) {
+			!reader.ReadString(outMaterial.ShaderGuid) || !reader.ReadU32(parameterCount) || parameterCount > MaxMaterialParameterCount) {
 			return MakeMaterialArtifactFailure("asset.material_artifact.decode", "asset.material_artifact.header_invalid", "Material artifact header is invalid");
 		}
 		outMaterial.Type = static_cast<Rendering::MaterialType>(type);

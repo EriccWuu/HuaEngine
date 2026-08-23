@@ -67,12 +67,12 @@ namespace HE::Rendering {
 		const std::string& GetName() const { return m_Name; }
 		MaterialType GetType() const { return m_Type; }
 		Ref<ShaderProgram> GetShaderProgram() const { return m_ShaderProgram; }
-		void SetShaderProgram(Ref<ShaderProgram> shaderProgram, std::string shaderPath = {})
+		void SetShaderProgram(Ref<ShaderProgram> shaderProgram, std::string shaderGuid = {})
 		{
 			m_ShaderProgram = std::move(shaderProgram);
-			m_ShaderPath = std::move(shaderPath);
+			m_ShaderGuid = std::move(shaderGuid);
 		}
-		const std::string& GetShaderPath() const { return m_ShaderPath; }
+		const std::string& GetShaderGuid() const { return m_ShaderGuid; }
 
 		// Setter interface for deserialization
 		void SetName(const std::string& name) { m_Name = name; }
@@ -112,7 +112,7 @@ namespace HE::Rendering {
 		std::string m_Name;
 		MaterialType m_Type;
 		Ref<ShaderProgram> m_ShaderProgram;
-		std::string m_ShaderPath;
+		std::string m_ShaderGuid;
 		std::unordered_map<std::string, MaterialParameter> m_Parameters;
 		std::unordered_map<std::string, uint32_t> m_TextureSlots;
 		uint32_t m_NextTextureSlot = 0;

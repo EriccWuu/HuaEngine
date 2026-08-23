@@ -141,8 +141,8 @@ namespace HE::Rendering {
 			if (outData.Name.empty() || !ParseMaterialType(root["material_type"].as<std::string>(), outData.Type)) {
 				return MakeSourceFailure(path, "Material name or type is invalid");
 			}
-			if (const auto shaderPath = root["shader_path"]) {
-				outData.ShaderPath = shaderPath.as<std::string>();
+			if (const auto shaderGuid = root["shader_guid"]) {
+				outData.ShaderGuid = shaderGuid.as<std::string>();
 			}
 
 			const auto parameters = root["parameters"];

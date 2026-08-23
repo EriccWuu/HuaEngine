@@ -56,6 +56,15 @@
       "import_state": "builtin"
     },
     {
+      "guid": "builtin-shader-unlit-color",
+      "asset_id": "builtin/shader/unlit-color",
+      "kind": "shader",
+      "source": "builtin",
+      "relative_path": "Shaders/UnlitColor.glsl",
+      "builtin_name": "unlit-color",
+      "import_state": "builtin"
+    },
+    {
       "guid": "8ca3d9fac9cb30dac433288bd3b59dfa",
       "asset_id": "Cube.obj",
       "kind": "mesh",
@@ -97,6 +106,15 @@
       "kind": "material",
       "source": "file",
       "relative_path": "SandboxMaterial.material",
+      "builtin_name": "",
+      "import_state": "registered"
+    },
+    {
+      "guid": "71940333dd9141dc96651fe1efdc7d65",
+      "asset_id": "shaders/sandbox.glsl",
+      "kind": "shader",
+      "source": "file",
+      "relative_path": "shaders/sandbox.glsl",
       "builtin_name": "",
       "import_state": "registered"
     },

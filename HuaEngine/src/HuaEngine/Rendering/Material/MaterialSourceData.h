@@ -32,7 +32,7 @@ namespace HE::Rendering {
 	struct MaterialSourceData {
 		std::string Name;
 		MaterialType Type = MaterialType::Empty;
-		std::string ShaderPath;
+		std::string ShaderGuid;
 		std::unordered_map<std::string, MaterialSourceParameter> Parameters;
 		std::unordered_map<std::string, uint32_t> TextureSlots;
 	};

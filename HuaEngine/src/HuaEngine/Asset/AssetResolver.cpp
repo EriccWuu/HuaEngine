@@ -6,7 +6,6 @@
 #include "HuaEngine/Asset/Artifact/TextureArtifact.h"
 #include "HuaEngine/Asset/Artifact/ShaderArtifact.h"
 
-#include "AssetSourcePath.h"
 #include "AssetService.h"
 #include "HuaEngine/Rendering/Material/MaterialLibrary.h"
 #include "HuaEngine/Rendering/RHI/RenderHardwareInterface.h"
@@ -142,34 +141,16 @@ namespace HE {
 			result.AddDetail({ DiagnosticSeverity::Warning, "asset.material.load_failed", "Material runtime object could not be created from metadata", record->AssetId });
 			return result;
 		}
-		if (!sourceData.ShaderPath.empty() && Rendering::RenderHardwareInterface::IsInitialized()) {
-			const auto* projectContext = m_Service->GetProjectContext();
-			if (!projectContext) {
-				return MakeManifestUnloadedResult("asset.resolve_material", guid);
-			}
-			auto shaderRecord = AssetManifestRecord{
-				.Guid = record->Guid,
-				.AssetId = record->AssetId,
-				.Kind = record->Kind,
-				.Source = record->Source,
-				.RelativePath = sourceData.ShaderPath,
-				.BuiltinName = record->BuiltinName,
-				.ImportState = record->ImportState
-			};
-			std::filesystem::path shaderPath;
-			auto shaderPathResult = ResolveAssetSourcePath(*projectContext, shaderRecord, shaderPath);
-			if (!shaderPathResult.Succeeded()) {
-				auto result = ResultEnvelope::ManualIntervention("asset.resolve_material", guid, "Material shader path could not be resolved");
-				for (auto& diagnostic : shaderPathResult.Details) result.AddDetail(std::move(diagnostic));
+		material->SetShaderProgram(nullptr, sourceData.ShaderGuid);
+		if (!sourceData.ShaderGuid.empty() && Rendering::RenderHardwareInterface::IsInitialized()) {
+			Ref<Rendering::ShaderProgram> shader;
+			auto shaderResult = ResolveShader(sourceData.ShaderGuid, shader);
+			if (!shaderResult.Succeeded()) {
+				auto result = ResultEnvelope::ManualIntervention("asset.resolve_material", guid, "Material shader asset could not be resolved");
+				for (auto& diagnostic : shaderResult.Details) result.AddDetail(std::move(diagnostic));
 				return result;
 			}
-			auto shader = Rendering::ShaderProgramLoader::CreateFromFile(shaderPath.generic_string());
-			if (!shader) {
-				auto result = ResultEnvelope::ManualIntervention("asset.resolve_material", guid, "Material shader could not be loaded");
-				result.AddDetail({ DiagnosticSeverity::Error, "asset.material.shader_load_failed", "Material shader source could not create a shader program", shaderPath.generic_string() });
-				return result;
-			}
-			material->SetShaderProgram(shader, sourceData.ShaderPath);
+			material->SetShaderProgram(std::move(shader), sourceData.ShaderGuid);
 		}
 		for (const auto& [name, sourceParameter] : sourceData.Parameters) {
 			Rendering::MaterialParameterValue value;

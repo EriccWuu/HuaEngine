@@ -3,6 +3,7 @@
 
 #include <algorithm>
 #include <system_error>
+#include <unordered_set>
 #include <vector>
 
 #include "AssetResolver.h"
@@ -482,8 +483,18 @@ namespace HE {
 		AssetImportReport importReport;
 		AssetImportService importService(m_ImporterRegistry, m_Library);
 		auto importResult = importService.ImportAssets(context, m_Manifest, importGuids, AssetImportPolicy::Force, &importReport);
-		for (const auto& guid : importReport.ImportedAssetGuids) {
+		std::vector<AssetGuid> pendingInvalidations = importReport.ImportedAssetGuids;
+		std::unordered_set<AssetGuid> invalidatedGuids;
+		while (!pendingInvalidations.empty()) {
+			auto guid = std::move(pendingInvalidations.back());
+			pendingInvalidations.pop_back();
+			if (!invalidatedGuids.insert(guid).second) {
+				continue;
+			}
 			m_RuntimeCache.Invalidate(guid);
+			for (auto& dependentGuid : m_Library.FindDependents(guid)) {
+				pendingInvalidations.push_back(std::move(dependentGuid));
+			}
 		}
 		if (!importResult.Succeeded()) {
 			importResult.Operation = "asset.reimport";

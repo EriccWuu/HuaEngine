@@ -318,7 +318,7 @@ int main() {
 	materialStream <<
 		"name: ImportedTexturedMaterial\n"
 		"material_type: Unlit\n"
-		"shader_path: Shaders/Imported.glsl\n"
+		"shader_guid: " << importedShaderRecord.Guid << "\n"
 		"parameters:\n"
 		"  u_Texture:\n"
 		"    value_type: Texture2D\n"
@@ -340,8 +340,8 @@ int main() {
 	Require(textureAssetService.ResolveAsset(importedMaterialHandle, importedMaterialRecord).Succeeded(), "Expected imported material record");
 	HE::Ref<HE::Rendering::Material> resolvedTexturedMaterial;
 	Require(textureResolver.ResolveMaterial(importedMaterialRecord.Guid, resolvedTexturedMaterial).Succeeded(), "Expected textured material resolve from Library");
-	Require(resolvedTexturedMaterial->GetShaderProgram() != nullptr, "Expected project-relative material shader resolution");
-	Require(resolvedTexturedMaterial->GetShaderPath() == "Shaders/Imported.glsl", "Expected portable project-relative shader path metadata");
+	Require(resolvedTexturedMaterial->GetShaderProgram() != nullptr, "Expected material shader GUID resolution");
+	Require(resolvedTexturedMaterial->GetShaderGuid() == importedShaderRecord.Guid, "Expected material shader GUID metadata");
 	const auto* resolvedTextureParameter = resolvedTexturedMaterial->GetParameter("u_Texture");
 	Require(resolvedTextureParameter != nullptr, "Expected resolved material texture parameter");
 	Require(

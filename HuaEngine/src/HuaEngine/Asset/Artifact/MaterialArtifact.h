@@ -5,7 +5,7 @@
 #include "HuaEngine/Rendering/Material/MaterialSourceData.h"
 
 namespace HE {
-	inline constexpr uint32_t MaterialArtifactVersion = 1;
+	inline constexpr uint32_t MaterialArtifactVersion = 2;
 
 	ResultEnvelope EncodeMaterialArtifact(
 		const Rendering::MaterialSourceData& material,

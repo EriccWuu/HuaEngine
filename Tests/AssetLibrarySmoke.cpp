@@ -104,6 +104,7 @@ namespace {
 		Require(record->Kind == HE::AssetKind::Mesh, "Expected committed mesh kind");
 		Require(record->ImporterId == "hua.mesh-yaml", "Expected importer id persistence");
 		Require(record->Dependencies == artifact.Dependencies, "Expected dependency persistence");
+		Require(library.FindDependents("texture-guid") == std::vector<HE::AssetGuid>{ "mesh-guid" }, "Expected reverse dependency lookup");
 		Require(library.IsArtifactAvailable("mesh-guid", HE::AssetKind::Mesh, "hua.mesh-yaml", 2, 3), "Expected compatible artifact availability");
 		Require(!library.IsArtifactAvailable("mesh-guid", HE::AssetKind::Material, "hua.mesh-yaml", 2, 3), "Expected kind mismatch rejection");
 		Require(!library.IsArtifactAvailable("mesh-guid", HE::AssetKind::Mesh, "hua.mesh-yaml", 9, 3), "Expected importer version mismatch rejection");

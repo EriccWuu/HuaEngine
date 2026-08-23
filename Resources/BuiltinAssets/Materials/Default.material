@@ -1,6 +1,6 @@
 name: DefaultMaterial
 material_type: Custom
-shader_path: Shaders/UnlitColor.glsl
+shader_guid: builtin-shader-unlit-color
 parameters:
   u_Color:
     value_type: Vec4

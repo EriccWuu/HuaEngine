@@ -2,7 +2,6 @@
 
 #include "MaterialCore.h"
 #include "MaterialLibrary.h"
-#include "HuaEngine/Rendering/RHI/ShaderProgramLoader.h"
 #include "HuaEngine/Serialization/Serialization.h"
 
 namespace HE::Rendering {
@@ -84,10 +83,9 @@ namespace HE::Serialization {
             backend.Serialize("name", material.GetName());
             backend.Serialize("material_type", Rendering::MaterialTypeToString(material.GetType()));
 
-            // Shader path
-            std::string shaderPath = "";
-            shaderPath = material.GetShaderPath();
-            backend.Serialize("shader_path", shaderPath);
+            // Shader asset reference
+            std::string shaderGuid = material.GetShaderGuid();
+            backend.Serialize("shader_guid", shaderGuid);
 
             // Parameters (object format: "paramName": { "value_type": "...", "value": ... })
             const auto& parameters = material.GetParameters();
@@ -124,9 +122,9 @@ namespace HE::Serialization {
                 return false;
             }
 
-            std::string shaderPath;
-            if (backend.HasField("shader_path")) {
-                backend.Deserialize("shader_path", shaderPath);
+            std::string shaderGuid;
+            if (backend.HasField("shader_guid")) {
+                backend.Deserialize("shader_guid", shaderGuid);
             }
 
             std::string typeStr;
@@ -137,11 +135,7 @@ namespace HE::Serialization {
             backend.Deserialize("name", matName);
             material.SetName(matName);
 
-            // Load shader from path
-            if (!shaderPath.empty()) {
-                auto shaderProgram = Rendering::ShaderProgramLoader::CreateFromFile(shaderPath);
-                material.SetShaderProgram(shaderProgram, shaderPath);
-            }
+            material.SetShaderProgram(nullptr, std::move(shaderGuid));
 
             // Parameters (object format, iterate using ForEachField)
             backend.BeginObject("parameters");

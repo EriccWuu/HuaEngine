@@ -3,6 +3,7 @@
 #include <filesystem>
 #include <string_view>
 #include <unordered_map>
+#include <vector>
 
 #include "AssetLibraryTypes.h"
 #include "HuaEngine/Core/ResultEnvelope.h"
@@ -15,6 +16,7 @@ namespace HE {
 		ResultEnvelope Save() const;
 
 		[[nodiscard]] const AssetLibraryRecord* Find(const AssetGuid& guid) const;
+		[[nodiscard]] std::vector<AssetGuid> FindDependents(const AssetGuid& dependencyGuid) const;
 		[[nodiscard]] bool IsArtifactAvailable(
 			const AssetGuid& guid,
 			AssetKind kind,

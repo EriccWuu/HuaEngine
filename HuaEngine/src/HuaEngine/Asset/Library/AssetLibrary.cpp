@@ -156,6 +156,17 @@ namespace HE {
 		return it != m_Records.end() ? &it->second : nullptr;
 	}
 
+	std::vector<AssetGuid> AssetLibrary::FindDependents(const AssetGuid& dependencyGuid) const {
+		std::vector<AssetGuid> dependents;
+		for (const auto& [guid, record] : m_Records) {
+			if (std::find(record.Dependencies.begin(), record.Dependencies.end(), dependencyGuid) != record.Dependencies.end()) {
+				dependents.push_back(guid);
+			}
+		}
+		std::sort(dependents.begin(), dependents.end());
+		return dependents;
+	}
+
 	bool AssetLibrary::IsArtifactAvailable(
 		const AssetGuid& guid,
 		AssetKind kind,
