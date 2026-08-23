@@ -120,7 +120,7 @@ entities:
           z: 1
       MaterialComponent:
         Material:
-          guid: builtin-material-default
+          guid: 6de06c0940c1fcd1aa64972a6eaf9f1b
         Overrides:
           parameters:
             u_Color:
@@ -155,7 +155,7 @@ entities:
           guid: 479f9040750454d073714c053277ea24
       MaterialComponent:
         Material:
-          guid: builtin-material-default
+          guid: 6de06c0940c1fcd1aa64972a6eaf9f1b
         Overrides:
           parameters:
             {}
