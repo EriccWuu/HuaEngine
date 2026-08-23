@@ -1,6 +1,6 @@
 name: SandboxMaterial
 material_type: Unlit
-shader_path: Resources/shaders/sandbox.glsl
+shader_path: Resources/BuiltinAssets/Shaders/UnlitColor.glsl
 parameters:
   u_MainTexture:
     value_type: Texture2D
