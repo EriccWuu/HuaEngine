@@ -117,7 +117,7 @@ int main() {
 	std::filesystem::create_directories(texturePath.parent_path(), errorCode);
 	Require(!errorCode, "Expected texture source directory creation to succeed");
 	std::filesystem::copy_file(
-		HE::ResourcePaths::ResolveEngineResourcePath("ret.png"),
+		HE::ResourcePaths::ResolveEngineResourcePath("textures/hutao.png"),
 		texturePath,
 		std::filesystem::copy_options::overwrite_existing);
 

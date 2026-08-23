@@ -206,7 +206,7 @@ int main() {
 	Require(static_cast<bool>(depthAttachmentTextureView), "Expected depth/stencil attachment texture view");
 	Require(depthAttachmentTextureView->GetDesc().Texture == depthAttachmentTexture, "Expected depth/stencil attachment texture view source");
 
-	const auto texturePath = HE::ResourcePaths::ResolveEngineResourcePath("ret.png");
+	const auto texturePath = HE::ResourcePaths::ResolveEngineResourcePath("textures/hutao.png");
 	auto texture = device.CreateTexture({ .SourcePath = texturePath.generic_string() });
 	Require(static_cast<bool>(texture), "Expected texture resource creation to succeed");
 	Require(texture->GetWidth() > 0 && texture->GetHeight() > 0, "Expected texture dimensions");
