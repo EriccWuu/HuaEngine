@@ -1,6 +1,6 @@
 name: FallbackMaterial
 material_type: Custom
-shader_path: Resources/BuiltinAssets/Shaders/UnlitColor.glsl
+shader_path: Shaders/UnlitColor.glsl
 parameters:
   u_Color:
     value_type: Vec4

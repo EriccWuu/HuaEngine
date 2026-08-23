@@ -1,6 +1,7 @@
 #pragma once
 
 #include <filesystem>
+#include <optional>
 #include <string_view>
 
 #include "AssetManifest.h"
@@ -136,6 +137,7 @@ namespace HE {
 		[[nodiscard]] AssetImporterRegistry& GetImporterRegistry() { return m_ImporterRegistry; }
 		[[nodiscard]] const AssetImporterRegistry& GetImporterRegistry() const { return m_ImporterRegistry; }
 		[[nodiscard]] bool IsManifestLoaded() const { return !m_Manifest.Empty(); }
+		[[nodiscard]] const ProjectContext* GetProjectContext() const { return m_ProjectContext ? &*m_ProjectContext : nullptr; }
 		[[nodiscard]] const AssetRecord* FindRecordByGuid(const AssetGuid& guid) const;
 
 	private:
@@ -148,5 +150,6 @@ namespace HE {
 		AssetRuntimeCache m_RuntimeCache;
 		AssetLibrary m_Library;
 		AssetImporterRegistry m_ImporterRegistry;
+		std::optional<ProjectContext> m_ProjectContext;
 	};
 }

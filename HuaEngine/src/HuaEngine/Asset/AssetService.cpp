@@ -277,6 +277,7 @@ namespace HE {
 			m_RuntimeCache = AssetRuntimeCache();
 		}
 		m_Manifest = std::move(loadedManifest);
+		m_ProjectContext = context;
 		m_Manifest.ForEachRecord([&](const AssetManifestRecord& manifestRecord) {
 			(void)m_Registry.Upsert(MakeRegistryRecord(context, manifestRecord));
 		});

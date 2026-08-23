@@ -496,6 +496,43 @@ namespace {
 		Require(resolvedMaterial->HasParameter("u_Color"), "Expected material parameter from artifact");
 	}
 
+	void TestMaterialShaderPathValidation(const std::filesystem::path& root) {
+		const HE::ProjectContext context{ .RootPath = root };
+		const auto shaderPath = context.GetAssetRootPath() / "Shaders" / "Project.glsl";
+		const auto materialPath = context.GetAssetRootPath() / "Materials" / "Project.material";
+		WriteTextFile(shaderPath, "#type vertex\n#type fragment\n");
+		const auto writeMaterial = [&](std::string_view shaderPathValue) {
+			WriteTextFile(materialPath,
+				"name: ProjectMaterial\n"
+				"material_type: Unlit\n"
+				"shader_path: " + std::string(shaderPathValue) + "\n"
+				"parameters: {}\n"
+				"texture_slots: {}\n");
+		};
+		const HE::AssetManifestRecord materialRecord{
+			.Guid = "project-material-guid",
+			.AssetId = "Materials/Project.material",
+			.Kind = HE::AssetKind::Material,
+			.Source = HE::AssetSource::File,
+			.RelativePath = "Materials/Project.material",
+			.ImportState = HE::AssetImportState::Registered
+		};
+		const HE::MaterialAssetImporter importer;
+		const HE::AssetManifest manifest;
+
+		writeMaterial("Shaders/Project.glsl");
+		const auto validResult = importer.Import({ context, materialRecord, materialPath, &manifest });
+		Require(validResult.Success, "Expected project-relative material shader import");
+		HE::Rendering::MaterialSourceData importedData;
+		Require(HE::DecodeMaterialArtifact(validResult.Artifact, importedData).Succeeded(), "Expected project-relative shader material decode");
+		Require(importedData.ShaderPath == "Shaders/Project.glsl", "Expected shader path to remain project-relative in artifact");
+
+		writeMaterial("Shaders/Missing.glsl");
+		Require(!importer.Import({ context, materialRecord, materialPath, &manifest }).Success, "Expected missing project shader rejection");
+		writeMaterial("../Outside.glsl");
+		Require(!importer.Import({ context, materialRecord, materialPath, &manifest }).Success, "Expected project shader path escape rejection");
+	}
+
 	void TestAssetReimportPipeline(const std::filesystem::path& root) {
 		HE::ProjectService projectService;
 		HE::ProjectContext context;
@@ -623,6 +660,7 @@ int main() {
 	TestMeshImportPipeline(smokeRoot / "Project");
 	TestMaterialSourceAndArtifact(smokeRoot / "MaterialSource");
 	TestMaterialImportPipeline(smokeRoot / "MaterialProject");
+	TestMaterialShaderPathValidation(smokeRoot / "MaterialShaderProject");
 	TestPngTextureImport(smokeRoot / "TextureSource");
 	TestObjImportPipeline(smokeRoot / "ObjProject");
 	TestAssetReimportPipeline(smokeRoot / "ReimportProject");

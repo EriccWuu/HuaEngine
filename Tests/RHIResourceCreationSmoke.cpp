@@ -285,6 +285,22 @@ int main() {
 	Require(textureResolver.ResolveTexture(importedTextureRecord.Guid, cachedResolvedTexture).Succeeded(), "Expected cached texture resolve");
 	Require(cachedResolvedTexture == resolvedTexture, "Expected texture runtime cache identity");
 
+	const auto importedShaderPath = textureProject.GetAssetRootPath() / "Shaders" / "Imported.glsl";
+	std::filesystem::create_directories(importedShaderPath.parent_path());
+	std::ofstream shaderStream(importedShaderPath, std::ios::out | std::ios::binary | std::ios::trunc);
+	Require(shaderStream.good(), "Expected project shader source open");
+	shaderStream <<
+		"#type vertex\n"
+		"#version 330 core\n"
+		"layout(location = 0) in vec3 a_Position;\n"
+		"void main() { gl_Position = vec4(a_Position, 1.0); }\n"
+		"#type fragment\n"
+		"#version 330 core\n"
+		"out vec4 FragColor;\n"
+		"void main() { FragColor = vec4(1.0); }\n";
+	shaderStream.close();
+	Require(shaderStream.good(), "Expected project shader source write");
+
 	const auto importedMaterialPath = textureProject.GetAssetRootPath() / "Materials" / "ImportedTextured.material";
 	std::filesystem::create_directories(importedMaterialPath.parent_path());
 	std::ofstream materialStream(importedMaterialPath, std::ios::out | std::ios::binary | std::ios::trunc);
@@ -292,7 +308,7 @@ int main() {
 	materialStream <<
 		"name: ImportedTexturedMaterial\n"
 		"material_type: Unlit\n"
-		"shader_path: ''\n"
+		"shader_path: Shaders/Imported.glsl\n"
 		"parameters:\n"
 		"  u_Texture:\n"
 		"    value_type: Texture2D\n"
@@ -314,6 +330,8 @@ int main() {
 	Require(textureAssetService.ResolveAsset(importedMaterialHandle, importedMaterialRecord).Succeeded(), "Expected imported material record");
 	HE::Ref<HE::Rendering::Material> resolvedTexturedMaterial;
 	Require(textureResolver.ResolveMaterial(importedMaterialRecord.Guid, resolvedTexturedMaterial).Succeeded(), "Expected textured material resolve from Library");
+	Require(resolvedTexturedMaterial->GetShaderProgram() != nullptr, "Expected project-relative material shader resolution");
+	Require(resolvedTexturedMaterial->GetShaderPath() == "Shaders/Imported.glsl", "Expected portable project-relative shader path metadata");
 	const auto* resolvedTextureParameter = resolvedTexturedMaterial->GetParameter("u_Texture");
 	Require(resolvedTextureParameter != nullptr, "Expected resolved material texture parameter");
 	Require(

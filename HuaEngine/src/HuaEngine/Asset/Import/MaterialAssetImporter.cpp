@@ -3,6 +3,8 @@
 
 #include <algorithm>
 
+#include "HuaEngine/Asset/AssetSourcePath.h"
+
 namespace HE {
 	bool MaterialAssetImporter::CanImport(AssetKind kind, std::string_view extension) const {
 		return kind == AssetKind::Material && (extension == ".material" || extension == ".mat");
@@ -16,6 +18,23 @@ namespace HE {
 		if (!loadResult.Succeeded()) {
 			result.Diagnostics = std::move(loadResult.Details);
 			return result;
+		}
+		if (!sourceData.ShaderPath.empty()) {
+			auto shaderRecord = context.SourceAsset;
+			shaderRecord.RelativePath = sourceData.ShaderPath;
+			std::filesystem::path shaderSourcePath;
+			auto shaderPathResult = ResolveAssetSourcePath(context.Project, shaderRecord, shaderSourcePath);
+			std::error_code errorCode;
+			if (!shaderPathResult.Succeeded() || !std::filesystem::is_regular_file(shaderSourcePath, errorCode)) {
+				result.Diagnostics = std::move(shaderPathResult.Details);
+				result.Diagnostics.push_back({
+					DiagnosticSeverity::Error,
+					"asset.import.material_shader_missing",
+					"Material shader path must reference a file under the material source root",
+					sourceData.ShaderPath
+				});
+				return result;
+			}
 		}
 
 		for (auto& [name, parameter] : sourceData.Parameters) {
