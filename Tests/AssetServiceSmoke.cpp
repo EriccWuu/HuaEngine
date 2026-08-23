@@ -436,7 +436,7 @@ int main() {
 	Require(reloadManifestResult.Succeeded(), "Expected asset service manifest reload to succeed");
 	HE::Ref<HE::Rendering::Mesh> staleMesh;
 	Require(resolver.ResolveMesh(quadRecord.Guid, staleMesh).Failed(), "Expected manifest reload to remove stale mesh metadata and runtime cache");
-	Require(assetService.GetAssetRegistry().GetAssetCount() == 6, "Expected registry reload to contain only manifest builtin records");
+	Require(assetService.GetAssetRegistry().GetAssetCount() == 7, "Expected registry reload to contain only manifest builtin records");
 
 	HE::ApplicationServices applicationServices;
 	Require(applicationServices.Assets().InitializeProjectAssets(projectContext).Succeeded(), "Expected application asset service to initialize Library artifacts before local resolver construction");

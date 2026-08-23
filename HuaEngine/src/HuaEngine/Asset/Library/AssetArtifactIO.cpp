@@ -19,7 +19,8 @@ namespace {
 	bool IsSupportedAssetKind(HE::AssetKind kind) {
 		return kind == HE::AssetKind::Mesh ||
 			kind == HE::AssetKind::Material ||
-			kind == HE::AssetKind::Texture2D;
+			kind == HE::AssetKind::Texture2D ||
+			kind == HE::AssetKind::Shader;
 	}
 
 	bool ReplaceFile(const std::filesystem::path& temporaryPath, const std::filesystem::path& finalPath) {

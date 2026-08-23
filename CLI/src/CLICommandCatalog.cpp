@@ -182,7 +182,7 @@ namespace HE::CLI {
 			CLICommandDomain::Asset,
 			"asset.import",
 			"Import a single asset file.",
-			"asset import --project <path> --asset-id <path> --kind <mesh|material|texture2d>",
+			"asset import --project <path> --asset-id <path> --kind <mesh|material|texture2d|shader>",
 			{
 				ValueOption("--project", "Project path or child path."),
 				ValueOption("--asset-id", "Asset id.", true),

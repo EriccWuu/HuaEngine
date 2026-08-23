@@ -12,6 +12,7 @@
 #include "HuaEngine/Asset/Import/ObjMeshImporter.h"
 #include "HuaEngine/Asset/Import/MaterialAssetImporter.h"
 #include "HuaEngine/Asset/Import/PngTextureImporter.h"
+#include "HuaEngine/Asset/Import/GlslShaderImporter.h"
 #include "HuaEngine/Rendering/Material/MaterialLibrary.h"
 #include "HuaEngine/Rendering/Material/MaterialSerializer.h"
 #include "HuaEngine/Rendering/Mesh/MeshManager.h"
@@ -60,6 +61,8 @@ namespace {
 	int GetReimportPriority(HE::AssetKind kind) {
 		switch (kind) {
 		case HE::AssetKind::Texture2D:
+			return 0;
+		case HE::AssetKind::Shader:
 			return 0;
 		case HE::AssetKind::Mesh:
 			return 1;
@@ -256,7 +259,8 @@ namespace HE {
 		const bool objMeshRegistered = m_ImporterRegistry.Register(std::make_unique<ObjMeshImporter>());
 		const bool materialRegistered = m_ImporterRegistry.Register(std::make_unique<MaterialAssetImporter>());
 		const bool textureRegistered = m_ImporterRegistry.Register(std::make_unique<PngTextureImporter>());
-		HE_CORE_ASSERT(meshRegistered && objMeshRegistered && materialRegistered && textureRegistered, "Failed to register core asset importers");
+		const bool shaderRegistered = m_ImporterRegistry.Register(std::make_unique<GlslShaderImporter>());
+		HE_CORE_ASSERT(meshRegistered && objMeshRegistered && materialRegistered && textureRegistered && shaderRegistered, "Failed to register core asset importers");
 	}
 
 	ResultEnvelope AssetService::LoadOrCreateManifest(const ProjectContext& context) {
@@ -844,6 +848,68 @@ namespace HE {
 		return MakeRegistrationResult("asset.register_texture", *m_Registry.Find(handle), "Texture asset registered");
 	}
 
+	ResultEnvelope AssetService::RegisterShaderAsset(
+		const ProjectContext& context,
+		std::string_view assetId,
+		AssetHandle* outHandle) {
+		NormalizedAssetPath normalizedPath;
+		ResultEnvelope normalizeError;
+		if (!TryNormalizeAssetPath(context, assetId, normalizedPath, normalizeError)) {
+			normalizeError.Operation = "asset.register_shader";
+			return normalizeError;
+		}
+		if (!m_ImporterRegistry.Find(AssetKind::Shader, normalizedPath.RelativePath.extension().string())) {
+			return ResultEnvelope::Failure("asset.register_shader", normalizedPath.AssetId, "Shader source extension is unsupported");
+		}
+		std::error_code errorCode;
+		if (!std::filesystem::is_regular_file(normalizedPath.AbsolutePath, errorCode)) {
+			auto result = ResultEnvelope::ManualIntervention("asset.register_shader", normalizedPath.AssetId, "Shader asset is unresolved");
+			result.AddDetail({ DiagnosticSeverity::Warning, "asset.shader.unresolved", "Shader registration requires an existing source file", normalizedPath.AbsolutePath.generic_string() });
+			return result;
+		}
+
+		if (m_Manifest.Empty()) {
+			auto manifestResult = LoadOrCreateManifest(context);
+			if (!manifestResult.Succeeded()) {
+				manifestResult.Operation = "asset.register_shader";
+				return manifestResult;
+			}
+		}
+
+		AssetRecord record;
+		record.Guid = GetExistingGuidOrGenerate(m_Registry, m_Manifest, normalizedPath.AssetId);
+		record.Kind = AssetKind::Shader;
+		record.Source = AssetSource::File;
+		record.AssetId = normalizedPath.AssetId;
+		record.RelativePath = normalizedPath.RelativePath;
+		record.AbsolutePath = normalizedPath.AbsolutePath;
+		record.ExistsOnDisk = true;
+		record.ImportState = AssetImportState::Registered;
+
+		AssetManifestRecord manifestRecord;
+		manifestRecord.Guid = record.Guid;
+		manifestRecord.Kind = record.Kind;
+		manifestRecord.Source = record.Source;
+		manifestRecord.AssetId = record.AssetId;
+		manifestRecord.RelativePath = record.RelativePath;
+		manifestRecord.ImportState = record.ImportState;
+		if (!m_Manifest.Upsert(manifestRecord)) {
+			return ResultEnvelope::Failure("asset.register_shader", normalizedPath.AssetId, "Shader manifest record conflicts with an existing asset");
+		}
+		auto saveResult = SaveAssetManifest(context, m_Manifest);
+		if (!saveResult.Succeeded()) {
+			saveResult.Operation = "asset.register_shader";
+			return saveResult;
+		}
+
+		const auto handle = m_Registry.Upsert(record);
+		if (handle == 0) {
+			return ResultEnvelope::Failure("asset.register_shader", normalizedPath.AssetId, "Shader registry record conflicts with an existing asset");
+		}
+		if (outHandle) *outHandle = handle;
+		return MakeRegistrationResult("asset.register_shader", *m_Registry.Find(handle), "Shader asset registered");
+	}
+
 	ResultEnvelope AssetService::ResolveAsset(AssetHandle handle, AssetRecord& outRecord) const {
 		const auto* record = m_Registry.Find(handle);
 		if (!record) {
@@ -923,6 +989,24 @@ namespace HE {
 
 		AssetResolver resolver(const_cast<AssetService&>(*this));
 		auto result = resolver.ResolveTexture(record->Guid, outTexture);
+		result.Target = HandleToString(handle);
+		result.SetPayloadValue("asset_id", record->AssetId);
+		return result;
+	}
+
+	ResultEnvelope AssetService::ResolveShaderAsset(AssetHandle handle, Ref<Rendering::ShaderProgram>& outShader) const {
+		const auto* record = m_Registry.Find(handle);
+		if (!record) {
+			return MakeResolveFailure("asset.resolve_shader", HandleToString(handle), "Shader asset handle was not found");
+		}
+		if (record->Kind != AssetKind::Shader) {
+			auto result = ResultEnvelope::Failure("asset.resolve_shader", HandleToString(handle), "Asset handle is not a shader asset");
+			result.AddDetail({ DiagnosticSeverity::Error, "asset.kind.mismatch", "Requested shader resolve for a non-shader asset", std::string(ToString(record->Kind)) });
+			return result;
+		}
+
+		AssetResolver resolver(const_cast<AssetService&>(*this));
+		auto result = resolver.ResolveShader(record->Guid, outShader);
 		result.Target = HandleToString(handle);
 		result.SetPayloadValue("asset_id", record->AssetId);
 		return result;
@@ -1025,6 +1109,9 @@ namespace HE {
 			case AssetKind::Texture2D:
 				++report.TextureAssets;
 				break;
+			case AssetKind::Shader:
+				++report.ShaderAssets;
+				break;
 			case AssetKind::Unknown:
 			default:
 				++report.UnknownKindAssets;
@@ -1047,6 +1134,7 @@ namespace HE {
 		result.SetPayloadValue("mesh_asset_count", CountToString(report.MeshAssets));
 		result.SetPayloadValue("material_asset_count", CountToString(report.MaterialAssets));
 		result.SetPayloadValue("texture_asset_count", CountToString(report.TextureAssets));
+		result.SetPayloadValue("shader_asset_count", CountToString(report.ShaderAssets));
 		result.SetPayloadValue("unknown_kind_asset_count", CountToString(report.UnknownKindAssets));
 		result.SetPayloadValue("invalid_asset_record_count", CountToString(report.InvalidAssetRecords));
 		result.SetPayloadValue("assets_outside_project_root", CountToString(report.AssetsOutsideProjectRoot));

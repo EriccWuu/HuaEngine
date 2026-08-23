@@ -54,6 +54,15 @@
       "relative_path": "Materials/Fallback.material",
       "builtin_name": "fallback",
       "import_state": "builtin"
+    },
+    {
+      "guid": "builtin-shader-unlit-color",
+      "asset_id": "builtin/shader/unlit-color",
+      "kind": "shader",
+      "source": "builtin",
+      "relative_path": "Shaders/UnlitColor.glsl",
+      "builtin_name": "unlit-color",
+      "import_state": "builtin"
     }
   ]
 }

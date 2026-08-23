@@ -262,7 +262,7 @@ int main() {
 		"Expected texture source registration");
 	HE::AssetImportReport textureImportReport;
 	Require(textureAssetService.InitializeProjectAssets(textureProject, &textureImportReport).Succeeded(), "Expected texture asset initialization");
-	Require(textureImportReport.ImportedAssets == 7 && textureImportReport.FailedAssets == 0, "Expected PNG artifact and six builtin asset imports");
+	Require(textureImportReport.ImportedAssets == 8 && textureImportReport.FailedAssets == 0, "Expected PNG artifact and seven builtin asset imports");
 
 	HE::AssetRecord importedTextureRecord;
 	Require(textureAssetService.ResolveAsset(importedTextureHandle, importedTextureRecord).Succeeded(), "Expected imported texture record");
@@ -300,6 +300,16 @@ int main() {
 		"void main() { FragColor = vec4(1.0); }\n";
 	shaderStream.close();
 	Require(shaderStream.good(), "Expected project shader source write");
+	HE::AssetHandle importedShaderHandle = 0;
+	Require(
+		textureAssetService.RegisterShaderAsset(textureProject, "Shaders/Imported.glsl", &importedShaderHandle).Succeeded(),
+		"Expected project shader source registration");
+	HE::AssetImportReport shaderImportReport;
+	Require(textureAssetService.InitializeProjectAssets(textureProject, &shaderImportReport).Succeeded(), "Expected project shader artifact import");
+	Require(shaderImportReport.ImportedAssets == 1 && shaderImportReport.FailedAssets == 0, "Expected one project shader artifact import");
+	HE::AssetRecord importedShaderRecord;
+	Require(textureAssetService.ResolveAsset(importedShaderHandle, importedShaderRecord).Succeeded(), "Expected imported shader record");
+	Require(importedShaderRecord.Kind == HE::AssetKind::Shader, "Expected imported shader asset kind");
 
 	const auto importedMaterialPath = textureProject.GetAssetRootPath() / "Materials" / "ImportedTextured.material";
 	std::filesystem::create_directories(importedMaterialPath.parent_path());
@@ -337,6 +347,13 @@ int main() {
 	Require(
 		static_cast<bool>(std::get<HE::Ref<HE::Rendering::TextureResource>>(resolvedTextureParameter->Value)),
 		"Expected material texture GUID resolved to an RHI texture");
+	Require(std::filesystem::remove(importedShaderPath), "Expected project shader source removal after import");
+	textureAssetService.GetRuntimeCache().Invalidate(importedShaderRecord.Guid);
+	HE::Ref<HE::Rendering::ShaderProgram> resolvedShader;
+	Require(textureResolver.ResolveShader(importedShaderRecord.Guid, resolvedShader).Succeeded(), "Expected shader resolve from Library after source removal");
+	Require(resolvedShader != nullptr, "Expected runtime shader program from artifact");
+	Require(resolvedShader->GetDesc().VertexSource.find("gl_Position") != std::string::npos, "Expected artifact-backed vertex shader source");
+	Require(resolvedShader->GetDesc().FragmentSource.find("FragColor") != std::string::npos, "Expected artifact-backed fragment shader source");
 	std::filesystem::remove_all(smokeRoot, smokeError);
 	Require(!smokeError, "Expected smoke directory cleanup after test");
 

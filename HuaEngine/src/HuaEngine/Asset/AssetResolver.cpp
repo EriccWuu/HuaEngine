@@ -4,6 +4,7 @@
 #include "HuaEngine/Asset/Artifact/MeshArtifact.h"
 #include "HuaEngine/Asset/Artifact/MaterialArtifact.h"
 #include "HuaEngine/Asset/Artifact/TextureArtifact.h"
+#include "HuaEngine/Asset/Artifact/ShaderArtifact.h"
 
 #include "AssetSourcePath.h"
 #include "AssetService.h"
@@ -267,5 +268,58 @@ namespace HE {
 		m_Service->GetRuntimeCache().StoreTexture(guid, texture);
 		outTexture = texture;
 		return ResultEnvelope::Success("asset.resolve_texture", guid, "Texture asset resolved");
+	}
+
+	ResultEnvelope AssetResolver::ResolveShader(const AssetGuid& guid, Ref<Rendering::ShaderProgram>& outShader) {
+		outShader = nullptr;
+		if (guid.empty()) {
+			return ResultEnvelope::Failure("asset.resolve_shader", {}, "Shader asset guid is empty");
+		}
+		if (!m_Service->IsManifestLoaded()) {
+			return MakeManifestUnloadedResult("asset.resolve_shader", guid);
+		}
+
+		const auto* record = m_Service->FindRecordByGuid(guid);
+		if (!record) {
+			return ResultEnvelope::Failure("asset.resolve_shader", guid, "Shader asset metadata was not found");
+		}
+		if (record->Kind != AssetKind::Shader) {
+			return MakeKindMismatchResult("asset.resolve_shader", guid, AssetKind::Shader, record->Kind);
+		}
+		if (record->Source != AssetSource::Builtin && record->Source != AssetSource::File) {
+			return MakeUnsupportedSourceResult("asset.resolve_shader", guid, record->Source);
+		}
+		if (!Rendering::RenderHardwareInterface::IsInitialized()) {
+			return ResultEnvelope::ManualIntervention("asset.resolve_shader", guid, "Render hardware interface is not initialized");
+		}
+		if (auto cached = m_Service->GetRuntimeCache().FindShader(guid)) {
+			outShader = cached;
+			return ResultEnvelope::Success("asset.resolve_shader", guid, "Shader asset resolved from runtime cache");
+		}
+
+		AssetArtifact artifact;
+		auto readResult = m_Service->GetLibrary().ReadArtifact(guid, artifact);
+		if (!readResult.Succeeded()) {
+			auto result = ResultEnvelope::ManualIntervention("asset.resolve_shader", guid, "Shader artifact is unavailable");
+			result.AddDetail({ DiagnosticSeverity::Warning, "asset.shader.artifact_unavailable", readResult.Summary, record->AssetId });
+			return result;
+		}
+		ShaderArtifactData shaderData;
+		auto decodeResult = DecodeShaderArtifact(artifact, shaderData);
+		if (!decodeResult.Succeeded()) {
+			auto result = ResultEnvelope::ManualIntervention("asset.resolve_shader", guid, "Shader artifact could not be decoded");
+			result.AddDetail({ DiagnosticSeverity::Warning, "asset.shader.artifact_decode_failed", decodeResult.Summary, record->AssetId });
+			return result;
+		}
+
+		auto shader = Rendering::ShaderProgramLoader::CreateFromSource(shaderData.VertexSource, shaderData.FragmentSource);
+		if (!shader) {
+			auto result = ResultEnvelope::ManualIntervention("asset.resolve_shader", guid, "Shader artifact could not create a runtime program");
+			result.AddDetail({ DiagnosticSeverity::Error, "asset.shader.program_create_failed", "RenderDevice rejected the imported shader source", record->AssetId });
+			return result;
+		}
+		m_Service->GetRuntimeCache().StoreShader(guid, shader);
+		outShader = shader;
+		return ResultEnvelope::Success("asset.resolve_shader", guid, "Shader asset resolved");
 	}
 }

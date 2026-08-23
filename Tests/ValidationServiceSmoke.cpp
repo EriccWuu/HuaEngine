@@ -77,8 +77,8 @@ int main() {
 	auto missingArtifactValidation = validationService.Validate(validationRequest, &missingArtifactReport);
 	Require(missingArtifactValidation.RequiresManualIntervention(), "Expected registered file assets without Library artifacts to require intervention");
 	Require(missingArtifactReport.AssetStatus.FileAssetsMissingArtifacts == 2, "Expected validation to count missing mesh and material artifacts");
-	Require(missingArtifactReport.AssetStatus.BuiltinAssetsMissingArtifacts == 6, "Expected validation to count missing builtin artifacts");
-	Require(missingArtifactReport.AssetStatus.RuntimeIssueCount() == 8, "Expected project and builtin artifacts to count as runtime issues");
+	Require(missingArtifactReport.AssetStatus.BuiltinAssetsMissingArtifacts == 7, "Expected validation to count missing builtin artifacts");
+	Require(missingArtifactReport.AssetStatus.RuntimeIssueCount() == 9, "Expected project and builtin artifacts to count as runtime issues");
 	Require(assetService.InitializeProjectAssets(projectContext).Succeeded(), "Expected validation assets to initialize into Library");
 
 	HE::ValidationReport healthyReport;
@@ -87,14 +87,15 @@ int main() {
 	Require(healthyReport.DomainCount == 3, "Expected validation report to cover three domains");
 	Require(healthyReport.SuccessCount == 3, "Expected all three domains to validate successfully");
 	Require(healthyReport.ManualInterventionCount == 0, "Expected no domains to require manual intervention on the healthy path");
-	Require(healthyReport.AssetStatus.TotalAssets == 8, "Expected asset validation to see builtin and registered assets");
+	Require(healthyReport.AssetStatus.TotalAssets == 9, "Expected asset validation to see builtin and registered assets");
 	Require(healthyReport.AssetStatus.MetadataIssueCount() == 0, "Expected healthy asset validation to report no metadata issues");
 	Require(healthyReport.AssetStatus.RuntimeIssueCount() == 0, "Expected healthy asset validation to report no runtime issues");
 	Require(healthyReport.AssetStatus.FallbackAssets == 2, "Expected asset validation to count fallback builtin assets");
 	RequirePayloadValue(healthyValidation, "project_status", "success");
 	RequirePayloadValue(healthyValidation, "scene_status", "success");
 	RequirePayloadValue(healthyValidation, "asset_status", "success");
-	RequirePayloadValue(healthyValidation, "asset_count", "8");
+	RequirePayloadValue(healthyValidation, "asset_count", "9");
+	RequirePayloadValue(healthyValidation, "shader_asset_count", "1");
 	RequirePayloadValue(healthyValidation, "metadata_issue_count", "0");
 	RequirePayloadValue(healthyValidation, "runtime_issue_count", "0");
 	RequirePayloadValue(healthyValidation, "fallback_asset_count", "2");

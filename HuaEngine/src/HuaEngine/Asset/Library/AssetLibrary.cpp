@@ -40,7 +40,8 @@ namespace {
 	bool IsSupportedAssetKind(HE::AssetKind kind) {
 		return kind == HE::AssetKind::Mesh ||
 			kind == HE::AssetKind::Material ||
-			kind == HE::AssetKind::Texture2D;
+			kind == HE::AssetKind::Texture2D ||
+			kind == HE::AssetKind::Shader;
 	}
 
 	std::string_view ArtifactExtension(HE::AssetKind kind) {
@@ -51,6 +52,8 @@ namespace {
 			return ".huamat";
 		case HE::AssetKind::Texture2D:
 			return ".huatex";
+		case HE::AssetKind::Shader:
+			return ".huashader";
 		case HE::AssetKind::Unknown:
 			break;
 		}

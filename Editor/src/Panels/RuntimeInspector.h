@@ -21,6 +21,7 @@ namespace HE::Editor {
 			case AssetKind::Material:
 				return MaterialAssets;
 			case AssetKind::Texture2D:
+			case AssetKind::Shader:
 			case AssetKind::Unknown:
 			default:
 				return {};

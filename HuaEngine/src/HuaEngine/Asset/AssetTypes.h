@@ -12,7 +12,8 @@ namespace HE {
 		Unknown,
 		Mesh,
 		Material,
-		Texture2D
+		Texture2D,
+		Shader
 	};
 
 	enum class AssetSource {
@@ -53,6 +54,10 @@ namespace HE {
 		AssetReference Reference;
 	};
 
+	struct ShaderAssetRef {
+		AssetReference Reference;
+	};
+
 	namespace BuiltinAssetGuids {
 		inline const AssetGuid QuadMesh = "builtin-mesh-quad";
 		inline const AssetGuid CubeMesh = "builtin-mesh-cube";
@@ -60,6 +65,7 @@ namespace HE {
 		inline const AssetGuid DefaultMaterial = "builtin-material-default";
 		inline const AssetGuid FallbackMesh = "builtin-mesh-fallback";
 		inline const AssetGuid FallbackMaterial = "builtin-material-fallback";
+		inline const AssetGuid UnlitColorShader = "builtin-shader-unlit-color";
 	}
 
 	std::string GenerateAssetGuid();

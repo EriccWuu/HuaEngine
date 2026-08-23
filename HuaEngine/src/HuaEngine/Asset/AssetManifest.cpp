@@ -423,6 +423,8 @@ namespace HE {
 			return "material";
 		case AssetKind::Texture2D:
 			return "texture2d";
+		case AssetKind::Shader:
+			return "shader";
 		case AssetKind::Unknown:
 		default:
 			return "unknown";
@@ -479,6 +481,9 @@ namespace HE {
 		}
 		if (value == "texture2d") {
 			return AssetKind::Texture2D;
+		}
+		if (value == "shader") {
+			return AssetKind::Shader;
 		}
 		return AssetKind::Unknown;
 	}

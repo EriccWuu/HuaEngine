@@ -28,6 +28,9 @@ namespace HE::CLI {
 		if (kind == "texture2d") {
 			return AssetKind::Texture2D;
 		}
+		if (kind == "shader") {
+			return AssetKind::Shader;
+		}
 
 		return std::nullopt;
 	}

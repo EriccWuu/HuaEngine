@@ -10,12 +10,14 @@
 #include "HuaEngine/Asset/Artifact/MeshArtifact.h"
 #include "HuaEngine/Asset/Artifact/MaterialArtifact.h"
 #include "HuaEngine/Asset/Artifact/TextureArtifact.h"
+#include "HuaEngine/Asset/Artifact/ShaderArtifact.h"
 #include "HuaEngine/Asset/AssetResolver.h"
 #include "HuaEngine/Asset/AssetService.h"
 #include "HuaEngine/Asset/Import/AssetImporterRegistry.h"
 #include "HuaEngine/Asset/Import/MaterialAssetImporter.h"
 #include "HuaEngine/Asset/Import/MeshAssetImporter.h"
 #include "HuaEngine/Asset/Import/PngTextureImporter.h"
+#include "HuaEngine/Asset/Import/GlslShaderImporter.h"
 #include "HuaEngine/Project/ProjectService.h"
 #include "HuaEngine/Rendering/Mesh/MeshCore.h"
 #include "HuaEngine/Rendering/Material/MaterialSourceData.h"
@@ -30,11 +32,14 @@ namespace {
 		}
 	}
 
+	void WriteTextFile(const std::filesystem::path& path, const std::string& text);
+
 	void TestImporterSelection() {
 		HE::AssetImporterRegistry registry;
 		Require(registry.Register(std::make_unique<HE::MeshAssetImporter>()), "Expected mesh importer registration");
 		Require(registry.Register(std::make_unique<HE::MaterialAssetImporter>()), "Expected material importer registration");
 		Require(registry.Register(std::make_unique<HE::PngTextureImporter>()), "Expected PNG importer registration");
+		Require(registry.Register(std::make_unique<HE::GlslShaderImporter>()), "Expected GLSL importer registration");
 
 		const auto* importer = registry.Find(HE::AssetKind::Mesh, ".mesh");
 		Require(importer != nullptr, "Expected mesh importer lookup");
@@ -50,7 +55,40 @@ namespace {
 		Require(pngMatch && pngMatch->Kind == HE::AssetKind::Texture2D, "Expected texture kind inference");
 		const auto materialMatch = registry.FindByExtension(".MAT");
 		Require(materialMatch && materialMatch->Kind == HE::AssetKind::Material, "Expected material kind inference");
+		const auto shaderMatch = registry.FindByExtension(".GLSL");
+		Require(shaderMatch && shaderMatch->Kind == HE::AssetKind::Shader, "Expected shader kind inference");
 		Require(!registry.FindByExtension(".obj"), "Expected unsupported extension inference rejection");
+	}
+
+	void TestShaderImportPipeline(const std::filesystem::path& root) {
+		const HE::ProjectContext context{ .RootPath = root };
+		const auto shaderPath = context.GetAssetRootPath() / "Shaders" / "Imported.glsl";
+		WriteTextFile(shaderPath,
+			"#type vertex\n"
+			"#version 330 core\n"
+			"void main() { gl_Position = vec4(0.0); }\n"
+			"#type fragment\n"
+			"#version 330 core\n"
+			"out vec4 FragColor;\n"
+			"void main() { FragColor = vec4(1.0); }\n");
+		const HE::AssetManifestRecord shaderRecord{
+			.Guid = "shader-guid-for-import",
+			.AssetId = "Shaders/Imported.glsl",
+			.Kind = HE::AssetKind::Shader,
+			.Source = HE::AssetSource::File,
+			.RelativePath = "Shaders/Imported.glsl",
+			.ImportState = HE::AssetImportState::Registered
+		};
+		const HE::GlslShaderImporter importer;
+		const auto importResult = importer.Import({ context, shaderRecord, shaderPath, nullptr });
+		Require(importResult.Success, "Expected GLSL shader import");
+		HE::ShaderArtifactData shaderData;
+		Require(HE::DecodeShaderArtifact(importResult.Artifact, shaderData).Succeeded(), "Expected shader artifact decode");
+		Require(shaderData.VertexSource.find("gl_Position") != std::string::npos, "Expected vertex shader artifact source");
+		Require(shaderData.FragmentSource.find("FragColor") != std::string::npos, "Expected fragment shader artifact source");
+
+		WriteTextFile(shaderPath, "#type vertex\nvoid main() {}\n");
+		Require(!importer.Import({ context, shaderRecord, shaderPath, nullptr }).Success, "Expected incomplete GLSL shader rejection");
 	}
 
 	void TestRuntimeCacheInvalidation() {
@@ -116,8 +154,8 @@ namespace {
 		const auto firstInitialize = assetService.InitializeProjectAssets(context, &firstReport);
 		Require(firstInitialize.Succeeded(), "Expected first project asset initialization");
 		Require(firstReport.TotalFileAssets == 1, "Expected one file asset in import report");
-		Require(firstReport.TotalBuiltinAssets == 6, "Expected six builtin assets in import report");
-		Require(firstReport.ImportedAssets == 7, "Expected first initialization to import project and builtin assets");
+		Require(firstReport.TotalBuiltinAssets == 7, "Expected seven builtin assets in import report");
+		Require(firstReport.ImportedAssets == 8, "Expected first initialization to import project and builtin assets");
 		Require(firstReport.SkippedAssets == 0, "Expected first initialization not to skip mesh");
 		const std::array builtinMeshes = {
 			std::pair{ HE::BuiltinAssetGuids::QuadMesh, std::filesystem::path("Meshes/Quad.obj") },
@@ -149,8 +187,8 @@ namespace {
 		HE::AssetImportReport secondReport;
 		Require(assetService.InitializeProjectAssets(context, &secondReport).Succeeded(), "Expected repeated project asset initialization");
 		Require(secondReport.ImportedAssets == 0, "Expected repeated initialization not to import mesh");
-		Require(secondReport.TotalBuiltinAssets == 6, "Expected repeated initialization to include builtin assets");
-		Require(secondReport.SkippedAssets == 7, "Expected repeated initialization to skip compatible project and builtin assets");
+		Require(secondReport.TotalBuiltinAssets == 7, "Expected repeated initialization to include builtin assets");
+		Require(secondReport.SkippedAssets == 8, "Expected repeated initialization to skip compatible project and builtin assets");
 		Require(std::filesystem::last_write_time(artifactPath) == firstWriteTime, "Expected skipped mesh artifact not to be rewritten");
 
 		const auto replacementMesh = HE::Rendering::Mesh::CreateQuad("ReimportedQuad");
@@ -245,7 +283,7 @@ namespace {
 		Require(quadHandle != 0, "Expected explicit OBJ registration handle");
 		HE::AssetImportReport initializeReport;
 		Require(assetService.InitializeProjectAssets(context, &initializeReport).Succeeded(), "Expected OBJ project asset initialization");
-		Require(initializeReport.ImportedAssets == 7, "Expected OBJ and builtin artifacts to import");
+		Require(initializeReport.ImportedAssets == 8, "Expected OBJ and builtin artifacts to import");
 
 		HE::AssetRecord quadRecord;
 		Require(assetService.ResolveAsset("Models/ObjQuad.obj", quadRecord).Succeeded(), "Expected OBJ manifest record");
@@ -480,7 +518,7 @@ namespace {
 
 		HE::AssetImportReport report;
 		Require(assetService.InitializeProjectAssets(context, &report).Succeeded(), "Expected material project asset initialization");
-		Require(report.ImportedAssets == 7 && report.FailedAssets == 0, "Expected material and builtin artifact import");
+		Require(report.ImportedAssets == 8 && report.FailedAssets == 0, "Expected material and builtin artifact import");
 
 		HE::AssetRecord record;
 		Require(assetService.ResolveAsset("Materials/ImportedMaterial.material", record).Succeeded(), "Expected imported material record");
@@ -658,6 +696,7 @@ int main() {
 	std::filesystem::remove_all(smokeRoot, errorCode);
 	Require(!errorCode, "Expected import smoke cleanup before test");
 	TestMeshImportPipeline(smokeRoot / "Project");
+	TestShaderImportPipeline(smokeRoot / "ShaderProject");
 	TestMaterialSourceAndArtifact(smokeRoot / "MaterialSource");
 	TestMaterialImportPipeline(smokeRoot / "MaterialProject");
 	TestMaterialShaderPathValidation(smokeRoot / "MaterialShaderProject");

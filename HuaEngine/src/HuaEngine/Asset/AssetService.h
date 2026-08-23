@@ -31,6 +31,7 @@ namespace HE {
 		uint32_t MeshAssets = 0;
 		uint32_t MaterialAssets = 0;
 		uint32_t TextureAssets = 0;
+		uint32_t ShaderAssets = 0;
 		uint32_t UnknownKindAssets = 0;
 		uint32_t InvalidAssetRecords = 0;
 		uint32_t AssetsOutsideProjectRoot = 0;
@@ -119,11 +120,17 @@ namespace HE {
 			const Ref<Rendering::TextureResource>& texture = nullptr,
 			AssetHandle* outHandle = nullptr);
 
+		[[nodiscard]] ResultEnvelope RegisterShaderAsset(
+			const ProjectContext& context,
+			std::string_view assetId,
+			AssetHandle* outHandle = nullptr);
+
 		[[nodiscard]] ResultEnvelope ResolveAsset(AssetHandle handle, AssetRecord& outRecord) const;
 		[[nodiscard]] ResultEnvelope ResolveAsset(std::string_view assetId, AssetRecord& outRecord) const;
 		[[nodiscard]] ResultEnvelope ResolveMeshAsset(AssetHandle handle, Ref<Rendering::Mesh>& outMesh) const;
 		[[nodiscard]] ResultEnvelope ResolveMaterialAsset(AssetHandle handle, Ref<Rendering::Material>& outMaterial) const;
 		[[nodiscard]] ResultEnvelope ResolveTextureAsset(AssetHandle handle, Ref<Rendering::TextureResource>& outTexture) const;
+		[[nodiscard]] ResultEnvelope ResolveShaderAsset(AssetHandle handle, Ref<Rendering::ShaderProgram>& outShader) const;
 		[[nodiscard]] ResultEnvelope ValidateRegistry(const ProjectContext& context, AssetValidationReport* outReport = nullptr);
 
 		[[nodiscard]] const AssetRegistry& GetAssetRegistry() const { return m_Registry; }

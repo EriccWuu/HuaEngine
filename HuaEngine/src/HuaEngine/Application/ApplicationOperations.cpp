@@ -475,10 +475,13 @@ namespace HE {
 		case AssetKind::Texture2D:
 			result = m_Services->Assets().RegisterTextureAsset(context, assetId, nullptr, &handle);
 			break;
+		case AssetKind::Shader:
+			result = m_Services->Assets().RegisterShaderAsset(context, assetId, &handle);
+			break;
 		case AssetKind::Unknown:
 		default:
 			result = ResultEnvelope::Failure("asset.import", std::string(assetId), "Unsupported asset import kind");
-			result.AddDetail({ DiagnosticSeverity::Error, "asset.import.kind_invalid", "Asset import requires mesh, material, or texture2d kind", std::string(ToString(kind)) });
+			result.AddDetail({ DiagnosticSeverity::Error, "asset.import.kind_invalid", "Asset import requires mesh, material, texture2d, or shader kind", std::string(ToString(kind)) });
 			return result;
 		}
 

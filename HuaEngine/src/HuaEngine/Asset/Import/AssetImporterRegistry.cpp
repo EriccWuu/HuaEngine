@@ -46,7 +46,8 @@ namespace HE {
 		constexpr std::array kinds = {
 			AssetKind::Mesh,
 			AssetKind::Material,
-			AssetKind::Texture2D
+			AssetKind::Texture2D,
+			AssetKind::Shader
 		};
 		for (const AssetKind kind : kinds) {
 			if (const AssetImporter* importer = Find(kind, extension)) {

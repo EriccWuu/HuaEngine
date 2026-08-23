@@ -124,6 +124,8 @@ namespace HE::Editor {
 				return "material";
 			case AssetKind::Texture2D:
 				return "texture";
+			case AssetKind::Shader:
+				return "shader";
 			case AssetKind::Unknown:
 			default:
 				return "asset";
