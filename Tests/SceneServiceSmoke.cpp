@@ -4,6 +4,8 @@
 #include <iostream>
 #include <string>
 
+#include <yaml-cpp/yaml.h>
+
 #include "HuaEngine.h"
 #include "HuaEngine/Scene/SceneService.h"
 
@@ -67,17 +69,27 @@ int main() {
 	Require(saveResult.Succeeded(), "Expected scene.save to succeed");
 	Require(std::filesystem::exists(sceneFilePath), "Expected saved scene file to exist");
 	const auto sceneFileText = ReadFileText(sceneFilePath);
-	Require(sceneFileText.find("\"components\": {") != std::string::npos, "Expected scene serialization to persist components as an object map");
-	Require(sceneFileText.find("\"component_type_id\"") == std::string::npos, "Expected scene serialization to avoid legacy component_type_id fields");
-	Require(sceneFileText.find("\"compId\"") == std::string::npos, "Expected scene serialization to avoid legacy compId fields");
+	const auto sceneDocument = YAML::Load(sceneFileText);
+	const auto serializedEntities = sceneDocument["entities"];
+	Require(serializedEntities && serializedEntities.IsSequence(), "Expected scene serialization to persist an entity sequence");
+	for (const auto& serializedEntity : serializedEntities) {
+		const auto components = serializedEntity["components"];
+		Require(components && components.IsMap(), "Expected scene serialization to persist components as an object map");
+	}
+	Require(sceneFileText.find("component_type_id:") == std::string::npos, "Expected scene serialization to avoid legacy component_type_id fields");
+	Require(sceneFileText.find("compId:") == std::string::npos, "Expected scene serialization to avoid legacy compId fields");
 
 	scene->GetWorld().DestroyEntity(secondEntity.GetId());
 	auto saveAfterDelete = sceneService.SaveScene(*scene, sceneFilePath);
 	Require(saveAfterDelete.Succeeded(), "Expected scene.save to succeed after deleting an entity");
 	const auto sceneFileTextAfterDelete = ReadFileText(sceneFilePath);
-	Require(sceneFileTextAfterDelete.find("\"components\": {}") == std::string::npos, "Expected deleted entities to be fully removed instead of persisting empty component shells");
-	Require(sceneFileTextAfterDelete.find("\"id\": 1048576") == std::string::npos, "Expected tombstone entity identifiers to be excluded from scene serialization");
-	Require(sceneFileTextAfterDelete.find("\"id\": 1048581") == std::string::npos, "Expected deleted entity tombstones to be excluded from scene serialization");
+	const auto sceneDocumentAfterDelete = YAML::Load(sceneFileTextAfterDelete);
+	const auto serializedEntitiesAfterDelete = sceneDocumentAfterDelete["entities"];
+	Require(serializedEntitiesAfterDelete && serializedEntitiesAfterDelete.IsSequence(), "Expected saved scene to retain an entity sequence after deletion");
+	Require(serializedEntitiesAfterDelete.size() == 2, "Expected deleted entities to be excluded from scene serialization");
+	for (const auto& serializedEntity : serializedEntitiesAfterDelete) {
+		Require(serializedEntity["name"].as<std::string>() != "Second Entity", "Expected deleted entity data to be absent from scene serialization");
+	}
 
 	HE::Ref<HE::Scene> loadedScene;
 	auto loadResult = sceneService.LoadScene(sceneFilePath, loadedScene);
