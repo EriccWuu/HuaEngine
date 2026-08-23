@@ -498,6 +498,19 @@ namespace {
 		Require(
 			std::get<std::string>(importedData.Parameters.at("u_Texture").Value) == textureGuid,
 			"Expected material texture reference converted to guid");
+
+		WriteTextFile(materialPath,
+			"name: InvalidTextureMaterial\n"
+			"material_type: Unlit\n"
+			"shader_guid: ''\n"
+			"parameters:\n"
+			"  u_Texture:\n"
+			"    value_type: Texture2D\n"
+			"    value: Textures/Missing.png\n"
+			"texture_slots:\n"
+			"  u_Texture: 0\n");
+		const auto unresolvedTextureResult = importer.Import({ projectContext, materialRecord, materialPath, &manifest });
+		Require(!unresolvedTextureResult.Success, "Expected unresolved non-empty material texture reference rejection");
 	}
 
 	void TestMaterialImportPipeline(const std::filesystem::path& root) {

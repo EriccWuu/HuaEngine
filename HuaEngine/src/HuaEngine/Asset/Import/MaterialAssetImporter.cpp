@@ -40,13 +40,12 @@ namespace HE {
 			const auto* textureRecord = context.Manifest ? context.Manifest->FindByAssetId(textureReference) : nullptr;
 			if (!textureRecord || textureRecord->Kind != AssetKind::Texture2D) {
 				result.Diagnostics.push_back({
-					DiagnosticSeverity::Warning,
+					DiagnosticSeverity::Error,
 					"asset.import.material_texture_unresolved",
-					"Material texture reference is not registered in the asset manifest and was cleared",
+					"Material texture reference must identify a registered texture asset",
 					textureReference
 				});
-				textureReference.clear();
-				continue;
+				return result;
 			}
 
 			textureReference = textureRecord->Guid;

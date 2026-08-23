@@ -2,9 +2,9 @@ name: SandboxMaterial
 material_type: Unlit
 shader_guid: 71940333dd9141dc96651fe1efdc7d65
 parameters:
-  u_MainTexture:
+  u_Texture:
     value_type: Texture2D
-    value: texture_path_placeholder
+    value: textures/hutao.png
   u_Color:
     value_type: Vec4
     value:
@@ -12,10 +12,5 @@ parameters:
       x: 1.0
       y: 1.0
       z: 1.0
-  u_TextureScale:
-    value_type: Vec2
-    value:
-      x: 1.0
-      y: 1.0
 texture_slots:
-  u_MainTexture: 0
+  u_Texture: 0

@@ -186,7 +186,7 @@ namespace HE::Rendering {
 			AddMaterialParameterEntry(entries, selectedParameter, schemaEntry.Binding, schemaEntry.TextureSlot);
 		}
 
-		if (entries.empty()) {
+		if (entries.size() != schema.Entries.size()) {
 			return nullptr;
 		}
 
