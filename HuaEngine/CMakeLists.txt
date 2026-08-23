@@ -71,6 +71,7 @@ target_include_directories(HuaEngine
         ${IMGUI_INCLUDE_DIR}
         ${GLM_INCLUDE_DIR}
         ${STB_IMAGE_INCLUDE_DIR}
+        ${TINYOBJLOADER_INCLUDE_DIR}
 )
 
 # Link libraries

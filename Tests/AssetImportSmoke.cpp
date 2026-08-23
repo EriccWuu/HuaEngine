@@ -205,6 +205,84 @@ namespace {
 		Require(stream.good(), "Expected text fixture write");
 	}
 
+	void TestObjImportPipeline(const std::filesystem::path& root) {
+		HE::ProjectService projectService;
+		HE::ProjectContext context;
+		Require(projectService.InitializeProject(root, &context, "ObjImportProject").Succeeded(), "Expected OBJ import project initialization");
+
+		const auto quadPath = context.GetAssetRootPath() / "Models" / "ObjQuad.obj";
+		WriteTextFile(quadPath,
+			"o ObjQuad\n"
+			"v -1.0 -1.0 0.0\n"
+			"v  1.0 -1.0 0.0\n"
+			"v  1.0  1.0 0.0\n"
+			"v -1.0  1.0 0.0\n"
+			"vt 0.0 0.0\n"
+			"vt 1.0 0.0\n"
+			"vt 1.0 1.0\n"
+			"vt 0.0 1.0\n"
+			"vn 0.0 0.0 1.0\n"
+			"f -4/-4/1 -3/-3/1 -2/-2/1 -1/-1/1\n");
+
+		HE::AssetService assetService;
+		Require(assetService.CanImportSource(quadPath), "Expected OBJ source support query");
+		const auto* objImporter = assetService.GetImporterRegistry().Find(HE::AssetKind::Mesh, ".OBJ");
+		Require(objImporter != nullptr, "Expected case-insensitive OBJ importer lookup");
+		Require(objImporter->GetId() == "hua.mesh-obj", "Expected stable OBJ importer id");
+
+		HE::AssetHandle quadHandle = 0;
+		Require(assetService.LoadMeshAsset(context, "Models/ObjQuad.obj", &quadHandle).Succeeded(), "Expected explicit OBJ source registration");
+		Require(quadHandle != 0, "Expected explicit OBJ registration handle");
+		HE::AssetImportReport initializeReport;
+		Require(assetService.InitializeProjectAssets(context, &initializeReport).Succeeded(), "Expected OBJ project asset initialization");
+		Require(initializeReport.ImportedAssets == 7, "Expected OBJ and builtin artifacts to import");
+
+		HE::AssetRecord quadRecord;
+		Require(assetService.ResolveAsset("Models/ObjQuad.obj", quadRecord).Succeeded(), "Expected OBJ manifest record");
+		HE::AssetArtifact quadArtifact;
+		Require(assetService.GetLibrary().ReadArtifact(quadRecord.Guid, quadArtifact).Succeeded(), "Expected OBJ mesh artifact read");
+		HE::Ref<HE::Rendering::Mesh> quadMesh;
+		Require(HE::DecodeMeshArtifact(quadArtifact, quadMesh).Succeeded() && quadMesh, "Expected OBJ mesh artifact decode");
+		Require(quadMesh->GetName() == "ObjQuad", "Expected OBJ mesh name from source filename");
+		const auto& quadData = quadMesh->GetMeshData();
+		Require(quadData.Layout.Stride == 20, "Expected OBJ Position+UV vertex stride");
+		Require(quadData.Layout.Elements.size() == 2, "Expected OBJ Position+UV layout");
+		Require(quadData.Layout.Elements[0].Name == "a_Position", "Expected OBJ position attribute");
+		Require(quadData.Layout.Elements[1].Name == "a_TexCoord", "Expected OBJ texture coordinate attribute");
+		Require(quadData.VertexData.size() == 20, "Expected four deduplicated OBJ vertices");
+		Require(quadData.IndexData.size() == 6, "Expected OBJ quad triangulation");
+
+		const auto trianglePath = context.GetAssetRootPath() / "Models" / "NoUvTriangle.obj";
+		WriteTextFile(trianglePath,
+			"v 0.0 0.0 0.0\n"
+			"v 1.0 0.0 0.0\n"
+			"v 0.0 1.0 0.0\n"
+			"f 1 2 3\n");
+		HE::AssetReimportReport noUvReport;
+		Require(assetService.ReimportAssets(context, trianglePath, &noUvReport).Succeeded(), "Expected OBJ reimport registration");
+		Require(noUvReport.RegisteredAssets == 1 && noUvReport.ReimportedAssets == 1, "Expected missing-UV OBJ import");
+		HE::AssetRecord triangleRecord;
+		Require(assetService.ResolveAsset("Models/NoUvTriangle.obj", triangleRecord).Succeeded(), "Expected missing-UV OBJ record");
+		HE::AssetArtifact triangleArtifact;
+		Require(assetService.GetLibrary().ReadArtifact(triangleRecord.Guid, triangleArtifact).Succeeded(), "Expected missing-UV OBJ artifact");
+		HE::Ref<HE::Rendering::Mesh> triangleMesh;
+		Require(HE::DecodeMeshArtifact(triangleArtifact, triangleMesh).Succeeded() && triangleMesh, "Expected missing-UV OBJ decode");
+		const auto& triangleVertices = triangleMesh->GetMeshData().VertexData;
+		Require(triangleVertices.size() == 15, "Expected three missing-UV OBJ vertices");
+		for (size_t vertex = 0; vertex < 3; ++vertex) {
+			Require(triangleVertices[vertex * 5 + 3] == 0.0f && triangleVertices[vertex * 5 + 4] == 0.0f, "Expected missing OBJ UVs to default to zero");
+		}
+
+		const auto preservedPayload = quadArtifact.Payload;
+		WriteTextFile(quadPath, "o Invalid\nf 1 2 3\n");
+		HE::AssetReimportReport invalidReport;
+		Require(assetService.ReimportAssets(context, quadPath, &invalidReport).Succeeded(), "Expected invalid OBJ to report a per-asset failure");
+		Require(invalidReport.FailedAssets == 1, "Expected invalid OBJ import failure");
+		HE::AssetArtifact preservedArtifact;
+		Require(assetService.GetLibrary().ReadArtifact(quadRecord.Guid, preservedArtifact).Succeeded(), "Expected previous OBJ artifact preservation");
+		Require(preservedArtifact.Payload == preservedPayload, "Expected invalid OBJ reimport not to replace the previous artifact");
+	}
+
 	void WriteBinaryFile(const std::filesystem::path& path, const std::vector<uint8_t>& data) {
 		std::filesystem::create_directories(path.parent_path());
 		std::ofstream stream(path, std::ios::out | std::ios::binary | std::ios::trunc);
@@ -536,6 +614,7 @@ int main() {
 	TestMaterialSourceAndArtifact(smokeRoot / "MaterialSource");
 	TestMaterialImportPipeline(smokeRoot / "MaterialProject");
 	TestPngTextureImport(smokeRoot / "TextureSource");
+	TestObjImportPipeline(smokeRoot / "ObjProject");
 	TestAssetReimportPipeline(smokeRoot / "ReimportProject");
 	TestBuiltinResolverRequiresLibraryArtifacts(smokeRoot / "BuiltinArtifactProject");
 	std::filesystem::remove_all(smokeRoot, errorCode);

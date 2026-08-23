@@ -32,6 +32,8 @@ Makefile
 # Compiled Object files
 *.o
 *.obj
+!Resources/**/*.obj
+!**/Assets/**/*.obj
 *.lo
 *.slo
 

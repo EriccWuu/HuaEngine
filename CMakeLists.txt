@@ -55,6 +55,7 @@ set(IMGUI_INCLUDE_DIR "${CMAKE_SOURCE_DIR}/Dependencies/imgui")
 set(GLM_INCLUDE_DIR "${CMAKE_SOURCE_DIR}/Dependencies/glm")
 set(STB_IMAGE_INCLUDE_DIR "${CMAKE_SOURCE_DIR}/Dependencies/stb_image")
 set(ENTT_INCLUDE_DIR "${CMAKE_SOURCE_DIR}/Dependencies/entt")
+set(TINYOBJLOADER_INCLUDE_DIR "${CMAKE_SOURCE_DIR}/Dependencies/tinyobjloader")
 
 # Compiler specific settings
 if(MSVC)

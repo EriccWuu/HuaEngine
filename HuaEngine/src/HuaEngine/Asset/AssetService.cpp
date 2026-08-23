@@ -9,6 +9,7 @@
 #include "AssetSourcePath.h"
 #include "BuiltinAssetCatalog.h"
 #include "HuaEngine/Asset/Import/MeshAssetImporter.h"
+#include "HuaEngine/Asset/Import/ObjMeshImporter.h"
 #include "HuaEngine/Asset/Import/MaterialAssetImporter.h"
 #include "HuaEngine/Asset/Import/PngTextureImporter.h"
 #include "HuaEngine/Rendering/Material/MaterialLibrary.h"
@@ -252,9 +253,10 @@ namespace {
 namespace HE {
 	AssetService::AssetService() {
 		const bool meshRegistered = m_ImporterRegistry.Register(std::make_unique<MeshAssetImporter>());
+		const bool objMeshRegistered = m_ImporterRegistry.Register(std::make_unique<ObjMeshImporter>());
 		const bool materialRegistered = m_ImporterRegistry.Register(std::make_unique<MaterialAssetImporter>());
 		const bool textureRegistered = m_ImporterRegistry.Register(std::make_unique<PngTextureImporter>());
-		HE_CORE_ASSERT(meshRegistered && materialRegistered && textureRegistered, "Failed to register core asset importers");
+		HE_CORE_ASSERT(meshRegistered && objMeshRegistered && materialRegistered && textureRegistered, "Failed to register core asset importers");
 	}
 
 	ResultEnvelope AssetService::LoadOrCreateManifest(const ProjectContext& context) {
@@ -649,11 +651,33 @@ namespace HE {
 			return result;
 		}
 
-		auto mesh = Rendering::Mesh::LoadFromFile(normalizedPath.AbsolutePath.generic_string());
-		if (!mesh) {
-			auto result = ResultEnvelope::ManualIntervention("asset.load_mesh", normalizedPath.AssetId, "Mesh asset file exists but could not be deserialized");
-			result.AddDetail({ DiagnosticSeverity::Error, "asset.mesh.deserialize_failed", "Mesh::LoadFromFile returned null", normalizedPath.AbsolutePath.generic_string() });
+		const auto* importer = m_ImporterRegistry.Find(AssetKind::Mesh, normalizedPath.RelativePath.extension().string());
+		if (!importer) {
+			auto result = ResultEnvelope::ManualIntervention("asset.load_mesh", normalizedPath.AssetId, "Mesh asset source format is unsupported");
+			result.AddDetail({ DiagnosticSeverity::Error, "asset.mesh.importer_missing", "No mesh importer supports the source extension", normalizedPath.RelativePath.extension().string() });
 			return result;
+		}
+
+		AssetManifestRecord sourceRecord;
+		sourceRecord.AssetId = normalizedPath.AssetId;
+		sourceRecord.Kind = AssetKind::Mesh;
+		sourceRecord.Source = AssetSource::File;
+		sourceRecord.RelativePath = normalizedPath.RelativePath;
+		sourceRecord.ImportState = AssetImportState::Registered;
+		const auto importResult = importer->Import({ context, sourceRecord, normalizedPath.AbsolutePath, &m_Manifest });
+		if (!importResult.Success) {
+			auto result = ResultEnvelope::ManualIntervention("asset.load_mesh", normalizedPath.AssetId, "Mesh asset source could not be imported");
+			for (const auto& diagnostic : importResult.Diagnostics) {
+				result.AddDetail(diagnostic);
+			}
+			return result;
+		}
+
+		Ref<Rendering::Mesh> mesh;
+		auto decodeResult = DecodeMeshArtifact(importResult.Artifact, mesh);
+		if (!decodeResult.Succeeded() || !mesh) {
+			decodeResult.Operation = "asset.load_mesh";
+			return decodeResult;
 		}
 
 		return RegisterMeshAsset(context, normalizedPath.AssetId, mesh, outHandle);
