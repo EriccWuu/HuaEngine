@@ -10,7 +10,6 @@
 #include <glm/gtc/matrix_transform.hpp>
 
 #include "HuaEngine.h"
-#include "HuaEngine/Core/ResourcePaths.h"
 #include "HuaEngine/Rendering/RenderPipeline/RenderTypes.h"
 #include "HuaEngine/Rendering/RHI/RenderHardwareInterface.h"
 #include "Module/Rendering/RenderSystem.h"
@@ -36,21 +35,6 @@ namespace {
 		SmokeApplication()
 			: HE::Application(MakeApplicationSpecification()) {}
 	};
-
-	void PrepareSandboxAssets() {
-		HE::Rendering::MeshManager::Instance().LoadDefaultMeshes();
-
-		const auto customMeshPath = HE::ResourcePaths::ResolveEngineResourcePath("CustomMesh.mesh");
-		auto customMesh = HE::Rendering::Mesh::LoadFromFile(customMeshPath.generic_string());
-		Require(static_cast<bool>(customMesh), "Expected CustomMesh.mesh to load for renderable scene smoke");
-		HE::Rendering::MeshManager::Instance().RegisterMesh("CustomSquare", customMesh);
-
-		auto sandboxMaterial = HE::Rendering::Material::Create("SandboxMaterial", HE::Rendering::MaterialType::Custom);
-		const auto materialPath = HE::ResourcePaths::ResolveEngineResourcePath("SandboxMaterial.material");
-		Require(HE::Serialization::LoadMaterial(materialPath.generic_string(), *sandboxMaterial), "Expected SandboxMaterial.material to load for renderable scene smoke");
-		Require(static_cast<bool>(sandboxMaterial->GetShaderProgram()), "Expected loaded sandbox material to have a shader program");
-		HE::Rendering::MaterialLibrary::Instance().RegisterMaterial(sandboxMaterial->GetName(), sandboxMaterial);
-	}
 
 	uint32_t CountRenderableSubmissions(HE::Scene& scene) {
 		uint32_t renderableCount = 0;
@@ -321,8 +305,6 @@ int main() {
 	Require(renderViewport.Payload.at("graph_outputs") == "1", "Expected forward render graph to report one output");
 	Require(renderViewport.Payload.at("graph_diagnostics") == "0", "Expected forward render graph to emit no diagnostics");
 
-	PrepareSandboxAssets();
-
 	HE::Ref<HE::Scene> assetRefScene;
 	auto createAssetRefScene = operations.CreateScene("TypedAssetRefSmoke", assetRefScene);
 	Require(createAssetRefScene.Succeeded() && assetRefScene, "Expected typed asset-ref scene.create to succeed for rendering smoke");
@@ -375,38 +357,43 @@ int main() {
 	}
 	Require(hasOverrideColorPixel, "Expected typed asset-ref material override color to be visible in the render target");
 
+	const auto addBuiltinRenderable = [&](std::string_view name, const HE::AssetGuid& meshGuid, const glm::vec3& position) {
+		auto entity = assetRefScene->GetWorld().CreateEntity(std::string(name));
+		auto& transform = entity.AddComponent<HE::TransformComponent>();
+		transform.Position = position;
+		transform.Scale = glm::vec3(0.5f);
+		auto& mesh = entity.AddComponent<HE::Rendering::MeshComponent>();
+		mesh.Mesh.Reference.Guid = meshGuid;
+		auto& material = entity.AddComponent<HE::Rendering::MaterialComponent>();
+		material.Material.Reference.Guid = HE::BuiltinAssetGuids::DefaultMaterial;
+		material.Overrides.SetVec4("u_Color", glm::vec4(0.8f, 0.0f, 0.9f, 1.0f));
+	};
+	addBuiltinRenderable("Serialized Cube", HE::BuiltinAssetGuids::CubeMesh, glm::vec3(-0.9f, 0.0f, -3.0f));
+	addBuiltinRenderable("Serialized Sphere", HE::BuiltinAssetGuids::SphereMesh, glm::vec3(0.9f, 0.0f, -3.0f));
+
 	HE::Ref<HE::Scene> loadedScene;
-	const auto scenePath = HE::ResourcePaths::ResolveEngineResourcePath("SandboxScene.scene");
+	const auto scenePath = projectContext.GetAssetRootPath() / "SerializedBuiltinScene.scene";
+	Require(operations.SaveScene(*assetRefScene, scenePath).Succeeded(), "Expected builtin asset-ref scene save to succeed");
 	auto loadScene = operations.LoadScene(scenePath, loadedScene);
-	Require(loadScene.Succeeded() && loadedScene, "Expected sandbox scene load to succeed");
-	Require(CountRenderableSubmissions(*loadedScene) == 3, "Expected loaded sandbox scene to expose three migrated builtin asset-ref renderables without project manifest fallback");
+	Require(loadScene.Succeeded() && loadedScene, "Expected builtin asset-ref scene load to succeed");
+	Require(CountRenderableSubmissions(*loadedScene) == 3, "Expected loaded scene to preserve three builtin asset-ref renderables");
 
 	auto attachLoadedSceneRenderer = operations.AttachSceneViewportRenderer(loadedScene, renderTarget);
 	Require(attachLoadedSceneRenderer.Succeeded(), "Expected loaded scene renderer attach to succeed");
 	auto renderLoadedScene = operations.RenderSceneViewport(*loadedScene, camera);
-	Require(renderLoadedScene.Succeeded(), "Expected loaded sandbox scene viewport render to succeed");
-	Require(renderLoadedScene.Payload.contains("render_items"), "Expected loaded sandbox scene render to report extracted render item count");
-	Require(renderLoadedScene.Payload.contains("submitted_items"), "Expected loaded sandbox scene render to report submitted item count");
-	Require(renderLoadedScene.Payload.contains("skipped_items"), "Expected loaded sandbox scene render to report skipped item count");
-	Require(renderLoadedScene.Payload.contains("draw_calls"), "Expected loaded sandbox scene render to report draw call count");
-	Require(renderLoadedScene.Payload.contains("pass_count"), "Expected loaded sandbox scene render to report render pass count");
-	Require(renderLoadedScene.Payload.contains("visible_items"), "Expected loaded sandbox scene render to report visible item count");
-	Require(renderLoadedScene.Payload.contains("diagnostics"), "Expected loaded sandbox scene render to report diagnostic count");
-	Require(renderLoadedScene.Payload.contains("graph_resources"), "Expected loaded sandbox scene render to report render graph resource count");
-	Require(renderLoadedScene.Payload.contains("graph_edges"), "Expected loaded sandbox scene render to report render graph edge count");
-	Require(renderLoadedScene.Payload.contains("graph_outputs"), "Expected loaded sandbox scene render to report render graph output count");
-	Require(renderLoadedScene.Payload.contains("graph_diagnostics"), "Expected loaded sandbox scene render to report render graph diagnostic count");
-	Require(renderLoadedScene.Payload.at("render_items") == "4", "Expected loaded sandbox scene render to extract four render items");
-	Require(renderLoadedScene.Payload.at("submitted_items") == "4", "Expected loaded sandbox scene render to submit all render items through the asset resolver path");
-	Require(renderLoadedScene.Payload.at("skipped_items") == "0", "Expected loaded sandbox scene render to avoid skipping render items through the asset resolver path");
-	Require(renderLoadedScene.Payload.at("draw_calls") == "5", "Expected loaded scene draws and post-process draw without editor extensions");
-	Require(renderLoadedScene.Payload.at("pass_count") == "4", "Expected loaded sandbox scene render to execute four runtime passes");
-	Require(renderLoadedScene.Payload.at("visible_items") == "4", "Expected loaded sandbox scene render to count four visible items");
-	Require(renderLoadedScene.Payload.at("diagnostics") == "1", "Expected loaded sandbox scene render to emit one fallback diagnostic for the unmigrated custom mesh");
-	Require(renderLoadedScene.Payload.at("graph_resources") == "3", "Expected loaded sandbox scene render graph to report three typed resources");
-	Require(renderLoadedScene.Payload.at("graph_edges") == "2", "Expected loaded sandbox scene render graph to report typed dependency and output edges");
-	Require(renderLoadedScene.Payload.at("graph_outputs") == "1", "Expected loaded sandbox scene render graph to report one output");
-	Require(renderLoadedScene.Payload.at("graph_diagnostics") == "0", "Expected loaded sandbox scene render to emit no render graph diagnostics");
+	Require(renderLoadedScene.Succeeded(), "Expected loaded builtin scene viewport render to succeed");
+	Require(renderLoadedScene.Payload.at("render_items") == "3", "Expected loaded scene render to extract three render items");
+	Require(renderLoadedScene.Payload.at("submitted_items") == "3", "Expected loaded scene render to submit all render items through the asset resolver path");
+	Require(renderLoadedScene.Payload.at("skipped_items") == "0", "Expected loaded scene render to avoid skipping render items");
+	Require(renderLoadedScene.Payload.at("draw_calls") == "4", "Expected three loaded scene draws and one post-process draw");
+	Require(renderLoadedScene.Payload.at("pass_count") == "4", "Expected loaded scene render to execute four runtime passes");
+	Require(renderLoadedScene.Payload.at("visible_items") == "3", "Expected loaded scene render to count three visible items");
+	Require(renderLoadedScene.Payload.at("diagnostics") == "0", "Expected loaded scene render to resolve all builtin assets");
+	Require(renderLoadedScene.Payload.at("graph_resources") == "3", "Expected loaded scene render graph to report three typed resources");
+	Require(renderLoadedScene.Payload.at("graph_edges") == "2", "Expected loaded scene render graph to report typed dependency and output edges");
+	Require(renderLoadedScene.Payload.at("graph_outputs") == "1", "Expected loaded scene render graph to report one output");
+	Require(renderLoadedScene.Payload.at("graph_diagnostics") == "0", "Expected loaded scene render to emit no render graph diagnostics");
+
 	auto loadedRenderSystem = loadedScene->FindSystem<HE::RenderSystem>();
 	Require(static_cast<bool>(loadedRenderSystem), "Expected loaded scene render system to remain attached");
 	const auto& loadedRenderStats = loadedRenderSystem->GetLastRenderResult().Stats;

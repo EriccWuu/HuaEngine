@@ -28,7 +28,6 @@ namespace HE {
     };
 
     struct EditorLayerSpecification {
-        bool BootstrapDemoScene = false;
         std::string WorkbenchProjectName = "EditorWorkbench";
         std::string InitialSceneName = "EditorWorkbench";
         std::filesystem::path StartupProjectPath;
@@ -69,11 +68,6 @@ namespace HE {
         bool InitializeWorkbenchShell();
         bool BindSceneDocumentToShell();
         bool RestoreLastSceneForSession();
-        bool BootstrapDemoScene();
-        bool EnsureSandboxAssetsLoaded();
-        bool SeedDemoProjectAssets();
-        bool EnsureMeshAvailable(std::string_view meshName);
-        bool EnsureMaterialAvailable(std::string_view materialName);
         bool CreateNewSceneDocument(std::string_view sceneName);
         bool OpenSceneDocument(const std::filesystem::path& scenePath);
         bool SaveActiveSceneDocument();
@@ -81,7 +75,6 @@ namespace HE {
         void SetSceneContext(const Ref<Scene>& scene);
         void SetSceneDocument(const Ref<Scene>& scene, const std::filesystem::path& scenePath, SceneDocumentSource source);
 		void RestoreSceneCameraPose(const std::filesystem::path& scenePath);
-        void CreateSandboxEntities();
         void EnterProjectHub();
         void EnterWorkbenchShell();
         void CloseProjectSession(bool preserveResumeState, std::string_view summary);
@@ -128,7 +121,6 @@ namespace HE {
 		Ref<RenderTarget> m_ObjectIdRenderTarget;
         Ref<Editor::EditorCameraController> m_EditorCameraController;
 		Editor::EditorSceneRenderExtension m_SceneRenderExtension;
-        Ref<Material> m_SandboxMaterial;
         Ref<ProjectPanel> m_ProjectPanel;
         Ref<HierarchyPanel> m_HierarchyPanel;
         Ref<InspectorPanel> m_Inspector;

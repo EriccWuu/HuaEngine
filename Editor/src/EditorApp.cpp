@@ -55,7 +55,6 @@ namespace HE {
 			}) {
 			const auto launchOptions = ParseEditorLaunchOptions(args);
 			EditorLayerSpecification layerSpecification;
-			layerSpecification.BootstrapDemoScene = true;
 			layerSpecification.StartupProjectPath = launchOptions.ProjectPath;
 			layerSpecification.StartupScenePath = launchOptions.ScenePath;
 			PushLayer(new EditorLayer(layerSpecification));

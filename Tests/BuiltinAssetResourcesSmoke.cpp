@@ -34,6 +34,24 @@ int main() {
 			"Missing packaged builtin asset: " + assetPath.generic_string());
 	}
 
+	const auto resourceRoot = HE::ResourcePaths::GetEngineResourceRoot();
+	const std::array removedDemoFiles = {
+		std::filesystem::path("Cube.mesh"),
+		std::filesystem::path("CustomMesh.mesh"),
+		std::filesystem::path("Quad.mesh"),
+		std::filesystem::path("Sphere.mesh"),
+		std::filesystem::path("SandboxMaterial.material"),
+		std::filesystem::path("SandboxScene.scene"),
+		std::filesystem::path("shaders/sandbox.glsl")
+	};
+
+	for (const auto& relativePath : removedDemoFiles) {
+		const auto assetPath = resourceRoot / relativePath;
+		Require(
+			!std::filesystem::exists(assetPath),
+			"Legacy demo asset should not be packaged: " + assetPath.generic_string());
+	}
+
 	std::cout << "BuiltinAssetResourcesSmoke passed" << std::endl;
 	return 0;
 }
