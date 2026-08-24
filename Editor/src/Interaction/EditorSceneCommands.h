@@ -28,8 +28,16 @@ namespace HE {
     [[nodiscard]] EditorCommandPtr CreateDeleteEntitiesCommand(const std::vector<Entity>& entities);
     [[nodiscard]] EditorCommandPtr CreateAddComponentCommand(EditorInspectableComponent type, const Entity& entity);
     [[nodiscard]] EditorCommandPtr CreateRemoveComponentCommand(EditorInspectableComponent type, const Entity& entity);
-    [[nodiscard]] EditorCommandPtr CreateSetTransformCommand(
+	[[nodiscard]] EditorCommandPtr CreateSetTransformCommand(
         const Entity& entity,
         const TransformComponent& before,
-        const TransformComponent& after);
+		const TransformComponent& after);
+	[[nodiscard]] EditorCommandPtr CreateSetMaterialOverridesCommand(
+		const Entity& entity,
+		const Rendering::MaterialOverrideSet& before,
+		const Rendering::MaterialOverrideSet& after);
+	[[nodiscard]] EditorCommandPtr CreateSetMaterialComponentCommand(
+		const Entity& entity,
+		const Rendering::MaterialComponent& before,
+		const Rendering::MaterialComponent& after);
 }

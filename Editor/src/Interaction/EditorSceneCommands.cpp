@@ -551,7 +551,7 @@ namespace HE {
             Rendering::MaterialComponent m_Component;
         };
 
-        class SetTransformCommand final : public IEditorCommand {
+		class SetTransformCommand final : public IEditorCommand {
         public:
             SetTransformCommand(EntityUuid entityUuid, TransformComponent before, TransformComponent after)
                 : m_EntityUuid(entityUuid), m_Before(std::move(before)), m_After(std::move(after)) {}
@@ -589,7 +589,52 @@ namespace HE {
             EntityUuid m_EntityUuid;
             TransformComponent m_Before;
             TransformComponent m_After;
-        };
+		};
+
+		class SetMaterialOverridesCommand final : public IEditorCommand {
+		public:
+			SetMaterialOverridesCommand(EntityUuid entityUuid, Rendering::MaterialOverrideSet before, Rendering::MaterialOverrideSet after)
+				: m_EntityUuid(entityUuid), m_Before(std::move(before)), m_After(std::move(after)) {}
+			std::string GetLabel() const override { return "Edit Material Override"; }
+			ResultEnvelope Execute(const EditorCommandContext& context) override { return Apply(context, m_After, "editor.material_override", "Updated material overrides"); }
+			ResultEnvelope Undo(const EditorCommandContext& context) override { return Apply(context, m_Before, "editor.material_override.undo", "Restored material overrides"); }
+		private:
+			ResultEnvelope Apply(const EditorCommandContext& context, const Rendering::MaterialOverrideSet& overrides, std::string operation, std::string summary) const {
+				auto scene = GetScene(context);
+				auto* operations = GetOperations(context);
+				if (!scene || !operations) return ResultEnvelope::Failure(std::move(operation), "scene", "An active scene is required before changing material overrides");
+				const auto entity = scene->GetWorld().GetEntity(m_EntityUuid);
+				if (!entity.IsValid() || !entity.HasComponent<Rendering::MaterialComponent>()) return ResultEnvelope::Failure(std::move(operation), "entity", "The material entity is unavailable");
+				auto component = entity.GetComponent<Rendering::MaterialComponent>();
+				component.Overrides = overrides;
+				auto result = operations->UpsertSceneMaterialComponent(*scene, entity.GetUid(), component);
+				result.Operation = std::move(operation); result.Target = entity.GetName(); result.Summary = std::move(summary); return result;
+			}
+			EntityUuid m_EntityUuid;
+			Rendering::MaterialOverrideSet m_Before;
+			Rendering::MaterialOverrideSet m_After;
+		};
+
+		class SetMaterialComponentCommand final : public IEditorCommand {
+		public:
+			SetMaterialComponentCommand(EntityUuid entityUuid, Rendering::MaterialComponent before, Rendering::MaterialComponent after)
+				: m_EntityUuid(entityUuid), m_Before(std::move(before)), m_After(std::move(after)) {}
+			std::string GetLabel() const override { return "Change Material"; }
+			ResultEnvelope Execute(const EditorCommandContext& context) override { return Apply(context, m_After, "editor.material", "Changed entity material"); }
+			ResultEnvelope Undo(const EditorCommandContext& context) override { return Apply(context, m_Before, "editor.material.undo", "Restored entity material"); }
+		private:
+			ResultEnvelope Apply(const EditorCommandContext& context, const Rendering::MaterialComponent& component, std::string operation, std::string summary) const {
+				auto scene = GetScene(context); auto* operations = GetOperations(context);
+				if (!scene || !operations) return ResultEnvelope::Failure(std::move(operation), "scene", "An active scene is required before changing a material");
+				const auto entity = scene->GetWorld().GetEntity(m_EntityUuid);
+				if (!entity.IsValid()) return ResultEnvelope::Failure(std::move(operation), "entity", "The material entity is unavailable");
+				auto result = operations->UpsertSceneMaterialComponent(*scene, entity.GetUid(), component);
+				result.Operation = std::move(operation); result.Target = entity.GetName(); result.Summary = std::move(summary); return result;
+			}
+			EntityUuid m_EntityUuid;
+			Rendering::MaterialComponent m_Before;
+			Rendering::MaterialComponent m_After;
+		};
     }
 
     const std::vector<EditorInspectableComponentDescriptor>& GetEditorInspectableComponents() {
@@ -628,9 +673,17 @@ namespace HE {
         return EntityHasInspectableComponent(type, entity);
     }
 
-    EditorCommandPtr CreateCreateEntityCommand(std::string entityName) {
+	EditorCommandPtr CreateCreateEntityCommand(std::string entityName) {
         return std::make_unique<CreateEntityCommand>(std::move(entityName));
-    }
+	}
+
+	EditorCommandPtr CreateSetMaterialOverridesCommand(const Entity& entity, const Rendering::MaterialOverrideSet& before, const Rendering::MaterialOverrideSet& after) {
+		return std::make_unique<SetMaterialOverridesCommand>(entity.GetUuid(), before, after);
+	}
+
+	EditorCommandPtr CreateSetMaterialComponentCommand(const Entity& entity, const Rendering::MaterialComponent& before, const Rendering::MaterialComponent& after) {
+		return std::make_unique<SetMaterialComponentCommand>(entity.GetUuid(), before, after);
+	}
 
     EditorCommandPtr CreateDeleteEntitiesCommand(const std::vector<Entity>& entities) {
         return std::make_unique<DeleteEntitiesCommand>(entities);

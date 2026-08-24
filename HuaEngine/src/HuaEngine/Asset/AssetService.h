@@ -13,6 +13,7 @@
 #include "HuaEngine/Core/ResultEnvelope.h"
 #include "HuaEngine/Project/ProjectContext.h"
 #include "HuaEngine/Rendering/Material/Material.h"
+#include "HuaEngine/Rendering/Material/MaterialDefinition.h"
 #include "HuaEngine/Rendering/Mesh/MeshCore.h"
 #include "HuaEngine/Rendering/RHI/TextureResource.h"
 
@@ -131,6 +132,7 @@ namespace HE {
 		[[nodiscard]] ResultEnvelope ResolveMaterialAsset(AssetHandle handle, Ref<Rendering::Material>& outMaterial) const;
 		[[nodiscard]] ResultEnvelope ResolveTextureAsset(AssetHandle handle, Ref<Rendering::TextureResource>& outTexture) const;
 		[[nodiscard]] ResultEnvelope ResolveShaderAsset(AssetHandle handle, Ref<Rendering::ShaderProgram>& outShader) const;
+		[[nodiscard]] ResultEnvelope GetMaterialDefinition(const AssetGuid& materialGuid, Rendering::MaterialDefinition& outDefinition) const;
 		[[nodiscard]] ResultEnvelope ValidateRegistry(const ProjectContext& context, AssetValidationReport* outReport = nullptr);
 
 		[[nodiscard]] const AssetRegistry& GetAssetRegistry() const { return m_Registry; }

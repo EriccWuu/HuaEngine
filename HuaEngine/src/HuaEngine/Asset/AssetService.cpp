@@ -13,7 +13,9 @@
 #include "HuaEngine/Asset/Import/ObjMeshImporter.h"
 #include "HuaEngine/Asset/Import/MaterialAssetImporter.h"
 #include "HuaEngine/Asset/Import/PngTextureImporter.h"
-#include "HuaEngine/Asset/Import/GlslShaderImporter.h"
+#include "HuaEngine/Asset/Import/HlslShaderImporter.h"
+#include "HuaEngine/Asset/Artifact/MaterialArtifact.h"
+#include "HuaEngine/Asset/Artifact/ShaderArtifact.h"
 #include "HuaEngine/Rendering/Material/MaterialLibrary.h"
 #include "HuaEngine/Rendering/Material/MaterialSerializer.h"
 #include "HuaEngine/Rendering/Mesh/MeshManager.h"
@@ -255,13 +257,44 @@ namespace {
 }
 
 namespace HE {
+	ResultEnvelope AssetService::GetMaterialDefinition(const AssetGuid& materialGuid, Rendering::MaterialDefinition& outDefinition) const {
+		outDefinition = {};
+		const auto* materialRecord = m_Manifest.FindByGuid(materialGuid);
+		if (!materialRecord || materialRecord->Kind != AssetKind::Material) return ResultEnvelope::Failure("asset.material_definition", materialGuid, "Material asset was not found");
+		AssetArtifact materialArtifact;
+		Rendering::MaterialSourceData material;
+		if (!m_Library.ReadArtifact(materialGuid, materialArtifact).Succeeded() || !DecodeMaterialArtifact(materialArtifact, material).Succeeded()) return ResultEnvelope::ManualIntervention("asset.material_definition", materialGuid, "Material artifact is unavailable");
+		AssetArtifact shaderArtifact;
+		ShaderArtifactDataV2 shader;
+		if (!m_Library.ReadArtifact(material.ShaderGuid, shaderArtifact).Succeeded() || !DecodeShaderArtifactV2(shaderArtifact, shader).Succeeded()) return ResultEnvelope::ManualIntervention("asset.material_definition", materialGuid, "Shader artifact is unavailable");
+		if (material.ShaderInterfaceDigest != shader.Interface.Gpu.Digest) return ResultEnvelope::ManualIntervention("asset.material_definition", materialGuid, "Material artifact requires reimport");
+		std::vector<Rendering::MaterialParameterDefinition> parameters;
+		for (const auto& metadata : shader.Interface.Authoring.Parameters) {
+			if (metadata.Scope != Rendering::ShaderParameterScope::Material) continue;
+			Rendering::MaterialParameterDefinition definition{
+				.Name = metadata.Name, .DisplayName = metadata.DisplayName, .Type = metadata.Type, .Editor = metadata.Editor,
+				.DefaultValue = metadata.DefaultValue, .CurrentValue = metadata.DefaultValue, .Range = metadata.Range, .Step = metadata.Step, .Tooltip = metadata.Tooltip
+			};
+			if (const auto current = material.Parameters.find(metadata.Name); current != material.Parameters.end()) {
+				std::visit([&](const auto& value) {
+					using T = std::decay_t<decltype(value)>;
+					if constexpr (std::is_same_v<T, int> || std::is_same_v<T, float> || std::is_same_v<T, glm::vec2> || std::is_same_v<T, glm::vec3> || std::is_same_v<T, glm::vec4> || std::is_same_v<T, glm::mat4> || std::is_same_v<T, std::string>) definition.CurrentValue = value;
+				}, current->second.Value);
+			}
+			parameters.push_back(std::move(definition));
+		}
+		outDefinition = Rendering::MaterialDefinition(std::move(parameters), material.MaterialDefinitionDigest);
+		outDefinition.SetIdentity(materialGuid, material.ShaderGuid, material.ShaderInterfaceDigest, material.ShaderInterfaceSignature);
+		return ResultEnvelope::Success("asset.material_definition", materialGuid, "Material definition resolved");
+	}
+
 	AssetService::AssetService() {
 		const bool meshRegistered = m_ImporterRegistry.Register(std::make_unique<MeshAssetImporter>());
 		const bool objMeshRegistered = m_ImporterRegistry.Register(std::make_unique<ObjMeshImporter>());
 		const bool materialRegistered = m_ImporterRegistry.Register(std::make_unique<MaterialAssetImporter>());
 		const bool textureRegistered = m_ImporterRegistry.Register(std::make_unique<PngTextureImporter>());
-		const bool shaderRegistered = m_ImporterRegistry.Register(std::make_unique<GlslShaderImporter>());
-		HE_CORE_ASSERT(meshRegistered && objMeshRegistered && materialRegistered && textureRegistered && shaderRegistered, "Failed to register core asset importers");
+		const bool hlslShaderRegistered = m_ImporterRegistry.Register(std::make_unique<HlslShaderImporter>());
+		HE_CORE_ASSERT(meshRegistered && objMeshRegistered && materialRegistered && textureRegistered && hlslShaderRegistered, "Failed to register core asset importers");
 	}
 
 	ResultEnvelope AssetService::LoadOrCreateManifest(const ProjectContext& context) {
@@ -482,7 +515,42 @@ namespace HE {
 
 		AssetImportReport importReport;
 		AssetImportService importService(m_ImporterRegistry, m_Library);
+		std::vector<AssetGuid> dependencyGuids;
+		for (const auto& candidate : importCandidates) {
+			if (candidate.Kind != AssetKind::Material) continue;
+			Rendering::MaterialSourceData source;
+			if (Rendering::LoadMaterialSourceData(context.GetAssetRootPath() / candidate.RelativePath, source).Succeeded() && !source.ShaderGuid.empty()) dependencyGuids.push_back(source.ShaderGuid);
+		}
+		if (!dependencyGuids.empty()) {
+			AssetImportReport dependencyReport;
+			auto dependencyResult = importService.ImportAssets(context, m_Manifest, dependencyGuids, AssetImportPolicy::MissingOnly, &dependencyReport);
+			if (!dependencyResult.Succeeded() || dependencyReport.FailedAssets > 0) {
+				dependencyResult.Operation = "asset.reimport";
+				report.FailedAssets += dependencyReport.FailedAssets;
+				return publishReport(std::move(dependencyResult));
+			}
+		}
 		auto importResult = importService.ImportAssets(context, m_Manifest, importGuids, AssetImportPolicy::Force, &importReport);
+		if (importResult.Succeeded()) {
+			std::vector<AssetGuid> dependentGuids;
+			for (const auto& importedGuid : importReport.ImportedAssetGuids) {
+				for (const auto& dependentGuid : m_Library.FindDependents(importedGuid)) {
+					const auto* dependent = m_Manifest.FindByGuid(dependentGuid);
+					if (dependent && dependent->Kind == AssetKind::Material) dependentGuids.push_back(dependentGuid);
+				}
+			}
+			std::sort(dependentGuids.begin(), dependentGuids.end());
+			dependentGuids.erase(std::unique(dependentGuids.begin(), dependentGuids.end()), dependentGuids.end());
+			if (!dependentGuids.empty()) {
+				AssetImportReport dependentReport;
+				auto dependentResult = importService.ImportAssets(context, m_Manifest, dependentGuids, AssetImportPolicy::MissingOnly, &dependentReport);
+				importReport.ImportedAssets += dependentReport.ImportedAssets;
+				importReport.SkippedAssets += dependentReport.SkippedAssets;
+				importReport.FailedAssets += dependentReport.FailedAssets;
+				importReport.ImportedAssetGuids.insert(importReport.ImportedAssetGuids.end(), dependentReport.ImportedAssetGuids.begin(), dependentReport.ImportedAssetGuids.end());
+				if (!dependentResult.Succeeded()) importResult = std::move(dependentResult);
+			}
+		}
 		std::vector<AssetGuid> pendingInvalidations = importReport.ImportedAssetGuids;
 		std::unordered_set<AssetGuid> invalidatedGuids;
 		while (!pendingInvalidations.empty()) {

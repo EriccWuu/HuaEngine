@@ -31,6 +31,7 @@ namespace HE {
 		class RenderTarget;
 		class Mesh;
 		class Material;
+		class MaterialDefinition;
 		class TextureResource;
 		class RenderGraphExtension;
 		struct CameraComponent;
@@ -175,6 +176,7 @@ namespace HE {
 		[[nodiscard]] ResultEnvelope ListAssets(
 			const ProjectContext& context,
 			std::vector<AssetRecord>& outRecords) const;
+		[[nodiscard]] ResultEnvelope GetMaterialDefinition(const AssetGuid& materialGuid, Rendering::MaterialDefinition& outDefinition) const;
 
 		[[nodiscard]] ResultEnvelope ResolveAsset(AssetHandle handle, AssetRecord& outRecord) const;
 		[[nodiscard]] ResultEnvelope ResolveAsset(std::string_view assetId, AssetRecord& outRecord) const;

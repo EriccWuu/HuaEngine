@@ -51,11 +51,14 @@ namespace HE::Editor {
 		auto vertexBuffer = context.Device->CreateBuffer({ .Usage = Rendering::GpuBufferUsage::Vertex, .Size = static_cast<uint32_t>(vertices.size() * sizeof(GridVertex)), .Stride = sizeof(GridVertex) }, vertices.data());
 		auto indexBuffer = context.Device->CreateBuffer({ .Usage = Rendering::GpuBufferUsage::Index, .Size = static_cast<uint32_t>(indices.size() * sizeof(uint32_t)), .Stride = sizeof(uint32_t) }, indices.data());
 		auto shader = context.Device->CreateShaderProgram({
-			.VertexSource = "#version 330 core\nlayout(location=0) in vec3 a_Position; layout(location=1) in vec3 a_Color; uniform mat4 u_ViewProjection; out vec3 v_Color; void main(){ gl_Position=u_ViewProjection*vec4(a_Position,1.0); v_Color=a_Color; }",
-			.FragmentSource = "#version 330 core\nin vec3 v_Color; layout(location=0) out vec4 color; void main(){ color=vec4(v_Color,1.0); }"
+			.VertexSource = "#version 330 core\nlayout(location=0) in vec3 a_Position; layout(location=1) in vec3 a_Color; layout(std140) uniform FrameData { mat4 u_ViewProjection; }; out vec3 v_Color; void main(){ gl_Position=u_ViewProjection*vec4(a_Position,1.0); v_Color=a_Color; }",
+			.FragmentSource = "#version 330 core\nin vec3 v_Color; layout(location=0) out vec4 color; void main(){ color=vec4(v_Color,1.0); }",
+			.UniformBlocks = { { .Name = "FrameData", .Set = 0, .Binding = 0, .BindingPoint = 0, .Size = 64, .Members = {{ .Name = "u_ViewProjection", .Offset = 0, .Size = 64 }} } }
 		});
-		auto frameLayout = Rendering::CreateFrameBindGroupLayout(*context.Device);
-		auto frameBindGroup = Rendering::CreateFrameBindGroup(*context.Device, context.View->CameraRef->GetViewProjection());
+		if (!shader) return;
+		const auto& frameBlock = shader->GetDesc().UniformBlocks.front();
+		auto frameLayout = Rendering::CreateUniformBlockBindGroupLayout(*context.Device, Rendering::BindGroupScope::Frame, frameBlock);
+		auto frameBindGroup = Rendering::CreateFrameBindGroup(*context.Device, context.ResourceResolver->GetUniformBufferArena(*context.Device), frameBlock, frameLayout, context.View->CameraRef->GetViewProjection());
 		if (!vertexBuffer || !indexBuffer || !shader || !frameLayout || !frameBindGroup) return;
 		auto pipeline = context.Device->CreatePipelineState({
 			.Shader = shader, .VertexLayout = { { Rendering::ShaderDataType::Float3, "a_Position" }, { Rendering::ShaderDataType::Float3, "a_Color" } }, .Topology = Rendering::PrimitiveTopology::LineList,
@@ -103,17 +106,25 @@ namespace HE::Editor {
 			return;
 		}
 
-		auto frameLayout = Rendering::CreateFrameBindGroupLayout(*context.Device);
-		auto objectLayout = Rendering::CreateObjectBindGroupLayout(*context.Device);
 		auto idLayout = context.Device->CreateBindGroupLayout({
 			.Scope = Rendering::BindGroupScope::Object,
 			.Entries = { { .Name = "u_EntityId", .Type = Rendering::BindingValueType::Float4, .Binding = 0, .Visibility = Rendering::ShaderStageFragment } }
 		});
-		auto frameBindGroup = Rendering::CreateFrameBindGroup(*context.Device, context.View->CameraRef->GetViewProjection());
 		auto shader = context.Device->CreateShaderProgram({
-			.VertexSource = "#version 330 core\nlayout(location=0) in vec3 a_Position; uniform mat4 u_ViewProjection; uniform mat4 u_Transform; void main(){ gl_Position=u_ViewProjection*u_Transform*vec4(a_Position,1.0); }",
-			.FragmentSource = "#version 330 core\nuniform vec4 u_EntityId; layout(location=0) out vec4 color; void main(){ color=u_EntityId; }"
+			.VertexSource = "#version 330 core\nlayout(location=0) in vec3 a_Position; layout(std140) uniform FrameData { mat4 u_ViewProjection; }; layout(std140) uniform ObjectData { mat4 u_Transform; }; void main(){ gl_Position=u_ViewProjection*u_Transform*vec4(a_Position,1.0); }",
+			.FragmentSource = "#version 330 core\nuniform vec4 u_EntityId; layout(location=0) out vec4 color; void main(){ color=u_EntityId; }",
+			.UniformBlocks = {
+				{ .Name = "FrameData", .Set = 0, .Binding = 0, .BindingPoint = 0, .Size = 64, .Members = {{ .Name = "u_ViewProjection", .Offset = 0, .Size = 64 }} },
+				{ .Name = "ObjectData", .Set = 2, .Binding = 0, .BindingPoint = 2, .Size = 64, .Members = {{ .Name = "u_Transform", .Offset = 0, .Size = 64 }} }
+			}
 		});
+		if (!shader) return;
+		const auto& frameBlock = shader->GetDesc().UniformBlocks[0];
+		const auto& objectBlock = shader->GetDesc().UniformBlocks[1];
+		auto frameLayout = Rendering::CreateUniformBlockBindGroupLayout(*context.Device, Rendering::BindGroupScope::Frame, frameBlock);
+		auto objectLayout = Rendering::CreateUniformBlockBindGroupLayout(*context.Device, Rendering::BindGroupScope::Object, objectBlock);
+		auto& uniformArena = context.ResourceResolver->GetUniformBufferArena(*context.Device);
+		auto frameBindGroup = Rendering::CreateFrameBindGroup(*context.Device, uniformArena, frameBlock, frameLayout, context.View->CameraRef->GetViewProjection());
 		if (!frameLayout || !objectLayout || !idLayout || !frameBindGroup || !shader) {
 			return;
 		}
@@ -148,7 +159,7 @@ namespace HE::Editor {
 				continue;
 			}
 
-			auto objectBindGroup = Rendering::CreateObjectBindGroup(*context.Device, item.Transform);
+			auto objectBindGroup = Rendering::CreateObjectBindGroup(*context.Device, uniformArena, objectBlock, objectLayout, item.Transform);
 			const uint32_t entityId = item.SourceEntity.GetUid() + 1u;
 			const glm::vec4 encodedId(
 				static_cast<float>(entityId & 0xffu) / 255.0f,

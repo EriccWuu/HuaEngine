@@ -40,18 +40,8 @@ namespace HE::Rendering {
 			return;
 		}
 
-		auto frameBindGroup = CreateFrameBindGroup(RenderHardwareInterface::GetDevice(), context.View->CameraRef->GetViewProjection());
-		if (!frameBindGroup) {
-			context.Diagnostics->push_back({
-				RenderDiagnosticCode::MissingRhiDrawResources,
-				Entity{},
-				"Forward opaque pass skipped because the frame bind group could not be created"
-			});
-			return;
-		}
-		if (context.RecordingCommandBuffer) {
-			context.RecordingCommandBuffer->RetainResource(frameBindGroup);
-		}
+		auto& device = RenderHardwareInterface::GetDevice();
+		auto& uniformArena = context.ResourceResolver->GetUniformBufferArena(device);
 		for (const auto& item : *context.RenderItems) {
 			ResolvedRenderItem resolvedItem;
 			if (!context.ResourceResolver->Resolve(item, resolvedItem, *context.Stats, *context.Diagnostics)) {
@@ -59,9 +49,11 @@ namespace HE::Rendering {
 				continue;
 			}
 
-			auto objectBindGroup = CreateObjectBindGroup(RenderHardwareInterface::GetDevice(), item.Transform);
+			auto frameBindGroup = CreateFrameBindGroup(device, uniformArena, resolvedItem.FrameBlock, resolvedItem.FrameBindGroupLayoutRef, context.View->CameraRef->GetViewProjection());
+			auto objectBindGroup = CreateObjectBindGroup(device, uniformArena, resolvedItem.ObjectBlock, resolvedItem.ObjectBindGroupLayoutRef, item.Transform);
 			if (context.RecordingCommandBuffer) {
 				context.RecordingCommandBuffer->RetainResource(resolvedItem.PipelineStateRef);
+				context.RecordingCommandBuffer->RetainResource(frameBindGroup);
 				context.RecordingCommandBuffer->RetainResource(resolvedItem.MaterialBindGroupRef);
 				context.RecordingCommandBuffer->RetainResource(objectBindGroup);
 			}
@@ -71,6 +63,7 @@ namespace HE::Rendering {
 				&& resolvedItem.IndexBinding.Buffer
 				&& resolvedItem.IndexBinding.IndexCount > 0
 				&& resolvedItem.MaterialBindGroupRef
+				&& frameBindGroup
 				&& objectBindGroup) {
 				context.Commands->SetPipelineState(*resolvedItem.PipelineStateRef);
 				context.Commands->SetBindGroup(0, *frameBindGroup);

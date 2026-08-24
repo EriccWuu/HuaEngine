@@ -143,6 +143,7 @@ int main() {
 	Require(!errorCode, "Expected material asset directory creation to succeed");
 
 	const auto runtimeMaterial = HE::Rendering::Material::Create("SmokeMaterial", HE::Rendering::MaterialType::Unlit);
+	runtimeMaterial->SetShaderProgram(nullptr, HE::BuiltinAssetGuids::UnlitColorShader);
 	Require(static_cast<bool>(runtimeMaterial), "Expected runtime material creation to succeed");
 	Require(HE::Serialization::SaveMaterial(*runtimeMaterial, materialAssetPath.generic_string()), "Expected material asset file save to succeed");
 	const auto materialFileText = ReadFileText(materialAssetPath);

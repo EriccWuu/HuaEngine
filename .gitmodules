@@ -1,0 +1,8 @@
+[submodule "Dependencies/SPIRV-Cross"]
+	path = Dependencies/SPIRV-Cross
+	url = https://github.com/KhronosGroup/SPIRV-Cross.git
+	branch = vulkan-sdk-1.4.357.0
+[submodule "Dependencies/glslang"]
+	path = Dependencies/glslang
+	url = https://github.com/KhronosGroup/glslang.git
+	branch = 16.5.0

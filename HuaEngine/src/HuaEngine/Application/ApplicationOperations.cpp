@@ -48,6 +48,16 @@ namespace {
 		return false;
 	}
 
+	template<typename Component>
+	void UpsertSceneComponent(HE::Entity entity, const Component& component) {
+		if (entity.HasComponent<Component>()) {
+			entity.GetComponent<Component>() = component;
+			return;
+		}
+
+		entity.AddComponent<Component>(component);
+	}
+
 	HE::Rendering::CameraComponent MakeDefaultCameraComponent() {
 		HE::Rendering::CameraComponent component;
 		component.Primary = true;
@@ -340,7 +350,7 @@ namespace HE {
 			return resolveError;
 		}
 
-		scene.GetWorld().AddComponent<Rendering::CameraComponent>(ResolveSceneEntity(scene, entityId).GetId(), component);
+		UpsertSceneComponent(ResolveSceneEntity(scene, entityId), component);
 
 		auto result = ResultEnvelope::Success("scene.component.upsert", MakeSceneEntityTarget(scene, entityId), "Camera component upserted");
 		result.SetPayloadValue("entity_id", std::to_string(entityId));
@@ -359,7 +369,7 @@ namespace HE {
 			return resolveError;
 		}
 
-		scene.GetWorld().AddComponent<Rendering::MeshComponent>(ResolveSceneEntity(scene, entityId).GetId(), component);
+		UpsertSceneComponent(ResolveSceneEntity(scene, entityId), component);
 
 		auto result = ResultEnvelope::Success("scene.component.upsert", MakeSceneEntityTarget(scene, entityId), "Mesh component upserted");
 		result.SetPayloadValue("entity_id", std::to_string(entityId));
@@ -378,7 +388,7 @@ namespace HE {
 			return resolveError;
 		}
 
-		scene.GetWorld().AddComponent<Rendering::MaterialComponent>(ResolveSceneEntity(scene, entityId).GetId(), component);
+		UpsertSceneComponent(ResolveSceneEntity(scene, entityId), component);
 
 		auto result = ResultEnvelope::Success("scene.component.upsert", MakeSceneEntityTarget(scene, entityId), "Material component upserted");
 		result.SetPayloadValue("entity_id", std::to_string(entityId));
@@ -566,6 +576,10 @@ namespace HE {
 		auto result = ResultEnvelope::Success("asset.list", context.GetTargetId(), "Project assets listed");
 		result.SetPayloadValue("asset_count", std::to_string(outRecords.size()));
 		return result;
+	}
+
+	ResultEnvelope ApplicationOperations::GetMaterialDefinition(const AssetGuid& materialGuid, Rendering::MaterialDefinition& outDefinition) const {
+		return m_Services->Assets().GetMaterialDefinition(materialGuid, outDefinition);
 	}
 
 	ResultEnvelope ApplicationOperations::ResolveAsset(AssetHandle handle, AssetRecord& outRecord) const

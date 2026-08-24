@@ -1,5 +1,7 @@
 #pragma once
 
+#include "HuaEngine/Rendering/Material/MaterialSourceData.h"
+
 #include "MaterialCore.h"
 #include "MaterialLibrary.h"
 #include "HuaEngine/Serialization/Serialization.h"
@@ -87,23 +89,12 @@ namespace HE::Serialization {
             std::string shaderGuid = material.GetShaderGuid();
             backend.Serialize("shader_guid", shaderGuid);
 
-            // Parameters (object format: "paramName": { "value_type": "...", "value": ... })
             const auto& parameters = material.GetParameters();
             backend.BeginObject("parameters");
             for (const auto& [paramName, param] : parameters) {
-                Serializer<Rendering::MaterialParameter>::Serialize(backend, paramName, param);
+                Rendering::MaterialParameterSerializer::Serialize(backend, paramName, param.Value);
             }
             backend.EndObject();
-
-            // Texture slots
-            const auto& textureSlots = material.GetTextureSlots();
-            if (!textureSlots.empty()) {
-                backend.BeginObject("texture_slots");
-                for (const auto& [slotName, slotIndex] : textureSlots) {
-                    backend.Serialize(slotName, static_cast<int>(slotIndex));
-                }
-                backend.EndObject();
-            }
 
             if (!name.empty())
                 backend.EndObject();
@@ -253,7 +244,17 @@ namespace HE::Serialization {
     }
 
     inline bool LoadMaterial(const std::string& filename, Rendering::Material& material, SerializationFormat format = SerializationFormat::YAML) {
-        return DESERIALIZE_FROM_FILE(filename, material, format);
+        if (format != SerializationFormat::YAML) return DESERIALIZE_FROM_FILE(filename, material, format);
+        Rendering::MaterialSourceData source;
+        if (!Rendering::LoadMaterialSourceData(filename, source).Succeeded()) return false;
+        material.SetName(source.Name); material.SetType(source.Type); material.SetShaderProgram(nullptr, source.ShaderGuid);
+        for (const auto& [name, parameter] : source.Parameters) {
+            Rendering::MaterialParameterValue value;
+            if (parameter.Type == Rendering::MaterialParameterType::Texture2D) value = Ref<Rendering::TextureResource>();
+            else std::visit([&](const auto& sourceValue) { using T = std::decay_t<decltype(sourceValue)>; if constexpr (!std::is_same_v<T, std::string>) value = sourceValue; }, parameter.Value);
+            material.AddParameter({ name, parameter.Type, std::move(value) });
+        }
+        return true;
     }
 
     // Convenience functions for MaterialInstance serialization

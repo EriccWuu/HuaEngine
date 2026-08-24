@@ -7,14 +7,19 @@
 
 #include "HuaEngine.h"
 #include "HuaEngine/Asset/Artifact/TextureArtifact.h"
+#include "HuaEngine/Asset/Artifact/ShaderArtifact.h"
+#include "HuaEngine/Asset/Import/HlslShaderImporter.h"
 #include "HuaEngine/Asset/AssetResolver.h"
 #include "HuaEngine/Asset/AssetService.h"
 #include "HuaEngine/Project/ProjectService.h"
 #include "HuaEngine/Rendering/RenderGraph/RenderGraphBuilder.h"
+#include "HuaEngine/Rendering/RenderPipeline/RenderBindGroupBuilder.h"
+#include "HuaEngine/Rendering/RenderPipeline/UniformBufferArena.h"
 #include "HuaEngine/Rendering/RHI/CommandList.h"
 #include "HuaEngine/Rendering/RHI/ResourceBarrier.h"
 #include "HuaEngine/Rendering/RHI/ResourceStateTracker.h"
 #include "HuaEngine/Rendering/RHI/RenderHardwareInterface.h"
+#include "HuaEngine/Rendering/RHI/ShaderProgramLoader.h"
 #include "Support/TestTextureFixture.h"
 
 namespace {
@@ -82,20 +87,41 @@ int main() {
 	Require(device.GetCapabilities().SupportsCommandSubmission, "Expected command submission support capability");
 	Require(!HE::Rendering::RenderHardwareInterface::CreateRenderDevice({ .Backend = HE::Rendering::RenderBackendType::Null }), "Expected unimplemented null backend creation to fail");
 
+	const auto shaderRoot = smokeRoot / "ShaderProject" / "Assets" / "Shaders";
+	std::filesystem::create_directories(shaderRoot);
+	{
+		std::ofstream hlsl(shaderRoot / "Runtime.hlsl");
+		hlsl << "struct VSOutput { float4 Position : SV_Position; }; VSOutput VSMain(float3 position : POSITION) { VSOutput output; output.Position = float4(position, 1); return output; }\n"
+			"float4 PSMain(VSOutput input) : SV_Target0 { return float4(0.25, 0.5, 0.75, 1.0); }\n";
+		std::ofstream descriptor(shaderRoot / "Runtime.shader");
+		descriptor << "name: Runtime\nlanguage: HLSL\nsource: Runtime.hlsl\nstages:\n  vertex: { entry: VSMain, profile: vs_6_0 }\n  fragment: { entry: PSMain, profile: ps_6_0 }\nparameters: {}\n";
+	}
+	HE::ProjectContext shaderContext;
+	shaderContext.RootPath = smokeRoot / "ShaderProject";
+	shaderContext.ProjectFilePath = shaderContext.RootPath / ".huaengine" / "project.json";
+	const HE::AssetManifestRecord shaderRecord{ .Guid = "runtime-shader-guid", .AssetId = "Shaders/Runtime.shader", .Kind = HE::AssetKind::Shader, .Source = HE::AssetSource::File, .RelativePath = "Shaders/Runtime.shader", .ImportState = HE::AssetImportState::Registered };
+	const auto shaderImport = HE::HlslShaderImporter().Import({ shaderContext, shaderRecord, shaderRoot / "Runtime.shader", nullptr });
+	Require(shaderImport.Success, shaderImport.Diagnostics.empty() ? "Expected HLSL shader import" : shaderImport.Diagnostics.front().Message);
+	std::filesystem::remove(shaderRoot / "Runtime.hlsl");
+	std::filesystem::remove(shaderRoot / "Runtime.shader");
+	HE::ShaderArtifactDataV2 shaderArtifact;
+	Require(HE::DecodeShaderArtifactV2(shaderImport.Artifact, shaderArtifact).Succeeded(), "Expected runtime Shader Artifact V2 decode after source removal");
+	std::string generatedVertex;
+	std::string generatedFragment;
+	for (const auto& stage : shaderArtifact.Stages) {
+		if (stage.Stage == HE::Rendering::ShaderStage::Vertex) generatedVertex = stage.GeneratedOpenGlGlsl;
+		else generatedFragment = stage.GeneratedOpenGlGlsl;
+	}
+	Require(static_cast<bool>(HE::Rendering::ShaderProgramLoader::CreateFromSource(generatedVertex, generatedFragment)), "Expected OpenGL program creation from generated Artifact GLSL");
+
 	auto schemaMaterial = HE::Rendering::Material::Create("SchemaMaterial", HE::Rendering::MaterialType::Custom);
 	Require(static_cast<bool>(schemaMaterial), "Expected schema material creation to succeed");
 	schemaMaterial->AddParameter({ "u_Roughness", HE::Rendering::MaterialParameterType::Float, 0.5f });
 	schemaMaterial->AddParameter({ "u_BaseColor", HE::Rendering::MaterialParameterType::Vec4, glm::vec4(1.0f) });
-	const auto schema = schemaMaterial->GetBindingSchema();
-	Require(schema.Entries.size() == 2, "Expected material binding schema entries");
-	Require(schema.Entries[0].Name == "u_BaseColor", "Expected material binding schema to be sorted by name");
-	Require(schema.Entries[0].Binding == 0, "Expected first material schema binding");
-	Require(schema.Entries[1].Name == "u_Roughness", "Expected second material binding schema entry");
-	Require(!schema.Signature.empty(), "Expected material binding schema signature");
 	auto schemaInstance = schemaMaterial->CreateInstance();
 	Require(static_cast<bool>(schemaInstance), "Expected schema material instance creation to succeed");
 	schemaInstance->SetParameter("u_BaseColor", glm::vec4(0.25f, 0.5f, 0.75f, 1.0f));
-	Require(schemaMaterial->GetBindingSchema().Signature == schema.Signature, "Expected instance overrides to preserve base material schema signature");
+	Require(schemaInstance->HasParameterOverride("u_BaseColor"), "Expected material instance override");
 
 	float vertices[] = {
 		-0.5f, -0.5f, 0.0f,
@@ -285,24 +311,20 @@ int main() {
 	Require(textureResolver.ResolveTexture(importedTextureRecord.Guid, cachedResolvedTexture).Succeeded(), "Expected cached texture resolve");
 	Require(cachedResolvedTexture == resolvedTexture, "Expected texture runtime cache identity");
 
-	const auto importedShaderPath = textureProject.GetAssetRootPath() / "Shaders" / "Imported.glsl";
+	const auto importedShaderPath = textureProject.GetAssetRootPath() / "Shaders" / "Imported.shader";
+	const auto importedHlslPath = textureProject.GetAssetRootPath() / "Shaders" / "Imported.hlsl";
 	std::filesystem::create_directories(importedShaderPath.parent_path());
 	std::ofstream shaderStream(importedShaderPath, std::ios::out | std::ios::binary | std::ios::trunc);
 	Require(shaderStream.good(), "Expected project shader source open");
-	shaderStream <<
-		"#type vertex\n"
-		"#version 330 core\n"
-		"layout(location = 0) in vec3 a_Position;\n"
-		"void main() { gl_Position = vec4(a_Position, 1.0); }\n"
-		"#type fragment\n"
-		"#version 330 core\n"
-		"out vec4 FragColor;\n"
-		"void main() { FragColor = vec4(1.0); }\n";
+	shaderStream << "name: Imported\nlanguage: HLSL\nsource: Imported.hlsl\nstages:\n  vertex: { entry: VSMain, profile: vs_6_0 }\n  fragment: { entry: PSMain, profile: ps_6_0 }\nparameters:\n  u_Texture:\n    scope: Material\n    editor: Texture2D\n    default: ''\n";
 	shaderStream.close();
 	Require(shaderStream.good(), "Expected project shader source write");
+	std::ofstream hlslStream(importedHlslPath, std::ios::out | std::ios::binary | std::ios::trunc);
+	hlslStream << "[[vk::binding(1,1)]] Texture2D u_Texture : register(t1, space1); [[vk::binding(2,1)]] SamplerState u_TextureSampler : register(s2, space1); struct V { float4 Position : SV_Position; float2 Uv : TEXCOORD0; }; V VSMain(float3 p : POSITION, float2 uv : TEXCOORD0) { V o; o.Position=float4(p,1); o.Uv=uv; return o; } float4 PSMain(V i) : SV_Target0 { return u_Texture.Sample(u_TextureSampler, i.Uv); }";
+	hlslStream.close();
 	HE::AssetHandle importedShaderHandle = 0;
 	Require(
-		textureAssetService.RegisterShaderAsset(textureProject, "Shaders/Imported.glsl", &importedShaderHandle).Succeeded(),
+		textureAssetService.RegisterShaderAsset(textureProject, "Shaders/Imported.shader", &importedShaderHandle).Succeeded(),
 		"Expected project shader source registration");
 	HE::AssetImportReport shaderImportReport;
 	Require(textureAssetService.InitializeProjectAssets(textureProject, &shaderImportReport).Succeeded(), "Expected project shader artifact import");
@@ -320,11 +342,7 @@ int main() {
 		"material_type: Unlit\n"
 		"shader_guid: " << importedShaderRecord.Guid << "\n"
 		"parameters:\n"
-		"  u_Texture:\n"
-		"    value_type: Texture2D\n"
-		"    value: Textures/Imported.png\n"
-		"texture_slots:\n"
-		"  u_Texture: 0\n";
+		"  u_Texture: Textures/Imported.png\n";
 	materialStream.close();
 	Require(materialStream.good(), "Expected textured material source write");
 
@@ -353,7 +371,7 @@ int main() {
 	Require(textureResolver.ResolveShader(importedShaderRecord.Guid, resolvedShader).Succeeded(), "Expected shader resolve from Library after source removal");
 	Require(resolvedShader != nullptr, "Expected runtime shader program from artifact");
 	Require(resolvedShader->GetDesc().VertexSource.find("gl_Position") != std::string::npos, "Expected artifact-backed vertex shader source");
-	Require(resolvedShader->GetDesc().FragmentSource.find("FragColor") != std::string::npos, "Expected artifact-backed fragment shader source");
+	Require(resolvedShader->GetDesc().FragmentSource.find("SPIRV_Cross_Combined") != std::string::npos, "Expected artifact-backed fragment shader source");
 	std::filesystem::remove_all(smokeRoot, smokeError);
 	Require(!smokeError, "Expected smoke directory cleanup after test");
 
@@ -687,6 +705,42 @@ int main() {
 	Require(device.ReadbackBuffer(uniformBuffer, 16, static_cast<uint32_t>(uploadedBufferData.size()), readbackBufferData), "Expected buffer readback to succeed");
 	Require(readbackBufferData == uploadedBufferData, "Expected buffer readback data to match upload");
 	Require(!device.UploadBuffer({ .Buffer = uniformBuffer, .Offset = 60, .Data = uploadedBufferData }), "Expected out-of-range buffer upload to fail");
+	HE::Rendering::UniformBufferArena uniformArena(device, 512, 256);
+	HE::Rendering::UniformBufferAllocation firstUniformAllocation;
+	HE::Rendering::UniformBufferAllocation secondUniformAllocation;
+	const glm::vec4 uniformValue(1.0f);
+	Require(uniformArena.Allocate(&uniformValue, sizeof(uniformValue), firstUniformAllocation), "Expected first arena allocation to succeed");
+	Require(uniformArena.Allocate(&uniformValue, sizeof(uniformValue), secondUniformAllocation), "Expected aligned arena allocation to succeed");
+	Require(firstUniformAllocation.Offset == 0 && secondUniformAllocation.Offset == 256, "Expected uniform arena offsets to respect alignment");
+	Require(firstUniformAllocation.Buffer == secondUniformAllocation.Buffer && uniformArena.GetBackingBufferCount() == 1, "Expected draw allocations to share one backing buffer");
+	uniformArena.SealFrame(5);
+	uniformArena.BeginFrame(4);
+	HE::Rendering::UniformBufferAllocation blockedUniformAllocation;
+	Require(!uniformArena.Allocate(&uniformValue, sizeof(uniformValue), blockedUniformAllocation), "Expected in-flight arena storage not to be reused");
+	uniformArena.BeginFrame(5);
+	Require(uniformArena.Allocate(&uniformValue, sizeof(uniformValue), blockedUniformAllocation) && blockedUniformAllocation.Offset == 0, "Expected completed arena storage to be reusable");
+	const HE::Rendering::ShaderUniformBlockBinding projectedFrameBlock{
+		.Name = "ProjectedFrame",
+		.Set = 0,
+		.Binding = 4,
+		.BindingPoint = 7,
+		.Size = 80,
+		.Members = {{ .Name = "u_ViewProjection", .Offset = 16, .Size = 64 }}
+	};
+	auto projectedFrameLayout = HE::Rendering::CreateUniformBlockBindGroupLayout(device, HE::Rendering::BindGroupScope::Frame, projectedFrameBlock);
+	Require(projectedFrameLayout && projectedFrameLayout->GetDesc().Entries[0].Binding == 7 && projectedFrameLayout->GetDesc().Entries[0].MinBindingSize == 80, "Expected frame layout to use reflected binding point and size");
+	const glm::mat4 projectedViewProjection(2.0f);
+	auto projectedFrameGroup = HE::Rendering::CreateFrameBindGroup(device, uniformArena, projectedFrameBlock, projectedFrameLayout, projectedViewProjection);
+	Require(projectedFrameGroup && projectedFrameGroup->GetDesc().Entries[0].Size == 80, "Expected frame bind group to use reflected block size");
+	const auto projectedBuffer = std::get<HE::Ref<HE::Rendering::GpuBuffer>>(projectedFrameGroup->GetDesc().Entries[0].Value);
+	std::vector<uint8_t> projectedBytes;
+	Require(device.ReadbackBuffer(projectedBuffer, projectedFrameGroup->GetDesc().Entries[0].Offset, 80, projectedBytes), "Expected projected frame buffer readback");
+	Require(std::all_of(projectedBytes.begin(), projectedBytes.begin() + 16, [](uint8_t value) { return value == 0; }), "Expected reflected frame member offset to be preserved");
+	Require(std::memcmp(projectedBytes.data() + 16, &projectedViewProjection[0][0], 64) == 0, "Expected frame matrix at reflected member offset");
+	const std::vector<HE::Rendering::ShaderTextureBinding> projectedTextures{{ .TextureName = "u_Albedo", .UniformName = "u_AlbedoCombined", .TextureUnit = 5 }};
+	auto projectedMaterialLayout = HE::Rendering::CreateMaterialBindGroupLayout(device, { .Name = "MaterialData", .Set = 1, .BindingPoint = 3, .Size = 16 }, projectedTextures);
+	Require(projectedMaterialLayout && projectedMaterialLayout->GetDesc().Entries.size() == 2, "Expected material layout entries from shader interface");
+	Require(projectedMaterialLayout->GetDesc().Entries[1].Name == "u_AlbedoCombined" && projectedMaterialLayout->GetDesc().Entries[1].Binding == 5, "Expected combined sampler binding from shader resource map");
 	HE::Rendering::BindGroupLayoutDesc uniformLayoutDesc{
 		.Scope = HE::Rendering::BindGroupScope::Frame,
 		.Entries = {{

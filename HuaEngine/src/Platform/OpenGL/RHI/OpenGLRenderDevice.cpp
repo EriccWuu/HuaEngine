@@ -611,6 +611,10 @@ namespace HE::Rendering {
 		return true;
 	}
 
+	void OpenGLGpuBuffer::BindUniformRange(uint32_t bindingPoint, uint32_t offset, uint32_t size) const {
+		glBindBufferRange(GL_UNIFORM_BUFFER, bindingPoint, m_RenderID, offset, size);
+	}
+
 	OpenGLVertexBufferView::OpenGLVertexBufferView(const VertexBufferViewDesc& desc)
 		: m_Desc(desc) {
 		HE_CORE_ASSERT(m_Desc.VertexBuffer, "VertexBufferView requires a vertex buffer");
@@ -1011,7 +1015,30 @@ namespace HE::Rendering {
 	}
 
 	OpenGLShaderProgram::OpenGLShaderProgram(const ShaderProgramDesc& desc)
-		: m_Desc(desc), m_Shader(CreateRef<OpenGLShader>(desc.VertexSource, desc.FragmentSource)) {}
+		: m_Desc(desc), m_Shader(CreateRef<OpenGLShader>(desc.VertexSource, desc.FragmentSource)) {
+		GLint bindingLimit = 0;
+		glGetIntegerv(GL_MAX_UNIFORM_BUFFER_BINDINGS, &bindingLimit);
+		if (m_Desc.UniformBlocks.size() > static_cast<size_t>(bindingLimit)) {
+			HE_CORE_ERROR("Shader requires {0} uniform buffer bindings, device supports {1}", m_Desc.UniformBlocks.size(), bindingLimit);
+			m_Valid = false;
+			return;
+		}
+		for (const auto& block : m_Desc.UniformBlocks) {
+			GLuint index = glGetUniformBlockIndex(m_Shader->GetProgram(), block.Name.c_str());
+			if (index == GL_INVALID_INDEX) index = glGetUniformBlockIndex(m_Shader->GetProgram(), ("type_" + block.Name).c_str());
+			if (index == GL_INVALID_INDEX || block.BindingPoint >= static_cast<uint32_t>(bindingLimit)) {
+				HE_CORE_ERROR("Shader uniform block '{0}' could not be assigned to binding point {1}", block.Name, block.BindingPoint);
+				m_Valid = false;
+				return;
+			}
+			glUniformBlockBinding(m_Shader->GetProgram(), index, block.BindingPoint);
+		}
+		for (const auto& texture : m_Desc.Textures) {
+			const GLint location = glGetUniformLocation(m_Shader->GetProgram(), texture.UniformName.c_str());
+			if (location < 0) { m_Valid = false; HE_CORE_ERROR("Shader combined sampler '{0}' was not found", texture.UniformName); return; }
+			glProgramUniform1i(m_Shader->GetProgram(), location, static_cast<GLint>(texture.TextureUnit));
+		}
+	}
 
 	const ShaderProgramDesc& OpenGLShaderProgram::GetDesc() const {
 		return m_Desc;
@@ -1394,6 +1421,17 @@ namespace HE::Rendering {
 
 					static_cast<OpenGLSampler&>(*value).BindForCommandList(entry.TextureSlot);
 				}
+				else if constexpr (std::is_same_v<T, Ref<GpuBuffer>>) {
+					GLint uniformAlignment = 1;
+					glGetIntegerv(GL_UNIFORM_BUFFER_OFFSET_ALIGNMENT, &uniformAlignment);
+					if (!value || value->GetDesc().Usage != GpuBufferUsage::Uniform || entry.Size == 0
+						|| entry.Offset > value->GetDesc().Size || entry.Size > value->GetDesc().Size - entry.Offset
+						|| entry.Offset % static_cast<uint32_t>(std::max(1, uniformAlignment)) != 0) {
+						HE_CORE_WARN("CommandList::SetBindGroup skipped invalid uniform buffer binding '{0}'", entry.Name);
+						return;
+					}
+					static_cast<OpenGLGpuBuffer&>(*value).BindUniformRange(entry.Binding, entry.Offset, entry.Size);
+				}
 			}, entry.Value);
 		}
 	}
@@ -1660,6 +1698,35 @@ namespace HE::Rendering {
 	OpenGLRenderQueue::OpenGLRenderQueue(RenderQueueType type, CommandList* immediateCommandList)
 		: m_ImmediateCommandList(immediateCommandList), m_Type(type) {}
 
+	OpenGLRenderQueue::~OpenGLRenderQueue() {
+		m_TimelineFence.Clear();
+	}
+
+	OpenGLRenderQueue::OpenGLFence::~OpenGLFence() {
+		Clear();
+	}
+
+	uint64_t OpenGLRenderQueue::OpenGLFence::GetCompletedValue() const {
+		while (!m_PendingSignals.empty()) {
+			auto sync = static_cast<GLsync>(m_PendingSignals.front().Sync);
+			const GLenum status = glClientWaitSync(sync, 0, 0);
+			if (status != GL_ALREADY_SIGNALED && status != GL_CONDITION_SATISFIED) break;
+			m_CompletedValue = m_PendingSignals.front().Value;
+			glDeleteSync(sync);
+			m_PendingSignals.erase(m_PendingSignals.begin());
+		}
+		return m_CompletedValue;
+	}
+
+	void OpenGLRenderQueue::OpenGLFence::Signal(void* sync, uint64_t value) {
+		m_PendingSignals.push_back({ sync, value });
+	}
+
+	void OpenGLRenderQueue::OpenGLFence::Clear() {
+		for (const auto& signal : m_PendingSignals) glDeleteSync(static_cast<GLsync>(signal.Sync));
+		m_PendingSignals.clear();
+	}
+
 	QueueSubmitResult OpenGLRenderQueue::Submit(CommandBuffer& commandBuffer) {
 		const auto expectedUsage = m_Type == RenderQueueType::Graphics
 			? CommandBufferUsage::Graphics
@@ -1687,7 +1754,10 @@ namespace HE::Rendering {
 
 		openGLCommandBuffer->Replay(*m_ImmediateCommandList);
 		const uint64_t signalValue = ++m_NextSignalValue;
-		m_TimelineFence.Signal(signalValue);
+		GLsync sync = glFenceSync(GL_SYNC_GPU_COMMANDS_COMPLETE, 0);
+		if (!sync) return {};
+		glFlush();
+		m_TimelineFence.Signal(sync, signalValue);
 		return {
 			.Succeeded = true,
 			.SignalValue = signalValue,
@@ -1723,6 +1793,12 @@ namespace HE::Rendering {
 		m_Capabilities.SupportsComputeQueue = true;
 		m_Capabilities.SupportsCopyQueue = true;
 		m_Capabilities.SupportsRenderGraphResources = true;
+		GLint uniformAlignment = 1;
+		GLint uniformBindingLimit = 0;
+		glGetIntegerv(GL_UNIFORM_BUFFER_OFFSET_ALIGNMENT, &uniformAlignment);
+		glGetIntegerv(GL_MAX_UNIFORM_BUFFER_BINDINGS, &uniformBindingLimit);
+		m_Capabilities.UniformBufferOffsetAlignment = static_cast<uint32_t>(std::max(1, uniformAlignment));
+		m_Capabilities.MaxUniformBufferBindings = static_cast<uint32_t>(std::max(0, uniformBindingLimit));
 		glEnable(GL_BLEND);
 		glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
 	}
@@ -1863,7 +1939,8 @@ namespace HE::Rendering {
 			return nullptr;
 		}
 
-		return CreateRef<OpenGLShaderProgram>(desc);
+		auto program = CreateRef<OpenGLShaderProgram>(desc);
+		return program->IsValid() ? program : nullptr;
 	}
 
 	Ref<PipelineState> OpenGLRenderDevice::CreatePipelineState(const PipelineStateDesc& desc) {

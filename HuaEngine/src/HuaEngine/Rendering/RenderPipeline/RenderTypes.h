@@ -96,6 +96,10 @@ namespace HE::Rendering {
 		Ref<PipelineState> PipelineStateRef;
 		Ref<ShaderProgram> ShaderProgramRef;
 		Ref<MaterialInstance> MaterialInstanceRef;
+		ShaderUniformBlockBinding FrameBlock;
+		ShaderUniformBlockBinding ObjectBlock;
+		Ref<BindGroupLayout> FrameBindGroupLayoutRef;
+		Ref<BindGroupLayout> ObjectBindGroupLayoutRef;
 		Ref<BindGroup> MaterialBindGroupRef;
 	};
 

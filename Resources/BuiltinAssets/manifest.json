@@ -60,7 +60,7 @@
       "asset_id": "builtin/shader/unlit-color",
       "kind": "shader",
       "source": "builtin",
-      "relative_path": "Shaders/UnlitColor.glsl",
+      "relative_path": "Shaders/UnlitColor.shader",
       "builtin_name": "unlit-color",
       "import_state": "builtin"
     }

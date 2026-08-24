@@ -47,6 +47,20 @@ add_custom_target(HuaEngineResources ALL
     VERBATIM
 )
 
+set(HUAENGINE_DXC_SOURCE_DIRECTORY "${CMAKE_SOURCE_DIR}/Dependencies/DXC/bin/win-x64")
+add_custom_target(HuaEngineShaderTools ALL
+    COMMAND ${CMAKE_COMMAND} -E make_directory
+        "${HUAENGINE_RUNTIME_OUTPUT_DIRECTORY}/ShaderTools/DXC"
+    COMMAND ${CMAKE_COMMAND} -E copy_if_different
+        "${HUAENGINE_DXC_SOURCE_DIRECTORY}/dxc.exe"
+        "${HUAENGINE_DXC_SOURCE_DIRECTORY}/dxcompiler.dll"
+        "${HUAENGINE_DXC_SOURCE_DIRECTORY}/dxil.dll"
+        "${CMAKE_SOURCE_DIR}/Dependencies/DXC/VERSION"
+        "${HUAENGINE_RUNTIME_OUTPUT_DIRECTORY}/ShaderTools/DXC"
+    COMMENT "Copying fixed DXC shader tools"
+    VERBATIM
+)
+
 # Include directories
 set(SPDLOG_INCLUDE_DIR "${CMAKE_SOURCE_DIR}/Dependencies/spdlog/include")
 set(GLFW_INCLUDE_DIR "${CMAKE_SOURCE_DIR}/Dependencies/glfw/include")
@@ -100,6 +114,24 @@ set(CMAKE_POLICY_VERSION_MINIMUM 3.5)
 add_subdirectory(Dependencies/yaml-cpp)
 set(CMAKE_POLICY_VERSION_MINIMUM ${CMAKE_POLICY_VERSION_MINIMUM_PREVIOUS})
 
+set(SPIRV_CROSS_CLI OFF CACHE BOOL "" FORCE)
+set(SPIRV_CROSS_ENABLE_TESTS OFF CACHE BOOL "" FORCE)
+set(SPIRV_CROSS_ENABLE_C_API OFF CACHE BOOL "" FORCE)
+set(SPIRV_CROSS_ENABLE_CPP OFF CACHE BOOL "" FORCE)
+set(SPIRV_CROSS_ENABLE_HLSL OFF CACHE BOOL "" FORCE)
+set(SPIRV_CROSS_ENABLE_MSL OFF CACHE BOOL "" FORCE)
+set(SPIRV_CROSS_ENABLE_REFLECT OFF CACHE BOOL "" FORCE)
+set(SPIRV_CROSS_ENABLE_UTIL OFF CACHE BOOL "" FORCE)
+add_subdirectory(Dependencies/SPIRV-Cross)
+
+set(BUILD_TESTING OFF CACHE BOOL "" FORCE)
+set(ENABLE_GLSLANG_BINARIES OFF CACHE BOOL "" FORCE)
+set(ENABLE_HLSL OFF CACHE BOOL "" FORCE)
+set(ENABLE_OPT OFF CACHE BOOL "" FORCE)
+set(ENABLE_SPVREMAPPER OFF CACHE BOOL "" FORCE)
+set(GLSLANG_TESTS OFF CACHE BOOL "" FORCE)
+add_subdirectory(Dependencies/glslang)
+
 # Add subdirectories for main projects
 add_subdirectory(HuaEngine)
 add_subdirectory(Editor)
@@ -107,6 +139,7 @@ add_subdirectory(ProjectHub)
 add_subdirectory(CLI)
 
 add_dependencies(HuaEngine HuaEngineResources)
+add_dependencies(HuaEngine HuaEngineShaderTools)
 add_dependencies(Editor HuaEngineResources)
 add_dependencies(ProjectHub HuaEngineResources)
 add_dependencies(HuaEngineCLI HuaEngineResources)
@@ -143,6 +176,18 @@ function(configure_smoke_target target_name)
             PDB_OUTPUT_DIRECTORY "${SMOKE_RUNTIME_OUTPUT_DIRECTORY}"
         )
     endif()
+
+    add_custom_command(TARGET ${target_name} POST_BUILD
+        COMMAND ${CMAKE_COMMAND} -E make_directory
+            "$<TARGET_FILE_DIR:${target_name}>/ShaderTools/DXC"
+        COMMAND ${CMAKE_COMMAND} -E copy_if_different
+            "${HUAENGINE_DXC_SOURCE_DIRECTORY}/dxc.exe"
+            "${HUAENGINE_DXC_SOURCE_DIRECTORY}/dxcompiler.dll"
+            "${HUAENGINE_DXC_SOURCE_DIRECTORY}/dxil.dll"
+            "${CMAKE_SOURCE_DIR}/Dependencies/DXC/VERSION"
+            "$<TARGET_FILE_DIR:${target_name}>/ShaderTools/DXC"
+        VERBATIM
+    )
 endfunction()
 
 function(copy_cli_host_to_smoke target_name)
@@ -444,6 +489,26 @@ if(WIN32)
     endif()
 endif()
 configure_smoke_target(AssetLibrarySmoke)
+
+add_executable(ShaderInterfaceSmoke Tests/ShaderInterfaceSmoke.cpp)
+target_include_directories(ShaderInterfaceSmoke PRIVATE
+    ${CMAKE_SOURCE_DIR}/HuaEngine/src
+    ${SPDLOG_INCLUDE_DIR}
+    ${GLM_INCLUDE_DIR}
+    ${IMGUI_INCLUDE_DIR}
+    ${STB_IMAGE_INCLUDE_DIR}
+)
+target_link_libraries(ShaderInterfaceSmoke PRIVATE HuaEngine)
+if(WIN32)
+    target_compile_definitions(ShaderInterfaceSmoke PRIVATE GLFW_INCLUDE_NONE)
+    if(MSVC)
+        set_target_properties(ShaderInterfaceSmoke PROPERTIES
+            MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>"
+        )
+        target_compile_options(ShaderInterfaceSmoke PRIVATE /utf-8)
+    endif()
+endif()
+configure_smoke_target(ShaderInterfaceSmoke)
 
 add_executable(AssetImportSmoke Tests/AssetImportSmoke.cpp)
 target_include_directories(AssetImportSmoke PRIVATE

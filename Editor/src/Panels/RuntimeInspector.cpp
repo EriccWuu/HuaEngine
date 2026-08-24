@@ -1,4 +1,5 @@
 #include "RuntimeInspector.h"
+#include "Module/Rendering/RenderingComponent.h"
 
 #include <algorithm>
 #include <array>
@@ -208,6 +209,12 @@ namespace HE::Editor {
 			}
 			if (field.Type == "MeshAssetRef" || field.Type == "MaterialAssetRef") {
 				const AssetKind kind = field.Type == "MeshAssetRef" ? AssetKind::Mesh : AssetKind::Material;
+				if (kind == AssetKind::Material && context.CommitMaterialReference) {
+					auto editedGuid = *guid;
+					if (!DrawAssetRefField(editedGuid, kind, context.GetAssetOptions(kind))) return false;
+					context.CommitMaterialReference(editedGuid);
+					return true;
+				}
 				return DrawAssetRefField(*guid, kind, context.GetAssetOptions(kind));
 			}
 
@@ -220,6 +227,67 @@ namespace HE::Editor {
 				editedGuid.size());
 			if (changed) {
 				*guid = editedGuid.data();
+			}
+			return changed;
+		}
+
+		bool DrawMaterialOverrides(void* component, RuntimeInspectorContext context) {
+			auto& material = *static_cast<Rendering::MaterialComponent*>(component);
+			if (material.Material.Reference.Guid.empty()) { ImGui::TextDisabled("Missing Material"); return false; }
+			if (!context.ResolveMaterialDefinition) { ImGui::TextDisabled("Material definition unavailable"); return false; }
+			Rendering::MaterialDefinition definition;
+			if (!context.ResolveMaterialDefinition(material.Material.Reference.Guid, definition).Succeeded()) { ImGui::TextDisabled("Reimport required"); return false; }
+			bool changed = false;
+			for (const auto& parameter : definition.GetParameters()) {
+				ImGui::PushID(parameter.Name.c_str());
+				ImGui::TextUnformatted(parameter.DisplayName.empty() ? parameter.Name.c_str() : parameter.DisplayName.c_str());
+				ImGui::SameLine();
+				if (parameter.Type == Rendering::ShaderValueType::Texture2D) {
+					auto textureOverride = material.Overrides.TextureParameters.find(parameter.Name);
+					bool hasOverride = textureOverride != material.Overrides.TextureParameters.end();
+					if (hasOverride && ImGui::SmallButton("Reset")) {
+						auto next = material.Overrides; next.TextureParameters.erase(parameter.Name);
+						if (context.CommitMaterialOverrides) context.CommitMaterialOverrides(next); else material.Overrides = std::move(next);
+						changed = true;
+						hasOverride = false;
+					}
+					AssetGuid guid = hasOverride ? textureOverride->second : std::get<std::string>(parameter.CurrentValue);
+					if (DrawAssetRefField(guid, AssetKind::Texture2D, context.TextureAssets)) {
+						auto next = material.Overrides;
+						if (guid.empty()) next.TextureParameters.erase(parameter.Name); else next.TextureParameters[parameter.Name] = std::move(guid);
+						if (context.CommitMaterialOverrides) context.CommitMaterialOverrides(next); else material.Overrides = std::move(next);
+						changed = true;
+					}
+					ImGui::PopID();
+					continue;
+				}
+				auto override = material.Overrides.Parameters.find(parameter.Name);
+				bool overridden = override != material.Overrides.Parameters.end();
+				if (overridden && ImGui::SmallButton("Reset")) {
+					auto next = material.Overrides; next.Parameters.erase(parameter.Name);
+					if (context.CommitMaterialOverrides) context.CommitMaterialOverrides(next); else material.Overrides = std::move(next);
+					changed = true; overridden = false;
+				}
+				auto value = overridden ? override->second : Rendering::MaterialParameterValue{};
+				if (!overridden) {
+					std::visit([&](const auto& current) {
+						using T = std::decay_t<decltype(current)>;
+						if constexpr (std::is_same_v<T, int> || std::is_same_v<T, float> || std::is_same_v<T, glm::vec2> || std::is_same_v<T, glm::vec3> || std::is_same_v<T, glm::vec4> || std::is_same_v<T, glm::mat4>) value = current;
+					}, parameter.CurrentValue);
+				}
+				bool edited = false;
+				if (auto* scalar = std::get_if<float>(&value)) edited = ImGui::DragFloat("##Value", scalar, parameter.Step > 0.0f ? parameter.Step : 0.1f);
+				else if (auto* vector = std::get_if<glm::vec2>(&value)) edited = ImGui::DragFloat2("##Value", &(*vector)[0], parameter.Step > 0.0f ? parameter.Step : 0.1f);
+				else if (auto* vector = std::get_if<glm::vec3>(&value)) edited = parameter.Editor == Rendering::ShaderEditorKind::Color ? ImGui::ColorEdit3("##Value", &(*vector)[0]) : ImGui::DragFloat3("##Value", &(*vector)[0], parameter.Step > 0.0f ? parameter.Step : 0.1f);
+				else if (auto* vector = std::get_if<glm::vec4>(&value)) edited = parameter.Editor == Rendering::ShaderEditorKind::Color ? ImGui::ColorEdit4("##Value", &(*vector)[0]) : ImGui::DragFloat4("##Value", &(*vector)[0], parameter.Step > 0.0f ? parameter.Step : 0.1f);
+				else ImGui::TextDisabled("Unsupported parameter type");
+				if (edited) {
+					auto next = material.Overrides; next.Parameters[parameter.Name] = std::move(value);
+					if (context.CommitMaterialOverrides) context.CommitMaterialOverrides(next); else material.Overrides = std::move(next);
+					changed = true;
+				}
+				if (!parameter.Tooltip.empty() && ImGui::IsItemHovered()) ImGui::SetTooltip("%s", parameter.Tooltip.c_str());
+				ImGui::PopID();
 			}
 			return changed;
 		}
@@ -292,6 +360,10 @@ namespace HE::Editor {
 				break;
 			case Refl::RuntimeFieldValueKind::Unsupported:
 			case Refl::RuntimeFieldValueKind::Object:
+				if (field.Type == "MaterialOverrideSet") changed = DrawMaterialOverrides(component, context);
+				else
+					ImGui::TextDisabled("Unsupported: %.*s", static_cast<int>(field.Type.size()), field.Type.data());
+				break;
 			default:
 				ImGui::TextDisabled("Unsupported: %.*s", static_cast<int>(field.Type.size()), field.Type.data());
 				break;

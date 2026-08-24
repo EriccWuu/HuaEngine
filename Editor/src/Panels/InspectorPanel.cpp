@@ -5,6 +5,8 @@
 #include <string_view>
 
 #include "Interaction/EditorInteractionHost.h"
+#include "HuaEngine/Application.h"
+#include "HuaEngine/Application/ApplicationOperations.h"
 #include "Selection.h"
 #include "Workbench/SceneDocument.h"
 
@@ -71,6 +73,7 @@ namespace HE {
 	void InspectorPanel::SetAssetRecords(std::span<const AssetRecord> records) {
 		m_MeshAssetOptions = Editor::BuildAssetPickerOptions(records, AssetKind::Mesh);
 		m_MaterialAssetOptions = Editor::BuildAssetPickerOptions(records, AssetKind::Material);
+		m_TextureAssetOptions = Editor::BuildAssetPickerOptions(records, AssetKind::Texture2D);
 	}
 
 	bool InspectorPanel::OnGuiRender() {
@@ -198,6 +201,21 @@ namespace HE {
 							{
 								.MeshAssets = m_MeshAssetOptions,
 								.MaterialAssets = m_MaterialAssetOptions
+								, .TextureAssets = m_TextureAssetOptions
+								, .ResolveMaterialDefinition = [](const AssetGuid& guid, Rendering::MaterialDefinition& definition) { return Application::GetInstance().GetOperations().GetMaterialDefinition(guid, definition); }
+								, .CommitMaterialOverrides = [this, selection](const Rendering::MaterialOverrideSet& overrides) {
+									if (!m_InteractionHost || !selection.IsValid() || !selection.HasComponent<Rendering::MaterialComponent>()) return;
+									const auto before = selection.GetComponent<Rendering::MaterialComponent>().Overrides;
+									(void)m_InteractionHost->ExecuteCommand(CreateSetMaterialOverridesCommand(selection, before, overrides));
+								}
+								, .CommitMaterialReference = [this, selection](const AssetGuid& guid) {
+									if (!m_InteractionHost || !selection.IsValid() || !selection.HasComponent<Rendering::MaterialComponent>()) return;
+									const auto before = selection.GetComponent<Rendering::MaterialComponent>();
+									auto after = before; after.Material.Reference.Guid = guid;
+									Rendering::MaterialDefinition definition;
+									if (Application::GetInstance().GetOperations().GetMaterialDefinition(guid, definition).Succeeded()) Rendering::ReconcileMaterialOverrides(after.Overrides, definition);
+									(void)m_InteractionHost->ExecuteCommand(CreateSetMaterialComponentCommand(selection, before, after));
+								}
 							});
                     }
                     ImGui::TreePop();

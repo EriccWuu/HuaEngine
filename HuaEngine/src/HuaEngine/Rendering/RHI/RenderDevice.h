@@ -42,6 +42,8 @@ namespace HE::Rendering {
 		bool SupportsComputeQueue = false;
 		bool SupportsCopyQueue = false;
 		bool SupportsRenderGraphResources = true;
+		uint32_t UniformBufferOffsetAlignment = 1;
+		uint32_t MaxUniformBufferBindings = 0;
 	};
 
 	struct BufferTransferDesc {

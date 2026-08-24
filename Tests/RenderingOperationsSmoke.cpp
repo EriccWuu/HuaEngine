@@ -10,7 +10,10 @@
 #include <glm/gtc/matrix_transform.hpp>
 
 #include "HuaEngine.h"
+#include "HuaEngine/Application/ApplicationServices.h"
 #include "HuaEngine/Rendering/RenderPipeline/RenderTypes.h"
+#include "HuaEngine/Rendering/RenderPipeline/RenderBindGroupBuilder.h"
+#include "HuaEngine/Rendering/RenderPipeline/UniformBufferArena.h"
 #include "HuaEngine/Rendering/RHI/RenderHardwareInterface.h"
 #include "Module/Rendering/RenderSystem.h"
 
@@ -34,6 +37,7 @@ namespace {
 	public:
 		SmokeApplication()
 			: HE::Application(MakeApplicationSpecification()) {}
+		HE::ApplicationServices& Services() { return GetServices(); }
 	};
 
 	uint32_t CountRenderableSubmissions(HE::Scene& scene) {
@@ -295,7 +299,9 @@ int main() {
 	Require(renderViewport.Payload.at("draw_calls") == "2", "Expected fallback draw and post-process draw without editor extensions");
 	Require(renderViewport.Payload.at("pass_count") == "4", "Expected runtime render graph to execute four render passes");
 	Require(renderViewport.Payload.at("graphics_queue_signal") != "0", "Expected invalid renderable resources to submit a graphics command buffer");
-	Require(renderViewport.Payload.at("graphics_queue_completed") == renderViewport.Payload.at("graphics_queue_signal"), "Expected graphics queue fence to complete submitted value");
+	Require(
+		std::stoull(renderViewport.Payload.at("graphics_queue_completed")) <= std::stoull(renderViewport.Payload.at("graphics_queue_signal")),
+		"Expected graphics queue completion not to exceed the submitted value");
 	Require(renderViewport.Payload.at("frames_in_flight") != "0", "Expected submitted forward command buffer to remain tracked in flight");
 	Require(renderViewport.Payload.at("visible_items") == "1", "Expected invalid renderable resources to count one visible item");
 	Require(renderViewport.Payload.at("fallback_items") == "1", "Expected invalid renderable resources to count one fallback item");
@@ -399,6 +405,66 @@ int main() {
 	const auto& loadedRenderStats = loadedRenderSystem->GetLastRenderResult().Stats;
 	Require(loadedRenderStats.BindGroupLayoutCacheHits > 0, "Expected multi-item render to reuse standard bind group layouts");
 	Require(loadedRenderStats.PipelineStateCacheHits > 0, "Expected multi-item render to reuse pipeline state");
+
+	HE::ProjectContext texturedProject;
+	const auto texturedProjectRoot = smokeRoot / "TexturedProject";
+	std::filesystem::copy(std::filesystem::current_path() / "Tests" / "TestProj", texturedProjectRoot, std::filesystem::copy_options::recursive);
+	Require(operations.ResolveProjectContext(texturedProjectRoot, texturedProject).Succeeded(), "Expected textured test project context");
+	Require(operations.InitializeProjectAssets(texturedProject).Succeeded(), "Expected textured test project assets");
+	HE::Ref<HE::Rendering::Mesh> resolvedTexturedMesh;
+	Require(application.Services().GetAssetResolver().ResolveMesh("15da0d336597b40d17f6cbf870ece1ff", resolvedTexturedMesh).Succeeded(), "Expected textured mesh resolve");
+	Require(resolvedTexturedMesh && resolvedTexturedMesh->GetMeshData().Layout.Elements.size() == 2, "Expected textured mesh vertex layout");
+	Require(resolvedTexturedMesh->GetMeshData().VertexData.size() >= 20 && resolvedTexturedMesh->GetMeshData().VertexData[8] == 1.0f, "Expected textured mesh UV data");
+	HE::Ref<HE::Rendering::Material> resolvedTexturedMaterial;
+	Require(application.Services().GetAssetResolver().ResolveMaterial("6de06c0940c1fcd1aa64972a6eaf9f1b", resolvedTexturedMaterial).Succeeded(), "Expected textured material resolve");
+	Require(resolvedTexturedMaterial && resolvedTexturedMaterial->GetShaderProgram() && resolvedTexturedMaterial->GetShaderProgram()->GetDesc().Textures.size() == 1, "Expected textured shader resource map");
+	const auto* resolvedTexturedParameter = resolvedTexturedMaterial->GetParameter("u_Texture");
+	Require(resolvedTexturedParameter && std::get<HE::Ref<HE::Rendering::TextureResource>>(resolvedTexturedParameter->Value), "Expected textured material GPU texture parameter");
+	const auto& texturedShaderDesc = resolvedTexturedMaterial->GetShaderProgram()->GetDesc();
+	const auto texturedBlock = std::find_if(texturedShaderDesc.UniformBlocks.begin(), texturedShaderDesc.UniformBlocks.end(), [](const auto& block) { return block.Set == 1; });
+	Require(texturedBlock != texturedShaderDesc.UniformBlocks.end(), "Expected textured material block");
+	auto& texturedDevice = HE::Rendering::RenderHardwareInterface::GetDevice();
+	HE::Rendering::UniformBufferArena texturedArena(texturedDevice, 1024);
+	auto texturedLayout = HE::Rendering::CreateMaterialBindGroupLayout(texturedDevice, *texturedBlock, texturedShaderDesc.Textures);
+	auto texturedGroup = HE::Rendering::CreateMaterialBindGroup(texturedDevice, texturedArena, *resolvedTexturedMaterial->CreateInstance(), *texturedBlock, texturedShaderDesc.Textures, texturedLayout);
+	Require(texturedGroup && texturedGroup->GetDesc().Entries.size() == 2, "Expected texture entry in material bind group");
+	const auto boundTexture = std::get<HE::Ref<HE::Rendering::TextureResource>>(texturedGroup->GetDesc().Entries[1].Value);
+	std::vector<uint8_t> boundTexturePixels;
+	Require(texturedDevice.ReadbackTexture(boundTexture, 0, boundTexturePixels), "Expected bound texture readback");
+	Require(std::any_of(boundTexturePixels.begin(), boundTexturePixels.end(), [](uint8_t channel) { return channel < 128; }), "Expected non-white bound texture content");
+	HE::Ref<HE::Scene> texturedScene;
+	Require(operations.CreateScene("TexturedMaterialSmoke", texturedScene).Succeeded(), "Expected textured scene creation");
+	auto texturedEntity = texturedScene->GetWorld().CreateEntity("Textured Quad");
+	auto& texturedTransform = texturedEntity.AddComponent<HE::TransformComponent>();
+	texturedTransform.Position.z = -2.0f;
+	texturedTransform.Scale = glm::vec3(2.0f);
+	auto& texturedMesh = texturedEntity.AddComponent<HE::Rendering::MeshComponent>();
+	texturedMesh.Mesh.Reference.Guid = "15da0d336597b40d17f6cbf870ece1ff";
+	auto& texturedMaterial = texturedEntity.AddComponent<HE::Rendering::MaterialComponent>();
+	texturedMaterial.Material.Reference.Guid = "6de06c0940c1fcd1aa64972a6eaf9f1b";
+	Require(operations.AttachSceneViewportRenderer(texturedScene, renderTarget).Succeeded(), "Expected textured scene renderer attach");
+	const auto texturedRender = operations.RenderSceneViewport(*texturedScene, camera);
+	Require(texturedRender.Succeeded() && texturedRender.Payload.at("diagnostics") == "0", "Expected textured scene render");
+	const auto center = renderTarget->ReadPixelRGBA8(0, specification.Width / 2, specification.Height / 2);
+	bool hasTextureVariation = false;
+	for (uint32_t y = specification.Height / 4; y < specification.Height * 3 / 4; y += 8) {
+		for (uint32_t x = specification.Width / 4; x < specification.Width * 3 / 4; x += 8) {
+			hasTextureVariation = hasTextureVariation || !PixelNear(center, renderTarget->ReadPixelRGBA8(0, x, y), 4);
+		}
+	}
+	auto whiteTexture = texturedDevice.CreateTexture({ .Width = 4, .Height = 4, .Format = HE::Rendering::RenderTargetTextureFormat::RGBA8, .Usage = HE::Rendering::TextureUsageSampled | HE::Rendering::TextureUsageCopyDst });
+	Require(whiteTexture && texturedDevice.UploadTexture({ .Texture = whiteTexture, .Data = std::vector<uint8_t>(4 * 4 * 4, 255) }), "Expected override texture creation");
+	std::filesystem::copy_file(texturedProject.GetAssetRootPath() / "textures" / "hutao.png", texturedProject.GetAssetRootPath() / "textures" / "white-override.png", std::filesystem::copy_options::overwrite_existing);
+	HE::AssetHandle whiteTextureHandle = 0;
+	Require(operations.RegisterTextureAsset(texturedProject, "textures/white-override.png", whiteTexture, &whiteTextureHandle).Succeeded(), "Expected override texture registration");
+	HE::AssetRecord whiteTextureRecord;
+	Require(operations.ResolveAsset(whiteTextureHandle, whiteTextureRecord).Succeeded(), "Expected override texture record");
+	texturedMaterial.Overrides.SetVec4("u_Color", glm::vec4(1.0f, 0.0f, 0.0f, 1.0f));
+	texturedMaterial.Overrides.TextureParameters["u_Texture"] = whiteTextureRecord.Guid;
+	Require(operations.RenderSceneViewport(*texturedScene, camera).Succeeded(), "Expected overridden textured scene render");
+	const auto overriddenCenter = renderTarget->ReadPixelRGBA8(0, specification.Width / 2, specification.Height / 2);
+	Require(overriddenCenter.R > overriddenCenter.G + 32 && overriddenCenter.R > overriddenCenter.B + 32, "Expected color and texture overrides in rendered pixels");
+	Require(hasTextureVariation, "Expected textured material to produce spatially varying pixels");
 	std::filesystem::remove_all(smokeRoot, errorCode);
 	Require(!errorCode, "Expected rendering smoke temporary project cleanup");
 

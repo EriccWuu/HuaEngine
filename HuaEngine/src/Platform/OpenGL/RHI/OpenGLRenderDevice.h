@@ -89,6 +89,7 @@ namespace HE::Rendering {
 	class OpenGLRenderQueue final : public RenderQueue {
 	public:
 		explicit OpenGLRenderQueue(RenderQueueType type, CommandList* immediateCommandList = nullptr);
+		~OpenGLRenderQueue() override;
 
 		QueueSubmitResult Submit(CommandBuffer& commandBuffer) override;
 		QueueSubmitResult Submit(const QueueSubmitDesc& desc) override;
@@ -98,11 +99,15 @@ namespace HE::Rendering {
 	private:
 		class OpenGLFence final : public Fence {
 		public:
-			uint64_t GetCompletedValue() const override { return m_CompletedValue; }
-			void Signal(uint64_t value) { m_CompletedValue = value; }
+			~OpenGLFence() override;
+			uint64_t GetCompletedValue() const override;
+			void Signal(void* sync, uint64_t value);
+			void Clear();
 
 		private:
-			uint64_t m_CompletedValue = 0;
+			struct PendingSignal { void* Sync = nullptr; uint64_t Value = 0; };
+			mutable std::vector<PendingSignal> m_PendingSignals;
+			mutable uint64_t m_CompletedValue = 0;
 		};
 
 		CommandList* m_ImmediateCommandList = nullptr;
@@ -123,6 +128,7 @@ namespace HE::Rendering {
 		void UnbindForCommandList() const;
 		bool Upload(uint32_t offset, const std::vector<uint8_t>& data);
 		bool Readback(uint32_t offset, uint32_t size, std::vector<uint8_t>& outData) const;
+		void BindUniformRange(uint32_t bindingPoint, uint32_t offset, uint32_t size) const;
 
 	private:
 		GpuBufferDesc m_Desc;
@@ -278,10 +284,12 @@ namespace HE::Rendering {
 		void SetFloat4(const std::string& name, const glm::vec4 value);
 		void SetMat3(const std::string& name, const glm::mat3 value);
 		void SetMat4(const std::string& name, const glm::mat4 value);
+		bool IsValid() const { return m_Valid; }
 
 	private:
 		ShaderProgramDesc m_Desc;
 		Ref<OpenGLShader> m_Shader;
+		bool m_Valid = true;
 	};
 
 	class OpenGLRenderDevice final : public RenderDevice {

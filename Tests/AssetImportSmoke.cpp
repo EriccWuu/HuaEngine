@@ -17,7 +17,7 @@
 #include "HuaEngine/Asset/Import/MaterialAssetImporter.h"
 #include "HuaEngine/Asset/Import/MeshAssetImporter.h"
 #include "HuaEngine/Asset/Import/PngTextureImporter.h"
-#include "HuaEngine/Asset/Import/GlslShaderImporter.h"
+#include "HuaEngine/Asset/Import/HlslShaderImporter.h"
 #include "HuaEngine/Project/ProjectService.h"
 #include "HuaEngine/Rendering/Mesh/MeshCore.h"
 #include "HuaEngine/Rendering/Material/MaterialSourceData.h"
@@ -39,7 +39,7 @@ namespace {
 		Require(registry.Register(std::make_unique<HE::MeshAssetImporter>()), "Expected mesh importer registration");
 		Require(registry.Register(std::make_unique<HE::MaterialAssetImporter>()), "Expected material importer registration");
 		Require(registry.Register(std::make_unique<HE::PngTextureImporter>()), "Expected PNG importer registration");
-		Require(registry.Register(std::make_unique<HE::GlslShaderImporter>()), "Expected GLSL importer registration");
+		Require(registry.Register(std::make_unique<HE::HlslShaderImporter>()), "Expected HLSL importer registration");
 
 		const auto* importer = registry.Find(HE::AssetKind::Mesh, ".mesh");
 		Require(importer != nullptr, "Expected mesh importer lookup");
@@ -55,40 +55,10 @@ namespace {
 		Require(pngMatch && pngMatch->Kind == HE::AssetKind::Texture2D, "Expected texture kind inference");
 		const auto materialMatch = registry.FindByExtension(".MAT");
 		Require(materialMatch && materialMatch->Kind == HE::AssetKind::Material, "Expected material kind inference");
-		const auto shaderMatch = registry.FindByExtension(".GLSL");
+		const auto shaderMatch = registry.FindByExtension(".SHADER");
 		Require(shaderMatch && shaderMatch->Kind == HE::AssetKind::Shader, "Expected shader kind inference");
+		Require(!registry.FindByExtension(".glsl"), "Expected legacy GLSL source rejection");
 		Require(!registry.FindByExtension(".obj"), "Expected unsupported extension inference rejection");
-	}
-
-	void TestShaderImportPipeline(const std::filesystem::path& root) {
-		const HE::ProjectContext context{ .RootPath = root };
-		const auto shaderPath = context.GetAssetRootPath() / "Shaders" / "Imported.glsl";
-		WriteTextFile(shaderPath,
-			"#type vertex\n"
-			"#version 330 core\n"
-			"void main() { gl_Position = vec4(0.0); }\n"
-			"#type fragment\n"
-			"#version 330 core\n"
-			"out vec4 FragColor;\n"
-			"void main() { FragColor = vec4(1.0); }\n");
-		const HE::AssetManifestRecord shaderRecord{
-			.Guid = "shader-guid-for-import",
-			.AssetId = "Shaders/Imported.glsl",
-			.Kind = HE::AssetKind::Shader,
-			.Source = HE::AssetSource::File,
-			.RelativePath = "Shaders/Imported.glsl",
-			.ImportState = HE::AssetImportState::Registered
-		};
-		const HE::GlslShaderImporter importer;
-		const auto importResult = importer.Import({ context, shaderRecord, shaderPath, nullptr });
-		Require(importResult.Success, "Expected GLSL shader import");
-		HE::ShaderArtifactData shaderData;
-		Require(HE::DecodeShaderArtifact(importResult.Artifact, shaderData).Succeeded(), "Expected shader artifact decode");
-		Require(shaderData.VertexSource.find("gl_Position") != std::string::npos, "Expected vertex shader artifact source");
-		Require(shaderData.FragmentSource.find("FragColor") != std::string::npos, "Expected fragment shader artifact source");
-
-		WriteTextFile(shaderPath, "#type vertex\nvoid main() {}\n");
-		Require(!importer.Import({ context, shaderRecord, shaderPath, nullptr }).Success, "Expected incomplete GLSL shader rejection");
 	}
 
 	void TestRuntimeCacheInvalidation() {
@@ -152,7 +122,7 @@ namespace {
 
 		HE::AssetImportReport firstReport;
 		const auto firstInitialize = assetService.InitializeProjectAssets(context, &firstReport);
-		Require(firstInitialize.Succeeded(), "Expected first project asset initialization");
+		Require(firstInitialize.Succeeded(), "Expected first project asset initialization: " + firstInitialize.Summary + (firstInitialize.Details.empty() ? std::string() : " | " + firstInitialize.Details.front().Message));
 		Require(firstReport.TotalFileAssets == 1, "Expected one file asset in import report");
 		Require(firstReport.TotalBuiltinAssets == 7, "Expected seven builtin assets in import report");
 		Require(firstReport.ImportedAssets == 8, "Expected first initialization to import project and builtin assets");
@@ -238,11 +208,14 @@ namespace {
 		Require(preservedArtifact.Payload == replacementArtifact.Payload, "Expected failed reimport to preserve the last good artifact");
 		Require(HE::Rendering::Mesh::SaveToFile(*replacementMesh, meshPath.generic_string()), "Expected valid source restore after failed reimport");
 
-		std::filesystem::remove(artifactPath);
+		const auto* currentLibraryRecord = assetService.GetLibrary().Find(meshRecord.Guid);
+		Require(currentLibraryRecord != nullptr, "Expected current mesh library record");
+		const auto currentArtifactPath = assetService.GetLibrary().GetRootPath() / currentLibraryRecord->ArtifactRelativePath;
+		std::filesystem::remove(currentArtifactPath);
 		HE::AssetImportReport rebuildReport;
 		Require(assetService.InitializeProjectAssets(context, &rebuildReport).Succeeded(), "Expected missing artifact rebuild");
 		Require(rebuildReport.ImportedAssets == 1, "Expected missing artifact to be imported again");
-		Require(std::filesystem::is_regular_file(artifactPath), "Expected rebuilt mesh artifact");
+		Require(std::filesystem::is_regular_file(currentArtifactPath), "Expected rebuilt mesh artifact");
 
 		std::filesystem::remove(meshPath);
 		assetService.GetRuntimeCache() = HE::AssetRuntimeCache();
@@ -405,7 +378,7 @@ namespace {
 		WriteTextFile(materialPath,
 			"name: CpuOnlyMaterial\n"
 			"material_type: Unlit\n"
-			"shader_guid: ''\n"
+			"shader_guid: cpu-shader-guid\n"
 			"parameters:\n"
 			"  u_Int:\n"
 			"    value_type: Int\n"
@@ -451,7 +424,6 @@ namespace {
 		Require(
 			std::get<std::string>(sourceData.Parameters.at("u_Texture").Value) == "Textures/Checker.png",
 			"Expected texture source path to remain CPU data");
-		Require(sourceData.TextureSlots.at("u_Texture") == 2, "Expected material texture slot");
 
 		HE::Rendering::MaterialSourceData reordered = sourceData;
 		reordered.Parameters.clear();
@@ -476,10 +448,10 @@ namespace {
 		Require(decodedData.Parameters.size() == sourceData.Parameters.size(), "Expected material parameter count round-trip");
 		Require(std::get<int>(decodedData.Parameters.at("u_Int").Value) == -7, "Expected signed integer round-trip");
 		Require(std::get<std::string>(decodedData.Parameters.at("u_EmptyTexture").Value).empty(), "Expected empty texture round-trip");
-		Require(decodedData.TextureSlots == sourceData.TextureSlots, "Expected material slots round-trip");
 
 		HE::AssetManifest manifest;
 		const HE::AssetGuid textureGuid = "texture-guid-for-material-import";
+		Require(manifest.Upsert({ .Guid = "cpu-shader-guid", .AssetId = "Shaders/Cpu.shader", .Kind = HE::AssetKind::Shader, .Source = HE::AssetSource::File, .RelativePath = "Shaders/Cpu.shader", .ImportState = HE::AssetImportState::Registered }), "Expected shader manifest fixture");
 		Require(manifest.Upsert({
 			.Guid = textureGuid,
 			.AssetId = "Textures/Checker.png",
@@ -500,7 +472,7 @@ namespace {
 		const HE::MaterialAssetImporter importer;
 		const auto importResult = importer.Import({ projectContext, materialRecord, materialPath, &manifest });
 		Require(importResult.Success, "Expected material importer success");
-		Require(importResult.Artifact.Dependencies == std::vector<HE::AssetGuid>{ textureGuid }, "Expected material texture dependency");
+		Require(importResult.Artifact.Dependencies == std::vector<HE::AssetGuid>({ "cpu-shader-guid", textureGuid }), "Expected material shader and texture dependencies");
 		HE::Rendering::MaterialSourceData importedData;
 		Require(HE::DecodeMaterialArtifact(importResult.Artifact, importedData).Succeeded(), "Expected imported material decode");
 		Require(
@@ -527,8 +499,8 @@ namespace {
 		Require(projectService.InitializeProject(root, &context, "MaterialImportProject").Succeeded(), "Expected material import project initialization");
 
 		auto sourceMaterial = HE::Rendering::Material::Create("ImportedMaterial", HE::Rendering::MaterialType::Unlit);
+		sourceMaterial->SetShaderProgram(nullptr, HE::BuiltinAssetGuids::UnlitColorShader);
 		sourceMaterial->AddParameter({ "u_Color", HE::Rendering::MaterialParameterType::Vec4, glm::vec4(0.2f, 0.4f, 0.6f, 1.0f) });
-		sourceMaterial->AddParameter({ "u_Roughness", HE::Rendering::MaterialParameterType::Float, 0.35f });
 		const auto materialPath = context.GetAssetRootPath() / "Materials" / "ImportedMaterial.material";
 		std::filesystem::create_directories(materialPath.parent_path());
 		Require(HE::Serialization::SaveMaterial(*sourceMaterial, materialPath.generic_string()), "Expected material source save");
@@ -540,6 +512,18 @@ namespace {
 		HE::AssetImportReport report;
 		Require(assetService.InitializeProjectAssets(context, &report).Succeeded(), "Expected material project asset initialization");
 		Require(report.ImportedAssets == 8 && report.FailedAssets == 0, "Expected material and builtin artifact import");
+		HE::AssetRecord definitionRecord;
+		Require(assetService.ResolveAsset("Materials/ImportedMaterial.material", definitionRecord).Succeeded(), "Expected material definition record");
+		HE::Rendering::MaterialDefinition definition;
+		Require(assetService.GetMaterialDefinition(definitionRecord.Guid, definition).Succeeded(), "Expected CPU-only material definition query");
+		Require(definition.GetShaderGuid() == HE::BuiltinAssetGuids::UnlitColorShader && definition.GetParameters().size() == 1, "Expected shader-authored material definition");
+		Require(definition.GetParameters()[0].Name == "u_Color" && std::get<glm::vec4>(definition.GetParameters()[0].CurrentValue) == glm::vec4(0.2f, 0.4f, 0.6f, 1.0f), "Expected material definition current value");
+		WriteTextFile(materialPath, "name: ImportedMaterial\nshader_guid: builtin-shader-unlit-color\nparameters:\n  u_Unknown: 1.0\n");
+		HE::AssetReimportReport invalidParameterReport;
+		Require(assetService.ReimportAssets(context, materialPath, &invalidParameterReport).Succeeded() && invalidParameterReport.FailedAssets == 1, "Expected unknown shader parameter rejection");
+		WriteTextFile(materialPath, "name: ImportedMaterial\nshader_guid: builtin-shader-unlit-color\nparameters:\n  u_Color: 1.0\n");
+		HE::AssetReimportReport invalidTypeReport;
+		Require(assetService.ReimportAssets(context, materialPath, &invalidTypeReport).Succeeded() && invalidTypeReport.FailedAssets == 1, "Expected material parameter type mismatch rejection");
 
 		HE::AssetRecord record;
 		Require(assetService.ResolveAsset("Materials/ImportedMaterial.material", record).Succeeded(), "Expected imported material record");
@@ -621,6 +605,7 @@ namespace {
 		Require(HE::Rendering::Mesh::SaveToFile(*HE::Rendering::Mesh::CreateQuad("BatchMesh"), meshPath.generic_string()), "Expected batch mesh fixture");
 		WriteBinaryFile(texturePath, MakePngFixtureBytes());
 		auto sourceMaterial = HE::Rendering::Material::Create("BatchMaterial", HE::Rendering::MaterialType::Unlit);
+		sourceMaterial->SetShaderProgram(nullptr, HE::BuiltinAssetGuids::UnlitColorShader);
 		sourceMaterial->AddParameter({ "u_Color", HE::Rendering::MaterialParameterType::Vec4, glm::vec4(0.3f, 0.6f, 0.9f, 1.0f) });
 		Require(HE::Serialization::SaveMaterial(*sourceMaterial, materialPath.generic_string()), "Expected batch material fixture");
 		WriteTextFile(unsupportedPath, "unsupported");
@@ -679,27 +664,36 @@ namespace {
 		Require(assetService.GetRuntimeCache().FindMesh(stableMeshGuid) == updatedMesh, "Expected failed reimport to preserve runtime cache");
 
 		const auto dependencyDirectory = context.GetAssetRootPath() / "ReimportDependencies";
-		const auto shaderPath = dependencyDirectory / "Shared.glsl";
+		const auto shaderPath = dependencyDirectory / "Shared.shader";
+		const auto shaderSourcePath = dependencyDirectory / "Shared.hlsl";
 		const auto dependentMaterialPath = dependencyDirectory / "Dependent.material";
-		WriteTextFile(shaderPath, "#type vertex\nvoid main() {}\n#type fragment\nvoid main() {}\n");
+		WriteTextFile(shaderPath, "name: Shared\nlanguage: HLSL\nsource: Shared.hlsl\nstages:\n  vertex: { entry: VSMain, profile: vs_6_0 }\n  fragment: { entry: PSMain, profile: ps_6_0 }\nparameters: {}\n");
+		WriteTextFile(shaderSourcePath, "struct V { float4 Position : SV_Position; }; V VSMain(float3 p : POSITION) { V o; o.Position=float4(p,1); return o; } float4 PSMain(V i) : SV_Target0 { return float4(1,1,1,1); }");
 		Require(assetService.ReimportAssets(context, shaderPath).Succeeded(), "Expected dependency shader reimport");
 		HE::AssetRecord shaderRecord;
-		Require(assetService.ResolveAsset("ReimportDependencies/Shared.glsl", shaderRecord).Succeeded(), "Expected dependency shader record");
+		Require(assetService.ResolveAsset("ReimportDependencies/Shared.shader", shaderRecord).Succeeded(), "Expected dependency shader record");
 		WriteTextFile(dependentMaterialPath,
 			"name: DependentMaterial\n"
 			"material_type: Unlit\n"
 			"shader_guid: " + shaderRecord.Guid + "\n"
-			"parameters: {}\n"
-			"texture_slots: {}\n");
+			"parameters: {}\n");
 		Require(assetService.ReimportAssets(context, dependentMaterialPath).Succeeded(), "Expected dependent material reimport");
 		HE::AssetRecord dependentMaterialRecord;
 		Require(assetService.ResolveAsset("ReimportDependencies/Dependent.material", dependentMaterialRecord).Succeeded(), "Expected dependent material record");
+		const auto initialDependentFingerprint = assetService.GetLibrary().Find(dependentMaterialRecord.Guid)->ImportFingerprint;
 		assetService.GetRuntimeCache().StoreMaterial(
 			dependentMaterialRecord.Guid,
 			HE::Rendering::Material::Create("CachedDependentMaterial", HE::Rendering::MaterialType::Unlit));
-		WriteTextFile(shaderPath, "#type vertex\nvoid main() { int changed = 1; }\n#type fragment\nvoid main() {}\n");
+		WriteTextFile(shaderSourcePath, "struct V { float4 Position : SV_Position; }; V VSMain(float3 p : POSITION) { V o; o.Position=float4(p,1); return o; } float4 PSMain(V i) : SV_Target0 { return float4(0.5,1,1,1); }");
 		Require(assetService.ReimportAssets(context, shaderPath).Succeeded(), "Expected dependency shader update");
 		Require(!assetService.GetRuntimeCache().FindMaterial(dependentMaterialRecord.Guid), "Expected shader reimport to invalidate dependent material cache");
+		Require(assetService.GetLibrary().Find(dependentMaterialRecord.Guid)->ImportFingerprint == initialDependentFingerprint, "Expected implementation-only shader change not to reimport material");
+		WriteTextFile(shaderPath, "name: Shared\nlanguage: HLSL\nsource: Shared.hlsl\nstages:\n  vertex: { entry: VSMain, profile: vs_6_0 }\n  fragment: { entry: PSMain, profile: ps_6_0 }\nparameters:\n  u_Value:\n    scope: Material\n    editor: Color\n    default: [1.0, 1.0, 1.0, 1.0]\n");
+		WriteTextFile(shaderSourcePath, "[[vk::binding(0,1)]] cbuffer MaterialData : register(b0, space1) { float4 u_Value; }; struct V { float4 Position : SV_Position; }; V VSMain(float3 p : POSITION) { V o; o.Position=float4(p,1); return o; } float4 PSMain(V i) : SV_Target0 { return u_Value; }");
+		HE::AssetReimportReport interfaceReport;
+		const auto interfaceResult = assetService.ReimportAssets(context, shaderPath, &interfaceReport);
+		Require(interfaceResult.Succeeded() && interfaceReport.FailedAssets == 0, "Expected shader interface update");
+		Require(assetService.GetLibrary().Find(dependentMaterialRecord.Guid)->ImportFingerprint != initialDependentFingerprint, "Expected shader interface change to reimport dependent material");
 
 		const auto outsidePath = context.RootPath / "Outside.mesh";
 		Require(HE::Rendering::Mesh::SaveToFile(*HE::Rendering::Mesh::CreateQuad("Outside"), outsidePath.generic_string()), "Expected outside mesh fixture");
@@ -755,7 +749,6 @@ int main() {
 	std::filesystem::remove_all(smokeRoot, errorCode);
 	Require(!errorCode, "Expected import smoke cleanup before test");
 	TestMeshImportPipeline(smokeRoot / "Project");
-	TestShaderImportPipeline(smokeRoot / "ShaderProject");
 	TestMaterialSourceAndArtifact(smokeRoot / "MaterialSource");
 	TestMaterialImportPipeline(smokeRoot / "MaterialProject");
 	TestMaterialShaderGuidDependency(smokeRoot / "MaterialShaderProject");

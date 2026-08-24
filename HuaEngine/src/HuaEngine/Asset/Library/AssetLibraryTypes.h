@@ -9,7 +9,7 @@
 
 namespace HE {
 	inline constexpr uint32_t AssetArtifactContainerVersion = 1;
-	inline constexpr uint32_t AssetLibraryFormatVersion = 2;
+	inline constexpr uint32_t AssetLibraryFormatVersion = 3;
 
 	struct AssetArtifactHeader {
 		uint32_t ContainerVersion = AssetArtifactContainerVersion;
@@ -31,7 +31,7 @@ namespace HE {
 		std::string ImporterId;
 		uint32_t ImporterVersion = 0;
 		uint32_t ArtifactVersion = 0;
-		std::string SourceContentHash;
+		std::string ImportFingerprint;
 		std::filesystem::path ArtifactRelativePath;
 		std::vector<AssetGuid> Dependencies;
 	};

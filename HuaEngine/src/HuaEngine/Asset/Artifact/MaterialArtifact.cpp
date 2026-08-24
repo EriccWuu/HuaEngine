@@ -129,13 +129,14 @@ namespace HE {
 		std::vector<const Rendering::MaterialSourceParameter*> parameters;
 		for (const auto& [name, parameter] : material.Parameters) { (void)name; parameters.push_back(&parameter); }
 		std::sort(parameters.begin(), parameters.end(), [](const auto* left, const auto* right) { return left->Name < right->Name; });
-		std::vector<std::pair<std::string, uint32_t>> slots(material.TextureSlots.begin(), material.TextureSlots.end());
-		std::sort(slots.begin(), slots.end());
-
 		AssetBinaryWriter writer;
 		writer.WriteString(material.Name);
 		writer.WriteU32(static_cast<uint32_t>(material.Type));
 		writer.WriteString(material.ShaderGuid);
+		writer.WriteBytes(material.ShaderInterfaceDigest);
+		writer.WriteU64(material.ShaderInterfaceSignature);
+		writer.WriteBytes(material.MaterialDefinitionDigest);
+		writer.WriteU64(material.MaterialDefinitionSignature);
 		writer.WriteU32(static_cast<uint32_t>(parameters.size()));
 		for (const auto* parameter : parameters) {
 			writer.WriteString(parameter->Name);
@@ -143,8 +144,6 @@ namespace HE {
 			try { if (!EncodeValue(writer, *parameter)) return MakeMaterialArtifactFailure("asset.material_artifact.encode", "asset.material_artifact.parameter_unsupported", "Material parameter type is unsupported"); }
 			catch (const std::bad_variant_access&) { return MakeMaterialArtifactFailure("asset.material_artifact.encode", "asset.material_artifact.parameter_mismatch", "Material parameter value does not match its type"); }
 		}
-		writer.WriteU32(static_cast<uint32_t>(slots.size()));
-		for (const auto& [name, slot] : slots) { writer.WriteString(name); writer.WriteU32(slot); }
 
 		outArtifact.Kind = AssetKind::Material;
 		outArtifact.ArtifactVersion = MaterialArtifactVersion;
@@ -163,11 +162,18 @@ namespace HE {
 		AssetBinaryReader reader(artifact.Payload);
 		uint32_t type = 0;
 		uint32_t parameterCount = 0;
+		std::vector<uint8_t> shaderDigest;
+		std::vector<uint8_t> definitionDigest;
 		if (!reader.ReadString(outMaterial.Name) || outMaterial.Name.empty() || !reader.ReadU32(type) ||
 			type < static_cast<uint32_t>(Rendering::MaterialType::Standard) || type > static_cast<uint32_t>(Rendering::MaterialType::Custom) ||
-			!reader.ReadString(outMaterial.ShaderGuid) || !reader.ReadU32(parameterCount) || parameterCount > MaxMaterialParameterCount) {
+			!reader.ReadString(outMaterial.ShaderGuid) || outMaterial.ShaderGuid.empty() ||
+			!reader.ReadBytes(32, shaderDigest) || !reader.ReadU64(outMaterial.ShaderInterfaceSignature) ||
+			!reader.ReadBytes(32, definitionDigest) || !reader.ReadU64(outMaterial.MaterialDefinitionSignature) ||
+			!reader.ReadU32(parameterCount) || parameterCount > MaxMaterialParameterCount) {
 			return MakeMaterialArtifactFailure("asset.material_artifact.decode", "asset.material_artifact.header_invalid", "Material artifact header is invalid");
 		}
+		std::copy(shaderDigest.begin(), shaderDigest.end(), outMaterial.ShaderInterfaceDigest.begin());
+		std::copy(definitionDigest.begin(), definitionDigest.end(), outMaterial.MaterialDefinitionDigest.begin());
 		outMaterial.Type = static_cast<Rendering::MaterialType>(type);
 
 		for (uint32_t index = 0; index < parameterCount; ++index) {
@@ -180,17 +186,6 @@ namespace HE {
 			parameter.Type = static_cast<Rendering::MaterialParameterType>(parameterType);
 			if (!DecodeValue(reader, parameter) || !outMaterial.Parameters.emplace(parameter.Name, std::move(parameter)).second) {
 				return MakeMaterialArtifactFailure("asset.material_artifact.decode", "asset.material_artifact.parameter_invalid", "Material artifact parameter payload is invalid");
-			}
-		}
-
-		uint32_t slotCount = 0;
-		if (!reader.ReadU32(slotCount) || slotCount > MaxMaterialParameterCount) {
-			return MakeMaterialArtifactFailure("asset.material_artifact.decode", "asset.material_artifact.slot_invalid", "Material artifact texture slot count is invalid");
-		}
-		for (uint32_t index = 0; index < slotCount; ++index) {
-			std::string name; uint32_t slot = 0;
-			if (!reader.ReadString(name) || name.empty() || !reader.ReadU32(slot) || !outMaterial.TextureSlots.emplace(std::move(name), slot).second) {
-				return MakeMaterialArtifactFailure("asset.material_artifact.decode", "asset.material_artifact.slot_invalid", "Material artifact texture slot payload is invalid");
 			}
 		}
 

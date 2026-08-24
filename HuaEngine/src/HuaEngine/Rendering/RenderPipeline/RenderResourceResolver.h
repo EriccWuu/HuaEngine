@@ -1,6 +1,7 @@
 #pragma once
 
 #include <string>
+#include <memory>
 #include <vector>
 
 #include "HuaEngine/Rendering/RenderPipeline/RenderTypes.h"
@@ -11,17 +12,21 @@ namespace HE {
 
 namespace HE::Rendering {
 	class BindGroupLayout;
-	struct MaterialBindingSchema;
 	class PipelineState;
 	class RenderDevice;
 	class ShaderProgram;
+	class UniformBufferArena;
+	struct ShaderTextureBinding;
+	struct ShaderUniformBlockBinding;
 
 	class RenderResourceResolver {
 	public:
-		RenderResourceResolver() = default;
+		RenderResourceResolver();
 		explicit RenderResourceResolver(HE::AssetResolver& assetResolver);
+		~RenderResourceResolver();
 
 		void SetAssetResolver(HE::AssetResolver* assetResolver) { m_AssetResolver = assetResolver; }
+		UniformBufferArena& GetUniformBufferArena(RenderDevice& device) const;
 
 		bool Resolve(
 			const RenderItem& item,
@@ -33,36 +38,35 @@ namespace HE::Rendering {
 		struct PipelineStateCacheEntry {
 			Ref<ShaderProgram> Shader;
 			BufferLayout VertexLayout;
-			std::string MaterialSchemaSignature;
+			uint64_t InterfaceSignature = 0;
 			Ref<BindGroupLayout> MaterialLayout;
 			Ref<PipelineState> PipelineState;
 		};
 
-		struct MaterialBindGroupLayoutCacheEntry {
-			std::string SchemaSignature;
+		struct BindGroupLayoutCacheEntry {
+			std::string InterfaceSignature;
 			Ref<BindGroupLayout> Layout;
 		};
 
-		Ref<BindGroupLayout> GetFrameBindGroupLayout(RenderDevice& device, RenderStats& stats) const;
-		Ref<BindGroupLayout> GetObjectBindGroupLayout(RenderDevice& device, RenderStats& stats) const;
+		Ref<BindGroupLayout> GetUniformBlockBindGroupLayout(RenderDevice& device, BindGroupScope scope, const ShaderUniformBlockBinding& block, RenderStats& stats) const;
 		Ref<BindGroupLayout> GetMaterialBindGroupLayout(
 			RenderDevice& device,
-			const MaterialBindingSchema& schema,
+			const ShaderUniformBlockBinding& block,
+			const std::vector<ShaderTextureBinding>& textures,
 			RenderStats& stats) const;
 		Ref<PipelineState> GetPipelineState(
 			RenderDevice& device,
 			Ref<ShaderProgram> shaderProgram,
 			const BufferLayout& vertexLayout,
-			const std::string& materialSchemaSignature,
+			uint64_t interfaceSignature,
 			Ref<BindGroupLayout> frameBindGroupLayout,
 			Ref<BindGroupLayout> materialBindGroupLayout,
 			Ref<BindGroupLayout> objectBindGroupLayout,
 			RenderStats& stats) const;
 
 		HE::AssetResolver* m_AssetResolver = nullptr;
-		mutable Ref<BindGroupLayout> m_FrameBindGroupLayoutCache;
-		mutable Ref<BindGroupLayout> m_ObjectBindGroupLayoutCache;
-		mutable std::vector<MaterialBindGroupLayoutCacheEntry> m_MaterialBindGroupLayoutCache;
+		mutable std::vector<BindGroupLayoutCacheEntry> m_BindGroupLayoutCache;
 		mutable std::vector<PipelineStateCacheEntry> m_PipelineStateCache;
+		mutable std::unique_ptr<UniformBufferArena> m_UniformBufferArena;
 	};
 }

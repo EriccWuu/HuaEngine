@@ -29,6 +29,8 @@ entities:
                 - 0
                 - 0.899999976
                 - 1
+          textures:
+            {}
         BlendMode: Opaque
       MeshComponent:
         Mesh:
@@ -66,6 +68,8 @@ entities:
               value:
                 - 2
                 - 2
+          textures:
+            {}
         BlendMode: Opaque
       MeshComponent:
         Mesh:
@@ -98,6 +102,8 @@ entities:
                 - 0
                 - 0.899999976
                 - 1
+          textures:
+            {}
         BlendMode: Opaque
       MeshComponent:
         Mesh:
@@ -128,8 +134,11 @@ entities:
               value:
                 - 1
                 - 1
-                - 0.800000012
                 - 1
+                - 1
+          textures:
+            u_Texture:
+              guid: dcd87827f9dc6c970784781bb5edc3dc
         BlendMode: Opaque
       MeshComponent:
         Mesh:
@@ -159,4 +168,7 @@ entities:
         Overrides:
           parameters:
             {}
+          textures:
+            u_Texture:
+              guid: a28aef33b2fa87e4285e6ba95051c368
         BlendMode: Opaque

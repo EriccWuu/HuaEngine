@@ -4,6 +4,7 @@
 #include "HuaEngine/Asset/AssetResolver.h"
 #include "HuaEngine/Asset/AssetTypes.h"
 #include "HuaEngine/Rendering/RenderPipeline/RenderBindGroupBuilder.h"
+#include "HuaEngine/Rendering/RenderPipeline/UniformBufferArena.h"
 #include "HuaEngine/Rendering/RHI/RenderHardwareInterface.h"
 #include "Module/Rendering/RenderingComponent.h"
 
@@ -51,51 +52,53 @@ namespace HE::Rendering {
 
 	}
 
+	RenderResourceResolver::RenderResourceResolver() = default;
+
 	RenderResourceResolver::RenderResourceResolver(HE::AssetResolver& assetResolver)
 		: m_AssetResolver(&assetResolver) {}
 
-	Ref<BindGroupLayout> RenderResourceResolver::GetFrameBindGroupLayout(RenderDevice& device, RenderStats& stats) const {
-		if (m_FrameBindGroupLayoutCache) {
-			++stats.BindGroupLayoutCacheHits;
-			return m_FrameBindGroupLayoutCache;
-		}
+	RenderResourceResolver::~RenderResourceResolver() = default;
 
-		++stats.BindGroupLayoutCacheMisses;
-		m_FrameBindGroupLayoutCache = CreateFrameBindGroupLayout(device);
-		return m_FrameBindGroupLayoutCache;
+	UniformBufferArena& RenderResourceResolver::GetUniformBufferArena(RenderDevice& device) const {
+		if (!m_UniformBufferArena) m_UniformBufferArena = std::make_unique<UniformBufferArena>(device);
+		return *m_UniformBufferArena;
 	}
 
-	Ref<BindGroupLayout> RenderResourceResolver::GetObjectBindGroupLayout(RenderDevice& device, RenderStats& stats) const {
-		if (m_ObjectBindGroupLayoutCache) {
-			++stats.BindGroupLayoutCacheHits;
-			return m_ObjectBindGroupLayoutCache;
+	Ref<BindGroupLayout> RenderResourceResolver::GetUniformBlockBindGroupLayout(RenderDevice& device, BindGroupScope scope, const ShaderUniformBlockBinding& block, RenderStats& stats) const {
+		const std::string signature = std::to_string(static_cast<uint32_t>(scope)) + '#' + block.Name + '#' + std::to_string(block.BindingPoint) + '#' + std::to_string(block.Size);
+		for (const auto& entry : m_BindGroupLayoutCache) {
+			if (entry.InterfaceSignature == signature) {
+				++stats.BindGroupLayoutCacheHits;
+				return entry.Layout;
+			}
 		}
-
 		++stats.BindGroupLayoutCacheMisses;
-		m_ObjectBindGroupLayoutCache = CreateObjectBindGroupLayout(device);
-		return m_ObjectBindGroupLayoutCache;
+		auto layout = CreateUniformBlockBindGroupLayout(device, scope, block);
+		if (layout) m_BindGroupLayoutCache.push_back({ signature, layout });
+		return layout;
 	}
 
 	Ref<BindGroupLayout> RenderResourceResolver::GetMaterialBindGroupLayout(
 		RenderDevice& device,
-		const MaterialBindingSchema& schema,
+		const ShaderUniformBlockBinding& block,
+		const std::vector<ShaderTextureBinding>& textures,
 		RenderStats& stats) const {
-		if (schema.Signature.empty()) {
-			return nullptr;
-		}
+		std::string interfaceSignature = std::to_string(static_cast<uint32_t>(BindGroupScope::Material)) + '#' + block.Name + '#' + std::to_string(block.BindingPoint) + '#' + std::to_string(block.Size);
+		for (const auto& member : block.Members) interfaceSignature += member.Name + '#' + std::to_string(member.Offset) + '#' + std::to_string(member.Size) + ';';
+		for (const auto& texture : textures) interfaceSignature += texture.TextureName + '#' + std::to_string(texture.TextureUnit) + ';';
 
-		for (const auto& entry : m_MaterialBindGroupLayoutCache) {
-			if (entry.SchemaSignature == schema.Signature) {
+		for (const auto& entry : m_BindGroupLayoutCache) {
+			if (entry.InterfaceSignature == interfaceSignature) {
 				++stats.BindGroupLayoutCacheHits;
 				return entry.Layout;
 			}
 		}
 
 		++stats.BindGroupLayoutCacheMisses;
-		auto layout = CreateMaterialBindGroupLayout(device, schema);
+		auto layout = CreateMaterialBindGroupLayout(device, block, textures);
 		if (layout) {
-			m_MaterialBindGroupLayoutCache.push_back({
-				.SchemaSignature = schema.Signature,
+			m_BindGroupLayoutCache.push_back({
+				.InterfaceSignature = std::move(interfaceSignature),
 				.Layout = layout
 			});
 		}
@@ -107,19 +110,19 @@ namespace HE::Rendering {
 		RenderDevice& device,
 		Ref<ShaderProgram> shaderProgram,
 		const BufferLayout& vertexLayout,
-		const std::string& materialSchemaSignature,
+		uint64_t interfaceSignature,
 		Ref<BindGroupLayout> frameBindGroupLayout,
 		Ref<BindGroupLayout> materialBindGroupLayout,
 		Ref<BindGroupLayout> objectBindGroupLayout,
 		RenderStats& stats) const {
-		if (!shaderProgram || materialSchemaSignature.empty() || !frameBindGroupLayout || !materialBindGroupLayout || !objectBindGroupLayout) {
+		if (!shaderProgram || interfaceSignature == 0 || !frameBindGroupLayout || !materialBindGroupLayout || !objectBindGroupLayout) {
 			return nullptr;
 		}
 
 		for (const auto& entry : m_PipelineStateCache) {
 			if (entry.Shader == shaderProgram
 				&& BufferLayoutsMatch(entry.VertexLayout, vertexLayout)
-				&& entry.MaterialSchemaSignature == materialSchemaSignature) {
+				&& entry.InterfaceSignature == interfaceSignature) {
 				++stats.PipelineStateCacheHits;
 				return entry.PipelineState;
 			}
@@ -149,7 +152,7 @@ namespace HE::Rendering {
 			m_PipelineStateCache.push_back({
 				.Shader = shaderProgram,
 				.VertexLayout = vertexLayout,
-				.MaterialSchemaSignature = materialSchemaSignature,
+				.InterfaceSignature = interfaceSignature,
 				.MaterialLayout = materialBindGroupLayout,
 				.PipelineState = pipelineState
 			});
@@ -237,13 +240,29 @@ namespace HE::Rendering {
 		}
 
 		auto& device = RenderHardwareInterface::GetDevice();
-		auto frameBindGroupLayout = GetFrameBindGroupLayout(device, stats);
-		auto objectBindGroupLayout = GetObjectBindGroupLayout(device, stats);
-		const auto materialBindingSchema = baseMaterial->GetBindingSchema();
-		auto materialBindGroupLayout = GetMaterialBindGroupLayout(device, materialBindingSchema, stats);
+		const auto& shaderDesc = baseMaterial->GetShaderProgram()->GetDesc();
+		const auto frameBlock = std::find_if(shaderDesc.UniformBlocks.begin(), shaderDesc.UniformBlocks.end(), [](const auto& block) { return block.Set == 0; });
+		const auto materialBlock = std::find_if(shaderDesc.UniformBlocks.begin(), shaderDesc.UniformBlocks.end(), [](const auto& block) { return block.Set == 1; });
+		const auto objectBlock = std::find_if(shaderDesc.UniformBlocks.begin(), shaderDesc.UniformBlocks.end(), [](const auto& block) { return block.Set == 2; });
+		if (frameBlock == shaderDesc.UniformBlocks.end() || materialBlock == shaderDesc.UniformBlocks.end() || objectBlock == shaderDesc.UniformBlocks.end()) {
+			AddDiagnostic(diagnostics, RenderDiagnosticCode::MissingMaterialInstance, item.SourceEntity, "Shader must declare Frame, Material, and Object uniform blocks");
+			return false;
+		}
+		auto frameBindGroupLayout = GetUniformBlockBindGroupLayout(device, BindGroupScope::Frame, *frameBlock, stats);
+		auto objectBindGroupLayout = GetUniformBlockBindGroupLayout(device, BindGroupScope::Object, *objectBlock, stats);
+		for (const auto& [parameterName, textureGuid] : item.MaterialOverrides.TextureParameters) {
+			if (!baseMaterial->HasParameter(parameterName)) continue;
+			Ref<TextureResource> texture;
+			if (m_AssetResolver->ResolveTexture(textureGuid, texture).Succeeded() && texture) materialInstance->SetParameter(parameterName, texture);
+		}
+		auto materialBindGroupLayout = GetMaterialBindGroupLayout(device, *materialBlock, shaderDesc.Textures, stats);
 
 		outResolvedItem.MaterialInstanceRef = materialInstance;
-		outResolvedItem.MaterialBindGroupRef = CreateMaterialBindGroup(device, *materialInstance, materialBindGroupLayout);
+		outResolvedItem.FrameBlock = *frameBlock;
+		outResolvedItem.ObjectBlock = *objectBlock;
+		outResolvedItem.FrameBindGroupLayoutRef = frameBindGroupLayout;
+		outResolvedItem.ObjectBindGroupLayoutRef = objectBindGroupLayout;
+		outResolvedItem.MaterialBindGroupRef = CreateMaterialBindGroup(device, GetUniformBufferArena(device), *materialInstance, *materialBlock, shaderDesc.Textures, materialBindGroupLayout);
 		if (!outResolvedItem.MaterialBindGroupRef || !outResolvedItem.MaterialBindGroupRef->GetDesc().Layout) {
 			AddDiagnostic(
 				diagnostics,
@@ -271,7 +290,7 @@ namespace HE::Rendering {
 			device,
 			outResolvedItem.ShaderProgramRef,
 			outResolvedItem.VertexBufferViewRef->GetDesc().Layout,
-			materialBindingSchema.Signature,
+			shaderDesc.InterfaceSignature,
 			frameBindGroupLayout,
 			outResolvedItem.MaterialBindGroupRef->GetDesc().Layout,
 			objectBindGroupLayout,

@@ -156,6 +156,15 @@ int main() {
     Require(undoRemoveCamera.Succeeded(), "Expected undo after remove-camera to succeed");
     Require(firstEntity.HasComponent<HE::Rendering::CameraComponent>(), "Expected undo to restore CameraComponent");
 
+    Require(interactionHost.ExecuteCommand(HE::CreateAddComponentCommand(HE::EditorInspectableComponent::Material, firstEntity)).Succeeded(), "Expected add-material command to succeed");
+    HE::Rendering::MaterialOverrideSet beforeOverrides;
+    HE::Rendering::MaterialOverrideSet afterOverrides;
+    afterOverrides.SetVec4("u_Color", glm::vec4(0.2f, 0.4f, 0.6f, 1.0f));
+    Require(interactionHost.ExecuteCommand(HE::CreateSetMaterialOverridesCommand(firstEntity, beforeOverrides, afterOverrides)).Succeeded(), "Expected material override command to succeed");
+    Require(firstEntity.GetComponent<HE::Rendering::MaterialComponent>().Overrides.Parameters.contains("u_Color"), "Expected material override command to apply");
+    Require(interactionHost.Undo().Succeeded() && firstEntity.GetComponent<HE::Rendering::MaterialComponent>().Overrides.Empty(), "Expected material override undo to restore the prior value");
+    Require(interactionHost.Redo().Succeeded() && firstEntity.GetComponent<HE::Rendering::MaterialComponent>().Overrides.Parameters.contains("u_Color"), "Expected material override redo to reapply the value");
+
     auto createSecondEntityResult = interactionHost.ExecuteCommand(HE::CreateCreateEntityCommand("Smoke Entity 2"));
     Require(createSecondEntityResult.Succeeded(), "Expected second create-entity command to succeed");
     auto secondEntity = HE::Selection::ResolvePrimarySelection(scene->GetWorld());

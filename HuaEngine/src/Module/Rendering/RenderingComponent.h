@@ -40,6 +40,7 @@ namespace HE::Rendering {
 
 	struct MaterialOverrideSet {
 		std::unordered_map<std::string, HE::Rendering::MaterialParameterValue> Parameters;
+		std::unordered_map<std::string, AssetGuid> TextureParameters;
 
 		void SetFloat(const std::string& name, float value) {
 			Parameters[name] = value;
@@ -54,7 +55,7 @@ namespace HE::Rendering {
 		}
 
 		[[nodiscard]] bool Empty() const {
-			return Parameters.empty();
+			return Parameters.empty() && TextureParameters.empty();
 		}
 	};
 
@@ -297,6 +298,9 @@ namespace HE::Serialization {
 				backend.EndObject();
 			}
 			backend.EndObject();
+			backend.BeginObject("textures");
+			for (const auto& [parameterName, guid] : overrides.TextureParameters) { backend.BeginObject(parameterName); backend.Serialize("guid", guid); backend.EndObject(); }
+			backend.EndObject();
 			if (!allParametersSupported) {
 				backend.Serialize("diagnostic", "One or more material override parameters are unsupported");
 			}
@@ -312,24 +316,22 @@ namespace HE::Serialization {
 			}
 
 			backend.BeginObject(name);
-			if (!backend.HasField("parameters")) {
-				backend.EndObject();
-				return true;
-			}
-
-			backend.BeginObject("parameters");
 			bool success = true;
 			overrides.Parameters.clear();
-			backend.ForEachField([&](const std::string& parameterName) {
-				HE::Rendering::MaterialParameterValue value;
-				if (MaterialOverrideSerialization::DeserializeMaterialParameterValue(backend, value)) {
-					overrides.Parameters[parameterName] = std::move(value);
-				}
-				else {
-					success = false;
-				}
-			});
-			backend.EndObject();
+			if (backend.HasField("parameters")) {
+				backend.BeginObject("parameters");
+				backend.ForEachField([&](const std::string& parameterName) {
+					HE::Rendering::MaterialParameterValue value;
+					if (MaterialOverrideSerialization::DeserializeMaterialParameterValue(backend, value)) overrides.Parameters[parameterName] = std::move(value); else success = false;
+				});
+				backend.EndObject();
+			}
+			overrides.TextureParameters.clear();
+			if (backend.HasField("textures")) {
+				backend.BeginObject("textures");
+				backend.ForEachField([&](const std::string& parameterName) { std::string guid; if (backend.Deserialize("guid", guid)) overrides.TextureParameters[parameterName] = std::move(guid); else success = false; });
+				backend.EndObject();
+			}
 			backend.EndObject();
 			return success;
 		}

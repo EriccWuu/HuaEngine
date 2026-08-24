@@ -151,6 +151,11 @@ namespace HE {
 				return result;
 			}
 			material->SetShaderProgram(std::move(shader), sourceData.ShaderGuid);
+			if (material->GetShaderProgram()->GetDesc().InterfaceDigest != sourceData.ShaderInterfaceDigest) {
+				auto result = ResultEnvelope::ManualIntervention("asset.resolve_material", guid, "Material artifact requires reimport because its shader interface changed");
+				result.AddDetail({ DiagnosticSeverity::Warning, "asset.material.interface_stale", "Material and shader interface digests do not match", sourceData.ShaderGuid });
+				return result;
+			}
 		}
 		for (const auto& [name, sourceParameter] : sourceData.Parameters) {
 			Rendering::MaterialParameterValue value;
@@ -178,7 +183,6 @@ namespace HE {
 			}
 			material->AddParameter({ name, sourceParameter.Type, std::move(value) });
 		}
-		for (const auto& [name, slot] : sourceData.TextureSlots) material->SetTextureSlot(name, slot);
 		Rendering::MaterialLibrary::Instance().RegisterMaterial(record->AssetId, material);
 		if (material->GetName() != record->AssetId) Rendering::MaterialLibrary::Instance().RegisterMaterial(material->GetName(), material);
 
@@ -285,15 +289,53 @@ namespace HE {
 			result.AddDetail({ DiagnosticSeverity::Warning, "asset.shader.artifact_unavailable", readResult.Summary, record->AssetId });
 			return result;
 		}
-		ShaderArtifactData shaderData;
-		auto decodeResult = DecodeShaderArtifact(artifact, shaderData);
+		std::string vertexSource;
+		std::string fragmentSource;
+		std::vector<Rendering::ShaderUniformBlockBinding> uniformBlocks;
+		std::vector<Rendering::ShaderTextureBinding> textures;
+		Sha256Digest interfaceDigest{};
+		uint64_t interfaceSignature = 0;
+		ResultEnvelope decodeResult;
+		{
+			ShaderArtifactDataV2 shaderData;
+			decodeResult = DecodeShaderArtifactV2(artifact, shaderData);
+			if (decodeResult.Succeeded()) {
+				interfaceDigest = shaderData.Interface.Gpu.Digest;
+				interfaceSignature = shaderData.Interface.Gpu.Signature;
+				for (const auto& stage : shaderData.Stages) {
+					if (stage.Stage == Rendering::ShaderStage::Vertex) vertexSource = stage.GeneratedOpenGlGlsl;
+					else if (stage.Stage == Rendering::ShaderStage::Fragment) fragmentSource = stage.GeneratedOpenGlGlsl;
+				}
+				auto buffers = shaderData.Interface.Gpu.ConstantBuffers;
+				std::sort(buffers.begin(), buffers.end(), [](const auto& left, const auto& right) {
+					return std::tie(left.Set, left.Binding) < std::tie(right.Set, right.Binding);
+				});
+				for (uint32_t index = 0; index < buffers.size(); ++index) {
+					const auto& buffer = buffers[index];
+					Rendering::ShaderUniformBlockBinding block{ buffer.Name, buffer.Set, buffer.Binding, index, buffer.Size };
+					for (const auto& member : buffer.Members) block.Members.push_back({ member.Name, member.Offset, member.Size });
+					uniformBlocks.push_back(std::move(block));
+				}
+				auto combinedSamplers = shaderData.OpenGlCombinedSamplers;
+				std::sort(combinedSamplers.begin(), combinedSamplers.end(), [](const auto& left, const auto& right) { return std::tie(left.TextureName, left.SamplerName) < std::tie(right.TextureName, right.SamplerName); });
+				combinedSamplers.erase(std::unique(combinedSamplers.begin(), combinedSamplers.end(), [](const auto& left, const auto& right) { return left.TextureName == right.TextureName && left.SamplerName == right.SamplerName; }), combinedSamplers.end());
+				for (uint32_t index = 0; index < combinedSamplers.size(); ++index) textures.push_back({ combinedSamplers[index].TextureName, combinedSamplers[index].SamplerName, combinedSamplers[index].UniformName, index });
+			}
+		}
 		if (!decodeResult.Succeeded()) {
 			auto result = ResultEnvelope::ManualIntervention("asset.resolve_shader", guid, "Shader artifact could not be decoded");
 			result.AddDetail({ DiagnosticSeverity::Warning, "asset.shader.artifact_decode_failed", decodeResult.Summary, record->AssetId });
 			return result;
 		}
 
-		auto shader = Rendering::ShaderProgramLoader::CreateFromSource(shaderData.VertexSource, shaderData.FragmentSource);
+		auto shader = Rendering::RenderHardwareInterface::GetDevice().CreateShaderProgram({
+			.VertexSource = vertexSource,
+			.FragmentSource = fragmentSource,
+			.UniformBlocks = std::move(uniformBlocks),
+			.Textures = std::move(textures),
+			.InterfaceDigest = interfaceDigest,
+			.InterfaceSignature = interfaceSignature
+		});
 		if (!shader) {
 			auto result = ResultEnvelope::ManualIntervention("asset.resolve_shader", guid, "Shader artifact could not create a runtime program");
 			result.AddDetail({ DiagnosticSeverity::Error, "asset.shader.program_create_failed", "RenderDevice rejected the imported shader source", record->AssetId });

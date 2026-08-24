@@ -2,10 +2,4 @@ name: FallbackMaterial
 material_type: Custom
 shader_guid: builtin-shader-unlit-color
 parameters:
-  u_Color:
-    value_type: Vec4
-    value:
-      x: 1.0
-      y: 0.0
-      z: 1.0
-      w: 1.0
+  u_Color: [1.0, 0.0, 1.0, 1.0]

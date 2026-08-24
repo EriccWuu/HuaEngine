@@ -32,18 +32,6 @@ namespace HE::Rendering {
 			: Name(name), Type(type), Value(defaultValue) {}
 	};
 
-	struct MaterialBindingSchemaEntry {
-		std::string Name;
-		MaterialParameterType Type = MaterialParameterType::Float;
-		uint32_t Binding = 0;
-		uint32_t TextureSlot = 0;
-	};
-
-	struct MaterialBindingSchema {
-		std::vector<MaterialBindingSchemaEntry> Entries;
-		std::string Signature;
-	};
-
 	enum class MaterialType {
 		Empty,
 		Standard,   // PBR material
@@ -83,7 +71,6 @@ namespace HE::Rendering {
 		bool HasParameter(const std::string& name) const;
 		const MaterialParameter* GetParameter(const std::string& name) const;
 		const std::unordered_map<std::string, MaterialParameter>& GetParameters() const { return m_Parameters; }
-		MaterialBindingSchema GetBindingSchema() const;
 
 		// Parameter management interface for deserialization
 		void SetParameters(const std::unordered_map<std::string, MaterialParameter>& parameters) { m_Parameters = parameters; }

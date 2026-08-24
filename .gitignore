@@ -112,11 +112,17 @@ Tools/Reflection/.smoke/
 # Additional ignore patterns specific to this project
 # Dependency build artifacts
 Dependencies/*/bin/
+!Dependencies/DXC/bin/
+!Dependencies/DXC/bin/win-x64/
+!Dependencies/DXC/bin/win-x64/dxc.exe
+!Dependencies/DXC/bin/win-x64/dxcompiler.dll
+!Dependencies/DXC/bin/win-x64/dxil.dll
 Dependencies/*/bin-int/
 Dependencies/*/*.vcxproj
 Dependencies/*/*.vcxproj.filters
 Dependencies/*/*.vcxproj.user
 Dependencies/*/*.sln
+
 
 # ImGui examples (usually not needed in main project)
 Dependencies/imgui/examples/**/*.vcxproj*

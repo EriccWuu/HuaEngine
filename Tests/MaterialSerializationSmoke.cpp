@@ -30,6 +30,7 @@ int main() {
 	HE::Serialization::InitializeSerialization();
 
 	auto standardMaterial = HE::Rendering::Material::Create("SmokeStandardMaterial", HE::Rendering::MaterialType::Standard);
+	standardMaterial->SetShaderProgram(nullptr, "serialization-shader-guid");
 	standardMaterial->AddParameter({ "u_BaseColor", HE::Rendering::MaterialParameterType::Vec4, glm::vec4(0.8f, 0.2f, 0.3f, 1.0f) });
 	standardMaterial->AddParameter({ "u_Metallic", HE::Rendering::MaterialParameterType::Float, 0.7f });
 	standardMaterial->AddParameter({ "u_Roughness", HE::Rendering::MaterialParameterType::Float, 0.3f });

@@ -81,6 +81,9 @@ target_link_libraries(HuaEngine
         GLAD
         ImGui
         yaml-cpp::yaml-cpp
+        spirv-cross-glsl
+        glslang::glslang
+        glslang::glslang-default-resource-limits
 )
 
 # Platform specific linking

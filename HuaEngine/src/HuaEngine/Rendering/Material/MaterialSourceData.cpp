@@ -119,6 +119,24 @@ namespace {
 		return false;
 	}
 
+	bool ParseUntypedParameterValue(const YAML::Node& node, MaterialSourceParameter& parameter) {
+		if (node.IsScalar()) {
+			try { parameter.Value = node.as<float>(); parameter.Type = MaterialParameterType::Float; return true; }
+			catch (const YAML::Exception&) { parameter.Value = node.as<std::string>(); parameter.Type = MaterialParameterType::Texture2D; return true; }
+		}
+		if (node.IsMap()) {
+			if (node["w"]) { glm::vec4 value{}; if (!ParseVector(node, value)) return false; parameter.Type = MaterialParameterType::Vec4; parameter.Value = value; return true; }
+			if (node["z"]) { glm::vec3 value{}; if (!ParseVector(node, value)) return false; parameter.Type = MaterialParameterType::Vec3; parameter.Value = value; return true; }
+			if (node["y"]) { glm::vec2 value{}; if (!ParseVector(node, value)) return false; parameter.Type = MaterialParameterType::Vec2; parameter.Value = value; return true; }
+			return false;
+		}
+		if (!node.IsSequence()) return false;
+		if (node.size() == 2) { parameter.Type = MaterialParameterType::Vec2; parameter.Value = glm::vec2(node[0].as<float>(), node[1].as<float>()); return true; }
+		if (node.size() == 3) { parameter.Type = MaterialParameterType::Vec3; parameter.Value = glm::vec3(node[0].as<float>(), node[1].as<float>(), node[2].as<float>()); return true; }
+		if (node.size() == 4) { parameter.Type = MaterialParameterType::Vec4; parameter.Value = glm::vec4(node[0].as<float>(), node[1].as<float>(), node[2].as<float>(), node[3].as<float>()); return true; }
+		return false;
+	}
+
 	HE::ResultEnvelope MakeSourceFailure(const std::filesystem::path& path, std::string message) {
 		auto result = HE::ResultEnvelope::Failure("asset.material_source.load", path.generic_string(), message);
 		result.AddDetail({ HE::DiagnosticSeverity::Error, "asset.material_source.invalid", std::move(message), path.generic_string() });
@@ -133,17 +151,20 @@ namespace HE::Rendering {
 		outData = {};
 		try {
 			const auto root = YAML::LoadFile(path.string());
-			if (!root.IsMap() || !root["name"] || !root["material_type"] || !root["parameters"]) {
+			if (!root.IsMap() || !root["name"] || !root["shader_guid"] || !root["parameters"]) {
 				return MakeSourceFailure(path, "Material source is missing required fields");
 			}
 
 			outData.Name = root["name"].as<std::string>();
-			if (outData.Name.empty() || !ParseMaterialType(root["material_type"].as<std::string>(), outData.Type)) {
+			outData.Type = MaterialType::Custom;
+			if (const auto materialType = root["material_type"]; materialType && !ParseMaterialType(materialType.as<std::string>(), outData.Type)) {
+				return MakeSourceFailure(path, "Material type is invalid");
+			}
+			if (outData.Name.empty()) {
 				return MakeSourceFailure(path, "Material name or type is invalid");
 			}
-			if (const auto shaderGuid = root["shader_guid"]) {
-				outData.ShaderGuid = shaderGuid.as<std::string>();
-			}
+			outData.ShaderGuid = root["shader_guid"].as<std::string>();
+			if (outData.ShaderGuid.empty()) return MakeSourceFailure(path, "Material shader GUID is invalid");
 
 			const auto parameters = root["parameters"];
 			if (!parameters.IsMap()) {
@@ -152,29 +173,19 @@ namespace HE::Rendering {
 			for (const auto& entry : parameters) {
 				const auto parameterName = entry.first.as<std::string>();
 				const auto parameterNode = entry.second;
-				if (parameterName.empty() || !parameterNode.IsMap() || !parameterNode["value_type"] || !parameterNode["value"]) {
+				if (parameterName.empty()) {
 					return MakeSourceFailure(path, "Material parameter entry is invalid");
 				}
 
 				MaterialSourceParameter parameter;
 				parameter.Name = parameterName;
-				if (!ParseParameterType(parameterNode["value_type"].as<std::string>(), parameter.Type) ||
-					!ParseParameterValue(parameterNode["value"], parameter.Type, parameter.Value)) {
+				const bool legacyEntry = parameterNode.IsMap() && parameterNode["value_type"] && parameterNode["value"];
+				if (legacyEntry
+					? (!ParseParameterType(parameterNode["value_type"].as<std::string>(), parameter.Type) || !ParseParameterValue(parameterNode["value"], parameter.Type, parameter.Value))
+					: !ParseUntypedParameterValue(parameterNode, parameter)) {
 					return MakeSourceFailure(path, "Material parameter type or value is unsupported");
 				}
 				outData.Parameters.emplace(parameterName, std::move(parameter));
-			}
-
-			if (const auto slots = root["texture_slots"]) {
-				if (!slots.IsMap()) return MakeSourceFailure(path, "Material texture slots must be a mapping");
-				for (const auto& entry : slots) {
-					const auto slotName = entry.first.as<std::string>();
-					const auto slotValue = entry.second.as<uint64_t>();
-					if (slotName.empty() || slotValue > std::numeric_limits<uint32_t>::max()) {
-						return MakeSourceFailure(path, "Material texture slot is invalid");
-					}
-					outData.TextureSlots.emplace(slotName, static_cast<uint32_t>(slotValue));
-				}
 			}
 
 			return ResultEnvelope::Success("asset.material_source.load", path.generic_string(), "Material source loaded");

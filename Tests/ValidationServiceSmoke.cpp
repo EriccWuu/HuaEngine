@@ -59,6 +59,7 @@ int main() {
 
 	HE::AssetHandle materialHandle = 0;
 	const auto runtimeMaterial = HE::Rendering::Material::Create("ValidationMaterial", HE::Rendering::MaterialType::Unlit);
+	runtimeMaterial->SetShaderProgram(nullptr, HE::BuiltinAssetGuids::UnlitColorShader);
 	Require(static_cast<bool>(runtimeMaterial), "Expected runtime material creation to succeed");
 	const auto materialAssetPath = projectContext.GetAssetRootPath() / "Materials" / "ValidationMaterial.mat";
 	std::filesystem::create_directories(materialAssetPath.parent_path(), errorCode);

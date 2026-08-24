@@ -122,7 +122,8 @@ namespace {
 		Require(record != nullptr, "Expected committed library record");
 		Require(record->Kind == HE::AssetKind::Mesh, "Expected committed mesh kind");
 		Require(record->ImporterId == "hua.mesh-yaml", "Expected importer id persistence");
-		Require(record->SourceContentHash == SourceHash, "Expected source content hash persistence");
+		Require(record->ImportFingerprint == SourceHash, "Expected import fingerprint persistence");
+		Require(record->ArtifactRelativePath.filename().string().find(std::string(SourceHash)) != std::string::npos, "Expected content-addressed artifact candidate path");
 		Require(record->Dependencies == artifact.Dependencies, "Expected dependency persistence");
 		Require(library.FindDependents("texture-guid") == std::vector<HE::AssetGuid>{ "mesh-guid" }, "Expected reverse dependency lookup");
 		Require(library.IsArtifactAvailable("mesh-guid", HE::AssetKind::Mesh, "hua.mesh-yaml", 2, 3), "Expected compatible artifact availability");
@@ -189,7 +190,7 @@ namespace {
 		Require(library.Open(context).Succeeded(), "Expected version one catalog compatibility");
 		const auto* record = library.Find("legacy-guid");
 		Require(record != nullptr, "Expected version one catalog record");
-		Require(record->SourceContentHash.empty(), "Expected legacy record to have no source hash");
+		Require(record->ImportFingerprint.empty(), "Expected legacy record to have no import fingerprint");
 		Require(library.IsArtifactAvailable("legacy-guid", HE::AssetKind::Mesh, "hua.mesh-yaml", 2, 3), "Expected legacy artifact availability");
 		Require(!library.IsArtifactCurrent("legacy-guid", HE::AssetKind::Mesh, "hua.mesh-yaml", 2, 3, "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"), "Expected legacy artifact to require one reimport");
 		Require(library.Save().Succeeded(), "Expected version one catalog migration save");

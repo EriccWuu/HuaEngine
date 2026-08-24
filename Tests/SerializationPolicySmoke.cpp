@@ -177,6 +177,7 @@ namespace {
 		HE::Rendering::MaterialOverrideSet overrides;
 		overrides.Parameters["u_Roughness"] = 0.75f;
 		overrides.Parameters["u_Tint"] = glm::vec3(0.1f, 0.2f, 0.3f);
+		overrides.TextureParameters["u_Texture"] = "texture-guid";
 
 		const std::string json = HE::Serialization::ToJson(overrides);
 		Require(json.find("\"u_Roughness\"") != std::string::npos, "Expected float material override to serialize");
@@ -190,6 +191,7 @@ namespace {
 		Require(std::get<float>(loaded.Parameters.at("u_Roughness")) == 0.75f, "Expected float override value to round-trip");
 		Require(std::holds_alternative<glm::vec3>(loaded.Parameters.at("u_Tint")), "Expected u_Tint to deserialize as vec3");
 		Require(std::get<glm::vec3>(loaded.Parameters.at("u_Tint")) == glm::vec3(0.1f, 0.2f, 0.3f), "Expected vec3 override value to round-trip");
+		Require(loaded.TextureParameters.at("u_Texture") == "texture-guid", "Expected texture GUID override to round-trip");
 
 		HE::Serialization::JsonSerializationBackend backend;
 		backend.LoadFromString(R"({

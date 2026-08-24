@@ -8,11 +8,17 @@
 
 #include "HuaEngine/Reflection/Reflection.h"
 #include "Panels/AssetPickerModel.h"
+#include "HuaEngine/Rendering/Material/MaterialDefinition.h"
+#include "Module/Rendering/RenderingComponent.h"
 
 namespace HE::Editor {
 	struct RuntimeInspectorContext {
 		std::span<const AssetPickerOption> MeshAssets;
 		std::span<const AssetPickerOption> MaterialAssets;
+		std::span<const AssetPickerOption> TextureAssets;
+		std::function<ResultEnvelope(const AssetGuid&, Rendering::MaterialDefinition&)> ResolveMaterialDefinition;
+		std::function<void(const Rendering::MaterialOverrideSet&)> CommitMaterialOverrides;
+		std::function<void(const AssetGuid&)> CommitMaterialReference;
 
 		[[nodiscard]] std::span<const AssetPickerOption> GetAssetOptions(AssetKind kind) const {
 			switch (kind) {
@@ -21,6 +27,7 @@ namespace HE::Editor {
 			case AssetKind::Material:
 				return MaterialAssets;
 			case AssetKind::Texture2D:
+				return TextureAssets;
 			case AssetKind::Shader:
 			case AssetKind::Unknown:
 			default:

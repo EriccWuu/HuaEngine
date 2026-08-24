@@ -4,6 +4,7 @@
 #include "HuaEngine/Rendering/RenderGraph/RenderGraphBuilder.h"
 #include "HuaEngine/Rendering/RenderPipeline/RenderBindGroupBuilder.h"
 #include "HuaEngine/Rendering/RenderPipeline/RenderResourceResolver.h"
+#include "HuaEngine/Rendering/RenderPipeline/UniformBufferArena.h"
 #include "HuaEngine/Rendering/RHI/CommandBufferRecorder.h"
 #include "HuaEngine/Rendering/RHI/CommandList.h"
 #include "HuaEngine/Rendering/RHI/RenderPass.h"
@@ -130,6 +131,8 @@ namespace HE::Rendering {
 
 		auto& device = RenderHardwareInterface::GetDevice();
 		m_DeferredReleaseQueue.RetireCompleted();
+		auto& uniformArena = resourceResolver.GetUniformBufferArena(device);
+		uniformArena.BeginFrame(device.GetGraphicsQueue().GetTimelineFence().GetCompletedValue());
 		auto commandBuffer = device.CreateCommandBuffer({
 			.Usage = CommandBufferUsage::Graphics,
 			.DebugName = "ForwardRenderPipeline graph"
@@ -169,6 +172,7 @@ namespace HE::Rendering {
 			return result;
 		}
 		m_Graph.ReleaseTransientResources(submitResult.SignalValue);
+		uniformArena.SealFrame(submitResult.SignalValue);
 		m_DeferredReleaseQueue.Track(commandBuffer, submitResult.SignalFence, submitResult.SignalValue);
 
 		result.Stats.GraphicsQueueSignalValue = submitResult.SignalValue;

@@ -761,12 +761,13 @@ int main() {
 	Require(firstSubmit, "Expected executable command buffer submit to succeed");
 	Require(firstSubmit.SignalValue > 0, "Expected successful submit to return a signal value");
 	Require(firstSubmit.SignalFence != nullptr, "Expected successful submit to return a signal fence");
-	Require(firstSubmit.SignalFence->GetCompletedValue() == firstSubmit.SignalValue, "Expected fence completed value to match submitted signal value");
+	Require(firstSubmit.SignalFence->GetCompletedValue() <= firstSubmit.SignalValue, "Expected fence completion not to exceed the submitted signal value");
 	const auto secondSubmit = device.GetGraphicsQueue().Submit(*recordedCommandBuffer);
 	Require(secondSubmit, "Expected repeated executable command buffer submit to succeed");
 	Require(secondSubmit.SignalValue == firstSubmit.SignalValue + 1, "Expected queue signal value to increase monotonically");
 	Require(secondSubmit.SignalFence == firstSubmit.SignalFence, "Expected graphics queue to reuse its timeline fence");
-	Require(secondSubmit.SignalFence->GetCompletedValue() == secondSubmit.SignalValue, "Expected fence completed value to track the latest signal value");
+	for (uint32_t poll = 0; poll < 100000 && secondSubmit.SignalFence->GetCompletedValue() < secondSubmit.SignalValue; ++poll) {}
+	Require(secondSubmit.SignalFence->GetCompletedValue() == secondSubmit.SignalValue, "Expected graphics GPU fence to complete after polling");
 	auto computeCommandBuffer = device.CreateCommandBuffer({
 		.Usage = HE::Rendering::CommandBufferUsage::Compute,
 		.DebugName = "RHICommandListBindingSmoke compute queue"
@@ -779,7 +780,8 @@ int main() {
 		.WaitValue = secondSubmit.SignalValue
 	});
 	Require(computeSubmit, "Expected compute queue submit after graphics timeline wait to succeed");
-	Require(computeSubmit.SignalFence->GetCompletedValue() == computeSubmit.SignalValue, "Expected compute timeline fence completion");
+	for (uint32_t poll = 0; poll < 100000 && computeSubmit.SignalFence->GetCompletedValue() < computeSubmit.SignalValue; ++poll) {}
+	Require(computeSubmit.SignalFence->GetCompletedValue() == computeSubmit.SignalValue, "Expected compute GPU fence completion after polling");
 	Require(!device.GetGraphicsQueue().Submit(*computeCommandBuffer), "Expected graphics queue to reject compute command buffer");
 	auto copyCommandBuffer = device.CreateCommandBuffer({
 		.Usage = HE::Rendering::CommandBufferUsage::Copy,

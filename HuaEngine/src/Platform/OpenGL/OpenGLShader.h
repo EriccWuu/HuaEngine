@@ -25,6 +25,7 @@ namespace HE::Rendering {
 		void SetFloat4(const std::string& name, const glm::vec4 value);
 		void SetMat3(const std::string& name, const glm::mat3 value);
 		void SetMat4(const std::string& name, const glm::mat4 value);
+		unsigned int GetProgram() const { return m_Program; }
 
 	private:
 		void CreateShader(const std::string& vertexSrc, const std::string& fragmentSrc);

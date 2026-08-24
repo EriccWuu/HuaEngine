@@ -2,9 +2,11 @@
 #include "AssetImportService.h"
 
 #include <filesystem>
+#include <algorithm>
 #include <vector>
 
 #include "HuaEngine/Asset/AssetSourcePath.h"
+#include "HuaEngine/Asset/Import/AssetImportFingerprint.h"
 #include "HuaEngine/Asset/Import/AssetSourceHash.h"
 
 namespace HE {
@@ -46,7 +48,14 @@ namespace HE {
 		auto result = ResultEnvelope::Success("asset.import_assets", context.GetTargetId(), "Asset artifacts imported");
 		bool builtinFailure = false;
 
-		for (const auto& guid : assetGuids) {
+		std::vector<AssetGuid> orderedGuids(assetGuids.begin(), assetGuids.end());
+		std::stable_sort(orderedGuids.begin(), orderedGuids.end(), [&](const auto& left, const auto& right) {
+			const auto* leftRecord = manifest.FindByGuid(left);
+			const auto* rightRecord = manifest.FindByGuid(right);
+			const auto priority = [](AssetKind kind) { return kind == AssetKind::Shader || kind == AssetKind::Texture2D ? 0 : kind == AssetKind::Material ? 2 : 1; };
+			return priority(leftRecord ? leftRecord->Kind : AssetKind::Unknown) < priority(rightRecord ? rightRecord->Kind : AssetKind::Unknown);
+		});
+		for (const auto& guid : orderedGuids) {
 			const auto* record = manifest.FindByGuid(guid);
 			if (!record || (record->Source != AssetSource::File && record->Source != AssetSource::Builtin)) {
 				++report.FailedAssets;
@@ -120,6 +129,22 @@ namespace HE {
 				}
 				continue;
 			}
+			const AssetImportContext importContext{
+				.Project = context,
+				.SourceAsset = *record,
+				.SourcePath = sourcePath,
+				.Manifest = &manifest,
+				.Library = m_Library
+			};
+			AssetImportFingerprintInput fingerprintInput;
+			auto fingerprintInputsResult = importer->BuildFingerprintInput(importContext, sourceContentHash, fingerprintInput);
+			std::string importFingerprint;
+			if (!fingerprintInputsResult.Succeeded() || !ComputeAssetImportFingerprint(fingerprintInput, importFingerprint).Succeeded()) {
+				++report.FailedAssets;
+				builtinFailure |= record->Source == AssetSource::Builtin;
+				for (auto& diagnostic : fingerprintInputsResult.Details) result.AddDetail(std::move(diagnostic));
+				continue;
+			}
 
 			if (policy == AssetImportPolicy::MissingOnly && m_Library->IsArtifactCurrent(
 				record->Guid,
@@ -127,17 +152,11 @@ namespace HE {
 				importer->GetId(),
 				importer->GetVersion(),
 				importer->GetArtifactVersion(),
-				sourceContentHash)) {
+				importFingerprint)) {
 				++report.SkippedAssets;
 				continue;
 			}
 
-			const AssetImportContext importContext{
-				.Project = context,
-				.SourceAsset = *record,
-				.SourcePath = sourcePath,
-				.Manifest = &manifest
-			};
 			auto importResult = importer->Import(importContext);
 			if (!importResult.Success) {
 				++report.FailedAssets;
@@ -152,7 +171,7 @@ namespace HE {
 				record->Guid,
 				importer->GetId(),
 				importer->GetVersion(),
-				sourceContentHash,
+				importFingerprint,
 				importResult.Artifact);
 			if (!commitResult.Succeeded()) {
 				++report.FailedAssets;

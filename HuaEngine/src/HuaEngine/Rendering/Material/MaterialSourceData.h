@@ -8,6 +8,7 @@
 
 #include "HuaEngine/Core/Assert.h"
 #include "HuaEngine/Core/ResultEnvelope.h"
+#include "HuaEngine/Core/Sha256.h"
 #include "HuaEngine/Rendering/Material/MaterialCore.h"
 
 namespace HE::Rendering {
@@ -33,8 +34,11 @@ namespace HE::Rendering {
 		std::string Name;
 		MaterialType Type = MaterialType::Empty;
 		std::string ShaderGuid;
+		Sha256Digest ShaderInterfaceDigest{};
+		uint64_t ShaderInterfaceSignature = 0;
+		Sha256Digest MaterialDefinitionDigest{};
+		uint64_t MaterialDefinitionSignature = 0;
 		std::unordered_map<std::string, MaterialSourceParameter> Parameters;
-		std::unordered_map<std::string, uint32_t> TextureSlots;
 	};
 
 	ResultEnvelope LoadMaterialSourceData(

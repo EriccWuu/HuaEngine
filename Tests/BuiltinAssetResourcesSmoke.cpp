@@ -24,7 +24,8 @@ int main() {
 		std::filesystem::path("Meshes/Fallback.obj"),
 		std::filesystem::path("Materials/Default.material"),
 		std::filesystem::path("Materials/Fallback.material"),
-		std::filesystem::path("Shaders/UnlitColor.glsl")
+		std::filesystem::path("Shaders/UnlitColor.shader"),
+		std::filesystem::path("Shaders/UnlitColor.hlsl")
 	};
 
 	for (const auto& relativePath : requiredFiles) {

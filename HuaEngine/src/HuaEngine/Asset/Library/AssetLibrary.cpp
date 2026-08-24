@@ -13,6 +13,7 @@
 namespace {
 	constexpr std::array<uint8_t, 8> LibraryMagic = { 'H', 'U', 'A', 'L', 'I', 'B', 'R', 'Y' };
 	constexpr uint32_t LegacyAssetLibraryFormatVersion = 1;
+	constexpr uint32_t SourceHashAssetLibraryFormatVersion = 2;
 	constexpr uint32_t MaxLibraryRecordCount = 1'000'000;
 	constexpr uint32_t MaxDependencyCount = 1'000'000;
 
@@ -38,7 +39,7 @@ namespace {
 		});
 	}
 
-	bool IsValidSourceContentHash(std::string_view hash) {
+	bool IsValidImportFingerprint(std::string_view hash) {
 		return hash.size() == 64 && std::all_of(hash.begin(), hash.end(), [](unsigned char value) {
 			return (value >= '0' && value <= '9') || (value >= 'a' && value <= 'f');
 		});
@@ -146,7 +147,7 @@ namespace HE {
 			writer.WriteString(record->ImporterId);
 			writer.WriteU32(record->ImporterVersion);
 			writer.WriteU32(record->ArtifactVersion);
-			writer.WriteString(record->SourceContentHash);
+			writer.WriteString(record->ImportFingerprint);
 			writer.WriteString(record->ArtifactRelativePath.generic_string());
 			writer.WriteU32(static_cast<uint32_t>(record->Dependencies.size()));
 			for (const auto& dependency : record->Dependencies) {
@@ -202,11 +203,11 @@ namespace HE {
 		std::string_view importerId,
 		uint32_t importerVersion,
 		uint32_t artifactVersion,
-		std::string_view sourceContentHash) const {
+		std::string_view importFingerprint) const {
 		const auto* record = Find(guid);
-		return IsValidSourceContentHash(sourceContentHash) &&
+		return IsValidImportFingerprint(importFingerprint) &&
 			record &&
-			record->SourceContentHash == sourceContentHash &&
+			record->ImportFingerprint == importFingerprint &&
 			IsArtifactAvailable(guid, kind, importerId, importerVersion, artifactVersion);
 	}
 
@@ -214,7 +215,7 @@ namespace HE {
 		const AssetGuid& guid,
 		std::string_view importerId,
 		uint32_t importerVersion,
-		std::string_view sourceContentHash,
+		std::string_view importFingerprint,
 		const AssetArtifact& artifact) {
 		if (!m_IsOpen) {
 			return MakeLibraryFailure("asset.library.commit", m_RootPath, "asset.library.not_open", "Asset library is not open");
@@ -224,7 +225,7 @@ namespace HE {
 			importerId.empty() ||
 			importerVersion == 0 ||
 			artifact.ArtifactVersion == 0 ||
-			!IsValidSourceContentHash(sourceContentHash) ||
+			!IsValidImportFingerprint(importFingerprint) ||
 			extension.empty()) {
 			return MakeLibraryFailure("asset.library.commit", m_RootPath, "asset.library.commit_invalid", "Artifact commit metadata is invalid");
 		}
@@ -235,8 +236,8 @@ namespace HE {
 		record.ImporterId = std::string(importerId);
 		record.ImporterVersion = importerVersion;
 		record.ArtifactVersion = artifact.ArtifactVersion;
-		record.SourceContentHash = sourceContentHash;
-		record.ArtifactRelativePath = std::filesystem::path("Artifacts") / (guid + std::string(extension));
+		record.ImportFingerprint = importFingerprint;
+		record.ArtifactRelativePath = std::filesystem::path("Artifacts") / (guid + "-" + std::string(importFingerprint) + std::string(extension));
 		record.Dependencies = artifact.Dependencies;
 
 		const auto artifactPath = ResolveArtifactPath(record.ArtifactRelativePath);
@@ -244,6 +245,11 @@ namespace HE {
 		if (!writeResult.Succeeded()) {
 			writeResult.Operation = "asset.library.commit";
 			return writeResult;
+		}
+		AssetArtifact verifiedArtifact;
+		auto verifyResult = ReadAssetArtifactFile(artifactPath, verifiedArtifact);
+		if (!verifyResult.Succeeded() || verifiedArtifact.Kind != artifact.Kind || verifiedArtifact.ArtifactVersion != artifact.ArtifactVersion || verifiedArtifact.Payload != artifact.Payload) {
+			return MakeLibraryFailure("asset.library.commit", artifactPath, "asset.library.candidate_invalid", "Artifact candidate failed read-back verification");
 		}
 
 		m_Records[guid] = std::move(record);
@@ -285,7 +291,7 @@ namespace HE {
 		if (!reader.ReadBytes(LibraryMagic.size(), magic) ||
 			!std::equal(magic.begin(), magic.end(), LibraryMagic.begin(), LibraryMagic.end()) ||
 			!reader.ReadU32(version) ||
-			(version != LegacyAssetLibraryFormatVersion && version != AssetLibraryFormatVersion) ||
+			(version != LegacyAssetLibraryFormatVersion && version != SourceHashAssetLibraryFormatVersion && version != AssetLibraryFormatVersion) ||
 			!reader.ReadU32(recordCount) || recordCount > MaxLibraryRecordCount) {
 			outError = "Asset library catalog header is invalid or unsupported";
 			return false;
@@ -306,8 +312,8 @@ namespace HE {
 				outError = "Asset library catalog record is invalid or truncated";
 				return false;
 			}
-			if (version >= AssetLibraryFormatVersion && !reader.ReadString(record.SourceContentHash)) {
-				outError = "Asset library catalog source hash is invalid or truncated";
+			if (version >= SourceHashAssetLibraryFormatVersion && !reader.ReadString(record.ImportFingerprint)) {
+				outError = "Asset library catalog import fingerprint is invalid or truncated";
 				return false;
 			}
 			if (!reader.ReadString(artifactPath) ||
@@ -324,7 +330,7 @@ namespace HE {
 				record.ImporterId.empty() ||
 				record.ImporterVersion == 0 ||
 				record.ArtifactVersion == 0 ||
-				(!record.SourceContentHash.empty() && !IsValidSourceContentHash(record.SourceContentHash)) ||
+				(!record.ImportFingerprint.empty() && !IsValidImportFingerprint(record.ImportFingerprint)) ||
 				!IsSafeArtifactPath(record.ArtifactRelativePath)) {
 				outError = "Asset library catalog record metadata is invalid";
 				return false;
