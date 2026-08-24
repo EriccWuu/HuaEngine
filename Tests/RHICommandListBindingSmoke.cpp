@@ -125,6 +125,12 @@ namespace {
 			&& openGLCommandListSource.find("BindGroupScope::Frame") == std::string::npos
 			&& openGLCommandListSource.find("BindGroupScope::Object") == std::string::npos;
 	}
+
+	bool OpenGLQueueHasSynchronousFenceFallback() {
+		const auto source = ReadSourceFile(std::filesystem::current_path() / "HuaEngine" / "src" / "Platform" / "OpenGL" / "RHI" / "OpenGLRenderDevice.cpp");
+		return source.find("glFinish();") != std::string::npos
+			&& source.find("m_TimelineFence.SignalCompleted(signalValue);") != std::string::npos;
+	}
 }
 
 int main() {
@@ -133,6 +139,7 @@ int main() {
 	SmokeApplication application;
 	application.Start();
 	Require(CommandListAvoidsRendererSpecificState(), "Expected CommandList to avoid camera and frame/object-specific bind group state");
+	Require(OpenGLQueueHasSynchronousFenceFallback(), "Expected OpenGL fence creation failure to publish a completed timeline only after synchronous fallback");
 
 	auto& device = HE::Rendering::RenderHardwareInterface::GetDevice();
 

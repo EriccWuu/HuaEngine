@@ -1819,7 +1819,20 @@ namespace HE::Rendering {
 	}
 
 	void OpenGLRenderQueue::OpenGLFence::Signal(void* sync, uint64_t value) {
+		if (!sync || value <= m_CompletedValue || (!m_PendingSignals.empty() && value <= m_PendingSignals.back().Value)) {
+			if (sync) glDeleteSync(static_cast<GLsync>(sync));
+			return;
+		}
 		m_PendingSignals.push_back({ sync, value });
+	}
+
+	void OpenGLRenderQueue::OpenGLFence::SignalCompleted(uint64_t value) {
+		if (value <= m_CompletedValue) return;
+		while (!m_PendingSignals.empty() && m_PendingSignals.front().Value <= value) {
+			glDeleteSync(static_cast<GLsync>(m_PendingSignals.front().Sync));
+			m_PendingSignals.erase(m_PendingSignals.begin());
+		}
+		m_CompletedValue = value;
 	}
 
 	void OpenGLRenderQueue::OpenGLFence::Clear() {
@@ -1855,9 +1868,15 @@ namespace HE::Rendering {
 		openGLCommandBuffer->Replay(*m_ImmediateCommandList);
 		const uint64_t signalValue = ++m_NextSignalValue;
 		GLsync sync = glFenceSync(GL_SYNC_GPU_COMMANDS_COMPLETE, 0);
-		if (!sync) return {};
-		glFlush();
-		m_TimelineFence.Signal(sync, signalValue);
+		if (sync) {
+			glFlush();
+			m_TimelineFence.Signal(sync, signalValue);
+		}
+		else {
+			HE_CORE_WARN("OpenGL fence creation failed; synchronizing the queue before publishing timeline value {0}", signalValue);
+			glFinish();
+			m_TimelineFence.SignalCompleted(signalValue);
+		}
 		return {
 			.Succeeded = true,
 			.SignalValue = signalValue,

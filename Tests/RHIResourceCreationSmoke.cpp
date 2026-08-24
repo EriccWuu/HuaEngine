@@ -768,11 +768,15 @@ int main() {
 	Require(firstUniformAllocation.Offset == 0 && secondUniformAllocation.Offset == 256, "Expected uniform arena offsets to respect alignment");
 	Require(firstUniformAllocation.Buffer == secondUniformAllocation.Buffer && uniformArena.GetBackingBufferCount() == 1, "Expected draw allocations to share one backing buffer");
 	uniformArena.SealFrame(5);
+	uniformArena.SealFrame(4);
 	uniformArena.BeginFrame(4);
 	HE::Rendering::UniformBufferAllocation blockedUniformAllocation;
-	Require(!uniformArena.Allocate(&uniformValue, sizeof(uniformValue), blockedUniformAllocation), "Expected in-flight arena storage not to be reused");
+	Require(!uniformArena.Allocate(&uniformValue, sizeof(uniformValue), blockedUniformAllocation), "Expected repeated or backward fence values not to release in-flight arena storage");
 	uniformArena.BeginFrame(5);
 	Require(uniformArena.Allocate(&uniformValue, sizeof(uniformValue), blockedUniformAllocation) && blockedUniformAllocation.Offset == 0, "Expected completed arena storage to be reusable");
+	uniformArena.SealFrame(5);
+	uniformArena.BeginFrame(5);
+	Require(uniformArena.Allocate(&uniformValue, sizeof(uniformValue), blockedUniformAllocation) && blockedUniformAllocation.Offset == 0, "Expected repeated completed signal to preserve monotonic arena reuse");
 	const HE::Rendering::ShaderUniformBlockBinding projectedFrameBlock{
 		.Name = "ProjectedFrame",
 		.Set = 0,

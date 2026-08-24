@@ -102,6 +102,7 @@ namespace HE::Rendering {
 			~OpenGLFence() override;
 			uint64_t GetCompletedValue() const override;
 			void Signal(void* sync, uint64_t value);
+			void SignalCompleted(uint64_t value);
 			void Clear();
 
 		private:
