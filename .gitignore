@@ -103,6 +103,7 @@ TestResults/
 # AI workspace artifacts
 .workspace/
 .workflow/
+.tasks/
 
 # Reflection tool generated intermediates
 Tools/Reflection/reflection_manifest.json
