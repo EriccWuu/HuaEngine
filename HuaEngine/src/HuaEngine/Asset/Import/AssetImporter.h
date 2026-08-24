@@ -34,6 +34,12 @@ namespace HE {
 		[[nodiscard]] virtual uint32_t GetVersion() const = 0;
 		[[nodiscard]] virtual uint32_t GetArtifactVersion() const = 0;
 		[[nodiscard]] virtual bool CanImport(AssetKind kind, std::string_view extension) const = 0;
+		[[nodiscard]] virtual ResultEnvelope CollectDependencies(
+			const AssetImportContext& context,
+			std::vector<AssetGuid>& output) const {
+			output.clear();
+			return ResultEnvelope::Success("asset.import.dependencies", context.SourceAsset.Guid, "Asset dependencies collected");
+		}
 		[[nodiscard]] virtual ResultEnvelope BuildFingerprintInput(
 			const AssetImportContext& context,
 			std::string_view rootSourceHash,

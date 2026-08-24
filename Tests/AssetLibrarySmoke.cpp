@@ -8,8 +8,12 @@
 #include "HuaEngine/Asset/Library/AssetArtifactIO.h"
 #include "HuaEngine/Asset/Library/AssetBinaryIO.h"
 #include "HuaEngine/Asset/Library/AssetLibrary.h"
+#include "HuaEngine/Asset/Artifact/MeshArtifact.h"
+#include "HuaEngine/Asset/Artifact/ShaderArtifact.h"
 #include "HuaEngine/Asset/Import/AssetSourceHash.h"
+#include "HuaEngine/Core/Sha256.h"
 #include "HuaEngine/Project/ProjectContext.h"
+#include "HuaEngine/Rendering/Mesh/MeshCore.h"
 
 namespace {
 	void Require(bool condition, const std::string& message) {
@@ -110,9 +114,7 @@ namespace {
 		Require(std::filesystem::is_directory(root / "Library" / "Artifacts"), "Expected artifact directory creation");
 
 		HE::AssetArtifact artifact;
-		artifact.Kind = HE::AssetKind::Mesh;
-		artifact.ArtifactVersion = 3;
-		artifact.Payload = { 9, 8, 7, 6 };
+		Require(HE::EncodeMeshArtifact(*HE::Rendering::Mesh::CreateQuad("LibraryQuad"), artifact).Succeeded(), "Expected valid mesh artifact fixture");
 		artifact.Dependencies = { "texture-guid" };
 
 		Require(library.CommitArtifact("mesh-guid", "hua.mesh-yaml", 2, SourceHash, artifact).Succeeded(), "Expected artifact commit to succeed");
@@ -123,14 +125,15 @@ namespace {
 		Require(record->Kind == HE::AssetKind::Mesh, "Expected committed mesh kind");
 		Require(record->ImporterId == "hua.mesh-yaml", "Expected importer id persistence");
 		Require(record->ImportFingerprint == SourceHash, "Expected import fingerprint persistence");
-		Require(record->ArtifactRelativePath.filename().string().find(std::string(SourceHash)) != std::string::npos, "Expected content-addressed artifact candidate path");
+		const auto payloadHash = HE::Sha256ToHex(HE::ComputeSha256(artifact.Payload));
+		Require(record->ArtifactRelativePath.filename().string().find(payloadHash) != std::string::npos, "Expected payload-addressed artifact candidate path");
 		Require(record->Dependencies == artifact.Dependencies, "Expected dependency persistence");
 		Require(library.FindDependents("texture-guid") == std::vector<HE::AssetGuid>{ "mesh-guid" }, "Expected reverse dependency lookup");
-		Require(library.IsArtifactAvailable("mesh-guid", HE::AssetKind::Mesh, "hua.mesh-yaml", 2, 3), "Expected compatible artifact availability");
-		Require(library.IsArtifactCurrent("mesh-guid", HE::AssetKind::Mesh, "hua.mesh-yaml", 2, 3, SourceHash), "Expected matching source hash to be current");
-		Require(!library.IsArtifactCurrent("mesh-guid", HE::AssetKind::Mesh, "hua.mesh-yaml", 2, 3, "abcdef0123456789abcdef0123456789abcdef0123456789abcdef0123456789"), "Expected changed source hash to be stale");
-		Require(!library.IsArtifactAvailable("mesh-guid", HE::AssetKind::Material, "hua.mesh-yaml", 2, 3), "Expected kind mismatch rejection");
-		Require(!library.IsArtifactAvailable("mesh-guid", HE::AssetKind::Mesh, "hua.mesh-yaml", 9, 3), "Expected importer version mismatch rejection");
+		Require(library.IsArtifactAvailable("mesh-guid", HE::AssetKind::Mesh, "hua.mesh-yaml", 2, HE::MeshArtifactVersion), "Expected compatible artifact availability");
+		Require(library.IsArtifactCurrent("mesh-guid", HE::AssetKind::Mesh, "hua.mesh-yaml", 2, HE::MeshArtifactVersion, SourceHash), "Expected matching source hash to be current");
+		Require(!library.IsArtifactCurrent("mesh-guid", HE::AssetKind::Mesh, "hua.mesh-yaml", 2, HE::MeshArtifactVersion, "abcdef0123456789abcdef0123456789abcdef0123456789abcdef0123456789"), "Expected changed source hash to be stale");
+		Require(!library.IsArtifactAvailable("mesh-guid", HE::AssetKind::Material, "hua.mesh-yaml", 2, HE::MeshArtifactVersion), "Expected kind mismatch rejection");
+		Require(!library.IsArtifactAvailable("mesh-guid", HE::AssetKind::Mesh, "hua.mesh-yaml", 9, HE::MeshArtifactVersion), "Expected importer version mismatch rejection");
 		Require(!library.IsArtifactAvailable("mesh-guid", HE::AssetKind::Mesh, "hua.mesh-yaml", 2, 9), "Expected artifact version mismatch rejection");
 
 		HE::AssetArtifact loadedArtifact;
@@ -141,14 +144,14 @@ namespace {
 
 		HE::AssetLibrary reopened;
 		Require(reopened.Open(context).Succeeded(), "Expected saved asset library to reopen");
-		Require(reopened.IsArtifactAvailable("mesh-guid", HE::AssetKind::Mesh, "hua.mesh-yaml", 2, 3), "Expected reopened artifact availability");
-		Require(reopened.IsArtifactCurrent("mesh-guid", HE::AssetKind::Mesh, "hua.mesh-yaml", 2, 3, SourceHash), "Expected reopened source hash to remain current");
+		Require(reopened.IsArtifactAvailable("mesh-guid", HE::AssetKind::Mesh, "hua.mesh-yaml", 2, HE::MeshArtifactVersion), "Expected reopened artifact availability");
+		Require(reopened.IsArtifactCurrent("mesh-guid", HE::AssetKind::Mesh, "hua.mesh-yaml", 2, HE::MeshArtifactVersion, SourceHash), "Expected reopened source hash to remain current");
 
 		const auto reopenedRecord = reopened.Find("mesh-guid");
 		Require(reopenedRecord != nullptr, "Expected reopened record");
 		const auto artifactPath = root / "Library" / reopenedRecord->ArtifactRelativePath;
 		std::filesystem::remove(artifactPath);
-		Require(!reopened.IsArtifactAvailable("mesh-guid", HE::AssetKind::Mesh, "hua.mesh-yaml", 2, 3), "Expected missing artifact rejection");
+		Require(!reopened.IsArtifactAvailable("mesh-guid", HE::AssetKind::Mesh, "hua.mesh-yaml", 2, HE::MeshArtifactVersion), "Expected missing artifact rejection");
 
 		Require(reopened.CommitArtifact("mesh-guid", "hua.mesh-yaml", 2, SourceHash, artifact).Succeeded(), "Expected missing artifact recreation");
 		std::fstream corruptStream(artifactPath, std::ios::in | std::ios::out | std::ios::binary);
@@ -156,7 +159,44 @@ namespace {
 		const char badMagic = 'X';
 		corruptStream.write(&badMagic, 1);
 		corruptStream.close();
-		Require(!reopened.IsArtifactAvailable("mesh-guid", HE::AssetKind::Mesh, "hua.mesh-yaml", 2, 3), "Expected corrupt artifact rejection");
+		Require(!reopened.IsArtifactAvailable("mesh-guid", HE::AssetKind::Mesh, "hua.mesh-yaml", 2, HE::MeshArtifactVersion), "Expected corrupt artifact rejection");
+	}
+
+	void TestTransactionalCommitRollback(const std::filesystem::path& root) {
+		constexpr std::string_view Fingerprint = "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef";
+		const auto context = MakeProjectContext(root);
+		HE::AssetLibrary library;
+		Require(library.Open(context).Succeeded(), "Expected transaction library open");
+		HE::AssetArtifact firstArtifact;
+		HE::AssetArtifact secondArtifact;
+		Require(HE::EncodeMeshArtifact(*HE::Rendering::Mesh::CreateQuad("First"), firstArtifact).Succeeded(), "Expected first transaction artifact");
+		Require(HE::EncodeMeshArtifact(*HE::Rendering::Mesh::CreateQuad("Second"), secondArtifact).Succeeded(), "Expected second transaction artifact");
+		Require(library.CommitArtifact("transaction-guid", "hua.mesh-yaml", 2, Fingerprint, firstArtifact).Succeeded(), "Expected first transaction commit");
+		const auto firstRelativePath = library.Find("transaction-guid")->ArtifactRelativePath;
+		const auto secondRelativePath = std::filesystem::path("Artifacts") / (std::string("transaction-guid-") + HE::Sha256ToHex(HE::ComputeSha256(secondArtifact.Payload)) + ".huamesh");
+		Require(firstRelativePath != secondRelativePath, "Expected same-fingerprint payload change to select a new candidate path");
+
+		const auto blockedTemporaryPath = library.GetCatalogPath().string() + ".tmp";
+		std::filesystem::create_directories(blockedTemporaryPath);
+		WriteFileBytes(std::filesystem::path(blockedTemporaryPath) / "blocked", { 1 });
+		Require(library.CommitArtifact("transaction-guid", "hua.mesh-yaml", 2, Fingerprint, secondArtifact).Failed(), "Expected catalog publication failure");
+		Require(library.Find("transaction-guid")->ArtifactRelativePath == firstRelativePath, "Expected catalog failure to preserve the in-memory last-good record");
+		Require(!std::filesystem::exists(library.GetRootPath() / secondRelativePath), "Expected failed transaction to clean its new artifact candidate");
+
+		HE::AssetLibrary reopened;
+		Require(reopened.Open(context).Succeeded(), "Expected last-good catalog reopen after failed transaction");
+		Require(reopened.Find("transaction-guid") && reopened.Find("transaction-guid")->ArtifactRelativePath == firstRelativePath, "Expected disk catalog to preserve the last-good record");
+		std::filesystem::remove_all(blockedTemporaryPath);
+		Require(reopened.CommitArtifact("transaction-guid", "hua.mesh-yaml", 2, Fingerprint, secondArtifact).Succeeded(), "Expected same-fingerprint changed payload commit after catalog recovery");
+		Require(reopened.Find("transaction-guid")->ArtifactRelativePath == secondRelativePath, "Expected recovered commit to publish the new payload-addressed record");
+		Require(std::filesystem::is_regular_file(reopened.GetRootPath() / firstRelativePath), "Expected content addressing to preserve the previous last-good artifact file");
+
+		HE::AssetArtifact invalidShader;
+		invalidShader.Kind = HE::AssetKind::Shader;
+		invalidShader.ArtifactVersion = HE::ShaderArtifactVersion;
+		invalidShader.Payload = { 1, 2, 3 };
+		Require(reopened.CommitArtifact("invalid-shader-guid", "hua.shader-hlsl", 1, Fingerprint, invalidShader).Failed(), "Expected semantic Shader Artifact V2 validation before publication");
+		Require(reopened.Find("invalid-shader-guid") == nullptr, "Expected invalid shader candidate not to publish a library record");
 	}
 
 	std::vector<uint8_t> MakeVersionOneCatalog() {
@@ -240,6 +280,7 @@ int main() {
 
 	TestSourceContentHash(smokeRoot / "Hash");
 	TestArtifactCommitAndCatalogRoundTrip(smokeRoot / "ValidProject");
+	TestTransactionalCommitRollback(smokeRoot / "TransactionProject");
 	TestVersionOneCatalogMigration(smokeRoot / "LegacyProject");
 	TestInvalidCatalogRebuildsEmpty(smokeRoot / "InvalidProject");
 

@@ -9,6 +9,11 @@
 
 #include "AssetArtifactIO.h"
 #include "AssetBinaryIO.h"
+#include "HuaEngine/Asset/Artifact/MaterialArtifact.h"
+#include "HuaEngine/Asset/Artifact/MeshArtifact.h"
+#include "HuaEngine/Asset/Artifact/ShaderArtifact.h"
+#include "HuaEngine/Asset/Artifact/TextureArtifact.h"
+#include "HuaEngine/Core/Sha256.h"
 
 namespace {
 	constexpr std::array<uint8_t, 8> LibraryMagic = { 'H', 'U', 'A', 'L', 'I', 'B', 'R', 'Y' };
@@ -77,6 +82,30 @@ namespace {
 		result.AddDetail({ HE::DiagnosticSeverity::Error, std::move(code), std::move(message), path.generic_string() });
 		return result;
 	}
+
+	HE::ResultEnvelope ValidateArtifactCandidate(const HE::AssetArtifact& artifact) {
+		switch (artifact.Kind) {
+		case HE::AssetKind::Mesh: {
+			HE::Ref<HE::Rendering::Mesh> mesh;
+			return HE::DecodeMeshArtifact(artifact, mesh);
+		}
+		case HE::AssetKind::Material: {
+			HE::Rendering::MaterialSourceData material;
+			return HE::DecodeMaterialArtifact(artifact, material);
+		}
+		case HE::AssetKind::Texture2D: {
+			HE::TextureArtifactData texture;
+			return HE::DecodeTextureArtifact(artifact, texture);
+		}
+		case HE::AssetKind::Shader: {
+			HE::ShaderArtifactDataV2 shader;
+			return HE::DecodeShaderArtifactV2(artifact, shader);
+		}
+		case HE::AssetKind::Unknown:
+			break;
+		}
+		return HE::ResultEnvelope::Failure("asset.library.candidate_validate", {}, "Artifact kind is unsupported");
+	}
 }
 
 namespace HE {
@@ -126,10 +155,13 @@ namespace HE {
 		if (!m_IsOpen) {
 			return MakeLibraryFailure("asset.library.save", m_CatalogPath, "asset.library.not_open", "Asset library is not open");
 		}
+		return SaveRecords(m_Records);
+	}
 
+	ResultEnvelope AssetLibrary::SaveRecords(const std::unordered_map<AssetGuid, AssetLibraryRecord>& sourceRecords) const {
 		std::vector<const AssetLibraryRecord*> records;
-		records.reserve(m_Records.size());
-		for (const auto& [guid, record] : m_Records) {
+		records.reserve(sourceRecords.size());
+		for (const auto& [guid, record] : sourceRecords) {
 			(void)guid;
 			records.push_back(&record);
 		}
@@ -237,10 +269,13 @@ namespace HE {
 		record.ImporterVersion = importerVersion;
 		record.ArtifactVersion = artifact.ArtifactVersion;
 		record.ImportFingerprint = importFingerprint;
-		record.ArtifactRelativePath = std::filesystem::path("Artifacts") / (guid + "-" + std::string(importFingerprint) + std::string(extension));
+		const auto payloadHash = Sha256ToHex(ComputeSha256(artifact.Payload));
+		record.ArtifactRelativePath = std::filesystem::path("Artifacts") / (guid + "-" + payloadHash + std::string(extension));
 		record.Dependencies = artifact.Dependencies;
 
 		const auto artifactPath = ResolveArtifactPath(record.ArtifactRelativePath);
+		std::error_code errorCode;
+		const bool candidateExisted = std::filesystem::is_regular_file(artifactPath, errorCode);
 		auto writeResult = WriteAssetArtifactFile(artifactPath, artifact);
 		if (!writeResult.Succeeded()) {
 			writeResult.Operation = "asset.library.commit";
@@ -249,12 +284,30 @@ namespace HE {
 		AssetArtifact verifiedArtifact;
 		auto verifyResult = ReadAssetArtifactFile(artifactPath, verifiedArtifact);
 		if (!verifyResult.Succeeded() || verifiedArtifact.Kind != artifact.Kind || verifiedArtifact.ArtifactVersion != artifact.ArtifactVersion || verifiedArtifact.Payload != artifact.Payload) {
+			if (!candidateExisted) std::filesystem::remove(artifactPath, errorCode);
 			return MakeLibraryFailure("asset.library.commit", artifactPath, "asset.library.candidate_invalid", "Artifact candidate failed read-back verification");
 		}
+		verifiedArtifact.Dependencies = artifact.Dependencies;
+		auto semanticResult = ValidateArtifactCandidate(verifiedArtifact);
+		if (!semanticResult.Succeeded()) {
+			if (!candidateExisted) std::filesystem::remove(artifactPath, errorCode);
+			auto result = MakeLibraryFailure("asset.library.commit", artifactPath, "asset.library.candidate_invalid", "Artifact candidate failed semantic validation");
+			for (auto& detail : semanticResult.Details) result.AddDetail(std::move(detail));
+			return result;
+		}
 
-		m_Records[guid] = std::move(record);
+		auto candidateRecords = m_Records;
+		candidateRecords[guid] = record;
+		auto saveResult = SaveRecords(candidateRecords);
+		if (!saveResult.Succeeded()) {
+			if (!candidateExisted) std::filesystem::remove(artifactPath, errorCode);
+			saveResult.Operation = "asset.library.commit";
+			return saveResult;
+		}
+		m_Records = std::move(candidateRecords);
 		auto result = ResultEnvelope::Success("asset.library.commit", guid, "Artifact committed");
 		result.SetPayloadValue("artifact_path", artifactPath.generic_string());
+		result.SetPayloadValue("payload_sha256", payloadHash);
 		return result;
 	}
 

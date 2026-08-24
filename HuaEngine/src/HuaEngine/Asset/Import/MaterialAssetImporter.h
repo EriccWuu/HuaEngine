@@ -10,6 +10,7 @@ namespace HE {
 		[[nodiscard]] uint32_t GetVersion() const override { return 5; }
 		[[nodiscard]] uint32_t GetArtifactVersion() const override { return MaterialArtifactVersion; }
 		[[nodiscard]] bool CanImport(AssetKind kind, std::string_view extension) const override;
+		[[nodiscard]] ResultEnvelope CollectDependencies(const AssetImportContext& context, std::vector<AssetGuid>& output) const override;
 		[[nodiscard]] ResultEnvelope BuildFingerprintInput(const AssetImportContext& context, std::string_view rootSourceHash, AssetImportFingerprintInput& output) const override;
 		[[nodiscard]] AssetImportResult Import(const AssetImportContext& context) const override;
 	};

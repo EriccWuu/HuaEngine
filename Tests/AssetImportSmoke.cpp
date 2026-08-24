@@ -5,7 +5,9 @@
 #include <fstream>
 #include <iostream>
 #include <memory>
+#include <sstream>
 #include <string>
+#include <vector>
 
 #include "HuaEngine/Asset/Artifact/MeshArtifact.h"
 #include "HuaEngine/Asset/Artifact/MaterialArtifact.h"
@@ -14,10 +16,12 @@
 #include "HuaEngine/Asset/AssetResolver.h"
 #include "HuaEngine/Asset/AssetService.h"
 #include "HuaEngine/Asset/Import/AssetImporterRegistry.h"
+#include "HuaEngine/Asset/Import/AssetImportService.h"
 #include "HuaEngine/Asset/Import/MaterialAssetImporter.h"
 #include "HuaEngine/Asset/Import/MeshAssetImporter.h"
 #include "HuaEngine/Asset/Import/PngTextureImporter.h"
 #include "HuaEngine/Asset/Import/HlslShaderImporter.h"
+#include "HuaEngine/Asset/Library/AssetLibrary.h"
 #include "HuaEngine/Project/ProjectService.h"
 #include "HuaEngine/Rendering/Mesh/MeshCore.h"
 #include "HuaEngine/Rendering/Material/MaterialSourceData.h"
@@ -33,6 +37,113 @@ namespace {
 	}
 
 	void WriteTextFile(const std::filesystem::path& path, const std::string& text);
+
+	class DagTestImporter final : public HE::AssetImporter {
+	public:
+		explicit DagTestImporter(std::vector<HE::AssetGuid>& importOrder)
+			: m_ImportOrder(&importOrder) {}
+
+		std::string_view GetId() const override { return "test.dag"; }
+		uint32_t GetVersion() const override { return 1; }
+		uint32_t GetArtifactVersion() const override { return HE::TextureArtifactVersion; }
+		bool CanImport(HE::AssetKind kind, std::string_view extension) const override {
+			return kind == HE::AssetKind::Texture2D && extension == ".dag";
+		}
+		HE::ResultEnvelope CollectDependencies(const HE::AssetImportContext& context, std::vector<HE::AssetGuid>& output) const override {
+			output.clear();
+			std::ifstream stream(context.SourcePath);
+			if (!stream) return HE::ResultEnvelope::Failure("test.dag.dependencies", context.SourceAsset.Guid, "DAG source could not be read");
+			std::string dependency;
+			while (std::getline(stream, dependency)) if (!dependency.empty()) output.push_back(dependency);
+			return HE::ResultEnvelope::Success("test.dag.dependencies", context.SourceAsset.Guid, "DAG dependencies collected");
+		}
+		HE::AssetImportResult Import(const HE::AssetImportContext& context) const override {
+			HE::AssetImportResult result;
+			std::vector<HE::AssetGuid> dependencies;
+			if (!CollectDependencies(context, dependencies).Succeeded()) return result;
+			HE::TextureArtifactData texture{ .Width = 1, .Height = 1, .Pixels = { 255, 255, 255, 255 } };
+			if (!HE::EncodeTextureArtifact(texture, result.Artifact).Succeeded()) return result;
+			result.Artifact.Dependencies = std::move(dependencies);
+			m_ImportOrder->push_back(context.SourceAsset.Guid);
+			result.Success = true;
+			return result;
+		}
+
+	private:
+		std::vector<HE::AssetGuid>* m_ImportOrder = nullptr;
+	};
+
+	HE::ProjectContext MakeDagProject(const std::filesystem::path& root) {
+		HE::ProjectContext context;
+		context.RootPath = root;
+		context.ProjectFilePath = root / ".huaengine" / "project.json";
+		return context;
+	}
+
+	void AddDagRecord(HE::AssetManifest& manifest, std::string guid) {
+		const auto relativePath = std::filesystem::path("Dag") / (guid + ".dag");
+		Require(manifest.Upsert({
+			.Guid = guid,
+			.AssetId = relativePath.generic_string(),
+			.Kind = HE::AssetKind::Texture2D,
+			.Source = HE::AssetSource::File,
+			.RelativePath = relativePath,
+			.ImportState = HE::AssetImportState::Registered
+		}), "Expected DAG manifest record");
+	}
+
+	void TestGenericImportDag(const std::filesystem::path& root) {
+		const auto orderedContext = MakeDagProject(root / "Ordered");
+		WriteTextFile(orderedContext.GetAssetRootPath() / "Dag" / "A.dag", "B\n");
+		WriteTextFile(orderedContext.GetAssetRootPath() / "Dag" / "B.dag", "C\n");
+		WriteTextFile(orderedContext.GetAssetRootPath() / "Dag" / "C.dag", "");
+		HE::AssetManifest orderedManifest;
+		AddDagRecord(orderedManifest, "A");
+		AddDagRecord(orderedManifest, "B");
+		AddDagRecord(orderedManifest, "C");
+		HE::AssetLibrary orderedLibrary;
+		Require(orderedLibrary.Open(orderedContext).Succeeded(), "Expected ordered DAG library open");
+		std::vector<HE::AssetGuid> orderedImports;
+		HE::AssetImporterRegistry orderedRegistry;
+		Require(orderedRegistry.Register(std::make_unique<DagTestImporter>(orderedImports)), "Expected ordered DAG importer registration");
+		HE::AssetImportReport orderedReport;
+		const std::vector<HE::AssetGuid> orderedRoots{ "A" };
+		const auto orderedResult = HE::AssetImportService(orderedRegistry, orderedLibrary).ImportAssets(
+			orderedContext,
+			orderedManifest,
+			orderedRoots,
+			HE::AssetImportPolicy::Force,
+			&orderedReport);
+		Require(orderedResult.Succeeded() && orderedReport.ImportedAssets == 3, "Expected complete DAG import");
+		Require(orderedImports == std::vector<HE::AssetGuid>({ "C", "B", "A" }), "Expected stable dependency-first import order");
+
+		const auto cycleContext = MakeDagProject(root / "Cycle");
+		WriteTextFile(cycleContext.GetAssetRootPath() / "Dag" / "A.dag", "B\n");
+		WriteTextFile(cycleContext.GetAssetRootPath() / "Dag" / "B.dag", "A\n");
+		HE::AssetManifest cycleManifest;
+		AddDagRecord(cycleManifest, "A");
+		AddDagRecord(cycleManifest, "B");
+		HE::AssetLibrary cycleLibrary;
+		Require(cycleLibrary.Open(cycleContext).Succeeded(), "Expected cycle DAG library open");
+		std::vector<HE::AssetGuid> cycleImports;
+		HE::AssetImporterRegistry cycleRegistry;
+		Require(cycleRegistry.Register(std::make_unique<DagTestImporter>(cycleImports)), "Expected cycle DAG importer registration");
+		HE::AssetImportReport cycleReport;
+		const std::vector<HE::AssetGuid> cycleRoots{ "A" };
+		const auto cycleResult = HE::AssetImportService(cycleRegistry, cycleLibrary).ImportAssets(
+			cycleContext,
+			cycleManifest,
+			cycleRoots,
+			HE::AssetImportPolicy::Force,
+			&cycleReport);
+		Require(cycleResult.Failed() && cycleImports.empty(), "Expected dependency cycle rejection before importer execution");
+		Require(cycleLibrary.Find("A") == nullptr && cycleLibrary.Find("B") == nullptr, "Expected dependency cycle rejection before artifact commit");
+		const auto cycleDiagnostic = std::find_if(cycleResult.Details.begin(), cycleResult.Details.end(), [](const auto& detail) { return detail.Code == "asset.import.dependency_cycle"; });
+		Require(cycleDiagnostic != cycleResult.Details.end(), "Expected stable dependency cycle diagnostic");
+		Require(cycleDiagnostic->Message.find("A [") != std::string::npos && cycleDiagnostic->Message.find("B [") != std::string::npos
+			&& cycleDiagnostic->Message.find("A.dag") != std::string::npos && cycleDiagnostic->Message.find("B.dag") != std::string::npos,
+			"Expected dependency cycle diagnostic to contain GUID and source path chain");
+	}
 
 	void TestImporterSelection() {
 		HE::AssetImporterRegistry registry;
@@ -754,6 +865,7 @@ int main() {
 	TestMaterialShaderGuidDependency(smokeRoot / "MaterialShaderProject");
 	TestPngTextureImport(smokeRoot / "TextureSource");
 	TestObjImportPipeline(smokeRoot / "ObjProject");
+	TestGenericImportDag(smokeRoot / "DagProject");
 	TestAssetReimportPipeline(smokeRoot / "ReimportProject");
 	TestBuiltinResolverRequiresLibraryArtifacts(smokeRoot / "BuiltinArtifactProject");
 	std::filesystem::remove_all(smokeRoot, errorCode);

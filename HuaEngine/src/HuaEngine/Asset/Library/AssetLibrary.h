@@ -46,6 +46,7 @@ namespace HE {
 		[[nodiscard]] const std::filesystem::path& GetCatalogPath() const { return m_CatalogPath; }
 
 	private:
+		[[nodiscard]] ResultEnvelope SaveRecords(const std::unordered_map<AssetGuid, AssetLibraryRecord>& records) const;
 		[[nodiscard]] bool LoadCatalog(std::string& outError);
 		[[nodiscard]] bool IsSafeArtifactPath(const std::filesystem::path& relativePath) const;
 		[[nodiscard]] std::filesystem::path ResolveArtifactPath(const std::filesystem::path& relativePath) const;

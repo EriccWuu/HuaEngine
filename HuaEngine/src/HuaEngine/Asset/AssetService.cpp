@@ -61,22 +61,6 @@ namespace {
 		return relativePath.is_absolute() || IsEscapingAssetRoot(relativePath);
 	}
 
-	int GetReimportPriority(HE::AssetKind kind) {
-		switch (kind) {
-		case HE::AssetKind::Texture2D:
-			return 0;
-		case HE::AssetKind::Shader:
-			return 0;
-		case HE::AssetKind::Mesh:
-			return 1;
-		case HE::AssetKind::Material:
-			return 2;
-		case HE::AssetKind::Unknown:
-		default:
-			return 3;
-		}
-	}
-
 	bool TryResolveReimportTarget(
 		const HE::ProjectContext& context,
 		const std::filesystem::path& targetPath,
@@ -498,13 +482,6 @@ namespace HE {
 			return publishReport(std::move(libraryResult));
 		}
 
-		std::sort(importCandidates.begin(), importCandidates.end(), [](const auto& left, const auto& right) {
-			const auto leftPriority = GetReimportPriority(left.Kind);
-			const auto rightPriority = GetReimportPriority(right.Kind);
-			return leftPriority != rightPriority
-				? leftPriority < rightPriority
-				: left.AssetId < right.AssetId;
-		});
 		std::vector<AssetGuid> importGuids;
 		importGuids.reserve(importCandidates.size());
 		for (const auto& candidate : importCandidates) {
@@ -515,42 +492,19 @@ namespace HE {
 
 		AssetImportReport importReport;
 		AssetImportService importService(m_ImporterRegistry, m_Library);
-		std::vector<AssetGuid> dependencyGuids;
-		for (const auto& candidate : importCandidates) {
-			if (candidate.Kind != AssetKind::Material) continue;
-			Rendering::MaterialSourceData source;
-			if (Rendering::LoadMaterialSourceData(context.GetAssetRootPath() / candidate.RelativePath, source).Succeeded() && !source.ShaderGuid.empty()) dependencyGuids.push_back(source.ShaderGuid);
-		}
-		if (!dependencyGuids.empty()) {
-			AssetImportReport dependencyReport;
-			auto dependencyResult = importService.ImportAssets(context, m_Manifest, dependencyGuids, AssetImportPolicy::MissingOnly, &dependencyReport);
-			if (!dependencyResult.Succeeded() || dependencyReport.FailedAssets > 0) {
-				dependencyResult.Operation = "asset.reimport";
-				report.FailedAssets += dependencyReport.FailedAssets;
-				return publishReport(std::move(dependencyResult));
+		std::unordered_set<AssetGuid> reportedReimports(importGuids.begin(), importGuids.end());
+		std::vector<AssetGuid> pendingReportedDependents(importGuids.begin(), importGuids.end());
+		while (!pendingReportedDependents.empty()) {
+			auto guid = std::move(pendingReportedDependents.back());
+			pendingReportedDependents.pop_back();
+			for (auto& dependentGuid : m_Library.FindDependents(guid)) {
+				if (reportedReimports.insert(dependentGuid).second) pendingReportedDependents.push_back(std::move(dependentGuid));
 			}
 		}
 		auto importResult = importService.ImportAssets(context, m_Manifest, importGuids, AssetImportPolicy::Force, &importReport);
-		if (importResult.Succeeded()) {
-			std::vector<AssetGuid> dependentGuids;
-			for (const auto& importedGuid : importReport.ImportedAssetGuids) {
-				for (const auto& dependentGuid : m_Library.FindDependents(importedGuid)) {
-					const auto* dependent = m_Manifest.FindByGuid(dependentGuid);
-					if (dependent && dependent->Kind == AssetKind::Material) dependentGuids.push_back(dependentGuid);
-				}
-			}
-			std::sort(dependentGuids.begin(), dependentGuids.end());
-			dependentGuids.erase(std::unique(dependentGuids.begin(), dependentGuids.end()), dependentGuids.end());
-			if (!dependentGuids.empty()) {
-				AssetImportReport dependentReport;
-				auto dependentResult = importService.ImportAssets(context, m_Manifest, dependentGuids, AssetImportPolicy::MissingOnly, &dependentReport);
-				importReport.ImportedAssets += dependentReport.ImportedAssets;
-				importReport.SkippedAssets += dependentReport.SkippedAssets;
-				importReport.FailedAssets += dependentReport.FailedAssets;
-				importReport.ImportedAssetGuids.insert(importReport.ImportedAssetGuids.end(), dependentReport.ImportedAssetGuids.begin(), dependentReport.ImportedAssetGuids.end());
-				if (!dependentResult.Succeeded()) importResult = std::move(dependentResult);
-			}
-		}
+		const auto reportedReimportCount = static_cast<uint32_t>(std::count_if(importReport.ImportedAssetGuids.begin(), importReport.ImportedAssetGuids.end(), [&](const auto& guid) {
+			return reportedReimports.contains(guid);
+		}));
 		std::vector<AssetGuid> pendingInvalidations = importReport.ImportedAssetGuids;
 		std::unordered_set<AssetGuid> invalidatedGuids;
 		while (!pendingInvalidations.empty()) {
@@ -566,14 +520,14 @@ namespace HE {
 		}
 		if (!importResult.Succeeded()) {
 			importResult.Operation = "asset.reimport";
-			report.ReimportedAssets = importReport.ImportedAssets;
+			report.ReimportedAssets = reportedReimportCount;
 			report.FailedAssets += importReport.FailedAssets;
 			return publishReport(std::move(importResult));
 		}
 		for (const auto& detail : importResult.Details) {
 			result.AddDetail(detail);
 		}
-		report.ReimportedAssets = importReport.ImportedAssets;
+		report.ReimportedAssets = reportedReimportCount;
 		report.FailedAssets += importReport.FailedAssets;
 		if (report.FailedAssets > 0) {
 			result.Summary = "Asset reimport completed with per-asset failures";

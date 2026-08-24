@@ -57,6 +57,32 @@ namespace HE {
 		return kind == AssetKind::Material && (extension == ".material" || extension == ".mat");
 	}
 
+	ResultEnvelope MaterialAssetImporter::CollectDependencies(const AssetImportContext& context, std::vector<AssetGuid>& output) const {
+		output.clear();
+		Rendering::MaterialSourceData source;
+		auto loadResult = Rendering::LoadMaterialSourceData(context.SourcePath, source);
+		if (!loadResult.Succeeded()) return loadResult;
+		const auto* shaderRecord = context.Manifest ? context.Manifest->FindByGuid(source.ShaderGuid) : nullptr;
+		if (!shaderRecord || shaderRecord->Kind != AssetKind::Shader) {
+			return ResultEnvelope::Failure("asset.import.dependencies", source.ShaderGuid, "Material shader dependency is not a registered shader asset");
+		}
+		output.push_back(shaderRecord->Guid);
+		for (const auto& [name, parameter] : source.Parameters) {
+			(void)name;
+			if (parameter.Type != Rendering::MaterialParameterType::Texture2D) continue;
+			const auto& reference = std::get<std::string>(parameter.Value);
+			if (reference.empty()) continue;
+			const auto* textureRecord = context.Manifest ? context.Manifest->FindByAssetId(reference) : nullptr;
+			if (!textureRecord || textureRecord->Kind != AssetKind::Texture2D) {
+				return ResultEnvelope::Failure("asset.import.dependencies", reference, "Material texture dependency is not a registered texture asset");
+			}
+			output.push_back(textureRecord->Guid);
+		}
+		std::sort(output.begin(), output.end());
+		output.erase(std::unique(output.begin(), output.end()), output.end());
+		return ResultEnvelope::Success("asset.import.dependencies", context.SourceAsset.Guid, "Material dependencies collected");
+	}
+
 	ResultEnvelope MaterialAssetImporter::BuildFingerprintInput(const AssetImportContext& context, std::string_view rootSourceHash, AssetImportFingerprintInput& output) const {
 		Rendering::MaterialSourceData source;
 		auto load = Rendering::LoadMaterialSourceData(context.SourcePath, source);
