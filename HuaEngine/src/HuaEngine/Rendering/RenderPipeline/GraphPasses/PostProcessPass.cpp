@@ -50,8 +50,7 @@ namespace HE::Rendering {
 			.Size = sizeof(indices),
 			.Stride = sizeof(uint32_t)
 		}, indices);
-		auto shader = context.Device->CreateShaderProgram({
-			.VertexSource = R"(
+		const std::string vertexSource = R"(
 				#version 330 core
 				layout(location = 0) in vec3 a_Position;
 				out vec2 v_Uv;
@@ -59,8 +58,8 @@ namespace HE::Rendering {
 					gl_Position = vec4(a_Position, 1.0);
 					v_Uv = a_Position.xy * 0.5 + 0.5;
 				}
-			)",
-			.FragmentSource = R"(
+			)";
+		const std::string fragmentSource = R"(
 				#version 330 core
 				in vec2 v_Uv;
 				layout(location = 0) out vec4 color;
@@ -68,21 +67,33 @@ namespace HE::Rendering {
 				void main() {
 					color = texture(u_SourceTexture, v_Uv);
 				}
-			)"
-		});
+			)";
+		ShaderGpuInterface gpuInterface;
+		gpuInterface.Resources = {
+			{ "u_SourceTexture", ShaderResourceType::Texture2D, 1, 0, 1, ShaderStageFragment },
+			{ "u_SourceSampler", ShaderResourceType::Sampler, 1, 1, 1, ShaderStageFragment }
+		};
+		ShaderResourceMap resourceMap;
+		resourceMap.Textures = {{
+			.TextureName = "u_SourceTexture",
+			.SamplerName = "u_SourceSampler",
+			.UniformName = "u_SourceTexture",
+			.TextureSet = 1,
+			.TextureBinding = 0,
+			.SamplerSet = 1,
+			.SamplerBinding = 1,
+			.TextureUnit = 0,
+			.StageMask = ShaderStageFragment
+		}};
+		ShaderProgramDesc shaderDesc;
+		if (!BuildOpenGlShaderProgramDesc(vertexSource, fragmentSource, std::move(gpuInterface), std::move(resourceMap), shaderDesc).Succeeded()) return;
+		auto shader = context.Device->CreateShaderProgram(shaderDesc);
 		auto bindGroupLayout = context.Device->CreateBindGroupLayout({
 			.Scope = BindGroupScope::Material,
-			.Entries = {
-				{ .Name = "u_SourceTexture", .Type = BindingValueType::TextureView, .Binding = 0 },
-				{ .Name = "u_SourceSampler", .Type = BindingValueType::Sampler, .Binding = 1 }
-			}
+			.Entries = {{ .Name = "u_SourceTexture", .Type = BindingValueType::Texture, .Binding = 0, .Visibility = ShaderStageFragment }},
+			.InterfaceDigest = shaderDesc.Interface.Digest
 		});
-		auto textureView = context.Device->CreateTextureView({ .Texture = sceneColorResource->Texture });
-		auto sampler = context.Device->CreateSampler({
-			.AddressU = SamplerAddressMode::ClampToEdge,
-			.AddressV = SamplerAddressMode::ClampToEdge
-		});
-		if (!vertexBuffer || !indexBuffer || !shader || !bindGroupLayout || !textureView || !sampler) {
+		if (!vertexBuffer || !indexBuffer || !shader || !bindGroupLayout) {
 			return;
 		}
 
@@ -97,23 +108,16 @@ namespace HE::Rendering {
 				.DepthWriteEnabled = false
 			},
 			.Raster = { .Cull = CullMode::None },
-			.BindGroupLayouts = { { .Slot = 0, .Layout = bindGroupLayout } }
+			.BindGroupLayouts = { { .Slot = 1, .Layout = bindGroupLayout } }
 		});
 		auto bindGroup = context.Device->CreateBindGroup({
 			.Layout = bindGroupLayout,
 			.Entries = {
 				{
 					.Name = "u_SourceTexture",
-					.Type = BindingValueType::TextureView,
-					.Value = textureView,
+					.Type = BindingValueType::Texture,
+					.Value = sceneColorResource->Texture,
 					.Binding = 0,
-					.TextureSlot = 0
-				},
-				{
-					.Name = "u_SourceSampler",
-					.Type = BindingValueType::Sampler,
-					.Value = sampler,
-					.Binding = 1,
 					.TextureSlot = 0
 				}
 			}
@@ -127,8 +131,6 @@ namespace HE::Rendering {
 			context.RecordingCommandBuffer->RetainResource(indexBuffer);
 			context.RecordingCommandBuffer->RetainResource(shader);
 			context.RecordingCommandBuffer->RetainResource(bindGroupLayout);
-			context.RecordingCommandBuffer->RetainResource(textureView);
-			context.RecordingCommandBuffer->RetainResource(sampler);
 			context.RecordingCommandBuffer->RetainResource(pipeline);
 			context.RecordingCommandBuffer->RetainResource(bindGroup);
 		}
@@ -136,7 +138,7 @@ namespace HE::Rendering {
 		context.Commands->SetPipelineState(*pipeline);
 		context.Commands->SetVertexBuffer(0, { .Buffer = vertexBuffer, .Stride = 3 * sizeof(float) });
 		context.Commands->SetIndexBuffer({ .Buffer = indexBuffer, .Format = IndexFormat::UInt32, .IndexCount = 3 });
-		context.Commands->SetBindGroup(0, *bindGroup);
+		context.Commands->SetBindGroup(1, *bindGroup);
 		context.Commands->DrawIndexed(3);
 		++context.Stats->DrawCalls;
 		++context.Stats->PassCount;

@@ -10,7 +10,7 @@
 
 namespace HE::Rendering {
 	namespace {
-		enum class ShaderStage {
+		enum class SourceStage {
 			Vertex,
 			Fragment
 		};
@@ -28,8 +28,8 @@ namespace HE::Rendering {
 			return stringStream.str();
 		}
 
-		std::unordered_map<ShaderStage, std::string> PreprocessShader(const std::string& source) {
-			std::unordered_map<ShaderStage, std::string> shaderSources;
+		std::unordered_map<SourceStage, std::string> PreprocessShader(const std::string& source) {
+			std::unordered_map<SourceStage, std::string> shaderSources;
 
 			const char* typeToken = "#type";
 			const size_t typeTokenLength = strlen(typeToken);
@@ -44,7 +44,7 @@ namespace HE::Rendering {
 
 				const size_t nextLinePos = source.find_first_not_of("\r\n", eol);
 				pos = source.find(typeToken, nextLinePos);
-				const ShaderStage shaderStage = (type == "vertex") ? ShaderStage::Vertex : ShaderStage::Fragment;
+				const SourceStage shaderStage = (type == "vertex") ? SourceStage::Vertex : SourceStage::Fragment;
 				shaderSources[shaderStage] = source.substr(
 					nextLinePos,
 					pos - (nextLinePos == std::string::npos ? source.size() - 1 : nextLinePos));
@@ -55,10 +55,9 @@ namespace HE::Rendering {
 	}
 
 	Ref<ShaderProgram> ShaderProgramLoader::CreateFromSource(const std::string& vertexSource, const std::string& fragmentSource) {
-		return RenderHardwareInterface::GetDevice().CreateShaderProgram({
-			.VertexSource = vertexSource,
-			.FragmentSource = fragmentSource
-		});
+		ShaderProgramDesc desc;
+		if (!BuildOpenGlShaderProgramDesc(vertexSource, fragmentSource, {}, {}, desc).Succeeded()) return nullptr;
+		return RenderHardwareInterface::GetDevice().CreateShaderProgram(desc);
 	}
 
 	Ref<ShaderProgram> ShaderProgramLoader::CreateFromFile(const std::string& vertexPath, const std::string& fragmentPath) {
@@ -85,7 +84,7 @@ namespace HE::Rendering {
 		HE_CORE_ASSERT(shaderSources.size() == 2, "Only vertex and fragment shaders are supported");
 
 		return CreateFromSource(
-			shaderSources.at(ShaderStage::Vertex),
-			shaderSources.at(ShaderStage::Fragment));
+			shaderSources.at(SourceStage::Vertex),
+			shaderSources.at(SourceStage::Fragment));
 	}
 }

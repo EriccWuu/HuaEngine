@@ -4,9 +4,23 @@
 #include <string>
 #include <vector>
 
-#include "HuaEngine/Core/Sha256.h"
+#include "HuaEngine/Core/ResultEnvelope.h"
+#include "HuaEngine/Rendering/Shader/ShaderInterface.h"
 
 namespace HE::Rendering {
+	enum class ShaderStageCodeFormat : uint8_t {
+		OpenGlGlsl = 0,
+		SpirV,
+		Dxil
+	};
+
+	struct ShaderStageBinary {
+		ShaderStage Stage = ShaderStage::Vertex;
+		ShaderStageCodeFormat Format = ShaderStageCodeFormat::OpenGlGlsl;
+		std::string EntryPoint;
+		std::vector<uint8_t> Code;
+	};
+
 	struct ShaderUniformMemberBinding {
 		std::string Name;
 		uint32_t Offset = 0;
@@ -19,6 +33,7 @@ namespace HE::Rendering {
 		uint32_t Binding = 0;
 		uint32_t BindingPoint = 0;
 		uint32_t Size = 0;
+		uint8_t StageMask = 0;
 		std::vector<ShaderUniformMemberBinding> Members;
 	};
 
@@ -26,17 +41,31 @@ namespace HE::Rendering {
 		std::string TextureName;
 		std::string SamplerName;
 		std::string UniformName;
+		uint32_t TextureSet = 0;
+		uint32_t TextureBinding = 0;
+		uint32_t SamplerSet = 0;
+		uint32_t SamplerBinding = 0;
 		uint32_t TextureUnit = 0;
+		uint8_t StageMask = 0;
+	};
+
+	struct ShaderResourceMap {
+		std::vector<ShaderUniformBlockBinding> UniformBlocks;
+		std::vector<ShaderTextureBinding> Textures;
 	};
 
 	struct ShaderProgramDesc {
-		std::string VertexSource;
-		std::string FragmentSource;
-		std::vector<ShaderUniformBlockBinding> UniformBlocks;
-		std::vector<ShaderTextureBinding> Textures;
-		Sha256Digest InterfaceDigest{};
-		uint64_t InterfaceSignature = 0;
+		std::vector<ShaderStageBinary> Stages;
+		ShaderGpuInterface Interface;
+		ShaderResourceMap ResourceMap;
 	};
+
+	ResultEnvelope BuildOpenGlShaderProgramDesc(
+		std::string_view vertexSource,
+		std::string_view fragmentSource,
+		ShaderGpuInterface gpuInterface,
+		ShaderResourceMap resourceMap,
+		ShaderProgramDesc& output);
 
 	class ShaderProgram {
 	public:

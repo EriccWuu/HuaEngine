@@ -370,8 +370,13 @@ int main() {
 	HE::Ref<HE::Rendering::ShaderProgram> resolvedShader;
 	Require(textureResolver.ResolveShader(importedShaderRecord.Guid, resolvedShader).Succeeded(), "Expected shader resolve from Library after source removal");
 	Require(resolvedShader != nullptr, "Expected runtime shader program from artifact");
-	Require(resolvedShader->GetDesc().VertexSource.find("gl_Position") != std::string::npos, "Expected artifact-backed vertex shader source");
-	Require(resolvedShader->GetDesc().FragmentSource.find("SPIRV_Cross_Combined") != std::string::npos, "Expected artifact-backed fragment shader source");
+	const auto findStageText = [&](HE::Rendering::ShaderStage stage) {
+		const auto& stages = resolvedShader->GetDesc().Stages;
+		const auto entry = std::find_if(stages.begin(), stages.end(), [&](const auto& candidate) { return candidate.Stage == stage; });
+		return entry == stages.end() ? std::string{} : std::string(entry->Code.begin(), entry->Code.end());
+	};
+	Require(findStageText(HE::Rendering::ShaderStage::Vertex).find("gl_Position") != std::string::npos, "Expected artifact-backed vertex shader source");
+	Require(findStageText(HE::Rendering::ShaderStage::Fragment).find("SPIRV_Cross_Combined") != std::string::npos, "Expected artifact-backed fragment shader source");
 	std::filesystem::remove_all(smokeRoot, smokeError);
 	Require(!smokeError, "Expected smoke directory cleanup after test");
 
@@ -648,10 +653,9 @@ int main() {
 			color = vec4(1.0);
 		}
 	)";
-	auto shaderProgram = device.CreateShaderProgram({
-		.VertexSource = vertexSource,
-		.FragmentSource = fragmentSource
-	});
+	HE::Rendering::ShaderProgramDesc simpleShaderDesc;
+	Require(HE::Rendering::BuildOpenGlShaderProgramDesc(vertexSource, fragmentSource, {}, {}, simpleShaderDesc).Succeeded(), "Expected simple shader descriptor");
+	auto shaderProgram = device.CreateShaderProgram(simpleShaderDesc);
 	Require(static_cast<bool>(shaderProgram), "Expected shader program creation to succeed");
 
 	auto pipelineState = device.CreatePipelineState({
@@ -668,6 +672,56 @@ int main() {
 	Require(pipelineState->GetDesc().DepthStencil.Format == HE::Rendering::RenderTargetTextureFormat::DEPTH24_STENCIL8, "Expected default pipeline depth/stencil format");
 	Require(pipelineState->GetDesc().Raster.Cull == HE::Rendering::CullMode::Back, "Expected default pipeline raster cull mode");
 	Require(!device.CreatePipelineState({}), "Expected empty pipeline state creation to fail");
+
+	const std::string contractVertexSource = R"(
+		#version 330 core
+		layout(location = 0) in vec3 a_Position;
+		layout(std140) uniform FrameData { mat4 u_ViewProjection; };
+		void main() { gl_Position = u_ViewProjection * vec4(a_Position, 1.0); }
+	)";
+	HE::Rendering::ShaderInterface contractInterface;
+	contractInterface.Gpu.Stages = {
+		{ HE::Rendering::ShaderStage::Vertex, "main" },
+		{ HE::Rendering::ShaderStage::Fragment, "main" }
+	};
+	contractInterface.Gpu.Resources = {
+		{ "FrameData", HE::Rendering::ShaderResourceType::ConstantBuffer, 0, 0, 1, HE::Rendering::ShaderStageVertex }
+	};
+	contractInterface.Gpu.ConstantBuffers = {
+		{ "FrameData", 0, 0, 64, { { "u_ViewProjection", HE::Rendering::ShaderValueType::Float4x4, 0, 64, 16, 0, true } } }
+	};
+	Require(HE::Rendering::FinalizeShaderInterface(contractInterface).Succeeded(), "Expected pipeline shader interface finalization");
+	HE::Rendering::ShaderResourceMap contractResourceMap;
+	contractResourceMap.UniformBlocks = {{
+		.Name = "FrameData",
+		.Set = 0,
+		.Binding = 0,
+		.BindingPoint = 0,
+		.Size = 64,
+		.StageMask = HE::Rendering::ShaderStageVertex,
+		.Members = {{ .Name = "u_ViewProjection", .Offset = 0, .Size = 64 }}
+	}};
+	HE::Rendering::ShaderProgramDesc contractShaderDesc;
+	Require(HE::Rendering::BuildOpenGlShaderProgramDesc(contractVertexSource, fragmentSource, contractInterface.Gpu, std::move(contractResourceMap), contractShaderDesc).Succeeded(), "Expected contract shader descriptor");
+	auto contractShader = device.CreateShaderProgram(contractShaderDesc);
+	Require(static_cast<bool>(contractShader), "Expected contract shader creation");
+	auto wrongFrameLayout = device.CreateBindGroupLayout({
+		.Scope = HE::Rendering::BindGroupScope::Frame,
+		.Entries = { { "FrameData", HE::Rendering::BindingValueType::UniformBuffer, 1, HE::Rendering::ShaderStageVertex, 64 } },
+		.InterfaceDigest = contractShaderDesc.Interface.Digest
+	});
+	Require(static_cast<bool>(wrongFrameLayout), "Expected structurally valid but shader-incompatible layout creation");
+	Require(!device.CreatePipelineState({
+		.Shader = contractShader,
+		.VertexLayout = layout,
+		.BindGroupLayouts = { { 0, wrongFrameLayout } }
+	}), "Expected pipeline creation to reject a ShaderInterface binding mismatch");
+	auto contractFrameLayout = HE::Rendering::CreateUniformBlockBindGroupLayout(
+		device,
+		HE::Rendering::BindGroupScope::Frame,
+		contractShaderDesc.ResourceMap.UniformBlocks.front(),
+		contractShaderDesc.Interface.Digest);
+	Require(static_cast<bool>(contractFrameLayout), "Expected ShaderInterface-compatible frame layout");
 
 	auto bindGroupLayout = device.CreateBindGroupLayout({
 		.Scope = HE::Rendering::BindGroupScope::Material,
@@ -725,9 +779,11 @@ int main() {
 		.Binding = 4,
 		.BindingPoint = 7,
 		.Size = 80,
+		.StageMask = HE::Rendering::ShaderStageVertex,
 		.Members = {{ .Name = "u_ViewProjection", .Offset = 16, .Size = 64 }}
 	};
-	auto projectedFrameLayout = HE::Rendering::CreateUniformBlockBindGroupLayout(device, HE::Rendering::BindGroupScope::Frame, projectedFrameBlock);
+	const HE::Sha256Digest projectedInterfaceDigest{ 1 };
+	auto projectedFrameLayout = HE::Rendering::CreateUniformBlockBindGroupLayout(device, HE::Rendering::BindGroupScope::Frame, projectedFrameBlock, projectedInterfaceDigest);
 	Require(projectedFrameLayout && projectedFrameLayout->GetDesc().Entries[0].Binding == 7 && projectedFrameLayout->GetDesc().Entries[0].MinBindingSize == 80, "Expected frame layout to use reflected binding point and size");
 	const glm::mat4 projectedViewProjection(2.0f);
 	auto projectedFrameGroup = HE::Rendering::CreateFrameBindGroup(device, uniformArena, projectedFrameBlock, projectedFrameLayout, projectedViewProjection);
@@ -737,8 +793,8 @@ int main() {
 	Require(device.ReadbackBuffer(projectedBuffer, projectedFrameGroup->GetDesc().Entries[0].Offset, 80, projectedBytes), "Expected projected frame buffer readback");
 	Require(std::all_of(projectedBytes.begin(), projectedBytes.begin() + 16, [](uint8_t value) { return value == 0; }), "Expected reflected frame member offset to be preserved");
 	Require(std::memcmp(projectedBytes.data() + 16, &projectedViewProjection[0][0], 64) == 0, "Expected frame matrix at reflected member offset");
-	const std::vector<HE::Rendering::ShaderTextureBinding> projectedTextures{{ .TextureName = "u_Albedo", .UniformName = "u_AlbedoCombined", .TextureUnit = 5 }};
-	auto projectedMaterialLayout = HE::Rendering::CreateMaterialBindGroupLayout(device, { .Name = "MaterialData", .Set = 1, .BindingPoint = 3, .Size = 16 }, projectedTextures);
+	const std::vector<HE::Rendering::ShaderTextureBinding> projectedTextures{{ .TextureName = "u_Albedo", .UniformName = "u_AlbedoCombined", .TextureUnit = 5, .StageMask = HE::Rendering::ShaderStageFragment }};
+	auto projectedMaterialLayout = HE::Rendering::CreateMaterialBindGroupLayout(device, { .Name = "MaterialData", .Set = 1, .BindingPoint = 3, .Size = 16, .StageMask = HE::Rendering::ShaderStageFragment }, projectedTextures, projectedInterfaceDigest);
 	Require(projectedMaterialLayout && projectedMaterialLayout->GetDesc().Entries.size() == 2, "Expected material layout entries from shader interface");
 	Require(projectedMaterialLayout->GetDesc().Entries[1].Name == "u_AlbedoCombined" && projectedMaterialLayout->GetDesc().Entries[1].Binding == 5, "Expected combined sampler binding from shader resource map");
 	HE::Rendering::BindGroupLayoutDesc uniformLayoutDesc{
@@ -783,20 +839,20 @@ int main() {
 	Require(!device.CreateCommandBuffer({ .Usage = HE::Rendering::CommandBufferUsage::Invalid }), "Expected invalid command buffer creation to fail");
 
 	auto contractedPipelineState = device.CreatePipelineState({
-		.Shader = shaderProgram,
+		.Shader = contractShader,
 		.VertexLayout = layout,
 		.Topology = HE::Rendering::PrimitiveTopology::TriangleList,
 		.BindGroupLayouts = {
 			{
-				.Slot = 1,
-				.Layout = bindGroupLayout
+				.Slot = 0,
+				.Layout = contractFrameLayout
 			}
 		}
 	});
 	Require(static_cast<bool>(contractedPipelineState), "Expected contracted pipeline state creation to succeed");
 	Require(contractedPipelineState->GetDesc().BindGroupLayouts.size() == 1, "Expected pipeline bind group layout contract");
-	Require(contractedPipelineState->GetDesc().BindGroupLayouts[0].Slot == 1, "Expected material bind group slot contract");
-	Require(contractedPipelineState->GetDesc().BindGroupLayouts[0].Layout == bindGroupLayout, "Expected material bind group layout contract");
+	Require(contractedPipelineState->GetDesc().BindGroupLayouts[0].Slot == 0, "Expected frame bind group slot contract");
+	Require(contractedPipelineState->GetDesc().BindGroupLayouts[0].Layout == contractFrameLayout, "Expected frame bind group layout contract");
 
 	auto renderStatePipeline = device.CreatePipelineState({
 		.Shader = shaderProgram,

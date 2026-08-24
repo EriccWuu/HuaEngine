@@ -3,6 +3,7 @@
 
 #include "HuaEngine/Rendering/RenderPipeline/RenderBindGroupBuilder.h"
 #include "HuaEngine/Rendering/RenderPipeline/RenderResourceResolver.h"
+#include "HuaEngine/Rendering/RenderPipeline/UniformBufferArena.h"
 #include "HuaEngine/Rendering/RHI/CommandSubmission.h"
 #include "HuaEngine/Rendering/RHI/CommandList.h"
 #include "HuaEngine/Rendering/RHI/RenderDevice.h"
@@ -13,6 +14,36 @@ namespace HE::Editor {
 			glm::vec3 Position;
 			glm::vec3 Color;
 		};
+
+		Rendering::ShaderUniformBlockBinding MakeMatrixBlock(
+			std::string name,
+			std::string memberName,
+			uint32_t set,
+			uint32_t bindingPoint,
+			uint8_t stageMask) {
+			return {
+				.Name = std::move(name),
+				.Set = set,
+				.Binding = 0,
+				.BindingPoint = bindingPoint,
+				.Size = 64,
+				.StageMask = stageMask,
+				.Members = {{ .Name = std::move(memberName), .Offset = 0, .Size = 64 }}
+			};
+		}
+
+		Rendering::ShaderConstantBuffer MakeMatrixInterfaceBlock(
+			std::string name,
+			std::string memberName,
+			uint32_t set) {
+			return {
+				std::move(name),
+				set,
+				0,
+				64,
+				{{ std::move(memberName), Rendering::ShaderValueType::Float4x4, 0, 64, 16, 0, true }}
+			};
+		}
 	}
 
 	void EditorGridPass::Configure(
@@ -50,14 +81,22 @@ namespace HE::Editor {
 
 		auto vertexBuffer = context.Device->CreateBuffer({ .Usage = Rendering::GpuBufferUsage::Vertex, .Size = static_cast<uint32_t>(vertices.size() * sizeof(GridVertex)), .Stride = sizeof(GridVertex) }, vertices.data());
 		auto indexBuffer = context.Device->CreateBuffer({ .Usage = Rendering::GpuBufferUsage::Index, .Size = static_cast<uint32_t>(indices.size() * sizeof(uint32_t)), .Stride = sizeof(uint32_t) }, indices.data());
-		auto shader = context.Device->CreateShaderProgram({
-			.VertexSource = "#version 330 core\nlayout(location=0) in vec3 a_Position; layout(location=1) in vec3 a_Color; layout(std140) uniform FrameData { mat4 u_ViewProjection; }; out vec3 v_Color; void main(){ gl_Position=u_ViewProjection*vec4(a_Position,1.0); v_Color=a_Color; }",
-			.FragmentSource = "#version 330 core\nin vec3 v_Color; layout(location=0) out vec4 color; void main(){ color=vec4(v_Color,1.0); }",
-			.UniformBlocks = { { .Name = "FrameData", .Set = 0, .Binding = 0, .BindingPoint = 0, .Size = 64, .Members = {{ .Name = "u_ViewProjection", .Offset = 0, .Size = 64 }} } }
-		});
+		Rendering::ShaderGpuInterface gridInterface;
+		gridInterface.Resources = {{ "FrameData", Rendering::ShaderResourceType::ConstantBuffer, 0, 0, 1, Rendering::ShaderStageVertex }};
+		gridInterface.ConstantBuffers = { MakeMatrixInterfaceBlock("FrameData", "u_ViewProjection", 0) };
+		Rendering::ShaderResourceMap gridResourceMap;
+		gridResourceMap.UniformBlocks = { MakeMatrixBlock("FrameData", "u_ViewProjection", 0, 0, Rendering::ShaderStageVertex) };
+		Rendering::ShaderProgramDesc gridShaderDesc;
+		if (!Rendering::BuildOpenGlShaderProgramDesc(
+			"#version 330 core\nlayout(location=0) in vec3 a_Position; layout(location=1) in vec3 a_Color; layout(std140) uniform FrameData { mat4 u_ViewProjection; }; out vec3 v_Color; void main(){ gl_Position=u_ViewProjection*vec4(a_Position,1.0); v_Color=a_Color; }",
+			"#version 330 core\nin vec3 v_Color; layout(location=0) out vec4 color; void main(){ color=vec4(v_Color,1.0); }",
+			std::move(gridInterface),
+			std::move(gridResourceMap),
+			gridShaderDesc).Succeeded()) return;
+		auto shader = context.Device->CreateShaderProgram(gridShaderDesc);
 		if (!shader) return;
-		const auto& frameBlock = shader->GetDesc().UniformBlocks.front();
-		auto frameLayout = Rendering::CreateUniformBlockBindGroupLayout(*context.Device, Rendering::BindGroupScope::Frame, frameBlock);
+		const auto& frameBlock = shader->GetDesc().ResourceMap.UniformBlocks.front();
+		auto frameLayout = Rendering::CreateUniformBlockBindGroupLayout(*context.Device, Rendering::BindGroupScope::Frame, frameBlock, shader->GetDesc().Interface.Digest);
 		auto frameBindGroup = Rendering::CreateFrameBindGroup(*context.Device, context.ResourceResolver->GetUniformBufferArena(*context.Device), frameBlock, frameLayout, context.View->CameraRef->GetViewProjection());
 		if (!vertexBuffer || !indexBuffer || !shader || !frameLayout || !frameBindGroup) return;
 		auto pipeline = context.Device->CreatePipelineState({
@@ -106,23 +145,39 @@ namespace HE::Editor {
 			return;
 		}
 
-		auto idLayout = context.Device->CreateBindGroupLayout({
-			.Scope = Rendering::BindGroupScope::Object,
-			.Entries = { { .Name = "u_EntityId", .Type = Rendering::BindingValueType::Float4, .Binding = 0, .Visibility = Rendering::ShaderStageFragment } }
-		});
-		auto shader = context.Device->CreateShaderProgram({
-			.VertexSource = "#version 330 core\nlayout(location=0) in vec3 a_Position; layout(std140) uniform FrameData { mat4 u_ViewProjection; }; layout(std140) uniform ObjectData { mat4 u_Transform; }; void main(){ gl_Position=u_ViewProjection*u_Transform*vec4(a_Position,1.0); }",
-			.FragmentSource = "#version 330 core\nuniform vec4 u_EntityId; layout(location=0) out vec4 color; void main(){ color=u_EntityId; }",
-			.UniformBlocks = {
-				{ .Name = "FrameData", .Set = 0, .Binding = 0, .BindingPoint = 0, .Size = 64, .Members = {{ .Name = "u_ViewProjection", .Offset = 0, .Size = 64 }} },
-				{ .Name = "ObjectData", .Set = 2, .Binding = 0, .BindingPoint = 2, .Size = 64, .Members = {{ .Name = "u_Transform", .Offset = 0, .Size = 64 }} }
-			}
-		});
+		Rendering::ShaderGpuInterface idInterface;
+		idInterface.Resources = {
+			{ "FrameData", Rendering::ShaderResourceType::ConstantBuffer, 0, 0, 1, Rendering::ShaderStageVertex },
+			{ "DrawData", Rendering::ShaderResourceType::ConstantBuffer, 1, 0, 1, Rendering::ShaderStageVertex },
+			{ "SelectionData", Rendering::ShaderResourceType::ConstantBuffer, 2, 0, 1, Rendering::ShaderStageFragment }
+		};
+		idInterface.ConstantBuffers = {
+			MakeMatrixInterfaceBlock("FrameData", "u_ViewProjection", 0),
+			MakeMatrixInterfaceBlock("DrawData", "u_Transform", 1),
+			{ "SelectionData", 2, 0, 16, {{ "u_EntityId", Rendering::ShaderValueType::Float4, 0, 16 }} }
+		};
+		Rendering::ShaderResourceMap idResourceMap;
+		idResourceMap.UniformBlocks = {
+			MakeMatrixBlock("FrameData", "u_ViewProjection", 0, 0, Rendering::ShaderStageVertex),
+			MakeMatrixBlock("DrawData", "u_Transform", 1, 1, Rendering::ShaderStageVertex),
+			{ .Name = "SelectionData", .Set = 2, .Binding = 0, .BindingPoint = 2, .Size = 16, .StageMask = Rendering::ShaderStageFragment, .Members = {{ .Name = "u_EntityId", .Offset = 0, .Size = 16 }} }
+		};
+		Rendering::ShaderProgramDesc idShaderDesc;
+		if (!Rendering::BuildOpenGlShaderProgramDesc(
+			"#version 330 core\nlayout(location=0) in vec3 a_Position; layout(std140) uniform FrameData { mat4 u_ViewProjection; }; layout(std140) uniform DrawData { mat4 u_Transform; }; void main(){ gl_Position=u_ViewProjection*u_Transform*vec4(a_Position,1.0); }",
+			"#version 330 core\nlayout(std140) uniform SelectionData { vec4 u_EntityId; }; layout(location=0) out vec4 color; void main(){ color=u_EntityId; }",
+			std::move(idInterface),
+			std::move(idResourceMap),
+			idShaderDesc).Succeeded()) return;
+		auto shader = context.Device->CreateShaderProgram(idShaderDesc);
 		if (!shader) return;
-		const auto& frameBlock = shader->GetDesc().UniformBlocks[0];
-		const auto& objectBlock = shader->GetDesc().UniformBlocks[1];
-		auto frameLayout = Rendering::CreateUniformBlockBindGroupLayout(*context.Device, Rendering::BindGroupScope::Frame, frameBlock);
-		auto objectLayout = Rendering::CreateUniformBlockBindGroupLayout(*context.Device, Rendering::BindGroupScope::Object, objectBlock);
+		const auto& shaderDesc = shader->GetDesc();
+		const auto& frameBlock = shaderDesc.ResourceMap.UniformBlocks[0];
+		const auto& objectBlock = shaderDesc.ResourceMap.UniformBlocks[1];
+		const auto& idBlock = shaderDesc.ResourceMap.UniformBlocks[2];
+		auto frameLayout = Rendering::CreateUniformBlockBindGroupLayout(*context.Device, Rendering::BindGroupScope::Frame, frameBlock, shaderDesc.Interface.Digest);
+		auto objectLayout = Rendering::CreateUniformBlockBindGroupLayout(*context.Device, Rendering::BindGroupScope::Material, objectBlock, shaderDesc.Interface.Digest);
+		auto idLayout = Rendering::CreateUniformBlockBindGroupLayout(*context.Device, Rendering::BindGroupScope::Object, idBlock, shaderDesc.Interface.Digest);
 		auto& uniformArena = context.ResourceResolver->GetUniformBufferArena(*context.Device);
 		auto frameBindGroup = Rendering::CreateFrameBindGroup(*context.Device, uniformArena, frameBlock, frameLayout, context.View->CameraRef->GetViewProjection());
 		if (!frameLayout || !objectLayout || !idLayout || !frameBindGroup || !shader) {
@@ -166,9 +221,11 @@ namespace HE::Editor {
 				static_cast<float>((entityId >> 8u) & 0xffu) / 255.0f,
 				static_cast<float>((entityId >> 16u) & 0xffu) / 255.0f,
 				static_cast<float>((entityId >> 24u) & 0xffu) / 255.0f);
+			Rendering::UniformBufferAllocation idAllocation;
+			if (!uniformArena.Allocate(&encodedId, sizeof(encodedId), idAllocation)) continue;
 			auto idBindGroup = context.Device->CreateBindGroup({
 				.Layout = idLayout,
-				.Entries = { { .Name = "u_EntityId", .Type = Rendering::BindingValueType::Float4, .Value = encodedId, .Binding = 0 } }
+				.Entries = {{ .Name = idBlock.Name, .Type = Rendering::BindingValueType::UniformBuffer, .Value = idAllocation.Buffer, .Binding = idBlock.BindingPoint, .Offset = idAllocation.Offset, .Size = idBlock.Size }}
 			});
 			if (!objectBindGroup || !idBindGroup) {
 				continue;

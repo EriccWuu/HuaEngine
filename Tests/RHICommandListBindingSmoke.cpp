@@ -183,8 +183,8 @@ int main() {
 	const std::string vertexSource = R"(
 		#version 330 core
 		layout(location = 0) in vec3 a_Position;
-		uniform mat4 u_ViewProjection;
-		uniform mat4 u_Transform;
+		layout(std140) uniform FrameData { mat4 u_ViewProjection; };
+		layout(std140) uniform ObjectData { mat4 u_Transform; };
 		void main() {
 			gl_Position = u_ViewProjection * u_Transform * vec4(a_Position, 1.0);
 		}
@@ -193,39 +193,66 @@ int main() {
 	const std::string fragmentSource = R"(
 		#version 330 core
 		layout(location = 0) out vec4 color;
-		uniform vec4 u_Color;
+		layout(std140) uniform MaterialData { vec4 u_Color; };
 		void main() {
 			color = u_Color;
 		}
 	)";
 
-	auto shaderProgram = device.CreateShaderProgram({
-		.VertexSource = vertexSource,
-		.FragmentSource = fragmentSource
-	});
+	HE::Rendering::ShaderGpuInterface gpuInterface;
+	gpuInterface.Resources = {
+		{ "FrameData", HE::Rendering::ShaderResourceType::ConstantBuffer, 0, 0, 1, HE::Rendering::ShaderStageVertex },
+		{ "MaterialData", HE::Rendering::ShaderResourceType::ConstantBuffer, 1, 0, 1, HE::Rendering::ShaderStageFragment },
+		{ "ObjectData", HE::Rendering::ShaderResourceType::ConstantBuffer, 2, 0, 1, HE::Rendering::ShaderStageVertex }
+	};
+	gpuInterface.ConstantBuffers = {
+		{ "FrameData", 0, 0, 64, {{ "u_ViewProjection", HE::Rendering::ShaderValueType::Float4x4, 0, 64, 16, 0, true }} },
+		{ "MaterialData", 1, 0, 16, {{ "u_Color", HE::Rendering::ShaderValueType::Float4, 0, 16 }} },
+		{ "ObjectData", 2, 0, 64, {{ "u_Transform", HE::Rendering::ShaderValueType::Float4x4, 0, 64, 16, 0, true }} }
+	};
+	HE::Rendering::ShaderResourceMap resourceMap;
+	resourceMap.UniformBlocks = {
+		{ .Name = "FrameData", .Set = 0, .Binding = 0, .BindingPoint = 0, .Size = 64, .StageMask = HE::Rendering::ShaderStageVertex, .Members = {{ .Name = "u_ViewProjection", .Offset = 0, .Size = 64 }} },
+		{ .Name = "MaterialData", .Set = 1, .Binding = 0, .BindingPoint = 1, .Size = 16, .StageMask = HE::Rendering::ShaderStageFragment, .Members = {{ .Name = "u_Color", .Offset = 0, .Size = 16 }} },
+		{ .Name = "ObjectData", .Set = 2, .Binding = 0, .BindingPoint = 2, .Size = 64, .StageMask = HE::Rendering::ShaderStageVertex, .Members = {{ .Name = "u_Transform", .Offset = 0, .Size = 64 }} }
+	};
+	HE::Rendering::ShaderProgramDesc shaderDesc;
+	Require(HE::Rendering::BuildOpenGlShaderProgramDesc(vertexSource, fragmentSource, std::move(gpuInterface), std::move(resourceMap), shaderDesc).Succeeded(), "Expected shader descriptor creation to succeed");
+	auto shaderProgram = device.CreateShaderProgram(shaderDesc);
 	Require(static_cast<bool>(shaderProgram), "Expected shader program creation to succeed");
 
 	HE::Rendering::RenderCamera camera;
+	const glm::mat4 viewProjection = camera.GetViewProjection();
+	const glm::vec4 materialColor(0.9f, 0.2f, 0.1f, 1.0f);
+	const glm::mat4 objectTransform(1.0f);
+	auto frameBuffer = device.CreateBuffer({ .Usage = HE::Rendering::GpuBufferUsage::Uniform, .Size = 64, .Stride = 16 }, &viewProjection[0][0]);
+	auto materialBuffer = device.CreateBuffer({ .Usage = HE::Rendering::GpuBufferUsage::Uniform, .Size = 16, .Stride = 16 }, &materialColor[0]);
+	auto objectBuffer = device.CreateBuffer({ .Usage = HE::Rendering::GpuBufferUsage::Uniform, .Size = 64, .Stride = 16 }, &objectTransform[0][0]);
+	Require(frameBuffer && materialBuffer && objectBuffer, "Expected uniform buffer creation to succeed");
 
 	auto frameBindGroupLayout = device.CreateBindGroupLayout({
 		.Scope = HE::Rendering::BindGroupScope::Frame,
 		.Entries = {
 			{
-				.Name = "u_ViewProjection",
-				.Type = HE::Rendering::BindingValueType::Mat4,
-				.Binding = 0
+				.Name = "FrameData",
+				.Type = HE::Rendering::BindingValueType::UniformBuffer,
+				.Binding = 0,
+				.Visibility = HE::Rendering::ShaderStageVertex,
+				.MinBindingSize = 64
 			}
-		}
+		},
+		.InterfaceDigest = shaderDesc.Interface.Digest
 	});
 	Require(static_cast<bool>(frameBindGroupLayout), "Expected frame bind group layout creation to succeed");
 	auto frameBindGroup = device.CreateBindGroup({
 		.Layout = frameBindGroupLayout,
 		.Entries = {
 			{
-				.Name = "u_ViewProjection",
-				.Type = HE::Rendering::BindingValueType::Mat4,
-				.Value = camera.GetViewProjection(),
-				.Binding = 0
+				.Name = "FrameData",
+				.Type = HE::Rendering::BindingValueType::UniformBuffer,
+				.Value = frameBuffer,
+				.Binding = 0,
+				.Size = 64
 			}
 		}
 	});
@@ -235,21 +262,25 @@ int main() {
 		.Scope = HE::Rendering::BindGroupScope::Material,
 		.Entries = {
 			{
-				.Name = "u_Color",
-				.Type = HE::Rendering::BindingValueType::Float4,
-				.Binding = 0
+				.Name = "MaterialData",
+				.Type = HE::Rendering::BindingValueType::UniformBuffer,
+				.Binding = 1,
+				.Visibility = HE::Rendering::ShaderStageFragment,
+				.MinBindingSize = 16
 			}
-		}
+		},
+		.InterfaceDigest = shaderDesc.Interface.Digest
 	});
 	Require(static_cast<bool>(materialBindGroupLayout), "Expected material bind group layout creation to succeed");
 	auto materialBindGroup = device.CreateBindGroup({
 		.Layout = materialBindGroupLayout,
 		.Entries = {
 			{
-				.Name = "u_Color",
-				.Type = HE::Rendering::BindingValueType::Float4,
-				.Value = glm::vec4(0.9f, 0.2f, 0.1f, 1.0f),
-				.Binding = 0
+				.Name = "MaterialData",
+				.Type = HE::Rendering::BindingValueType::UniformBuffer,
+				.Value = materialBuffer,
+				.Binding = 1,
+				.Size = 16
 			}
 		}
 	});
@@ -259,21 +290,25 @@ int main() {
 		.Scope = HE::Rendering::BindGroupScope::Object,
 		.Entries = {
 			{
-				.Name = "u_Transform",
-				.Type = HE::Rendering::BindingValueType::Mat4,
-				.Binding = 0
+				.Name = "ObjectData",
+				.Type = HE::Rendering::BindingValueType::UniformBuffer,
+				.Binding = 2,
+				.Visibility = HE::Rendering::ShaderStageVertex,
+				.MinBindingSize = 64
 			}
-		}
+		},
+		.InterfaceDigest = shaderDesc.Interface.Digest
 	});
 	Require(static_cast<bool>(objectBindGroupLayout), "Expected object bind group layout creation to succeed");
 	auto objectBindGroup = device.CreateBindGroup({
 		.Layout = objectBindGroupLayout,
 		.Entries = {
 			{
-				.Name = "u_Transform",
-				.Type = HE::Rendering::BindingValueType::Mat4,
-				.Value = glm::mat4(1.0f),
-				.Binding = 0
+				.Name = "ObjectData",
+				.Type = HE::Rendering::BindingValueType::UniformBuffer,
+				.Value = objectBuffer,
+				.Binding = 2,
+				.Size = 64
 			}
 		}
 	});
@@ -283,21 +318,25 @@ int main() {
 		.Scope = HE::Rendering::BindGroupScope::Material,
 		.Entries = {
 			{
-				.Name = "u_Transform",
-				.Type = HE::Rendering::BindingValueType::Mat4,
-				.Binding = 0
+				.Name = "ObjectData",
+				.Type = HE::Rendering::BindingValueType::UniformBuffer,
+				.Binding = 2,
+				.Visibility = HE::Rendering::ShaderStageVertex,
+				.MinBindingSize = 64
 			}
-		}
+		},
+		.InterfaceDigest = shaderDesc.Interface.Digest
 	});
 	Require(static_cast<bool>(wrongObjectBindGroupLayout), "Expected wrong object bind group layout creation to succeed");
 	auto wrongObjectBindGroup = device.CreateBindGroup({
 		.Layout = wrongObjectBindGroupLayout,
 		.Entries = {
 			{
-				.Name = "u_Transform",
-				.Type = HE::Rendering::BindingValueType::Mat4,
-				.Value = glm::mat4(1.0f),
-				.Binding = 0
+				.Name = "ObjectData",
+				.Type = HE::Rendering::BindingValueType::UniformBuffer,
+				.Value = objectBuffer,
+				.Binding = 2,
+				.Size = 64
 			}
 		}
 	});
@@ -354,6 +393,11 @@ int main() {
 			.Cull = HE::Rendering::CullMode::None,
 			.FrontFaceMode = HE::Rendering::FrontFace::Clockwise,
 			.Fill = HE::Rendering::FillMode::Wireframe
+		},
+		.BindGroupLayouts = {
+			{ .Slot = 0, .Layout = frameBindGroupLayout },
+			{ .Slot = 1, .Layout = materialBindGroupLayout },
+			{ .Slot = 2, .Layout = objectBindGroupLayout }
 		}
 	});
 	Require(static_cast<bool>(renderStateBackendPipeline), "Expected backend render state pipeline creation to succeed");
@@ -407,25 +451,36 @@ int main() {
 			color = texture(u_SourceTexture, vec2(0.5, 0.5));
 		}
 	)";
-	auto samplingShaderProgram = device.CreateShaderProgram({
-		.VertexSource = samplingVertexSource,
-		.FragmentSource = samplingFragmentSource
-	});
+	HE::Rendering::ShaderGpuInterface samplingInterface;
+	samplingInterface.Resources = {
+		{ "u_SourceTexture", HE::Rendering::ShaderResourceType::Texture2D, 1, 0, 1, HE::Rendering::ShaderStageFragment },
+		{ "u_SourceSampler", HE::Rendering::ShaderResourceType::Sampler, 1, 1, 1, HE::Rendering::ShaderStageFragment }
+	};
+	HE::Rendering::ShaderResourceMap samplingResourceMap;
+	samplingResourceMap.Textures = {{
+		.TextureName = "u_SourceTexture",
+		.SamplerName = "u_SourceSampler",
+		.UniformName = "u_SourceTexture",
+		.TextureSet = 1,
+		.TextureBinding = 0,
+		.SamplerSet = 1,
+		.SamplerBinding = 1,
+		.TextureUnit = 0,
+		.StageMask = HE::Rendering::ShaderStageFragment
+	}};
+	HE::Rendering::ShaderProgramDesc samplingShaderDesc;
+	Require(HE::Rendering::BuildOpenGlShaderProgramDesc(samplingVertexSource, samplingFragmentSource, std::move(samplingInterface), std::move(samplingResourceMap), samplingShaderDesc).Succeeded(), "Expected attachment sampling shader descriptor");
+	auto samplingShaderProgram = device.CreateShaderProgram(samplingShaderDesc);
 	Require(static_cast<bool>(samplingShaderProgram), "Expected attachment sampling shader creation to succeed");
 	auto samplingBindGroupLayout = device.CreateBindGroupLayout({
 		.Scope = HE::Rendering::BindGroupScope::Material,
-		.Entries = {
-			{
-				.Name = "u_SourceTexture",
-				.Type = HE::Rendering::BindingValueType::TextureView,
-				.Binding = 0
-			},
-			{
-				.Name = "u_SourceSampler",
-				.Type = HE::Rendering::BindingValueType::Sampler,
-				.Binding = 1
-			}
-		}
+		.Entries = {{
+			.Name = "u_SourceTexture",
+			.Type = HE::Rendering::BindingValueType::Texture,
+			.Binding = 0,
+			.Visibility = HE::Rendering::ShaderStageFragment
+		}},
+		.InterfaceDigest = samplingShaderDesc.Interface.Digest
 	});
 	Require(static_cast<bool>(samplingBindGroupLayout), "Expected attachment sampling bind group layout creation to succeed");
 	auto samplingPipeline = device.CreatePipelineState({
@@ -439,7 +494,7 @@ int main() {
 		},
 		.BindGroupLayouts = {
 			{
-				.Slot = 0,
+				.Slot = 1,
 				.Layout = samplingBindGroupLayout
 			}
 		}
@@ -477,35 +532,21 @@ int main() {
 				return;
 			}
 
-			auto sampledView = context.Device->CreateTextureView({ .Texture = runtimeResource->Texture });
-			auto sampledSampler = context.Device->CreateSampler({
-				.AddressU = HE::Rendering::SamplerAddressMode::ClampToEdge,
-				.AddressV = HE::Rendering::SamplerAddressMode::ClampToEdge
-			});
 			auto sampledBindGroup = context.Device->CreateBindGroup({
 				.Layout = samplingBindGroupLayout,
-				.Entries = {
-					{
-						.Name = "u_SourceTexture",
-						.Type = HE::Rendering::BindingValueType::TextureView,
-						.Value = sampledView,
-						.Binding = 0,
-						.TextureSlot = 0
-					},
-					{
-						.Name = "u_SourceSampler",
-						.Type = HE::Rendering::BindingValueType::Sampler,
-						.Value = sampledSampler,
-						.Binding = 1,
-						.TextureSlot = 0
-					}
-				}
+				.Entries = {{
+					.Name = "u_SourceTexture",
+					.Type = HE::Rendering::BindingValueType::Texture,
+					.Value = runtimeResource->Texture,
+					.Binding = 0,
+					.TextureSlot = 0
+				}}
 			});
-			if (!sampledView || !sampledSampler || !sampledBindGroup) {
+			if (!sampledBindGroup) {
 				return;
 			}
 
-			readerBoundRuntimeAttachment = sampledView->GetDesc().Texture == runtimeResource->Texture;
+			readerBoundRuntimeAttachment = std::get<HE::Ref<HE::Rendering::TextureResource>>(sampledBindGroup->GetDesc().Entries[0].Value) == runtimeResource->Texture;
 			context.Commands->BeginRenderPass({
 				.ColorAttachments = {
 					{
@@ -519,7 +560,7 @@ int main() {
 			context.Commands->BeginFrame();
 			context.Commands->SetPipelineState(*samplingPipeline);
 			context.Commands->SetVertexBufferView(*vertexBufferView);
-			context.Commands->SetBindGroup(0, *sampledBindGroup);
+			context.Commands->SetBindGroup(1, *sampledBindGroup);
 			context.Commands->DrawIndexed(vertexBufferView->GetDesc().IndexCount);
 			context.Commands->EndFrame();
 			context.Commands->EndRenderPass();

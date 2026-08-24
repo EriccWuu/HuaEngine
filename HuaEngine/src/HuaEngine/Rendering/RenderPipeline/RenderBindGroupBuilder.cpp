@@ -33,19 +33,20 @@ namespace HE::Rendering {
 		}
 	}
 
-	Ref<BindGroupLayout> CreateUniformBlockBindGroupLayout(RenderDevice& device, BindGroupScope scope, const ShaderUniformBlockBinding& block) {
+	Ref<BindGroupLayout> CreateUniformBlockBindGroupLayout(RenderDevice& device, BindGroupScope scope, const ShaderUniformBlockBinding& block, const Sha256Digest& interfaceDigest) {
 		if (block.Size == 0) return nullptr;
 		return device.CreateBindGroupLayout({
 			.Scope = scope,
-			.Entries = {{ .Name = block.Name, .Type = BindingValueType::UniformBuffer, .Binding = block.BindingPoint, .MinBindingSize = block.Size }}
+			.Entries = {{ .Name = block.Name, .Type = BindingValueType::UniformBuffer, .Binding = block.BindingPoint, .Visibility = block.StageMask, .MinBindingSize = block.Size }},
+			.InterfaceDigest = interfaceDigest
 		});
 	}
 
-	Ref<BindGroupLayout> CreateMaterialBindGroupLayout(RenderDevice& device, const ShaderUniformBlockBinding& block, const std::vector<ShaderTextureBinding>& textures) {
+	Ref<BindGroupLayout> CreateMaterialBindGroupLayout(RenderDevice& device, const ShaderUniformBlockBinding& block, const std::vector<ShaderTextureBinding>& textures, const Sha256Digest& interfaceDigest) {
 		if (block.Size == 0) return nullptr;
-		std::vector<BindGroupLayoutEntry> entries = {{ .Name = block.Name, .Type = BindingValueType::UniformBuffer, .Binding = block.BindingPoint, .MinBindingSize = block.Size }};
-		for (const auto& texture : textures) entries.push_back({ .Name = texture.UniformName, .Type = BindingValueType::Texture, .Binding = texture.TextureUnit });
-		return device.CreateBindGroupLayout({ .Scope = BindGroupScope::Material, .Entries = std::move(entries) });
+		std::vector<BindGroupLayoutEntry> entries = {{ .Name = block.Name, .Type = BindingValueType::UniformBuffer, .Binding = block.BindingPoint, .Visibility = block.StageMask, .MinBindingSize = block.Size }};
+		for (const auto& texture : textures) entries.push_back({ .Name = texture.UniformName, .Type = BindingValueType::Texture, .Binding = texture.TextureUnit, .Visibility = texture.StageMask });
+		return device.CreateBindGroupLayout({ .Scope = BindGroupScope::Material, .Entries = std::move(entries), .InterfaceDigest = interfaceDigest });
 	}
 
 	Ref<BindGroup> CreateFrameBindGroup(RenderDevice& device, UniformBufferArena& arena, const ShaderUniformBlockBinding& block, Ref<BindGroupLayout> layout, const glm::mat4& viewProjection) {

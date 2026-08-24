@@ -3,6 +3,9 @@
 
 #include <algorithm>
 #include <filesystem>
+#include <map>
+#include <set>
+#include <tuple>
 
 #include "glad/glad.h"
 #include "stb_image.h"
@@ -161,14 +164,90 @@ namespace {
 		return false;
 	}
 
-	bool ValidateShaderProgramSources(const HE::Rendering::ShaderProgramDesc& desc) {
+	bool ExtractOpenGlStageSource(
+		const HE::Rendering::ShaderProgramDesc& desc,
+		HE::Rendering::ShaderStage stage,
+		std::string& output) {
+		output.clear();
+		const auto entry = std::find_if(desc.Stages.begin(), desc.Stages.end(), [&](const auto& candidate) {
+			return candidate.Stage == stage;
+		});
+		if (entry == desc.Stages.end() || entry->Format != HE::Rendering::ShaderStageCodeFormat::OpenGlGlsl || entry->EntryPoint != "main" ||
+			entry->Code.empty() || std::find(entry->Code.begin(), entry->Code.end(), uint8_t{ 0 }) != entry->Code.end()) {
+			return false;
+		}
+		output.assign(entry->Code.begin(), entry->Code.end());
+		return true;
+	}
+
+	bool ValidateShaderResourceMap(const HE::Rendering::ShaderProgramDesc& desc) {
+		const auto& gpu = desc.Interface;
+		std::set<uint32_t> uniformBindingPoints;
+		for (const auto& buffer : gpu.ConstantBuffers) {
+			const auto resource = std::find_if(gpu.Resources.begin(), gpu.Resources.end(), [&](const auto& value) {
+				return value.Set == buffer.Set && value.Binding == buffer.Binding && value.Type == HE::Rendering::ShaderResourceType::ConstantBuffer;
+			});
+			const auto mapping = std::find_if(desc.ResourceMap.UniformBlocks.begin(), desc.ResourceMap.UniformBlocks.end(), [&](const auto& value) {
+				return value.Set == buffer.Set && value.Binding == buffer.Binding;
+			});
+			if (resource == gpu.Resources.end() || mapping == desc.ResourceMap.UniformBlocks.end() ||
+				mapping->Name != buffer.Name || mapping->Size != buffer.Size || mapping->StageMask != resource->StageMask ||
+				mapping->Members.size() != buffer.Members.size() || !uniformBindingPoints.emplace(mapping->BindingPoint).second) {
+				return false;
+			}
+			for (const auto& member : buffer.Members) {
+				const auto mappedMember = std::find_if(mapping->Members.begin(), mapping->Members.end(), [&](const auto& value) {
+					return value.Name == member.Name;
+				});
+				if (mappedMember == mapping->Members.end() || mappedMember->Offset != member.Offset || mappedMember->Size != member.Size) return false;
+			}
+		}
+		if (desc.ResourceMap.UniformBlocks.size() != gpu.ConstantBuffers.size()) return false;
+
+		std::set<uint32_t> textureUnits;
+		std::set<std::pair<uint32_t, uint32_t>> mappedTextures;
+		for (const auto& mapping : desc.ResourceMap.Textures) {
+			const auto texture = std::find_if(gpu.Resources.begin(), gpu.Resources.end(), [&](const auto& value) {
+				return value.Set == mapping.TextureSet && value.Binding == mapping.TextureBinding && value.Type == HE::Rendering::ShaderResourceType::Texture2D && value.Name == mapping.TextureName;
+			});
+			const auto sampler = std::find_if(gpu.Resources.begin(), gpu.Resources.end(), [&](const auto& value) {
+				return value.Set == mapping.SamplerSet && value.Binding == mapping.SamplerBinding && value.Type == HE::Rendering::ShaderResourceType::Sampler && value.Name == mapping.SamplerName;
+			});
+			if (texture == gpu.Resources.end() || sampler == gpu.Resources.end() || mapping.TextureSet != mapping.SamplerSet ||
+				mapping.UniformName.empty() || mapping.StageMask != (texture->StageMask | sampler->StageMask) ||
+				!textureUnits.emplace(mapping.TextureUnit).second || !mappedTextures.emplace(mapping.TextureSet, mapping.TextureBinding).second) {
+				return false;
+			}
+		}
+		const auto textureCount = std::count_if(gpu.Resources.begin(), gpu.Resources.end(), [](const auto& value) {
+			return value.Type == HE::Rendering::ShaderResourceType::Texture2D;
+		});
+		return desc.ResourceMap.Textures.size() == static_cast<size_t>(textureCount);
+	}
+
+	bool ValidateShaderProgramDesc(
+		const HE::Rendering::ShaderProgramDesc& desc,
+		std::string& vertexSource,
+		std::string& fragmentSource) {
+		if (desc.Stages.size() != 2 || !ExtractOpenGlStageSource(desc, HE::Rendering::ShaderStage::Vertex, vertexSource) ||
+			!ExtractOpenGlStageSource(desc, HE::Rendering::ShaderStage::Fragment, fragmentSource)) return false;
+		HE::Rendering::ShaderInterface finalized;
+		finalized.Gpu = desc.Interface;
+		const auto storedDigest = desc.Interface.Digest;
+		const auto storedSignature = desc.Interface.Signature;
+		if (!HE::Rendering::FinalizeShaderInterface(finalized).Succeeded() || finalized.Gpu.Digest != storedDigest ||
+			finalized.Gpu.Signature != storedSignature || !ValidateShaderResourceMap(desc)) return false;
+		return true;
+	}
+
+	bool ValidateShaderProgramSources(const std::string& vertexSource, const std::string& fragmentSource) {
 		GLuint vertexShader = 0;
 		GLuint fragmentShader = 0;
-		if (!CompileTemporaryShader(GL_VERTEX_SHADER, desc.VertexSource, vertexShader)) {
+		if (!CompileTemporaryShader(GL_VERTEX_SHADER, vertexSource, vertexShader)) {
 			return false;
 		}
 
-		if (!CompileTemporaryShader(GL_FRAGMENT_SHADER, desc.FragmentSource, fragmentShader)) {
+		if (!CompileTemporaryShader(GL_FRAGMENT_SHADER, fragmentSource, fragmentShader)) {
 			glDeleteShader(vertexShader);
 			return false;
 		}
@@ -221,23 +300,37 @@ namespace {
 	}
 
 	bool ValidatePipelineBindGroupLayouts(const HE::Rendering::PipelineStateDesc& desc) {
-		std::vector<uint32_t> slots;
-		slots.reserve(desc.BindGroupLayouts.size());
-
+		if (!desc.Shader) return false;
+		std::map<uint32_t, HE::Rendering::BindGroupLayoutDesc> expectedLayouts;
+		const auto& shaderDesc = desc.Shader->GetDesc();
+		for (const auto& block : shaderDesc.ResourceMap.UniformBlocks) {
+			auto& expected = expectedLayouts[block.Set];
+			expected.Scope = static_cast<HE::Rendering::BindGroupScope>(block.Set);
+			expected.InterfaceDigest = shaderDesc.Interface.Digest;
+			expected.Entries.push_back({ block.Name, HE::Rendering::BindingValueType::UniformBuffer, block.BindingPoint, block.StageMask, block.Size });
+		}
+		for (const auto& texture : shaderDesc.ResourceMap.Textures) {
+			auto& expected = expectedLayouts[texture.TextureSet];
+			expected.Scope = static_cast<HE::Rendering::BindGroupScope>(texture.TextureSet);
+			expected.InterfaceDigest = shaderDesc.Interface.Digest;
+			expected.Entries.push_back({ texture.UniformName, HE::Rendering::BindingValueType::Texture, texture.TextureUnit, texture.StageMask, 0 });
+		}
+		if (expectedLayouts.size() != desc.BindGroupLayouts.size()) return false;
+		std::set<uint32_t> slots;
 		for (const auto& layoutRef : desc.BindGroupLayouts) {
-			if (!layoutRef.Layout) {
+			if (!layoutRef.Layout || layoutRef.Slot > 2 || !slots.emplace(layoutRef.Slot).second) {
 				HE_CORE_ERROR("Pipeline state bind group layout slot {0} is null", layoutRef.Slot);
 				return false;
 			}
-
-			if (std::find(slots.begin(), slots.end(), layoutRef.Slot) != slots.end()) {
-				HE_CORE_ERROR("Pipeline state bind group layout slot {0} is duplicated", layoutRef.Slot);
-				return false;
-			}
-
-			slots.push_back(layoutRef.Slot);
+			const auto expected = expectedLayouts.find(layoutRef.Slot);
+			if (expected == expectedLayouts.end()) return false;
+			auto expectedDesc = expected->second;
+			auto actualDesc = layoutRef.Layout->GetDesc();
+			const auto order = [](const auto& left, const auto& right) { return std::tie(left.Binding, left.Type, left.Name) < std::tie(right.Binding, right.Type, right.Name); };
+			std::sort(expectedDesc.Entries.begin(), expectedDesc.Entries.end(), order);
+			std::sort(actualDesc.Entries.begin(), actualDesc.Entries.end(), order);
+			if (!BindGroupLayoutEntriesMatch(expectedDesc, actualDesc) || actualDesc.InterfaceDigest != shaderDesc.Interface.Digest) return false;
 		}
-
 		return true;
 	}
 
@@ -1015,15 +1108,22 @@ namespace HE::Rendering {
 	}
 
 	OpenGLShaderProgram::OpenGLShaderProgram(const ShaderProgramDesc& desc)
-		: m_Desc(desc), m_Shader(CreateRef<OpenGLShader>(desc.VertexSource, desc.FragmentSource)) {
-		GLint bindingLimit = 0;
-		glGetIntegerv(GL_MAX_UNIFORM_BUFFER_BINDINGS, &bindingLimit);
-		if (m_Desc.UniformBlocks.size() > static_cast<size_t>(bindingLimit)) {
-			HE_CORE_ERROR("Shader requires {0} uniform buffer bindings, device supports {1}", m_Desc.UniformBlocks.size(), bindingLimit);
+		: m_Desc(desc) {
+		std::string vertexSource;
+		std::string fragmentSource;
+		if (!ExtractOpenGlStageSource(m_Desc, ShaderStage::Vertex, vertexSource) || !ExtractOpenGlStageSource(m_Desc, ShaderStage::Fragment, fragmentSource)) {
 			m_Valid = false;
 			return;
 		}
-		for (const auto& block : m_Desc.UniformBlocks) {
+		m_Shader = CreateRef<OpenGLShader>(vertexSource, fragmentSource);
+		GLint bindingLimit = 0;
+		glGetIntegerv(GL_MAX_UNIFORM_BUFFER_BINDINGS, &bindingLimit);
+		if (m_Desc.ResourceMap.UniformBlocks.size() > static_cast<size_t>(bindingLimit)) {
+			HE_CORE_ERROR("Shader requires {0} uniform buffer bindings, device supports {1}", m_Desc.ResourceMap.UniformBlocks.size(), bindingLimit);
+			m_Valid = false;
+			return;
+		}
+		for (const auto& block : m_Desc.ResourceMap.UniformBlocks) {
 			GLuint index = glGetUniformBlockIndex(m_Shader->GetProgram(), block.Name.c_str());
 			if (index == GL_INVALID_INDEX) index = glGetUniformBlockIndex(m_Shader->GetProgram(), ("type_" + block.Name).c_str());
 			if (index == GL_INVALID_INDEX || block.BindingPoint >= static_cast<uint32_t>(bindingLimit)) {
@@ -1033,7 +1133,7 @@ namespace HE::Rendering {
 			}
 			glUniformBlockBinding(m_Shader->GetProgram(), index, block.BindingPoint);
 		}
-		for (const auto& texture : m_Desc.Textures) {
+		for (const auto& texture : m_Desc.ResourceMap.Textures) {
 			const GLint location = glGetUniformLocation(m_Shader->GetProgram(), texture.UniformName.c_str());
 			if (location < 0) { m_Valid = false; HE_CORE_ERROR("Shader combined sampler '{0}' was not found", texture.UniformName); return; }
 			glProgramUniform1i(m_Shader->GetProgram(), location, static_cast<GLint>(texture.TextureUnit));
@@ -1930,12 +2030,14 @@ namespace HE::Rendering {
 	}
 
 	Ref<ShaderProgram> OpenGLRenderDevice::CreateShaderProgram(const ShaderProgramDesc& desc) {
-		if (desc.VertexSource.empty() || desc.FragmentSource.empty()) {
-			HE_CORE_ERROR("Shader program sources must not be empty");
+		std::string vertexSource;
+		std::string fragmentSource;
+		if (!ValidateShaderProgramDesc(desc, vertexSource, fragmentSource)) {
+			HE_CORE_ERROR("Shader program description is invalid for the OpenGL backend");
 			return nullptr;
 		}
 
-		if (!ValidateShaderProgramSources(desc)) {
+		if (!ValidateShaderProgramSources(vertexSource, fragmentSource)) {
 			return nullptr;
 		}
 

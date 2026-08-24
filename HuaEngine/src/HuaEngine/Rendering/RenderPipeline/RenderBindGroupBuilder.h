@@ -15,8 +15,8 @@ namespace HE::Rendering {
 	struct ShaderTextureBinding;
 	struct ShaderUniformBlockBinding;
 
-	Ref<BindGroupLayout> CreateUniformBlockBindGroupLayout(RenderDevice& device, BindGroupScope scope, const ShaderUniformBlockBinding& block);
-	Ref<BindGroupLayout> CreateMaterialBindGroupLayout(RenderDevice& device, const ShaderUniformBlockBinding& block, const std::vector<ShaderTextureBinding>& textures);
+	Ref<BindGroupLayout> CreateUniformBlockBindGroupLayout(RenderDevice& device, BindGroupScope scope, const ShaderUniformBlockBinding& block, const Sha256Digest& interfaceDigest);
+	Ref<BindGroupLayout> CreateMaterialBindGroupLayout(RenderDevice& device, const ShaderUniformBlockBinding& block, const std::vector<ShaderTextureBinding>& textures, const Sha256Digest& interfaceDigest);
 	Ref<BindGroup> CreateFrameBindGroup(RenderDevice& device, UniformBufferArena& arena, const ShaderUniformBlockBinding& block, Ref<BindGroupLayout> layout, const glm::mat4& viewProjection);
 	Ref<BindGroup> CreateObjectBindGroup(RenderDevice& device, UniformBufferArena& arena, const ShaderUniformBlockBinding& block, Ref<BindGroupLayout> layout, const glm::mat4& transform);
 	Ref<BindGroup> CreateMaterialBindGroup(RenderDevice& device, UniformBufferArena& arena, const MaterialInstance& materialInstance, const ShaderUniformBlockBinding& block, const std::vector<ShaderTextureBinding>& textures, Ref<BindGroupLayout> layout);
