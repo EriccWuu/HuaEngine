@@ -29,7 +29,7 @@ namespace HE::Editor {
 	private:
 		float m_Fov = 45.0f;
 		float m_AspectRatio = 16.0f / 9.0f;
-		float m_Near = 0.1f, m_Far = 100.0f;
+		float m_Near = 0.1f, m_Far = 10000.0f;
 		float m_Pitch = 0.0f, m_Yaw = 0.0f;
 
 		glm::vec3 m_Position = { 0, 0, 0 };

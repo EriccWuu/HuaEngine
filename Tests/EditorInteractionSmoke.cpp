@@ -14,6 +14,8 @@
 #include "Workbench/EditorWorkbenchState.h"
 #include "Workbench/ProjectSession.h"
 #include "Workbench/SceneDocument.h"
+#include "Viewport/EditorCameraController.h"
+#include "Viewport/EditorGrid.h"
 #include "imgui.h"
 
 namespace {
@@ -44,6 +46,25 @@ namespace {
 }
 
 int main() {
+    const glm::vec3 distantCameraPosition(513.0f, 200.0f, -777.0f);
+    const auto gridLayout = HE::Editor::CalculateEditorGridLayout(distantCameraPosition);
+    Require(
+        glm::abs(gridLayout.Center.x - distantCameraPosition.x) <= gridLayout.Spacing * 0.5f
+            && glm::abs(gridLayout.Center.y - distantCameraPosition.z) <= gridLayout.Spacing * 0.5f,
+        "Expected editor grid to remain centered near a camera far from the world origin");
+    Require(
+        gridLayout.Spacing > 1.0f && gridLayout.HalfExtent > distantCameraPosition.y,
+        "Expected editor grid spacing and coverage to scale with camera distance");
+
+    HE::Editor::EditorCameraController editorCamera;
+    editorCamera.SetPose(distantCameraPosition, 0.0f, 0.0f);
+    const auto renderCamera = editorCamera.BuildRenderCamera();
+    const glm::vec4 distantPoint = renderCamera.GetViewProjection()
+        * glm::vec4(distantCameraPosition + editorCamera.GetForwardDirection() * 1000.0f, 1.0f);
+    Require(
+        distantPoint.w > 0.0f && glm::abs(distantPoint.z / distantPoint.w) <= 1.0f,
+        "Expected the default editor camera far plane to include distant scene references");
+
     HE::Log::Init({ .EnableConsoleOutput = false });
     SmokeApplication application;
     application.Start();

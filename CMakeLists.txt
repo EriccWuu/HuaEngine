@@ -825,6 +825,8 @@ add_executable(EditorInteractionSmoke
     Editor/src/Interaction/EditorInteractionHost.cpp
     Editor/src/Interaction/EditorSceneCommands.cpp
     Editor/src/Interaction/ShortcutRegistry.cpp
+    Editor/src/Viewport/EditorCameraController.cpp
+    Editor/src/Viewport/EditorGrid.cpp
 )
 target_include_directories(EditorInteractionSmoke PRIVATE
     ${CMAKE_SOURCE_DIR}/Editor/src

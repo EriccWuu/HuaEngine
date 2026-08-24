@@ -1,5 +1,6 @@
 #include "enginepch.h"
 #include "EditorSceneRenderExtension.h"
+#include "EditorGrid.h"
 
 #include "HuaEngine/Rendering/RenderPipeline/RenderBindGroupBuilder.h"
 #include "HuaEngine/Rendering/RenderPipeline/RenderResourceResolver.h"
@@ -46,19 +47,24 @@ namespace HE::Editor {
 	void EditorGridPass::Execute(Rendering::RenderPassContext& context) {
 		if (!context.View || !context.View->CameraRef || !context.View->Target || !context.Device || !context.Commands || !context.Stats) return;
 
+		const glm::vec3 cameraPosition = glm::inverse(context.View->CameraRef->GetView())[3];
+		const auto gridLayout = CalculateEditorGridLayout(cameraPosition);
 		std::vector<GridVertex> vertices;
 		std::vector<uint32_t> indices;
-		constexpr int extent = 128;
-		vertices.reserve((extent * 2 + 1) * 4);
-		indices.reserve((extent * 2 + 1) * 4);
-		for (int coordinate = -extent; coordinate <= extent; ++coordinate) {
+		vertices.reserve((gridLayout.HalfLineCount * 2 + 1) * 4);
+		indices.reserve((gridLayout.HalfLineCount * 2 + 1) * 4);
+		for (int coordinate = -gridLayout.HalfLineCount; coordinate <= gridLayout.HalfLineCount; ++coordinate) {
 			const uint32_t base = static_cast<uint32_t>(vertices.size());
-			const glm::vec3 zAxisColor = coordinate == 0 ? glm::vec3(0.20f, 0.45f, 1.0f) : glm::vec3(0.25f, 0.29f, 0.35f);
-			const glm::vec3 xAxisColor = coordinate == 0 ? glm::vec3(1.0f, 0.25f, 0.20f) : glm::vec3(0.25f, 0.29f, 0.35f);
-			vertices.push_back({ { static_cast<float>(coordinate), 0.0f, static_cast<float>(-extent) }, zAxisColor });
-			vertices.push_back({ { static_cast<float>(coordinate), 0.0f, static_cast<float>(extent) }, zAxisColor });
-			vertices.push_back({ { static_cast<float>(-extent), 0.0f, static_cast<float>(coordinate) }, xAxisColor });
-			vertices.push_back({ { static_cast<float>(extent), 0.0f, static_cast<float>(coordinate) }, xAxisColor });
+			const float offset = static_cast<float>(coordinate) * gridLayout.Spacing;
+			const float lineX = gridLayout.Center.x + offset;
+			const float lineZ = gridLayout.Center.y + offset;
+			const float axisTolerance = gridLayout.Spacing * 0.001f;
+			const glm::vec3 zAxisColor = std::abs(lineX) <= axisTolerance ? glm::vec3(0.20f, 0.45f, 1.0f) : glm::vec3(0.25f, 0.29f, 0.35f);
+			const glm::vec3 xAxisColor = std::abs(lineZ) <= axisTolerance ? glm::vec3(1.0f, 0.25f, 0.20f) : glm::vec3(0.25f, 0.29f, 0.35f);
+			vertices.push_back({ { lineX, 0.0f, gridLayout.Center.y - gridLayout.HalfExtent }, zAxisColor });
+			vertices.push_back({ { lineX, 0.0f, gridLayout.Center.y + gridLayout.HalfExtent }, zAxisColor });
+			vertices.push_back({ { gridLayout.Center.x - gridLayout.HalfExtent, 0.0f, lineZ }, xAxisColor });
+			vertices.push_back({ { gridLayout.Center.x + gridLayout.HalfExtent, 0.0f, lineZ }, xAxisColor });
 			indices.insert(indices.end(), { base, base + 1, base + 2, base + 3 });
 		}
 
