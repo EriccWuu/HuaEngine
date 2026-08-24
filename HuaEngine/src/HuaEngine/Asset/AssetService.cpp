@@ -241,17 +241,80 @@ namespace {
 }
 
 namespace HE {
-	ResultEnvelope AssetService::GetMaterialDefinition(const AssetGuid& materialGuid, Rendering::MaterialDefinition& outDefinition) const {
+	ResultEnvelope AssetService::GetAssetImportHealth(const AssetGuid& guid, AssetImportHealth& outHealth) const {
+		outHealth = { .State = AssetImportHealthState::Missing, .Guid = guid };
+		const auto* record = m_Manifest.FindByGuid(guid);
+		if (!record || !m_ProjectContext) {
+			return ResultEnvelope::Failure("asset.import_health", guid, "Asset metadata is unavailable");
+		}
+		std::filesystem::path sourcePath;
+		auto sourceResult = ResolveAssetSourcePath(*m_ProjectContext, *record, sourcePath);
+		const auto* importer = sourceResult.Succeeded() ? m_ImporterRegistry.Find(record->Kind, sourcePath.extension().string()) : nullptr;
+		const auto* libraryRecord = m_Library.Find(guid);
+		const bool artifactAvailable = importer && m_Library.IsArtifactAvailable(
+			guid,
+			record->Kind,
+			importer->GetId(),
+			importer->GetVersion(),
+			importer->GetArtifactVersion());
+		if (const auto failure = m_LastImportFailures.find(guid); failure != m_LastImportFailures.end()) {
+			outHealth.State = artifactAvailable ? AssetImportHealthState::LastGoodWithFailure : AssetImportHealthState::Missing;
+			outHealth.Diagnostics = failure->second;
+			return ResultEnvelope::Success("asset.import_health", guid, artifactAvailable ? "Last-good artifact is active after an import failure" : "Import failed and no compatible artifact is available");
+		}
+		if (!libraryRecord) {
+			return ResultEnvelope::Success("asset.import_health", guid, "Asset artifact is missing");
+		}
+		std::error_code errorCode;
+		if (!artifactAvailable || !sourceResult.Succeeded() || !std::filesystem::is_regular_file(sourcePath, errorCode)) {
+			outHealth.State = AssetImportHealthState::Stale;
+			return ResultEnvelope::Success("asset.import_health", guid, "Asset artifact is stale");
+		}
+		outHealth.State = AssetImportHealthState::Current;
+		return ResultEnvelope::Success("asset.import_health", guid, "Asset artifact is current");
+	}
+
+	ResultEnvelope AssetService::GetMaterialDefinition(const AssetGuid& materialGuid, Rendering::MaterialDefinition& outDefinition, AssetImportHealth* outHealth) const {
 		outDefinition = {};
+		AssetImportHealth materialHealth;
+		AssetImportHealth shaderHealth;
+		auto publishHealth = [&](AssetImportHealth health) {
+			if (outHealth) *outHealth = std::move(health);
+		};
 		const auto* materialRecord = m_Manifest.FindByGuid(materialGuid);
-		if (!materialRecord || materialRecord->Kind != AssetKind::Material) return ResultEnvelope::Failure("asset.material_definition", materialGuid, "Material asset was not found");
+		if (!materialRecord || materialRecord->Kind != AssetKind::Material) {
+			publishHealth({ .State = AssetImportHealthState::Missing, .Guid = materialGuid });
+			return ResultEnvelope::Failure("asset.material_definition", materialGuid, "Material asset was not found");
+		}
+		(void)GetAssetImportHealth(materialGuid, materialHealth);
+		if (materialHealth.State == AssetImportHealthState::Missing || materialHealth.State == AssetImportHealthState::Stale) {
+			publishHealth(materialHealth);
+			return ResultEnvelope::ManualIntervention("asset.material_definition", materialGuid, materialHealth.State == AssetImportHealthState::Missing ? "Material artifact is unavailable" : "Material artifact requires reimport");
+		}
 		AssetArtifact materialArtifact;
 		Rendering::MaterialSourceData material;
-		if (!m_Library.ReadArtifact(materialGuid, materialArtifact).Succeeded() || !DecodeMaterialArtifact(materialArtifact, material).Succeeded()) return ResultEnvelope::ManualIntervention("asset.material_definition", materialGuid, "Material artifact is unavailable");
+		if (!m_Library.ReadArtifact(materialGuid, materialArtifact).Succeeded() || !DecodeMaterialArtifact(materialArtifact, material).Succeeded()) {
+			materialHealth.State = AssetImportHealthState::Missing;
+			publishHealth(materialHealth);
+			return ResultEnvelope::ManualIntervention("asset.material_definition", materialGuid, "Material artifact is unavailable");
+		}
+		(void)GetAssetImportHealth(material.ShaderGuid, shaderHealth);
+		if (shaderHealth.State == AssetImportHealthState::Missing || shaderHealth.State == AssetImportHealthState::Stale) {
+			publishHealth(shaderHealth);
+			return ResultEnvelope::ManualIntervention("asset.material_definition", materialGuid, shaderHealth.State == AssetImportHealthState::Missing ? "Shader artifact is unavailable" : "Shader artifact requires reimport");
+		}
 		AssetArtifact shaderArtifact;
 		ShaderArtifactDataV2 shader;
-		if (!m_Library.ReadArtifact(material.ShaderGuid, shaderArtifact).Succeeded() || !DecodeShaderArtifactV2(shaderArtifact, shader).Succeeded()) return ResultEnvelope::ManualIntervention("asset.material_definition", materialGuid, "Shader artifact is unavailable");
-		if (material.ShaderInterfaceDigest != shader.Interface.Gpu.Digest) return ResultEnvelope::ManualIntervention("asset.material_definition", materialGuid, "Material artifact requires reimport");
+		if (!m_Library.ReadArtifact(material.ShaderGuid, shaderArtifact).Succeeded() || !DecodeShaderArtifactV2(shaderArtifact, shader).Succeeded()) {
+			shaderHealth.State = AssetImportHealthState::Missing;
+			publishHealth(shaderHealth);
+			return ResultEnvelope::ManualIntervention("asset.material_definition", materialGuid, "Shader artifact is unavailable");
+		}
+		if (material.ShaderInterfaceDigest != shader.Interface.Gpu.Digest) {
+			materialHealth.State = AssetImportHealthState::Stale;
+			publishHealth(materialHealth);
+			return ResultEnvelope::ManualIntervention("asset.material_definition", materialGuid, "Material artifact requires reimport");
+		}
 		std::vector<Rendering::MaterialParameterDefinition> parameters;
 		for (const auto& metadata : shader.Interface.Authoring.Parameters) {
 			if (metadata.Scope != Rendering::ShaderParameterScope::Material) continue;
@@ -269,7 +332,17 @@ namespace HE {
 		}
 		outDefinition = Rendering::MaterialDefinition(std::move(parameters), material.MaterialDefinitionDigest);
 		outDefinition.SetIdentity(materialGuid, material.ShaderGuid, material.ShaderInterfaceDigest, material.ShaderInterfaceSignature);
-		return ResultEnvelope::Success("asset.material_definition", materialGuid, "Material definition resolved");
+		AssetImportHealth combinedHealth = materialHealth;
+		if (shaderHealth.State == AssetImportHealthState::LastGoodWithFailure) {
+			combinedHealth.State = AssetImportHealthState::LastGoodWithFailure;
+			combinedHealth.Diagnostics.insert(combinedHealth.Diagnostics.end(), shaderHealth.Diagnostics.begin(), shaderHealth.Diagnostics.end());
+		}
+		publishHealth(combinedHealth);
+		auto result = ResultEnvelope::Success("asset.material_definition", materialGuid, combinedHealth.State == AssetImportHealthState::LastGoodWithFailure ? "Material definition resolved from last-good artifacts" : "Material definition resolved");
+		if (combinedHealth.State == AssetImportHealthState::LastGoodWithFailure) {
+			for (const auto& diagnostic : combinedHealth.Diagnostics) result.AddDetail(diagnostic);
+		}
+		return result;
 	}
 
 	AssetService::AssetService() {
@@ -297,6 +370,7 @@ namespace HE {
 		m_Registry = AssetRegistry();
 		if (resetRuntimeCache) {
 			m_RuntimeCache = AssetRuntimeCache();
+			m_LastImportFailures.clear();
 		}
 		m_Manifest = std::move(loadedManifest);
 		m_ProjectContext = context;
@@ -322,7 +396,15 @@ namespace HE {
 		}
 
 		AssetImportService importService(m_ImporterRegistry, m_Library);
-		auto result = importService.ImportMissingAssets(context, m_Manifest, outReport);
+		AssetImportReport report;
+		auto result = importService.ImportMissingAssets(context, m_Manifest, &report);
+		for (const auto& guid : report.ImportedAssetGuids) m_LastImportFailures.erase(guid);
+		for (const auto& failure : report.Failures) {
+			auto diagnostics = failure.Diagnostics;
+			if (diagnostics.empty()) diagnostics.push_back({ DiagnosticSeverity::Error, "asset.import.failed", "Asset import failed", failure.Guid });
+			m_LastImportFailures[failure.Guid] = std::move(diagnostics);
+		}
+		if (outReport) *outReport = report;
 		result.Operation = "asset.initialize_project";
 		result.SetPayloadValue("library_path", m_Library.GetRootPath().generic_string());
 		return result;
@@ -502,6 +584,12 @@ namespace HE {
 			}
 		}
 		auto importResult = importService.ImportAssets(context, m_Manifest, importGuids, AssetImportPolicy::Force, &importReport);
+		for (const auto& guid : importReport.ImportedAssetGuids) m_LastImportFailures.erase(guid);
+		for (const auto& failure : importReport.Failures) {
+			auto diagnostics = failure.Diagnostics;
+			if (diagnostics.empty()) diagnostics.push_back({ DiagnosticSeverity::Error, "asset.import.failed", "Asset import failed", failure.Guid });
+			m_LastImportFailures[failure.Guid] = std::move(diagnostics);
+		}
 		const auto reportedReimportCount = static_cast<uint32_t>(std::count_if(importReport.ImportedAssetGuids.begin(), importReport.ImportedAssetGuids.end(), [&](const auto& guid) {
 			return reportedReimports.contains(guid);
 		}));

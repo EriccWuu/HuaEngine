@@ -795,8 +795,48 @@ namespace {
 		assetService.GetRuntimeCache().StoreMaterial(
 			dependentMaterialRecord.Guid,
 			HE::Rendering::Material::Create("CachedDependentMaterial", HE::Rendering::MaterialType::Unlit));
+		WriteTextFile(shaderSourcePath, "not valid hlsl");
+		HE::AssetReimportReport failedShaderReport;
+		Require(
+			assetService.ReimportAssets(context, shaderPath, &failedShaderReport).Succeeded() && failedShaderReport.FailedAssets == 1,
+			"Expected shader compilation failure to remain a per-asset reimport failure");
+		HE::Rendering::MaterialDefinition lastGoodDefinition;
+		HE::AssetImportHealth lastGoodHealth;
+		Require(
+			assetService.GetMaterialDefinition(dependentMaterialRecord.Guid, lastGoodDefinition, &lastGoodHealth).Succeeded(),
+			"Expected material definition to remain available from last-good shader artifacts");
+		Require(
+			lastGoodHealth.State == HE::AssetImportHealthState::LastGoodWithFailure && !lastGoodHealth.Diagnostics.empty(),
+			"Expected last-good material health to retain shader import diagnostics");
+		HE::AssetService restartedAssetService;
+		HE::AssetImportReport restartedImportReport;
+		Require(
+			restartedAssetService.InitializeProjectAssets(context, &restartedImportReport).Succeeded() && restartedImportReport.FailedAssets >= 1,
+			"Expected project startup to retry the invalid shader import");
+		HE::Rendering::MaterialDefinition restartedLastGoodDefinition;
+		HE::AssetImportHealth restartedLastGoodHealth;
+		Require(
+			restartedAssetService.GetMaterialDefinition(dependentMaterialRecord.Guid, restartedLastGoodDefinition, &restartedLastGoodHealth).Succeeded() &&
+				restartedLastGoodHealth.State == HE::AssetImportHealthState::LastGoodWithFailure,
+			"Expected project startup import failure to preserve visible last-good health");
+
 		WriteTextFile(shaderSourcePath, "struct V { float4 Position : SV_Position; }; V VSMain(float3 p : POSITION) { V o; o.Position=float4(p,1); return o; } float4 PSMain(V i) : SV_Target0 { return float4(0.5,1,1,1); }");
 		Require(assetService.ReimportAssets(context, shaderPath).Succeeded(), "Expected dependency shader update");
+		HE::AssetImportHealth currentShaderHealth;
+		Require(
+			assetService.GetAssetImportHealth(shaderRecord.Guid, currentShaderHealth).Succeeded() && currentShaderHealth.State == HE::AssetImportHealthState::Current,
+			"Expected successful shader reimport to clear previous failure health");
+		HE::AssetImportHealth missingHealth;
+		Require(
+			assetService.GetAssetImportHealth("missing-asset-guid", missingHealth).Failed() && missingHealth.State == HE::AssetImportHealthState::Missing,
+			"Expected unknown asset health to report Missing");
+		const std::string shaderDescriptor = "name: Shared\nlanguage: HLSL\nsource: Shared.hlsl\nstages:\n  vertex: { entry: VSMain, profile: vs_6_0 }\n  fragment: { entry: PSMain, profile: ps_6_0 }\nparameters: {}\n";
+		Require(std::filesystem::remove(shaderPath), "Expected shader descriptor removal for stale health test");
+		HE::AssetImportHealth staleShaderHealth;
+		Require(
+			assetService.GetAssetImportHealth(shaderRecord.Guid, staleShaderHealth).Succeeded() && staleShaderHealth.State == HE::AssetImportHealthState::Stale,
+			"Expected missing source with an existing artifact to report Stale");
+		WriteTextFile(shaderPath, shaderDescriptor);
 		Require(!assetService.GetRuntimeCache().FindMaterial(dependentMaterialRecord.Guid), "Expected shader reimport to invalidate dependent material cache");
 		Require(assetService.GetLibrary().Find(dependentMaterialRecord.Guid)->ImportFingerprint == initialDependentFingerprint, "Expected implementation-only shader change not to reimport material");
 		WriteTextFile(shaderPath, "name: Shared\nlanguage: HLSL\nsource: Shared.hlsl\nstages:\n  vertex: { entry: VSMain, profile: vs_6_0 }\n  fragment: { entry: PSMain, profile: ps_6_0 }\nparameters:\n  u_Value:\n    scope: Material\n    editor: Color\n    default: [1.0, 1.0, 1.0, 1.0]\n");

@@ -33,6 +33,20 @@ namespace {
 }
 
 int main() {
+	HE::Rendering::MaterialParameterDefinition rangedParameter;
+	rangedParameter.Range = { -2.0f, 3.0f };
+	rangedParameter.Step = 0.25f;
+	const auto rangedOptions = HE::Editor::GetMaterialNumericEditorOptions(rangedParameter);
+	Require(rangedOptions.HasRange, "Expected two-value material range to enable numeric clamping");
+	Require(rangedOptions.Minimum == -2.0f && rangedOptions.Maximum == 3.0f, "Expected material range bounds to reach the editor widget");
+	Require(rangedOptions.Speed == 0.25f, "Expected material step to control editor drag speed");
+
+	HE::Rendering::MaterialParameterDefinition invalidRangeParameter;
+	invalidRangeParameter.Range = { 3.0f, -2.0f };
+	const auto invalidRangeOptions = HE::Editor::GetMaterialNumericEditorOptions(invalidRangeParameter);
+	Require(!invalidRangeOptions.HasRange, "Expected reversed material range not to clamp the editor widget");
+	Require(invalidRangeOptions.Speed == 0.1f, "Expected default material drag speed when step is absent");
+
 	HE::ComponentRegistry registry;
 	HE::RegisterCoreComponents(registry);
 
@@ -158,6 +172,13 @@ int main() {
 	Require(
 		inspectorSource.find("GetAll()") != std::string::npos,
 		"Expected Add Component candidates to come from ComponentRegistry::GetAll()");
+	Require(
+		inspectorSource.find("editor.material_overrides.removed") != std::string::npos &&
+			inspectorSource.find("RecordEvent") != std::string::npos,
+		"Expected incompatible material override removal to publish one workbench event");
+	Require(
+		runtimeInspectorSource.find("LastGoodWithFailure") != std::string::npos,
+		"Expected RuntimeInspector to keep last-good material parameters visible with an import warning");
 	Require(
 		!std::filesystem::exists(repositoryRoot / "Editor" / "src" / "ComponentEditorRegistry.h"),
 		"Expected legacy ComponentEditorRegistry.h to be removed");

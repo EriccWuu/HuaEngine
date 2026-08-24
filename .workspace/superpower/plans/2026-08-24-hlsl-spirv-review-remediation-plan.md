@@ -90,27 +90,27 @@
 - 产出：`ShaderResourceMap`，记录 logical set/binding 到 native binding，以及 OpenGL combined sampler 映射。
 - 变更：`ShaderProgramDesc { std::vector<ShaderStageBinary> Stages; ShaderGpuInterface Interface; ShaderResourceMap ResourceMap; }`。
 
-- [ ] **步骤 1：添加错误 Pipeline layout 拒绝测试**
+- [x] **步骤 1：添加错误 Pipeline layout 拒绝测试**
 
   覆盖 slot 缺失、set/binding 错误、binding type 错误、visibility 错误、buffer size 不足和 interface digest 不匹配；断言 `CreateGraphicsPipeline()` 返回空。
 
-- [ ] **步骤 2：运行 RHI smoke 确认 RED**
+- [x] **步骤 2：运行 RHI smoke 确认 RED**
 
   运行：`RHIResourceCreationSmoke.exe` 与 `RHICommandListBindingSmoke.exe`。
 
-- [ ] **步骤 3：替换 ShaderProgramDesc**
+- [x] **步骤 3：替换 ShaderProgramDesc**
 
   AssetResolver 将 generated GLSL 编码为 `OpenGlGlsl` stage bytes，并携带完整 `ShaderGpuInterface` 与映射；OpenGL backend 解码自身支持的 stage format，公共 RHI 不再暴露 VertexSource/FragmentSource。
 
-- [ ] **步骤 4：实现 ShaderInterface 到 BindGroupLayout 的一致性校验**
+- [x] **步骤 4：实现 ShaderInterface 到 BindGroupLayout 的一致性校验**
 
   Pipeline 创建时按 scope/set 投影 Shader interface，逐 slot 比较 layout entry 的 binding、类型、visibility、minimum buffer size，并比较完整 SHA-256 digest；64-bit signature 只作为快速索引。
 
-- [ ] **步骤 5：迁移 Forward 和测试调用点**
+- [x] **步骤 5：迁移 Forward 和测试调用点**
 
   删除从扁平 GLSL uniform 描述推导 contract 的路径；RenderResourceResolver 从 ShaderProgram interface/resource map 获取 block 和 texture binding。
 
-- [ ] **步骤 6：验证并提交 R2**
+- [x] **步骤 6：验证并提交 R2**
 
   运行：`RHIResourceCreationSmoke.exe`、`RHICommandListBindingSmoke.exe`、`RenderingOperationsSmoke.exe`。
 
@@ -130,19 +130,19 @@
 - 产出：`OpenGLFence::SignalCompleted(uint64_t)`，用于 GPU 已同步完成但没有 GLsync handle 的提交。
 - 约束：`glFenceSync` 失败后执行明确同步退路，再发布 completed timeline value；不得返回一个会让 Arena 丢失已 replay 使用区间的无 fence 失败状态。
 
-- [ ] **步骤 1：添加 completed signal 与 Arena 回收测试**
+- [x] **步骤 1：添加 completed signal 与 Arena 回收测试**
 
   断言 signal 未完成前 Arena 不复用；同步完成信号发布后才能 reset；重复和倒退 signal 被拒绝或忽略。
 
-- [ ] **步骤 2：运行测试确认 RED**
+- [x] **步骤 2：运行测试确认 RED**
 
   运行：`RHIResourceCreationSmoke.exe`。
 
-- [ ] **步骤 3：实现安全 fallback**
+- [x] **步骤 3：实现安全 fallback**
 
   OpenGL submit 在 `glFenceSync == nullptr` 时调用 `glFinish()`，通过 `SignalCompleted(signalValue)` 发布已完成 timeline，然后返回成功提交；记录稳定 diagnostic/log。
 
-- [ ] **步骤 4：验证并提交 R3**
+- [x] **步骤 4：验证并提交 R3**
 
   运行：`RHIResourceCreationSmoke.exe`、`RenderingOperationsSmoke.exe`。
 
@@ -168,31 +168,31 @@
 - 变更：Artifact 路径使用完整二进制 Artifact payload SHA-256，而不是 import fingerprint。
 - 变更：`CommitArtifact()` 先写候选、语义解码、构造 candidate catalog、原子保存 catalog，最后发布内存 records；失败时保持旧 record 并清理新候选。
 
-- [ ] **步骤 1：添加 last-good 失败测试**
+- [x] **步骤 1：添加 last-good 失败测试**
 
   覆盖同 fingerprint 强制重导产生不同 payload、Shader candidate 语义解码失败、catalog 路径不可写；断言旧 catalog、旧内存 record 和旧 Artifact 均保持可读。
 
-- [ ] **步骤 2：添加通用 DAG 测试**
+- [x] **步骤 2：添加通用 DAG 测试**
 
   使用测试 importer 构造 A -> B -> C 和 A -> B -> A；断言拓扑顺序稳定，环路在任何 commit 前失败，diagnostic 同时包含 GUID 与 source path 链。
 
-- [ ] **步骤 3：运行 Asset smoke 确认 RED**
+- [x] **步骤 3：运行 Asset smoke 确认 RED**
 
   运行：`AssetLibrarySmoke.exe`、`AssetImportSmoke.exe`。
 
-- [ ] **步骤 4：实现内容寻址原子发布**
+- [x] **步骤 4：实现内容寻址原子发布**
 
   对完整 Artifact binary 计算 SHA-256；候选读回后按 kind 调用对应 decoder，Shader 必须走 R1 contract；catalog 保存成功后才替换 `m_Records`。
 
-- [ ] **步骤 5：实现导入计划与拓扑排序**
+- [x] **步骤 5：实现导入计划与拓扑排序**
 
   在 import 前解析请求闭包、收集 dependencies、验证 manifest/importer/source，使用 DFS 三色标记生成拓扑序并输出环链；计划验证成功后才开始现有逐资产 import/commit。
 
-- [ ] **步骤 6：删除 AssetService 的特例前置导入**
+- [x] **步骤 6：删除 AssetService 的特例前置导入**
 
   Reimport 统一调用 DAG planner，不再手工先导 Shader 再反查 Material；Shader 成功后 dependent Material 按 Library dependency 进入计划。
 
-- [ ] **步骤 7：验证并提交 R4**
+- [x] **步骤 7：验证并提交 R4**
 
   运行：`AssetLibrarySmoke.exe`、`AssetImportSmoke.exe`、`AssetServiceSmoke.exe`。
 
@@ -215,23 +215,23 @@
 - 变更：`GetMaterialDefinition()` 可同时返回 definition 和只读 health；last-good 仍可显示参数。
 - 约束：Range 为两个值时传给数值控件 min/max；Material 切换删除不兼容 override 时发布一次性用户可见 diagnostic。
 
-- [ ] **步骤 1：添加 editor model 测试**
+- [x] **步骤 1：添加 editor model 测试**
 
   覆盖 Range/Step 映射、last-good-with-failure 仍返回 definition、Missing/Stale 区分，以及 reconcile 删除 override 后只产生一次提示。
 
-- [ ] **步骤 2：运行 Editor smoke 确认 RED**
+- [x] **步骤 2：运行 Editor smoke 确认 RED**
 
   运行：`EditorInspectorRuntimeSmoke.exe`、`EditorInteractionSmoke.exe`。
 
-- [ ] **步骤 3：实现 import health 与 Inspector 状态**
+- [x] **步骤 3：实现 import health 与 Inspector 状态**
 
   AssetService 在 import/reimport 后按 GUID 更新 session health；成功清除旧失败，失败且 Library 有可用 Artifact 时标记 LastGoodWithFailure。Inspector 保留参数控件并显示最近失败摘要。
 
-- [ ] **步骤 4：应用 Range 并发布 override 删除提示**
+- [x] **步骤 4：应用 Range 并发布 override 删除提示**
 
   数值 widget 使用 definition 的 min/max/step；Editor command 返回 reconcile 结果，InspectorPanel 通过现有 diagnostics/notification 通道发布一次性消息。
 
-- [ ] **步骤 5：全量验证、更新 Spec 状态并提交 R5**
+- [x] **步骤 5：全量验证、更新 Spec 状态并提交 R5**
 
   运行：构建 `HuaEngine`、`Editor` 和全部 smoke target；逐个执行新增及受影响 smoke；执行 `git diff --check`。
 

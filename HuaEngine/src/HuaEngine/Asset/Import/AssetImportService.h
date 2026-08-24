@@ -16,6 +16,11 @@ namespace HE {
 		Force
 	};
 
+	struct AssetImportFailure {
+		AssetGuid Guid;
+		std::vector<DiagnosticEntry> Diagnostics;
+	};
+
 	struct AssetImportReport {
 		uint32_t TotalFileAssets = 0;
 		uint32_t TotalBuiltinAssets = 0;
@@ -23,6 +28,7 @@ namespace HE {
 		uint32_t SkippedAssets = 0;
 		uint32_t FailedAssets = 0;
 		std::vector<AssetGuid> ImportedAssetGuids;
+		std::vector<AssetImportFailure> Failures;
 	};
 
 	class AssetImportService {

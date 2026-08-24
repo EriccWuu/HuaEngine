@@ -202,7 +202,7 @@ namespace HE {
 								.MeshAssets = m_MeshAssetOptions,
 								.MaterialAssets = m_MaterialAssetOptions
 								, .TextureAssets = m_TextureAssetOptions
-								, .ResolveMaterialDefinition = [](const AssetGuid& guid, Rendering::MaterialDefinition& definition) { return Application::GetInstance().GetOperations().GetMaterialDefinition(guid, definition); }
+								, .ResolveMaterialDefinition = [](const AssetGuid& guid, Rendering::MaterialDefinition& definition, AssetImportHealth& health) { return Application::GetInstance().GetOperations().GetMaterialDefinition(guid, definition, &health); }
 								, .CommitMaterialOverrides = [this, selection](const Rendering::MaterialOverrideSet& overrides) {
 									if (!m_InteractionHost || !selection.IsValid() || !selection.HasComponent<Rendering::MaterialComponent>()) return;
 									const auto before = selection.GetComponent<Rendering::MaterialComponent>().Overrides;
@@ -213,8 +213,22 @@ namespace HE {
 									const auto before = selection.GetComponent<Rendering::MaterialComponent>();
 									auto after = before; after.Material.Reference.Guid = guid;
 									Rendering::MaterialDefinition definition;
-									if (Application::GetInstance().GetOperations().GetMaterialDefinition(guid, definition).Succeeded()) Rendering::ReconcileMaterialOverrides(after.Overrides, definition);
-									(void)m_InteractionHost->ExecuteCommand(CreateSetMaterialComponentCommand(selection, before, after));
+									const bool overridesRemoved = Application::GetInstance().GetOperations().GetMaterialDefinition(guid, definition).Succeeded() &&
+										Rendering::ReconcileMaterialOverrides(after.Overrides, definition);
+									const auto commandResult = m_InteractionHost->ExecuteCommand(CreateSetMaterialComponentCommand(selection, before, after));
+									if (commandResult.Succeeded() && overridesRemoved && m_WorkbenchState) {
+										auto result = ResultEnvelope::Success(
+											"editor.material_overrides.reconciled",
+											guid,
+											"Incompatible material overrides were removed");
+										result.AddDetail({
+											DiagnosticSeverity::Warning,
+											"editor.material_overrides.removed",
+											"The selected material does not define one or more previous overrides",
+											guid
+										});
+										m_WorkbenchState->RecordEvent(result, "Inspector");
+									}
 								}
 							});
                     }

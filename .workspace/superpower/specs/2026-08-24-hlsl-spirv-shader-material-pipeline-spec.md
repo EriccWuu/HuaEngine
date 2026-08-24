@@ -1,10 +1,12 @@
 # HuaEngine HLSL、SPIR-V、ShaderInterface 与材质系统演进 Spec
 
-状态：已完成（SH0-SH6 已实现并通过构建与 Smoke 验证）
+状态：已完成（SH0-SH6 及独立审查修复 R1-R5 已实现，最终验证记录见对应实施计划）
 
 日期：2026-08-24
 
 基线提交：`4b5f490 feat: update`
+
+审查修复说明：针对首轮独立代码审查发现的 8 个 MAJOR 与 2 个 MINOR，已补齐严格 Shader Artifact/反射契约、后端中立 ShaderProgram、Pipeline layout 一致性校验、OpenGL fence 失败安全退路、内容寻址事务式 last-good、通用导入 DAG，以及 Inspector 的参数范围、覆盖项清理提示和导入健康状态。执行明细与验证命令见 `.workspace/superpower/plans/2026-08-24-hlsl-spirv-review-remediation-plan.md`。
 
 ## 1. 背景
 
@@ -877,7 +879,7 @@ Editor/src/Panels/
 
 ### SH4：OpenGL UBO 与 ShaderInterface 驱动的 BindGroup
 
-状态：已完成。真实 OpenGL UBO、稠密 uniform block binding point、`GLsync` timeline fence、按设备对齐的 frame-local arena，以及按 ShaderInterface member offset 打包 Frame、Material、Object 常量已经接入 Forward 主路径。三个 scope 的 BindGroupLayout 均由每个 ShaderInterface 投影，材质纹理 binding 直接来自 ShaderResourceMap；SPIRV-Cross plain-uniform 兼容输出、OpenGL uniform name fallback、MaterialBindingSchema GPU layout 推导均已删除。
+状态：已完成。真实 OpenGL UBO、稠密 uniform block binding point、`GLsync` timeline fence、按设备对齐的 frame-local arena，以及按 ShaderInterface member offset 打包 Frame、Material、Object 常量已经接入 Forward 主路径。公共 ShaderProgram 使用后端中立的 stage binary、完整 ShaderGpuInterface 与 ShaderResourceMap；Pipeline 创建会严格校验 binding、类型、visibility、minimum size 和完整 interface digest。`glFenceSync` 失败时使用同步完成退路后再发布 timeline，避免 Arena 提前复用。三个 scope 的 BindGroupLayout 均由每个 ShaderInterface 投影，材质纹理 binding 直接来自 ShaderResourceMap；SPIRV-Cross plain-uniform 兼容输出、OpenGL uniform name fallback、MaterialBindingSchema GPU layout 推导均已删除。
 
 内容：
 
@@ -899,7 +901,7 @@ Editor/src/Panels/
 
 ### SH5：Material V2、依赖签名与导入 DAG
 
-状态：已完成。Material Source 不再声明 `value_type` 或 `texture_slots`；Artifact 固化 Shader GPU/definition digest，fingerprint 使用 Shader interface digest，Shader 导入后按 Library dependency 反向调度 Material。当前依赖类型只有 Material -> Shader/Texture，构图规则本身不允许形成循环。
+状态：已完成。Material Source 不再声明 `value_type` 或 `texture_slots`；Artifact 固化 Shader GPU/definition digest，fingerprint 使用 Shader interface digest。AssetImporter 通过统一依赖收集接口构建完整闭包，导入前执行拓扑排序与循环检测，Shader 导入后按 Library dependency 反向调度 Material。Artifact 使用 payload SHA-256 内容寻址，并在候选语义校验、catalog 原子保存成功后才发布内存 record；失败时保留 last-good catalog、record 和文件。
 
 内容：
 
@@ -920,7 +922,7 @@ Editor/src/Panels/
 
 ### SH6：Inspector Material 参数与 Override 编辑
 
-状态：已完成。Inspector 通过 AssetService 的 CPU-only MaterialDefinition 查询生成 Float/Vector/Color/Texture2D 控件；override、reset 和 Material 切换使用 Editor command，支持 undo/redo、scene dirty 与序列化重载。
+状态：已完成。Inspector 通过 AssetService 的 CPU-only MaterialDefinition 查询生成 Int/Float/Vector/Color/Texture2D 控件，并应用 Shader authoring metadata 中的 Range 与 Step；override、reset 和 Material 切换使用 Editor command，支持 undo/redo、scene dirty 与序列化重载。Material 切换删除不兼容 override 时会发布一次性 Workbench warning。AssetService 区分 Current、LastGoodWithFailure、Missing、Stale；启动导入或显式 Reimport 失败时，Inspector 继续显示 last-good 参数并展示最近失败诊断。
 
 内容：
 

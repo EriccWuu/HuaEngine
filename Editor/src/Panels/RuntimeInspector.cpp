@@ -3,11 +3,13 @@
 
 #include <algorithm>
 #include <array>
+#include <cmath>
 #include <cstring>
 #include <utility>
 
 #include "glm/glm.hpp"
 #include "imgui.h"
+#include "HuaEngine/Asset/AssetService.h"
 #include "HuaEngine/Asset/AssetTypes.h"
 
 namespace HE::Editor {
@@ -236,7 +238,19 @@ namespace HE::Editor {
 			if (material.Material.Reference.Guid.empty()) { ImGui::TextDisabled("Missing Material"); return false; }
 			if (!context.ResolveMaterialDefinition) { ImGui::TextDisabled("Material definition unavailable"); return false; }
 			Rendering::MaterialDefinition definition;
-			if (!context.ResolveMaterialDefinition(material.Material.Reference.Guid, definition).Succeeded()) { ImGui::TextDisabled("Reimport required"); return false; }
+			AssetImportHealth importHealth;
+			if (!context.ResolveMaterialDefinition(material.Material.Reference.Guid, definition, importHealth).Succeeded()) {
+				ImGui::TextDisabled(importHealth.State == AssetImportHealthState::Missing
+					? "Material or shader artifact missing"
+					: "Reimport required");
+				return false;
+			}
+			if (importHealth.State == AssetImportHealthState::LastGoodWithFailure) {
+				ImGui::TextColored(ImVec4(1.0f, 0.72f, 0.20f, 1.0f), "Import failed; showing last-good parameters");
+				if (!importHealth.Diagnostics.empty() && ImGui::IsItemHovered()) {
+					ImGui::SetTooltip("%s", importHealth.Diagnostics.front().Message.c_str());
+				}
+			}
 			bool changed = false;
 			for (const auto& parameter : definition.GetParameters()) {
 				ImGui::PushID(parameter.Name.c_str());
@@ -276,10 +290,23 @@ namespace HE::Editor {
 					}, parameter.CurrentValue);
 				}
 				bool edited = false;
-				if (auto* scalar = std::get_if<float>(&value)) edited = ImGui::DragFloat("##Value", scalar, parameter.Step > 0.0f ? parameter.Step : 0.1f);
-				else if (auto* vector = std::get_if<glm::vec2>(&value)) edited = ImGui::DragFloat2("##Value", &(*vector)[0], parameter.Step > 0.0f ? parameter.Step : 0.1f);
-				else if (auto* vector = std::get_if<glm::vec3>(&value)) edited = parameter.Editor == Rendering::ShaderEditorKind::Color ? ImGui::ColorEdit3("##Value", &(*vector)[0]) : ImGui::DragFloat3("##Value", &(*vector)[0], parameter.Step > 0.0f ? parameter.Step : 0.1f);
-				else if (auto* vector = std::get_if<glm::vec4>(&value)) edited = parameter.Editor == Rendering::ShaderEditorKind::Color ? ImGui::ColorEdit4("##Value", &(*vector)[0]) : ImGui::DragFloat4("##Value", &(*vector)[0], parameter.Step > 0.0f ? parameter.Step : 0.1f);
+				const auto numericOptions = GetMaterialNumericEditorOptions(parameter);
+				const float minimum = numericOptions.HasRange ? numericOptions.Minimum : 0.0f;
+				const float maximum = numericOptions.HasRange ? numericOptions.Maximum : 0.0f;
+				if (auto* scalar = std::get_if<int>(&value)) {
+					const int minimumInt = static_cast<int>(std::ceil(minimum));
+					const int maximumInt = static_cast<int>(std::floor(maximum));
+					edited = ImGui::DragInt(
+						"##Value",
+						scalar,
+						std::max(1.0f, numericOptions.Speed),
+						minimumInt,
+						maximumInt);
+				}
+				else if (auto* scalar = std::get_if<float>(&value)) edited = ImGui::DragFloat("##Value", scalar, numericOptions.Speed, minimum, maximum);
+				else if (auto* vector = std::get_if<glm::vec2>(&value)) edited = ImGui::DragFloat2("##Value", &(*vector)[0], numericOptions.Speed, minimum, maximum);
+				else if (auto* vector = std::get_if<glm::vec3>(&value)) edited = parameter.Editor == Rendering::ShaderEditorKind::Color ? ImGui::ColorEdit3("##Value", &(*vector)[0]) : ImGui::DragFloat3("##Value", &(*vector)[0], numericOptions.Speed, minimum, maximum);
+				else if (auto* vector = std::get_if<glm::vec4>(&value)) edited = parameter.Editor == Rendering::ShaderEditorKind::Color ? ImGui::ColorEdit4("##Value", &(*vector)[0]) : ImGui::DragFloat4("##Value", &(*vector)[0], numericOptions.Speed, minimum, maximum);
 				else ImGui::TextDisabled("Unsupported parameter type");
 				if (edited) {
 					auto next = material.Overrides; next.Parameters[parameter.Name] = std::move(value);
@@ -400,6 +427,20 @@ namespace HE::Editor {
 			return std::string(type.Name);
 		}
 		return std::string(type.QualifiedName);
+	}
+
+	MaterialNumericEditorOptions GetMaterialNumericEditorOptions(
+		const Rendering::MaterialParameterDefinition& parameter) {
+		MaterialNumericEditorOptions options;
+		if (parameter.Step > 0.0f) {
+			options.Speed = parameter.Step;
+		}
+		if (parameter.Range.size() == 2 && parameter.Range[0] <= parameter.Range[1]) {
+			options.Minimum = parameter.Range[0];
+			options.Maximum = parameter.Range[1];
+			options.HasRange = true;
+		}
+		return options;
 	}
 
 	bool DrawRuntimeFieldEditor(

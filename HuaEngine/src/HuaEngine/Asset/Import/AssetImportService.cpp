@@ -240,6 +240,9 @@ namespace HE {
 		auto planResult = BuildImportPlan(context, manifest, *m_Registry, *m_Library, assetGuids, policy, plan, planningFailures, planningBuiltinFailure);
 		if (!planResult.Succeeded()) {
 			report.FailedAssets = planningFailures;
+			for (const auto& guid : assetGuids) {
+				report.Failures.push_back({ guid, planResult.Details });
+			}
 			if (outReport) *outReport = report;
 			planResult.Operation = "asset.import_assets";
 			return planResult;
@@ -263,6 +266,7 @@ namespace HE {
 			if (!hashResult.Succeeded()) {
 				++report.FailedAssets;
 				builtinFailure |= record.Source == AssetSource::Builtin;
+				report.Failures.push_back({ record.Guid, hashResult.Details });
 				for (auto& diagnostic : hashResult.Details) result.AddDetail(std::move(diagnostic));
 				continue;
 			}
@@ -282,6 +286,12 @@ namespace HE {
 			if (!fingerprintInputsResult.Succeeded() || !fingerprintResult.Succeeded()) {
 				++report.FailedAssets;
 				builtinFailure |= record.Source == AssetSource::Builtin;
+				AssetImportFailure failure{ .Guid = record.Guid };
+				failure.Diagnostics.insert(failure.Diagnostics.end(), fingerprintInputsResult.Details.begin(), fingerprintInputsResult.Details.end());
+				if (fingerprintInputsResult.Succeeded()) {
+					failure.Diagnostics.insert(failure.Diagnostics.end(), fingerprintResult.Details.begin(), fingerprintResult.Details.end());
+				}
+				report.Failures.push_back(std::move(failure));
 				for (auto& diagnostic : fingerprintInputsResult.Details) result.AddDetail(std::move(diagnostic));
 				if (fingerprintInputsResult.Succeeded()) for (auto& diagnostic : fingerprintResult.Details) result.AddDetail(std::move(diagnostic));
 				continue;
@@ -302,6 +312,7 @@ namespace HE {
 			if (!importResult.Success) {
 				++report.FailedAssets;
 				builtinFailure |= record.Source == AssetSource::Builtin;
+				report.Failures.push_back({ record.Guid, importResult.Diagnostics });
 				for (auto& diagnostic : importResult.Diagnostics) result.AddDetail(std::move(diagnostic));
 				continue;
 			}
@@ -315,6 +326,7 @@ namespace HE {
 			if (!commitResult.Succeeded()) {
 				++report.FailedAssets;
 				builtinFailure |= record.Source == AssetSource::Builtin;
+				report.Failures.push_back({ record.Guid, commitResult.Details });
 				for (auto& diagnostic : commitResult.Details) result.AddDetail(std::move(diagnostic));
 				continue;
 			}
