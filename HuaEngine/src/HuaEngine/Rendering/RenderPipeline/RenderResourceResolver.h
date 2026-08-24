@@ -6,6 +6,7 @@
 
 #include "HuaEngine/Rendering/RenderPipeline/RenderTypes.h"
 #include "HuaEngine/Core/Sha256.h"
+#include "HuaEngine/Rendering/Shader/ShaderInterface.h"
 
 namespace HE {
 	class AssetResolver;
@@ -17,9 +18,6 @@ namespace HE::Rendering {
 	class RenderDevice;
 	class ShaderProgram;
 	class UniformBufferArena;
-	struct ShaderTextureBinding;
-	struct ShaderUniformBlockBinding;
-
 	class RenderResourceResolver {
 	public:
 		RenderResourceResolver();
@@ -49,11 +47,12 @@ namespace HE::Rendering {
 			Ref<BindGroupLayout> Layout;
 		};
 
-		Ref<BindGroupLayout> GetUniformBlockBindGroupLayout(RenderDevice& device, BindGroupScope scope, const ShaderUniformBlockBinding& block, const Sha256Digest& interfaceDigest, RenderStats& stats) const;
+		Ref<BindGroupLayout> GetUniformBlockBindGroupLayout(RenderDevice& device, BindGroupScope scope, const ShaderConstantBuffer& block, ShaderStageFlags visibility, const Sha256Digest& interfaceDigest, RenderStats& stats) const;
 		Ref<BindGroupLayout> GetMaterialBindGroupLayout(
 			RenderDevice& device,
-			const ShaderUniformBlockBinding& block,
-			const std::vector<ShaderTextureBinding>& textures,
+			const ShaderConstantBuffer& block,
+			ShaderStageFlags blockVisibility,
+			const std::vector<ShaderResourceBinding>& textures,
 			const Sha256Digest& interfaceDigest,
 			RenderStats& stats) const;
 		Ref<PipelineState> GetPipelineState(

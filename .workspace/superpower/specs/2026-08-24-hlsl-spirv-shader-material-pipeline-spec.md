@@ -483,13 +483,13 @@ SH3 为保持旧 Material uniform 上传路径，生成 GLSL 临时启用 `emit_
 
 OpenGL binding point 不直接使用 `set * 常量 + binding` 之类未经设备上限校验的公式。导入阶段按 `(set, binding)` 稳定排序生成稠密逻辑索引；创建 ShaderProgram 时查询并校验设备的 uniform buffer binding 上限，再把逻辑索引绑定到实际 binding point。超出上限必须拒绝 program/pipeline 创建并给出所需数量和设备上限。
 
-`ShaderResourceMap` 的编号规则固定为：
+OpenGL 后端私有资源映射的编号规则固定为：
 
 - Uniform block entries 按 `(set, binding)` 排序，依次分配逻辑 uniform binding point `0..N-1`。
 - Combined sampler entries 按 `(textureSet, textureBinding, samplerSet, samplerBinding)` 排序，依次分配逻辑 texture unit `0..M-1`。
 - 相同 texture/sampler pair 跨 stage 合并，visibility 取并集；不同 pair 即使引用同一 Texture 也占独立 combined sampler entry。
 - generated GLSL uniform/block name 只作为 OpenGL program link 后的定位信息，不参与公共 binding 身份；公共身份始终是 set/binding pair。
-- `ShaderResourceMap` 保存逻辑编号，不保存设备相关 `GLuint`、uniform location 或实际上限。OpenGL ShaderProgram 创建时完成设备校验和 location 解析。
+- 公共 RHI 只保存 set/binding 逻辑身份，不保存稠密编号、`GLuint`、uniform location 或实际上限。OpenGL ShaderProgram 创建时按逻辑接口生成私有稠密映射，并完成设备校验和 location 解析。
 
 首版建立 frame-local `UniformBufferArena`：
 
@@ -546,19 +546,18 @@ Material 不保存 OpenGL texture unit。
 ```cpp
 struct ShaderStageBinary {
     ShaderStage Stage;
-    ShaderBinaryFormat Format;
+    ShaderStageCodeFormat Format;
     std::string EntryPoint;
-    std::vector<uint8_t> Data;
+    std::vector<uint8_t> Code;
 };
 
 struct ShaderProgramDesc {
     std::vector<ShaderStageBinary> Stages;
     ShaderGpuInterface Interface;
-    ShaderResourceMap ResourceMap;
 };
 ```
 
-OpenGL stage format 使用 generated GLSL text；未来 D3D12 使用 DXIL。Artifact 的 `OpenGLBindingMap` 在构造 desc 时投影为后端无关的 `ShaderResourceMap`，OpenGL backend 再将其解析为 texture unit、uniform location 和 binding point。公开 RHI 不出现 DXC、SPIRV-Cross、GLuint 或 D3D12 原生类型，也不包含 DisplayName、tooltip、editor kind 等 authoring metadata。
+OpenGL stage format 使用 generated GLSL text；未来 D3D12 使用 DXIL。`ShaderProgramDesc` 只携带目标代码和后端无关的逻辑 ShaderInterface；OpenGL backend 根据 set/binding 和生成代码建立私有的 texture unit、uniform location 与 uniform buffer binding point 映射。Artifact 中的 `OpenGLBindingMap` 属于 OpenGL 目标产物元数据，不再投影进公共 RHI。公开 RHI 不出现 DXC、SPIRV-Cross、GLuint 或 D3D12 原生类型，也不包含 DisplayName、tooltip、editor kind 等 authoring metadata。
 
 ### 9.2 BindGroupLayout 来源
 
@@ -879,7 +878,7 @@ Editor/src/Panels/
 
 ### SH4：OpenGL UBO 与 ShaderInterface 驱动的 BindGroup
 
-状态：已完成。真实 OpenGL UBO、稠密 uniform block binding point、`GLsync` timeline fence、按设备对齐的 frame-local arena，以及按 ShaderInterface member offset 打包 Frame、Material、Object 常量已经接入 Forward 主路径。公共 ShaderProgram 使用后端中立的 stage binary、完整 ShaderGpuInterface 与 ShaderResourceMap；Pipeline 创建会严格校验 binding、类型、visibility、minimum size 和完整 interface digest。`glFenceSync` 失败时使用同步完成退路后再发布 timeline，避免 Arena 提前复用。三个 scope 的 BindGroupLayout 均由每个 ShaderInterface 投影，材质纹理 binding 直接来自 ShaderResourceMap；SPIRV-Cross plain-uniform 兼容输出、OpenGL uniform name fallback、MaterialBindingSchema GPU layout 推导均已删除。
+状态：已完成。真实 OpenGL UBO、稠密 uniform block binding point、`GLsync` timeline fence、按设备对齐的 frame-local arena，以及按 ShaderInterface member offset 打包 Frame、Material、Object 常量已经接入 Forward 主路径。公共 ShaderProgram 使用后端中立的 stage binary 与完整 ShaderGpuInterface；Pipeline 创建会严格校验 binding、类型、visibility、minimum size 和完整 interface digest。OpenGL 的 uniform block binding point、texture unit 和组合采样器 uniform location 均为后端私有映射。`glFenceSync` 失败时使用同步完成退路后再发布 timeline，避免 Arena 提前复用。三个 scope 的 BindGroupLayout 均由每个 ShaderInterface 投影，材质纹理 binding 直接来自 ShaderInterface；SPIRV-Cross plain-uniform 兼容输出、OpenGL uniform name fallback、MaterialBindingSchema GPU layout 推导均已删除。
 
 内容：
 

@@ -73,20 +73,11 @@ namespace HE::Rendering {
 			{ "u_SourceTexture", ShaderResourceType::Texture2D, 1, 0, 1, ShaderStageFragment },
 			{ "u_SourceSampler", ShaderResourceType::Sampler, 1, 1, 1, ShaderStageFragment }
 		};
-		ShaderResourceMap resourceMap;
-		resourceMap.Textures = {{
-			.TextureName = "u_SourceTexture",
-			.SamplerName = "u_SourceSampler",
-			.UniformName = "u_SourceTexture",
-			.TextureSet = 1,
-			.TextureBinding = 0,
-			.SamplerSet = 1,
-			.SamplerBinding = 1,
-			.TextureUnit = 0,
-			.StageMask = ShaderStageFragment
-		}};
 		ShaderProgramDesc shaderDesc;
-		if (!BuildOpenGlShaderProgramDesc(vertexSource, fragmentSource, std::move(gpuInterface), std::move(resourceMap), shaderDesc).Succeeded()) return;
+		if (!BuildShaderProgramDesc({
+			{ ShaderStage::Vertex, ShaderStageCodeFormat::OpenGlGlsl, "main", { vertexSource.begin(), vertexSource.end() } },
+			{ ShaderStage::Fragment, ShaderStageCodeFormat::OpenGlGlsl, "main", { fragmentSource.begin(), fragmentSource.end() } }
+		}, std::move(gpuInterface), shaderDesc).Succeeded()) return;
 		auto shader = context.Device->CreateShaderProgram(shaderDesc);
 		auto bindGroupLayout = context.Device->CreateBindGroupLayout({
 			.Scope = BindGroupScope::Material,

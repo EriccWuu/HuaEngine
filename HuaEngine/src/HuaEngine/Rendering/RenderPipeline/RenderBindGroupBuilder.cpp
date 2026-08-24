@@ -11,7 +11,7 @@
 
 namespace HE::Rendering {
 	namespace {
-		Ref<BindGroup> CreateMatrixBindGroup(RenderDevice& device, UniformBufferArena& arena, const ShaderUniformBlockBinding& block, Ref<BindGroupLayout> layout, const char* memberName, const glm::mat4& value) {
+		Ref<BindGroup> CreateMatrixBindGroup(RenderDevice& device, UniformBufferArena& arena, const ShaderConstantBuffer& block, Ref<BindGroupLayout> layout, const char* memberName, const glm::mat4& value) {
 			if (!layout || block.Size == 0) return nullptr;
 			const auto member = std::find_if(block.Members.begin(), block.Members.end(), [&](const auto& candidate) { return candidate.Name == memberName; });
 			if (member == block.Members.end() || member->Size != sizeof(glm::mat4) || member->Offset > block.Size || member->Size > block.Size - member->Offset) return nullptr;
@@ -22,42 +22,42 @@ namespace HE::Rendering {
 			if (!arena.Allocate(constants.data(), block.Size, allocation)) return nullptr;
 			return device.CreateBindGroup({
 				.Layout = std::move(layout),
-				.Entries = {{ .Name = block.Name, .Type = BindingValueType::UniformBuffer, .Value = allocation.Buffer, .Binding = block.BindingPoint, .Offset = allocation.Offset, .Size = block.Size }}
+				.Entries = {{ .Name = block.Name, .Type = BindingValueType::UniformBuffer, .Value = allocation.Buffer, .Binding = block.Binding, .Offset = allocation.Offset, .Size = block.Size }}
 			});
 		}
 
-		void AddTextureEntry(std::vector<BindGroupEntry>& entries, const MaterialParameter& parameter, const ShaderTextureBinding& texture) {
+		void AddTextureEntry(std::vector<BindGroupEntry>& entries, const MaterialParameter& parameter, const ShaderResourceBinding& texture) {
 			const auto* resource = std::get_if<Ref<TextureResource>>(&parameter.Value);
 			if (!resource || !*resource) return;
-			entries.push_back({ .Name = texture.UniformName, .Type = BindingValueType::Texture, .Value = *resource, .Binding = texture.TextureUnit, .TextureSlot = texture.TextureUnit });
+			entries.push_back({ .Name = texture.Name, .Type = BindingValueType::Texture, .Value = *resource, .Binding = texture.Binding });
 		}
 	}
 
-	Ref<BindGroupLayout> CreateUniformBlockBindGroupLayout(RenderDevice& device, BindGroupScope scope, const ShaderUniformBlockBinding& block, const Sha256Digest& interfaceDigest) {
+	Ref<BindGroupLayout> CreateUniformBlockBindGroupLayout(RenderDevice& device, BindGroupScope scope, const ShaderConstantBuffer& block, ShaderStageFlags visibility, const Sha256Digest& interfaceDigest) {
 		if (block.Size == 0) return nullptr;
 		return device.CreateBindGroupLayout({
 			.Scope = scope,
-			.Entries = {{ .Name = block.Name, .Type = BindingValueType::UniformBuffer, .Binding = block.BindingPoint, .Visibility = block.StageMask, .MinBindingSize = block.Size }},
+			.Entries = {{ .Name = block.Name, .Type = BindingValueType::UniformBuffer, .Binding = block.Binding, .Visibility = visibility, .MinBindingSize = block.Size }},
 			.InterfaceDigest = interfaceDigest
 		});
 	}
 
-	Ref<BindGroupLayout> CreateMaterialBindGroupLayout(RenderDevice& device, const ShaderUniformBlockBinding& block, const std::vector<ShaderTextureBinding>& textures, const Sha256Digest& interfaceDigest) {
+	Ref<BindGroupLayout> CreateMaterialBindGroupLayout(RenderDevice& device, const ShaderConstantBuffer& block, ShaderStageFlags blockVisibility, const std::vector<ShaderResourceBinding>& textures, const Sha256Digest& interfaceDigest) {
 		if (block.Size == 0) return nullptr;
-		std::vector<BindGroupLayoutEntry> entries = {{ .Name = block.Name, .Type = BindingValueType::UniformBuffer, .Binding = block.BindingPoint, .Visibility = block.StageMask, .MinBindingSize = block.Size }};
-		for (const auto& texture : textures) entries.push_back({ .Name = texture.UniformName, .Type = BindingValueType::Texture, .Binding = texture.TextureUnit, .Visibility = texture.StageMask });
+		std::vector<BindGroupLayoutEntry> entries = {{ .Name = block.Name, .Type = BindingValueType::UniformBuffer, .Binding = block.Binding, .Visibility = blockVisibility, .MinBindingSize = block.Size }};
+		for (const auto& texture : textures) entries.push_back({ .Name = texture.Name, .Type = BindingValueType::Texture, .Binding = texture.Binding, .Visibility = texture.StageMask });
 		return device.CreateBindGroupLayout({ .Scope = BindGroupScope::Material, .Entries = std::move(entries), .InterfaceDigest = interfaceDigest });
 	}
 
-	Ref<BindGroup> CreateFrameBindGroup(RenderDevice& device, UniformBufferArena& arena, const ShaderUniformBlockBinding& block, Ref<BindGroupLayout> layout, const glm::mat4& viewProjection) {
+	Ref<BindGroup> CreateFrameBindGroup(RenderDevice& device, UniformBufferArena& arena, const ShaderConstantBuffer& block, Ref<BindGroupLayout> layout, const glm::mat4& viewProjection) {
 		return CreateMatrixBindGroup(device, arena, block, std::move(layout), "u_ViewProjection", viewProjection);
 	}
 
-	Ref<BindGroup> CreateObjectBindGroup(RenderDevice& device, UniformBufferArena& arena, const ShaderUniformBlockBinding& block, Ref<BindGroupLayout> layout, const glm::mat4& transform) {
+	Ref<BindGroup> CreateObjectBindGroup(RenderDevice& device, UniformBufferArena& arena, const ShaderConstantBuffer& block, Ref<BindGroupLayout> layout, const glm::mat4& transform) {
 		return CreateMatrixBindGroup(device, arena, block, std::move(layout), "u_Transform", transform);
 	}
 
-	Ref<BindGroup> CreateMaterialBindGroup(RenderDevice& device, UniformBufferArena& arena, const MaterialInstance& materialInstance, const ShaderUniformBlockBinding& block, const std::vector<ShaderTextureBinding>& textures, Ref<BindGroupLayout> layout) {
+	Ref<BindGroup> CreateMaterialBindGroup(RenderDevice& device, UniformBufferArena& arena, const MaterialInstance& materialInstance, const ShaderConstantBuffer& block, const std::vector<ShaderResourceBinding>& textures, Ref<BindGroupLayout> layout) {
 		auto baseMaterial = materialInstance.GetBaseMaterial();
 		if (!baseMaterial || !layout || block.Size == 0) return nullptr;
 
@@ -77,15 +77,15 @@ namespace HE::Rendering {
 			}, parameter.Value);
 		}
 		for (const auto& texture : textures) {
-			const auto* baseParameter = baseMaterial->GetParameter(texture.TextureName);
+			const auto* baseParameter = baseMaterial->GetParameter(texture.Name);
 			if (!baseParameter) continue;
-			const auto* overrideParameter = materialInstance.GetParameterOverride(texture.TextureName);
+			const auto* overrideParameter = materialInstance.GetParameterOverride(texture.Name);
 			AddTextureEntry(entries, overrideParameter ? *overrideParameter : *baseParameter, texture);
 		}
 
 		UniformBufferAllocation allocation;
 		if (!arena.Allocate(constants.data(), block.Size, allocation)) return nullptr;
-		entries.insert(entries.begin(), { .Name = block.Name, .Type = BindingValueType::UniformBuffer, .Value = allocation.Buffer, .Binding = block.BindingPoint, .Offset = allocation.Offset, .Size = block.Size });
+		entries.insert(entries.begin(), { .Name = block.Name, .Type = BindingValueType::UniformBuffer, .Value = allocation.Buffer, .Binding = block.Binding, .Offset = allocation.Offset, .Size = block.Size });
 		return device.CreateBindGroup({ .Layout = std::move(layout), .Entries = std::move(entries) });
 	}
 }

@@ -217,14 +217,11 @@ int main() {
 		{ "MaterialData", 1, 0, 16, {{ "u_Color", HE::Rendering::ShaderValueType::Float4, 0, 16 }} },
 		{ "ObjectData", 2, 0, 64, {{ "u_Transform", HE::Rendering::ShaderValueType::Float4x4, 0, 64, 16, 0, true }} }
 	};
-	HE::Rendering::ShaderResourceMap resourceMap;
-	resourceMap.UniformBlocks = {
-		{ .Name = "FrameData", .Set = 0, .Binding = 0, .BindingPoint = 0, .Size = 64, .StageMask = HE::Rendering::ShaderStageVertex, .Members = {{ .Name = "u_ViewProjection", .Offset = 0, .Size = 64 }} },
-		{ .Name = "MaterialData", .Set = 1, .Binding = 0, .BindingPoint = 1, .Size = 16, .StageMask = HE::Rendering::ShaderStageFragment, .Members = {{ .Name = "u_Color", .Offset = 0, .Size = 16 }} },
-		{ .Name = "ObjectData", .Set = 2, .Binding = 0, .BindingPoint = 2, .Size = 64, .StageMask = HE::Rendering::ShaderStageVertex, .Members = {{ .Name = "u_Transform", .Offset = 0, .Size = 64 }} }
-	};
 	HE::Rendering::ShaderProgramDesc shaderDesc;
-	Require(HE::Rendering::BuildOpenGlShaderProgramDesc(vertexSource, fragmentSource, std::move(gpuInterface), std::move(resourceMap), shaderDesc).Succeeded(), "Expected shader descriptor creation to succeed");
+	Require(HE::Rendering::BuildShaderProgramDesc({
+		{ HE::Rendering::ShaderStage::Vertex, HE::Rendering::ShaderStageCodeFormat::OpenGlGlsl, "main", { vertexSource.begin(), vertexSource.end() } },
+		{ HE::Rendering::ShaderStage::Fragment, HE::Rendering::ShaderStageCodeFormat::OpenGlGlsl, "main", { fragmentSource.begin(), fragmentSource.end() } }
+	}, std::move(gpuInterface), shaderDesc).Succeeded(), "Expected shader descriptor creation to succeed");
 	auto shaderProgram = device.CreateShaderProgram(shaderDesc);
 	Require(static_cast<bool>(shaderProgram), "Expected shader program creation to succeed");
 
@@ -271,7 +268,7 @@ int main() {
 			{
 				.Name = "MaterialData",
 				.Type = HE::Rendering::BindingValueType::UniformBuffer,
-				.Binding = 1,
+				.Binding = 0,
 				.Visibility = HE::Rendering::ShaderStageFragment,
 				.MinBindingSize = 16
 			}
@@ -286,7 +283,7 @@ int main() {
 				.Name = "MaterialData",
 				.Type = HE::Rendering::BindingValueType::UniformBuffer,
 				.Value = materialBuffer,
-				.Binding = 1,
+				.Binding = 0,
 				.Size = 16
 			}
 		}
@@ -299,7 +296,7 @@ int main() {
 			{
 				.Name = "ObjectData",
 				.Type = HE::Rendering::BindingValueType::UniformBuffer,
-				.Binding = 2,
+				.Binding = 0,
 				.Visibility = HE::Rendering::ShaderStageVertex,
 				.MinBindingSize = 64
 			}
@@ -314,7 +311,7 @@ int main() {
 				.Name = "ObjectData",
 				.Type = HE::Rendering::BindingValueType::UniformBuffer,
 				.Value = objectBuffer,
-				.Binding = 2,
+				.Binding = 0,
 				.Size = 64
 			}
 		}
@@ -327,7 +324,7 @@ int main() {
 			{
 				.Name = "ObjectData",
 				.Type = HE::Rendering::BindingValueType::UniformBuffer,
-				.Binding = 2,
+				.Binding = 0,
 				.Visibility = HE::Rendering::ShaderStageVertex,
 				.MinBindingSize = 64
 			}
@@ -342,7 +339,7 @@ int main() {
 				.Name = "ObjectData",
 				.Type = HE::Rendering::BindingValueType::UniformBuffer,
 				.Value = objectBuffer,
-				.Binding = 2,
+				.Binding = 0,
 				.Size = 64
 			}
 		}
@@ -463,20 +460,11 @@ int main() {
 		{ "u_SourceTexture", HE::Rendering::ShaderResourceType::Texture2D, 1, 0, 1, HE::Rendering::ShaderStageFragment },
 		{ "u_SourceSampler", HE::Rendering::ShaderResourceType::Sampler, 1, 1, 1, HE::Rendering::ShaderStageFragment }
 	};
-	HE::Rendering::ShaderResourceMap samplingResourceMap;
-	samplingResourceMap.Textures = {{
-		.TextureName = "u_SourceTexture",
-		.SamplerName = "u_SourceSampler",
-		.UniformName = "u_SourceTexture",
-		.TextureSet = 1,
-		.TextureBinding = 0,
-		.SamplerSet = 1,
-		.SamplerBinding = 1,
-		.TextureUnit = 0,
-		.StageMask = HE::Rendering::ShaderStageFragment
-	}};
 	HE::Rendering::ShaderProgramDesc samplingShaderDesc;
-	Require(HE::Rendering::BuildOpenGlShaderProgramDesc(samplingVertexSource, samplingFragmentSource, std::move(samplingInterface), std::move(samplingResourceMap), samplingShaderDesc).Succeeded(), "Expected attachment sampling shader descriptor");
+	Require(HE::Rendering::BuildShaderProgramDesc({
+		{ HE::Rendering::ShaderStage::Vertex, HE::Rendering::ShaderStageCodeFormat::OpenGlGlsl, "main", { samplingVertexSource.begin(), samplingVertexSource.end() } },
+		{ HE::Rendering::ShaderStage::Fragment, HE::Rendering::ShaderStageCodeFormat::OpenGlGlsl, "main", { samplingFragmentSource.begin(), samplingFragmentSource.end() } }
+	}, std::move(samplingInterface), samplingShaderDesc).Succeeded(), "Expected attachment sampling shader descriptor");
 	auto samplingShaderProgram = device.CreateShaderProgram(samplingShaderDesc);
 	Require(static_cast<bool>(samplingShaderProgram), "Expected attachment sampling shader creation to succeed");
 	auto samplingBindGroupLayout = device.CreateBindGroupLayout({

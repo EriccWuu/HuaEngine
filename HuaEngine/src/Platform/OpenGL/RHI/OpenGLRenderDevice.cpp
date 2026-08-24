@@ -180,51 +180,6 @@ namespace {
 		return true;
 	}
 
-	bool ValidateShaderResourceMap(const HE::Rendering::ShaderProgramDesc& desc) {
-		const auto& gpu = desc.Interface;
-		std::set<uint32_t> uniformBindingPoints;
-		for (const auto& buffer : gpu.ConstantBuffers) {
-			const auto resource = std::find_if(gpu.Resources.begin(), gpu.Resources.end(), [&](const auto& value) {
-				return value.Set == buffer.Set && value.Binding == buffer.Binding && value.Type == HE::Rendering::ShaderResourceType::ConstantBuffer;
-			});
-			const auto mapping = std::find_if(desc.ResourceMap.UniformBlocks.begin(), desc.ResourceMap.UniformBlocks.end(), [&](const auto& value) {
-				return value.Set == buffer.Set && value.Binding == buffer.Binding;
-			});
-			if (resource == gpu.Resources.end() || mapping == desc.ResourceMap.UniformBlocks.end() ||
-				mapping->Name != buffer.Name || mapping->Size != buffer.Size || mapping->StageMask != resource->StageMask ||
-				mapping->Members.size() != buffer.Members.size() || !uniformBindingPoints.emplace(mapping->BindingPoint).second) {
-				return false;
-			}
-			for (const auto& member : buffer.Members) {
-				const auto mappedMember = std::find_if(mapping->Members.begin(), mapping->Members.end(), [&](const auto& value) {
-					return value.Name == member.Name;
-				});
-				if (mappedMember == mapping->Members.end() || mappedMember->Offset != member.Offset || mappedMember->Size != member.Size) return false;
-			}
-		}
-		if (desc.ResourceMap.UniformBlocks.size() != gpu.ConstantBuffers.size()) return false;
-
-		std::set<uint32_t> textureUnits;
-		std::set<std::pair<uint32_t, uint32_t>> mappedTextures;
-		for (const auto& mapping : desc.ResourceMap.Textures) {
-			const auto texture = std::find_if(gpu.Resources.begin(), gpu.Resources.end(), [&](const auto& value) {
-				return value.Set == mapping.TextureSet && value.Binding == mapping.TextureBinding && value.Type == HE::Rendering::ShaderResourceType::Texture2D && value.Name == mapping.TextureName;
-			});
-			const auto sampler = std::find_if(gpu.Resources.begin(), gpu.Resources.end(), [&](const auto& value) {
-				return value.Set == mapping.SamplerSet && value.Binding == mapping.SamplerBinding && value.Type == HE::Rendering::ShaderResourceType::Sampler && value.Name == mapping.SamplerName;
-			});
-			if (texture == gpu.Resources.end() || sampler == gpu.Resources.end() || mapping.TextureSet != mapping.SamplerSet ||
-				mapping.UniformName.empty() || mapping.StageMask != (texture->StageMask | sampler->StageMask) ||
-				!textureUnits.emplace(mapping.TextureUnit).second || !mappedTextures.emplace(mapping.TextureSet, mapping.TextureBinding).second) {
-				return false;
-			}
-		}
-		const auto textureCount = std::count_if(gpu.Resources.begin(), gpu.Resources.end(), [](const auto& value) {
-			return value.Type == HE::Rendering::ShaderResourceType::Texture2D;
-		});
-		return desc.ResourceMap.Textures.size() == static_cast<size_t>(textureCount);
-	}
-
 	bool ValidateShaderProgramDesc(
 		const HE::Rendering::ShaderProgramDesc& desc,
 		std::string& vertexSource,
@@ -236,7 +191,7 @@ namespace {
 		const auto storedDigest = desc.Interface.Digest;
 		const auto storedSignature = desc.Interface.Signature;
 		if (!HE::Rendering::FinalizeShaderInterface(finalized).Succeeded() || finalized.Gpu.Digest != storedDigest ||
-			finalized.Gpu.Signature != storedSignature || !ValidateShaderResourceMap(desc)) return false;
+			finalized.Gpu.Signature != storedSignature) return false;
 		return true;
 	}
 
@@ -303,17 +258,21 @@ namespace {
 		if (!desc.Shader) return false;
 		std::map<uint32_t, HE::Rendering::BindGroupLayoutDesc> expectedLayouts;
 		const auto& shaderDesc = desc.Shader->GetDesc();
-		for (const auto& block : shaderDesc.ResourceMap.UniformBlocks) {
-			auto& expected = expectedLayouts[block.Set];
-			expected.Scope = static_cast<HE::Rendering::BindGroupScope>(block.Set);
+		for (const auto& resource : shaderDesc.Interface.Resources) {
+			if (resource.Type == HE::Rendering::ShaderResourceType::Sampler) continue;
+			auto& expected = expectedLayouts[resource.Set];
+			expected.Scope = static_cast<HE::Rendering::BindGroupScope>(resource.Set);
 			expected.InterfaceDigest = shaderDesc.Interface.Digest;
-			expected.Entries.push_back({ block.Name, HE::Rendering::BindingValueType::UniformBuffer, block.BindingPoint, block.StageMask, block.Size });
-		}
-		for (const auto& texture : shaderDesc.ResourceMap.Textures) {
-			auto& expected = expectedLayouts[texture.TextureSet];
-			expected.Scope = static_cast<HE::Rendering::BindGroupScope>(texture.TextureSet);
-			expected.InterfaceDigest = shaderDesc.Interface.Digest;
-			expected.Entries.push_back({ texture.UniformName, HE::Rendering::BindingValueType::Texture, texture.TextureUnit, texture.StageMask, 0 });
+			if (resource.Type == HE::Rendering::ShaderResourceType::ConstantBuffer) {
+				const auto block = std::find_if(shaderDesc.Interface.ConstantBuffers.begin(), shaderDesc.Interface.ConstantBuffers.end(), [&](const auto& candidate) {
+					return candidate.Set == resource.Set && candidate.Binding == resource.Binding;
+				});
+				if (block == shaderDesc.Interface.ConstantBuffers.end()) return false;
+				expected.Entries.push_back({ resource.Name, HE::Rendering::BindingValueType::UniformBuffer, resource.Binding, resource.StageMask, block->Size });
+			}
+			else if (resource.Type == HE::Rendering::ShaderResourceType::Texture2D) {
+				expected.Entries.push_back({ resource.Name, HE::Rendering::BindingValueType::Texture, resource.Binding, resource.StageMask, 0 });
+			}
 		}
 		if (expectedLayouts.size() != desc.BindGroupLayouts.size()) return false;
 		std::set<uint32_t> slots;
@@ -1116,32 +1075,85 @@ namespace HE::Rendering {
 			return;
 		}
 		m_Shader = CreateRef<OpenGLShader>(vertexSource, fragmentSource);
+		auto uniformBlocks = m_Desc.Interface.ConstantBuffers;
+		std::sort(uniformBlocks.begin(), uniformBlocks.end(), [](const auto& left, const auto& right) {
+			return std::tie(left.Set, left.Binding) < std::tie(right.Set, right.Binding);
+		});
 		GLint bindingLimit = 0;
 		glGetIntegerv(GL_MAX_UNIFORM_BUFFER_BINDINGS, &bindingLimit);
-		if (m_Desc.ResourceMap.UniformBlocks.size() > static_cast<size_t>(bindingLimit)) {
-			HE_CORE_ERROR("Shader requires {0} uniform buffer bindings, device supports {1}", m_Desc.ResourceMap.UniformBlocks.size(), bindingLimit);
+		if (uniformBlocks.size() > static_cast<size_t>(bindingLimit)) {
+			HE_CORE_ERROR("Shader requires {0} uniform buffer bindings, device supports {1}", uniformBlocks.size(), bindingLimit);
 			m_Valid = false;
 			return;
 		}
-		for (const auto& block : m_Desc.ResourceMap.UniformBlocks) {
+		for (uint32_t bindingPoint = 0; bindingPoint < uniformBlocks.size(); ++bindingPoint) {
+			const auto& block = uniformBlocks[bindingPoint];
 			GLuint index = glGetUniformBlockIndex(m_Shader->GetProgram(), block.Name.c_str());
 			if (index == GL_INVALID_INDEX) index = glGetUniformBlockIndex(m_Shader->GetProgram(), ("type_" + block.Name).c_str());
-			if (index == GL_INVALID_INDEX || block.BindingPoint >= static_cast<uint32_t>(bindingLimit)) {
-				HE_CORE_ERROR("Shader uniform block '{0}' could not be assigned to binding point {1}", block.Name, block.BindingPoint);
+			if (index == GL_INVALID_INDEX) {
+				HE_CORE_ERROR("Shader uniform block '{0}' could not be assigned to binding point {1}", block.Name, bindingPoint);
 				m_Valid = false;
 				return;
 			}
-			glUniformBlockBinding(m_Shader->GetProgram(), index, block.BindingPoint);
+			glUniformBlockBinding(m_Shader->GetProgram(), index, bindingPoint);
+			m_UniformBufferBindings.push_back({ block.Set, block.Binding, bindingPoint });
 		}
-		for (const auto& texture : m_Desc.ResourceMap.Textures) {
-			const GLint location = glGetUniformLocation(m_Shader->GetProgram(), texture.UniformName.c_str());
-			if (location < 0) { m_Valid = false; HE_CORE_ERROR("Shader combined sampler '{0}' was not found", texture.UniformName); return; }
-			glProgramUniform1i(m_Shader->GetProgram(), location, static_cast<GLint>(texture.TextureUnit));
+
+		std::vector<ShaderResourceBinding> textures;
+		std::vector<ShaderResourceBinding> samplers;
+		for (const auto& resource : m_Desc.Interface.Resources) {
+			if (resource.Type == ShaderResourceType::Texture2D) textures.push_back(resource);
+			else if (resource.Type == ShaderResourceType::Sampler) samplers.push_back(resource);
+		}
+		std::sort(textures.begin(), textures.end(), [](const auto& left, const auto& right) {
+			return std::tie(left.Set, left.Binding) < std::tie(right.Set, right.Binding);
+		});
+		GLint textureUnitLimit = 0;
+		glGetIntegerv(GL_MAX_COMBINED_TEXTURE_IMAGE_UNITS, &textureUnitLimit);
+		if (textures.size() > static_cast<size_t>(textureUnitLimit)) {
+			HE_CORE_ERROR("Shader requires {0} texture units, device supports {1}", textures.size(), textureUnitLimit);
+			m_Valid = false;
+			return;
+		}
+		for (uint32_t textureUnit = 0; textureUnit < textures.size(); ++textureUnit) {
+			const auto& texture = textures[textureUnit];
+			std::vector<GLint> locations;
+			const auto appendLocation = [&](const std::string& uniformName) {
+				const GLint location = glGetUniformLocation(m_Shader->GetProgram(), uniformName.c_str());
+				if (location >= 0 && std::find(locations.begin(), locations.end(), location) == locations.end()) locations.push_back(location);
+			};
+			appendLocation(texture.Name);
+			for (const auto& sampler : samplers) {
+				appendLocation("SPIRV_Cross_Combined" + texture.Name + sampler.Name);
+			}
+			if (locations.empty()) {
+				HE_CORE_ERROR("Shader texture '{0}' has no linked OpenGL sampler uniform", texture.Name);
+				m_Valid = false;
+				return;
+			}
+			for (const GLint location : locations) {
+				glProgramUniform1i(m_Shader->GetProgram(), location, static_cast<GLint>(textureUnit));
+			}
+			m_TextureBindings.push_back({ texture.Set, texture.Binding, textureUnit });
 		}
 	}
 
 	const ShaderProgramDesc& OpenGLShaderProgram::GetDesc() const {
 		return m_Desc;
+	}
+
+	std::optional<uint32_t> OpenGLShaderProgram::FindUniformBufferBindingPoint(uint32_t set, uint32_t binding) const {
+		const auto found = std::find_if(m_UniformBufferBindings.begin(), m_UniformBufferBindings.end(), [&](const auto& candidate) {
+			return candidate.Set == set && candidate.Binding == binding;
+		});
+		return found != m_UniformBufferBindings.end() ? std::optional<uint32_t>(found->NativeIndex) : std::nullopt;
+	}
+
+	std::optional<uint32_t> OpenGLShaderProgram::FindTextureUnit(uint32_t set, uint32_t binding) const {
+		const auto found = std::find_if(m_TextureBindings.begin(), m_TextureBindings.end(), [&](const auto& candidate) {
+			return candidate.Set == set && candidate.Binding == binding;
+		});
+		return found != m_TextureBindings.end() ? std::optional<uint32_t>(found->NativeIndex) : std::nullopt;
 	}
 
 	void OpenGLShaderProgram::BindForCommandList() {
@@ -1501,8 +1513,12 @@ namespace HE::Rendering {
 						return;
 					}
 
-					static_cast<OpenGLTextureResource&>(*value).BindForCommandList(entry.TextureSlot);
-					shaderProgram.SetInt(entry.Name, static_cast<int>(entry.TextureSlot));
+					const auto textureUnit = shaderProgram.FindTextureUnit(slot, entry.Binding);
+					if (!textureUnit) {
+						HE_CORE_WARN("CommandList::SetBindGroup skipped unmapped texture binding {0}:{1}", slot, entry.Binding);
+						return;
+					}
+					static_cast<OpenGLTextureResource&>(*value).BindForCommandList(*textureUnit);
 				}
 				else if constexpr (std::is_same_v<T, Ref<TextureView>>) {
 					if (!value) {
@@ -1510,8 +1526,12 @@ namespace HE::Rendering {
 						return;
 					}
 
-					static_cast<OpenGLTextureView&>(*value).BindForCommandList(entry.TextureSlot);
-					shaderProgram.SetInt(entry.Name, static_cast<int>(entry.TextureSlot));
+					const auto textureUnit = shaderProgram.FindTextureUnit(slot, entry.Binding);
+					if (!textureUnit) {
+						HE_CORE_WARN("CommandList::SetBindGroup skipped unmapped texture view binding {0}:{1}", slot, entry.Binding);
+						return;
+					}
+					static_cast<OpenGLTextureView&>(*value).BindForCommandList(*textureUnit);
 				}
 				else if constexpr (std::is_same_v<T, Ref<Sampler>>) {
 					if (!value) {
@@ -1530,7 +1550,12 @@ namespace HE::Rendering {
 						HE_CORE_WARN("CommandList::SetBindGroup skipped invalid uniform buffer binding '{0}'", entry.Name);
 						return;
 					}
-					static_cast<OpenGLGpuBuffer&>(*value).BindUniformRange(entry.Binding, entry.Offset, entry.Size);
+					const auto bindingPoint = shaderProgram.FindUniformBufferBindingPoint(slot, entry.Binding);
+					if (!bindingPoint) {
+						HE_CORE_WARN("CommandList::SetBindGroup skipped unmapped uniform buffer binding {0}:{1}", slot, entry.Binding);
+						return;
+					}
+					static_cast<OpenGLGpuBuffer&>(*value).BindUniformRange(*bindingPoint, entry.Offset, entry.Size);
 				}
 			}, entry.Value);
 		}

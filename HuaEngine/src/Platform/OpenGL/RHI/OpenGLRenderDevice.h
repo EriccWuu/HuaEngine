@@ -1,6 +1,7 @@
 #pragma once
 
 #include <functional>
+#include <optional>
 #include <vector>
 
 #include "HuaEngine/Rendering/RHI/CommandList.h"
@@ -286,10 +287,20 @@ namespace HE::Rendering {
 		void SetMat3(const std::string& name, const glm::mat3 value);
 		void SetMat4(const std::string& name, const glm::mat4 value);
 		bool IsValid() const { return m_Valid; }
+		std::optional<uint32_t> FindUniformBufferBindingPoint(uint32_t set, uint32_t binding) const;
+		std::optional<uint32_t> FindTextureUnit(uint32_t set, uint32_t binding) const;
 
 	private:
+		struct NativeBinding {
+			uint32_t Set = 0;
+			uint32_t Binding = 0;
+			uint32_t NativeIndex = 0;
+		};
+
 		ShaderProgramDesc m_Desc;
 		Ref<OpenGLShader> m_Shader;
+		std::vector<NativeBinding> m_UniformBufferBindings;
+		std::vector<NativeBinding> m_TextureBindings;
 		bool m_Valid = true;
 	};
 

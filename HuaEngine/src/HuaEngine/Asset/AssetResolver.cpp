@@ -32,6 +32,38 @@ namespace {
 		return result;
 	}
 
+	HE::ResultEnvelope BuildRuntimeShaderProgramDesc(
+		HE::ShaderArtifactDataV2 shaderData,
+		HE::Rendering::RenderBackendType backend,
+		HE::Rendering::ShaderProgramDesc& output) {
+		std::vector<HE::Rendering::ShaderStageBinary> stages;
+		switch (backend) {
+		case HE::Rendering::RenderBackendType::OpenGL:
+			for (const auto& stage : shaderData.Stages) {
+				stages.push_back({
+					.Stage = stage.Stage,
+					.Format = HE::Rendering::ShaderStageCodeFormat::OpenGlGlsl,
+					.EntryPoint = "main",
+					.Code = { stage.GeneratedOpenGlGlsl.begin(), stage.GeneratedOpenGlGlsl.end() }
+				});
+			}
+			break;
+		case HE::Rendering::RenderBackendType::Vulkan:
+		case HE::Rendering::RenderBackendType::D3D12:
+		case HE::Rendering::RenderBackendType::Metal:
+		case HE::Rendering::RenderBackendType::Null:
+		default:
+			return HE::ResultEnvelope::ManualIntervention(
+				"asset.shader.select_runtime_target",
+				"shader-program",
+				"Shader artifact has no payload for the active render backend");
+		}
+		return HE::Rendering::BuildShaderProgramDesc(
+			std::move(stages),
+			std::move(shaderData.Interface.Gpu),
+			output);
+	}
+
 }
 
 namespace HE {
@@ -295,57 +327,10 @@ namespace HE {
 			ShaderArtifactDataV2 shaderData;
 			decodeResult = DecodeShaderArtifactV2(artifact, shaderData);
 			if (decodeResult.Succeeded()) {
-				shaderProgramDesc.Interface = shaderData.Interface.Gpu;
-				for (const auto& stage : shaderData.Stages) {
-					shaderProgramDesc.Stages.push_back({
-						.Stage = stage.Stage,
-						.Format = Rendering::ShaderStageCodeFormat::OpenGlGlsl,
-						.EntryPoint = "main",
-						.Code = { stage.GeneratedOpenGlGlsl.begin(), stage.GeneratedOpenGlGlsl.end() }
-					});
-				}
-				auto buffers = shaderData.Interface.Gpu.ConstantBuffers;
-				std::sort(buffers.begin(), buffers.end(), [](const auto& left, const auto& right) {
-					return std::tie(left.Set, left.Binding) < std::tie(right.Set, right.Binding);
-				});
-				for (uint32_t index = 0; index < buffers.size(); ++index) {
-					const auto& buffer = buffers[index];
-					const auto resource = std::find_if(shaderData.Interface.Gpu.Resources.begin(), shaderData.Interface.Gpu.Resources.end(), [&](const auto& value) {
-						return value.Set == buffer.Set && value.Binding == buffer.Binding && value.Type == Rendering::ShaderResourceType::ConstantBuffer;
-					});
-					if (resource == shaderData.Interface.Gpu.Resources.end()) { decodeResult = ResultEnvelope::Failure("asset.resolve_shader", guid, "Shader constant buffer resource map is incomplete"); break; }
-					Rendering::ShaderUniformBlockBinding block{
-						.Name = buffer.Name,
-						.Set = buffer.Set,
-						.Binding = buffer.Binding,
-						.BindingPoint = index,
-						.Size = buffer.Size,
-						.StageMask = resource->StageMask
-					};
-					for (const auto& member : buffer.Members) block.Members.push_back({ member.Name, member.Offset, member.Size });
-					shaderProgramDesc.ResourceMap.UniformBlocks.push_back(std::move(block));
-				}
-				if (decodeResult.Succeeded()) {
-					auto combinedSamplers = shaderData.OpenGlCombinedSamplers;
-					std::sort(combinedSamplers.begin(), combinedSamplers.end(), [](const auto& left, const auto& right) { return std::tie(left.TextureName, left.SamplerName) < std::tie(right.TextureName, right.SamplerName); });
-					combinedSamplers.erase(std::unique(combinedSamplers.begin(), combinedSamplers.end(), [](const auto& left, const auto& right) { return left.TextureName == right.TextureName && left.SamplerName == right.SamplerName; }), combinedSamplers.end());
-					for (uint32_t index = 0; index < combinedSamplers.size(); ++index) {
-					const auto texture = std::find_if(shaderData.Interface.Gpu.Resources.begin(), shaderData.Interface.Gpu.Resources.end(), [&](const auto& value) { return value.Name == combinedSamplers[index].TextureName && value.Type == Rendering::ShaderResourceType::Texture2D; });
-					const auto sampler = std::find_if(shaderData.Interface.Gpu.Resources.begin(), shaderData.Interface.Gpu.Resources.end(), [&](const auto& value) { return value.Name == combinedSamplers[index].SamplerName && value.Type == Rendering::ShaderResourceType::Sampler; });
-					if (texture == shaderData.Interface.Gpu.Resources.end() || sampler == shaderData.Interface.Gpu.Resources.end()) { decodeResult = ResultEnvelope::Failure("asset.resolve_shader", guid, "Shader combined sampler resource map is incomplete"); break; }
-					shaderProgramDesc.ResourceMap.Textures.push_back({
-						.TextureName = texture->Name,
-						.SamplerName = sampler->Name,
-						.UniformName = combinedSamplers[index].UniformName,
-						.TextureSet = texture->Set,
-						.TextureBinding = texture->Binding,
-						.SamplerSet = sampler->Set,
-						.SamplerBinding = sampler->Binding,
-						.TextureUnit = index,
-						.StageMask = static_cast<uint8_t>(texture->StageMask | sampler->StageMask)
-					});
-					}
-				}
+				decodeResult = BuildRuntimeShaderProgramDesc(
+					std::move(shaderData),
+					Rendering::RenderHardwareInterface::GetDevice().GetCapabilities().Backend,
+					shaderProgramDesc);
 			}
 		}
 		if (!decodeResult.Succeeded()) {

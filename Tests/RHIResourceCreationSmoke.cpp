@@ -23,6 +23,15 @@
 #include "Support/TestTextureFixture.h"
 
 namespace {
+	template <typename T>
+	concept HasBackendResourceMap = requires(T value) {
+		value.ResourceMap;
+	};
+
+	static_assert(
+		!HasBackendResourceMap<HE::Rendering::ShaderProgramDesc>,
+		"ShaderProgramDesc must not expose backend-native resource mappings");
+
 	void Require(bool condition, const std::string& message) {
 		if (!condition) {
 			std::cerr << "[RHIResourceCreationSmoke] " << message << std::endl;
@@ -653,8 +662,17 @@ int main() {
 			color = vec4(1.0);
 		}
 	)";
+	HE::Rendering::ShaderProgramDesc invalidShaderDesc;
+	Require(
+		HE::Rendering::BuildShaderProgramDesc({
+			{ HE::Rendering::ShaderStage::Vertex, HE::Rendering::ShaderStageCodeFormat::Unknown, "main", { 1 } }
+		}, {}, invalidShaderDesc).Failed(),
+		"Expected unknown shader code format rejection");
 	HE::Rendering::ShaderProgramDesc simpleShaderDesc;
-	Require(HE::Rendering::BuildOpenGlShaderProgramDesc(vertexSource, fragmentSource, {}, {}, simpleShaderDesc).Succeeded(), "Expected simple shader descriptor");
+	Require(HE::Rendering::BuildShaderProgramDesc({
+		{ HE::Rendering::ShaderStage::Vertex, HE::Rendering::ShaderStageCodeFormat::OpenGlGlsl, "main", { vertexSource.begin(), vertexSource.end() } },
+		{ HE::Rendering::ShaderStage::Fragment, HE::Rendering::ShaderStageCodeFormat::OpenGlGlsl, "main", { fragmentSource.begin(), fragmentSource.end() } }
+	}, {}, simpleShaderDesc).Succeeded(), "Expected simple shader descriptor");
 	auto shaderProgram = device.CreateShaderProgram(simpleShaderDesc);
 	Require(static_cast<bool>(shaderProgram), "Expected shader program creation to succeed");
 
@@ -691,18 +709,11 @@ int main() {
 		{ "FrameData", 0, 0, 64, { { "u_ViewProjection", HE::Rendering::ShaderValueType::Float4x4, 0, 64, 16, 0, true } } }
 	};
 	Require(HE::Rendering::FinalizeShaderInterface(contractInterface).Succeeded(), "Expected pipeline shader interface finalization");
-	HE::Rendering::ShaderResourceMap contractResourceMap;
-	contractResourceMap.UniformBlocks = {{
-		.Name = "FrameData",
-		.Set = 0,
-		.Binding = 0,
-		.BindingPoint = 0,
-		.Size = 64,
-		.StageMask = HE::Rendering::ShaderStageVertex,
-		.Members = {{ .Name = "u_ViewProjection", .Offset = 0, .Size = 64 }}
-	}};
 	HE::Rendering::ShaderProgramDesc contractShaderDesc;
-	Require(HE::Rendering::BuildOpenGlShaderProgramDesc(contractVertexSource, fragmentSource, contractInterface.Gpu, std::move(contractResourceMap), contractShaderDesc).Succeeded(), "Expected contract shader descriptor");
+	Require(HE::Rendering::BuildShaderProgramDesc({
+		{ HE::Rendering::ShaderStage::Vertex, HE::Rendering::ShaderStageCodeFormat::OpenGlGlsl, "main", { contractVertexSource.begin(), contractVertexSource.end() } },
+		{ HE::Rendering::ShaderStage::Fragment, HE::Rendering::ShaderStageCodeFormat::OpenGlGlsl, "main", { fragmentSource.begin(), fragmentSource.end() } }
+	}, contractInterface.Gpu, contractShaderDesc).Succeeded(), "Expected contract shader descriptor");
 	auto contractShader = device.CreateShaderProgram(contractShaderDesc);
 	Require(static_cast<bool>(contractShader), "Expected contract shader creation");
 	auto wrongFrameLayout = device.CreateBindGroupLayout({
@@ -719,7 +730,8 @@ int main() {
 	auto contractFrameLayout = HE::Rendering::CreateUniformBlockBindGroupLayout(
 		device,
 		HE::Rendering::BindGroupScope::Frame,
-		contractShaderDesc.ResourceMap.UniformBlocks.front(),
+		contractShaderDesc.Interface.ConstantBuffers.front(),
+		HE::Rendering::ShaderStageVertex,
 		contractShaderDesc.Interface.Digest);
 	Require(static_cast<bool>(contractFrameLayout), "Expected ShaderInterface-compatible frame layout");
 
@@ -777,18 +789,16 @@ int main() {
 	uniformArena.SealFrame(5);
 	uniformArena.BeginFrame(5);
 	Require(uniformArena.Allocate(&uniformValue, sizeof(uniformValue), blockedUniformAllocation) && blockedUniformAllocation.Offset == 0, "Expected repeated completed signal to preserve monotonic arena reuse");
-	const HE::Rendering::ShaderUniformBlockBinding projectedFrameBlock{
+	const HE::Rendering::ShaderConstantBuffer projectedFrameBlock{
 		.Name = "ProjectedFrame",
 		.Set = 0,
 		.Binding = 4,
-		.BindingPoint = 7,
 		.Size = 80,
-		.StageMask = HE::Rendering::ShaderStageVertex,
-		.Members = {{ .Name = "u_ViewProjection", .Offset = 16, .Size = 64 }}
+		.Members = {{ .Name = "u_ViewProjection", .Type = HE::Rendering::ShaderValueType::Float4x4, .Offset = 16, .Size = 64, .MatrixStride = 16, .ColumnMajor = true }}
 	};
 	const HE::Sha256Digest projectedInterfaceDigest{ 1 };
-	auto projectedFrameLayout = HE::Rendering::CreateUniformBlockBindGroupLayout(device, HE::Rendering::BindGroupScope::Frame, projectedFrameBlock, projectedInterfaceDigest);
-	Require(projectedFrameLayout && projectedFrameLayout->GetDesc().Entries[0].Binding == 7 && projectedFrameLayout->GetDesc().Entries[0].MinBindingSize == 80, "Expected frame layout to use reflected binding point and size");
+	auto projectedFrameLayout = HE::Rendering::CreateUniformBlockBindGroupLayout(device, HE::Rendering::BindGroupScope::Frame, projectedFrameBlock, HE::Rendering::ShaderStageVertex, projectedInterfaceDigest);
+	Require(projectedFrameLayout && projectedFrameLayout->GetDesc().Entries[0].Binding == 4 && projectedFrameLayout->GetDesc().Entries[0].MinBindingSize == 80, "Expected frame layout to use logical shader binding and reflected size");
 	const glm::mat4 projectedViewProjection(2.0f);
 	auto projectedFrameGroup = HE::Rendering::CreateFrameBindGroup(device, uniformArena, projectedFrameBlock, projectedFrameLayout, projectedViewProjection);
 	Require(projectedFrameGroup && projectedFrameGroup->GetDesc().Entries[0].Size == 80, "Expected frame bind group to use reflected block size");
@@ -797,10 +807,10 @@ int main() {
 	Require(device.ReadbackBuffer(projectedBuffer, projectedFrameGroup->GetDesc().Entries[0].Offset, 80, projectedBytes), "Expected projected frame buffer readback");
 	Require(std::all_of(projectedBytes.begin(), projectedBytes.begin() + 16, [](uint8_t value) { return value == 0; }), "Expected reflected frame member offset to be preserved");
 	Require(std::memcmp(projectedBytes.data() + 16, &projectedViewProjection[0][0], 64) == 0, "Expected frame matrix at reflected member offset");
-	const std::vector<HE::Rendering::ShaderTextureBinding> projectedTextures{{ .TextureName = "u_Albedo", .UniformName = "u_AlbedoCombined", .TextureUnit = 5, .StageMask = HE::Rendering::ShaderStageFragment }};
-	auto projectedMaterialLayout = HE::Rendering::CreateMaterialBindGroupLayout(device, { .Name = "MaterialData", .Set = 1, .BindingPoint = 3, .Size = 16, .StageMask = HE::Rendering::ShaderStageFragment }, projectedTextures, projectedInterfaceDigest);
+	const std::vector<HE::Rendering::ShaderResourceBinding> projectedTextures{{ .Name = "u_Albedo", .Type = HE::Rendering::ShaderResourceType::Texture2D, .Set = 1, .Binding = 5, .StageMask = HE::Rendering::ShaderStageFragment }};
+	auto projectedMaterialLayout = HE::Rendering::CreateMaterialBindGroupLayout(device, { .Name = "MaterialData", .Set = 1, .Binding = 3, .Size = 16 }, HE::Rendering::ShaderStageFragment, projectedTextures, projectedInterfaceDigest);
 	Require(projectedMaterialLayout && projectedMaterialLayout->GetDesc().Entries.size() == 2, "Expected material layout entries from shader interface");
-	Require(projectedMaterialLayout->GetDesc().Entries[1].Name == "u_AlbedoCombined" && projectedMaterialLayout->GetDesc().Entries[1].Binding == 5, "Expected combined sampler binding from shader resource map");
+	Require(projectedMaterialLayout->GetDesc().Entries[1].Name == "u_Albedo" && projectedMaterialLayout->GetDesc().Entries[1].Binding == 5, "Expected logical texture binding from shader interface");
 	HE::Rendering::BindGroupLayoutDesc uniformLayoutDesc{
 		.Scope = HE::Rendering::BindGroupScope::Frame,
 		.Entries = {{

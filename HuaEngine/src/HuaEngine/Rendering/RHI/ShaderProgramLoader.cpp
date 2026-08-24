@@ -56,7 +56,10 @@ namespace HE::Rendering {
 
 	Ref<ShaderProgram> ShaderProgramLoader::CreateFromSource(const std::string& vertexSource, const std::string& fragmentSource) {
 		ShaderProgramDesc desc;
-		if (!BuildOpenGlShaderProgramDesc(vertexSource, fragmentSource, {}, {}, desc).Succeeded()) return nullptr;
+		if (!BuildShaderProgramDesc({
+			{ ShaderStage::Vertex, ShaderStageCodeFormat::OpenGlGlsl, "main", { vertexSource.begin(), vertexSource.end() } },
+			{ ShaderStage::Fragment, ShaderStageCodeFormat::OpenGlGlsl, "main", { fragmentSource.begin(), fragmentSource.end() } }
+		}, {}, desc).Succeeded()) return nullptr;
 		return RenderHardwareInterface::GetDevice().CreateShaderProgram(desc);
 	}
 
