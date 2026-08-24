@@ -1,6 +1,9 @@
 #include "enginepch.h"
 #include "ShaderArtifact.h"
 
+#include <cctype>
+#include <set>
+
 #include "HuaEngine/Asset/Library/AssetBinaryIO.h"
 
 namespace {
@@ -35,14 +38,80 @@ namespace {
 		else { glm::mat4 matrix; std::memcpy(&matrix, items.data(), sizeof(matrix)); value = matrix; }
 		return true;
 	}
+
+	bool IsHexDigest(std::string_view value) {
+		return value.size() == 64 && std::all_of(value.begin(), value.end(), [](unsigned char character) {
+			return std::isxdigit(character) != 0;
+		});
+	}
+
+	bool IsSafeInputPath(std::string_view value) {
+		if (value.empty()) return false;
+		const std::filesystem::path path(value);
+		return !path.is_absolute() && !path.has_root_name() &&
+			std::none_of(path.begin(), path.end(), [](const auto& part) { return part == ".."; });
+	}
 }
 
 namespace HE {
+	ResultEnvelope ValidateShaderArtifactV2Contract(const ShaderArtifactDataV2& shader) {
+		if (shader.SourceLanguage != "HLSL" || shader.CompilerIdentity.empty() || shader.Stages.size() != 2 || shader.ImportInputs.empty()) {
+			return MakeShaderArtifactFailure("asset.shader_artifact.validate", "asset.shader_artifact.metadata_invalid", "Shader artifact V2 metadata is incomplete");
+		}
+		std::set<Rendering::ShaderStage> stages;
+		for (const auto& stage : shader.Stages) {
+			if ((stage.Stage != Rendering::ShaderStage::Vertex && stage.Stage != Rendering::ShaderStage::Fragment) ||
+				!stages.emplace(stage.Stage).second || stage.EntryPoint.empty() || stage.Profile.empty() ||
+				stage.Spirv.size() < 5 || stage.Spirv.front() != 0x07230203u || stage.GeneratedOpenGlGlsl.empty()) {
+				return MakeShaderArtifactFailure("asset.shader_artifact.validate", "asset.shader_artifact.stage_invalid", "Shader artifact stage contract is invalid");
+			}
+			const auto interfaceStage = std::find_if(shader.Interface.Gpu.Stages.begin(), shader.Interface.Gpu.Stages.end(), [&](const auto& value) {
+				return value.Stage == stage.Stage && value.EntryPoint == stage.EntryPoint;
+			});
+			if (interfaceStage == shader.Interface.Gpu.Stages.end()) {
+				return MakeShaderArtifactFailure("asset.shader_artifact.validate", "asset.shader_artifact.stage_mismatch", "Shader artifact stage does not match ShaderInterface");
+			}
+		}
+
+		auto finalizedInterface = shader.Interface;
+		const auto gpuDigest = finalizedInterface.Gpu.Digest;
+		const auto gpuSignature = finalizedInterface.Gpu.Signature;
+		const auto authoringDigest = finalizedInterface.Authoring.Digest;
+		const auto authoringSignature = finalizedInterface.Authoring.Signature;
+		auto interfaceResult = Rendering::FinalizeShaderInterface(finalizedInterface);
+		if (!interfaceResult.Succeeded() || finalizedInterface.Gpu.Digest != gpuDigest ||
+			finalizedInterface.Gpu.Signature != gpuSignature || finalizedInterface.Authoring.Digest != authoringDigest ||
+			finalizedInterface.Authoring.Signature != authoringSignature) {
+			return MakeShaderArtifactFailure("asset.shader_artifact.validate", "asset.shader_artifact.interface_invalid", "Shader artifact interface identity is invalid");
+		}
+
+		std::set<std::string> inputPaths;
+		for (const auto& input : shader.ImportInputs) {
+			if (!IsSafeInputPath(input.NormalizedPath) || !IsHexDigest(input.ContentHash) || !inputPaths.emplace(input.NormalizedPath).second) {
+				return MakeShaderArtifactFailure("asset.shader_artifact.validate", "asset.shader_artifact.input_invalid", "Shader artifact import input is invalid");
+			}
+		}
+
+		std::set<std::string> combinedUniforms;
+		for (const auto& sampler : shader.OpenGlCombinedSamplers) {
+			const auto texture = std::find_if(shader.Interface.Gpu.Resources.begin(), shader.Interface.Gpu.Resources.end(), [&](const auto& value) {
+				return value.Name == sampler.TextureName && value.Type == Rendering::ShaderResourceType::Texture2D;
+			});
+			const auto samplerResource = std::find_if(shader.Interface.Gpu.Resources.begin(), shader.Interface.Gpu.Resources.end(), [&](const auto& value) {
+				return value.Name == sampler.SamplerName && value.Type == Rendering::ShaderResourceType::Sampler;
+			});
+			if (sampler.UniformName.empty() || texture == shader.Interface.Gpu.Resources.end() || samplerResource == shader.Interface.Gpu.Resources.end() ||
+				!combinedUniforms.emplace(sampler.UniformName).second) {
+				return MakeShaderArtifactFailure("asset.shader_artifact.validate", "asset.shader_artifact.sampler_invalid", "Shader artifact combined sampler map is invalid");
+			}
+		}
+		return ResultEnvelope::Success("asset.shader_artifact.validate", "asset:shader", "Shader artifact V2 contract validated");
+	}
+
 	ResultEnvelope EncodeShaderArtifactV2(const ShaderArtifactDataV2& shader, AssetArtifact& outArtifact) {
 		outArtifact = {};
-		if (shader.SourceLanguage != "HLSL" || shader.CompilerIdentity.empty() || shader.Stages.size() != 2 || shader.ImportInputs.empty()) {
-			return MakeShaderArtifactFailure("asset.shader_artifact.encode", "asset.shader_artifact.invalid", "Shader artifact V2 metadata is incomplete");
-		}
+		auto validation = ValidateShaderArtifactV2Contract(shader);
+		if (!validation.Succeeded()) return validation;
 		AssetBinaryWriter writer;
 		writer.WriteU32(1);
 		writer.WriteString(shader.SourceLanguage);
@@ -51,7 +120,6 @@ namespace HE {
 		for (const auto& option : shader.CompileOptions) writer.WriteString(option);
 		writer.WriteU32(static_cast<uint32_t>(shader.Stages.size()));
 		for (const auto& stage : shader.Stages) {
-			if (stage.EntryPoint.empty() || stage.Profile.empty() || stage.Spirv.empty() || stage.Spirv.front() != 0x07230203u) return MakeShaderArtifactFailure("asset.shader_artifact.encode", "asset.shader_artifact.stage_invalid", "Shader stage artifact is invalid");
 			writer.WriteU8(static_cast<uint8_t>(stage.Stage));
 			writer.WriteString(stage.EntryPoint);
 			writer.WriteString(stage.Profile);
@@ -141,23 +209,23 @@ namespace HE {
 			uint8_t value = 0; uint32_t variableCount = 0;
 			if (!reader.ReadU8(value) || value > 1 || !reader.ReadString(stage.EntryPoint) || !reader.ReadU32(variableCount) || variableCount > 256) goto invalid;
 			stage.Stage = static_cast<Rendering::ShaderStage>(value); stage.Inputs.resize(variableCount);
-			for (auto& input : stage.Inputs) { uint8_t type = 0; if (!reader.ReadU32(input.Location) || !reader.ReadU8(type)) goto invalid; input.Type = static_cast<Rendering::ShaderValueType>(type); }
+			for (auto& input : stage.Inputs) { uint8_t type = 0; if (!reader.ReadU32(input.Location) || !reader.ReadU8(type) || type > static_cast<uint8_t>(Rendering::ShaderValueType::Float4)) goto invalid; input.Type = static_cast<Rendering::ShaderValueType>(type); }
 			if (!reader.ReadU32(variableCount) || variableCount > 256) goto invalid; stage.Outputs.resize(variableCount);
-			for (auto& output : stage.Outputs) { uint8_t type = 0; if (!reader.ReadU32(output.Location) || !reader.ReadU8(type)) goto invalid; output.Type = static_cast<Rendering::ShaderValueType>(type); }
+			for (auto& output : stage.Outputs) { uint8_t type = 0; if (!reader.ReadU32(output.Location) || !reader.ReadU8(type) || type > static_cast<uint8_t>(Rendering::ShaderValueType::Float4)) goto invalid; output.Type = static_cast<Rendering::ShaderValueType>(type); }
 		}
 		if (!reader.ReadU32(count) || count > 256) goto invalid;
 		outShader.Interface.Gpu.VertexInputs.resize(count);
-		for (auto& input : outShader.Interface.Gpu.VertexInputs) { uint8_t value = 0; if (!reader.ReadString(input.Semantic) || !reader.ReadU32(input.Location) || !reader.ReadU8(value)) goto invalid; input.Type = static_cast<Rendering::ShaderValueType>(value); }
+		for (auto& input : outShader.Interface.Gpu.VertexInputs) { uint8_t value = 0; if (!reader.ReadString(input.Semantic) || !reader.ReadU32(input.Location) || !reader.ReadU8(value) || value > static_cast<uint8_t>(Rendering::ShaderValueType::Float4)) goto invalid; input.Type = static_cast<Rendering::ShaderValueType>(value); }
 		if (!reader.ReadU32(count) || count > 1024) goto invalid;
 		outShader.Interface.Gpu.Resources.resize(count);
-		for (auto& resource : outShader.Interface.Gpu.Resources) { uint8_t type = 0; if (!reader.ReadString(resource.Name) || !reader.ReadU8(type) || !reader.ReadU32(resource.Set) || !reader.ReadU32(resource.Binding) || !reader.ReadU32(resource.ArrayCount) || !reader.ReadU8(resource.StageMask)) goto invalid; resource.Type = static_cast<Rendering::ShaderResourceType>(type); }
+		for (auto& resource : outShader.Interface.Gpu.Resources) { uint8_t type = 0; if (!reader.ReadString(resource.Name) || !reader.ReadU8(type) || type > static_cast<uint8_t>(Rendering::ShaderResourceType::Sampler) || !reader.ReadU32(resource.Set) || !reader.ReadU32(resource.Binding) || !reader.ReadU32(resource.ArrayCount) || !reader.ReadU8(resource.StageMask)) goto invalid; resource.Type = static_cast<Rendering::ShaderResourceType>(type); }
 		if (!reader.ReadU32(count) || count > 64) goto invalid;
 		outShader.Interface.Gpu.ConstantBuffers.resize(count);
 		for (auto& buffer : outShader.Interface.Gpu.ConstantBuffers) {
 			uint32_t memberCount = 0;
 			if (!reader.ReadString(buffer.Name) || !reader.ReadU32(buffer.Set) || !reader.ReadU32(buffer.Binding) || !reader.ReadU32(buffer.Size) || !reader.ReadU32(memberCount) || memberCount > 1024) goto invalid;
 			buffer.Members.resize(memberCount);
-			for (auto& member : buffer.Members) { uint8_t type = 0, columnMajor = 0; if (!reader.ReadString(member.Name) || !reader.ReadU8(type) || !reader.ReadU32(member.Offset) || !reader.ReadU32(member.Size) || !reader.ReadU32(member.MatrixStride) || !reader.ReadU32(member.ArrayStride) || !reader.ReadU8(columnMajor)) goto invalid; member.Type = static_cast<Rendering::ShaderValueType>(type); member.ColumnMajor = columnMajor != 0; }
+			for (auto& member : buffer.Members) { uint8_t type = 0, columnMajor = 0; if (!reader.ReadString(member.Name) || !reader.ReadU8(type) || type > static_cast<uint8_t>(Rendering::ShaderValueType::Float4x4) || !reader.ReadU32(member.Offset) || !reader.ReadU32(member.Size) || !reader.ReadU32(member.MatrixStride) || !reader.ReadU32(member.ArrayStride) || !reader.ReadU8(columnMajor) || columnMajor > 1) goto invalid; member.Type = static_cast<Rendering::ShaderValueType>(type); member.ColumnMajor = columnMajor != 0; }
 		}
 		if (!reader.ReadBytes(outShader.Interface.Authoring.Digest.size(), digest) || !reader.ReadU64(outShader.Interface.Authoring.Signature)) goto invalid;
 		std::copy(digest.begin(), digest.end(), outShader.Interface.Authoring.Digest.begin());
@@ -166,7 +234,7 @@ namespace HE {
 		outShader.Interface.Authoring.Parameters.resize(count);
 		for (auto& parameter : outShader.Interface.Authoring.Parameters) {
 			uint8_t scope = 0, type = 0, editor = 0; uint32_t rangeCount = 0;
-			if (!reader.ReadString(parameter.Name) || !reader.ReadString(parameter.DisplayName) || !reader.ReadU8(scope) || !reader.ReadU8(type) || !reader.ReadU8(editor)) goto invalid;
+			if (!reader.ReadString(parameter.Name) || !reader.ReadString(parameter.DisplayName) || !reader.ReadU8(scope) || scope > static_cast<uint8_t>(Rendering::ShaderParameterScope::Object) || !reader.ReadU8(type) || type > static_cast<uint8_t>(Rendering::ShaderValueType::SamplerState) || !reader.ReadU8(editor) || editor > static_cast<uint8_t>(Rendering::ShaderEditorKind::Texture2D)) goto invalid;
 			parameter.Scope = static_cast<Rendering::ShaderParameterScope>(scope); parameter.Type = static_cast<Rendering::ShaderValueType>(type); parameter.Editor = static_cast<Rendering::ShaderEditorKind>(editor);
 			if (!ReadParameterValue(reader, parameter.Type, parameter.DefaultValue) || !reader.ReadU32(rangeCount) || rangeCount > 16) goto invalid;
 			parameter.Range.resize(rangeCount); for (auto& value : parameter.Range) if (!reader.ReadFloat(value)) goto invalid;
@@ -179,7 +247,7 @@ namespace HE {
 		outShader.ImportInputs.resize(count);
 		for (auto& input : outShader.ImportInputs) if (!reader.ReadString(input.NormalizedPath) || !reader.ReadString(input.ContentHash)) goto invalid;
 		if (reader.Failed() || reader.Remaining() != 0) goto invalid;
-		if (!Rendering::FinalizeShaderInterface(outShader.Interface).Succeeded() || outShader.Interface.Gpu.Digest != storedDigest || outShader.Interface.Gpu.Signature != storedSignature || outShader.Interface.Authoring.Digest != storedAuthoringDigest || outShader.Interface.Authoring.Signature != storedAuthoringSignature) goto invalid;
+		if (!ValidateShaderArtifactV2Contract(outShader).Succeeded() || outShader.Interface.Gpu.Digest != storedDigest || outShader.Interface.Gpu.Signature != storedSignature || outShader.Interface.Authoring.Digest != storedAuthoringDigest || outShader.Interface.Authoring.Signature != storedAuthoringSignature) goto invalid;
 		return ResultEnvelope::Success("asset.shader_artifact.decode", "asset:shader", "Shader artifact V2 decoded");
 	invalid:
 		outShader = {};

@@ -30,6 +30,7 @@ namespace HE {
 		std::vector<AssetImportSourceInput> ImportInputs;
 	};
 
+	ResultEnvelope ValidateShaderArtifactV2Contract(const ShaderArtifactDataV2& shader);
 	ResultEnvelope EncodeShaderArtifactV2(const ShaderArtifactDataV2& shader, AssetArtifact& outArtifact);
 	ResultEnvelope DecodeShaderArtifactV2(const AssetArtifact& artifact, ShaderArtifactDataV2& outShader);
 }

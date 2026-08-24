@@ -146,15 +146,18 @@ namespace {
 		const auto assetRoot = root / "Assets";
 		const auto shaderRoot = assetRoot / "Shaders";
 		std::filesystem::create_directories(shaderRoot);
+		std::filesystem::create_directories(assetRoot / "Shared");
 		WriteText(shaderRoot / "Common.hlsli", "float4 MakePosition(float3 value) { return float4(value, 1.0); }\n");
+		WriteText(assetRoot / "Shared" / "RootInclude.hlsli", "float RootScale() { return 1.0; }\n");
 		WriteText(shaderRoot / "Sandbox.hlsl",
 			"#include \"Common.hlsli\"\n"
+			"#include \"Shared/RootInclude.hlsli\"\n"
 			"[[vk::binding(0, 0)]] cbuffer FrameData : register(b0, space0) { float4x4 u_ViewProjection; };\n"
 			"[[vk::binding(0, 1)]] cbuffer MaterialData : register(b0, space1) { float u_Roughness; float _Padding0; float2 u_UvScale; float3 u_Emissive; float u_Alpha; float4 u_Color; };\n"
 			"[[vk::binding(1, 1)]] Texture2D u_Texture : register(t0, space1); [[vk::binding(2, 1)]] SamplerState u_TextureSampler : register(s0, space1);\n"
 			"[[vk::binding(0, 2)]] cbuffer ObjectData : register(b0, space2) { float4x4 u_Transform; };\n"
 			"struct VSInput { float3 Position : POSITION; }; struct VSOutput { float4 Position : SV_Position; float2 Uv : TEXCOORD0; };\n"
-			"VSOutput VSMain(VSInput input) { VSOutput output; output.Position = mul(u_ViewProjection, mul(u_Transform, MakePosition(input.Position))); output.Uv = input.Position.xy; return output; }\n"
+			"VSOutput VSMain(VSInput input) { VSOutput output; output.Position = mul(u_ViewProjection, mul(u_Transform, MakePosition(input.Position * RootScale()))); output.Uv = input.Position.xy; return output; }\n"
 			"float4 PSMain(VSOutput input) : SV_Target0 { return u_Color * u_Texture.Sample(u_TextureSampler, input.Uv) + float4(u_Emissive * u_Roughness, u_Alpha) + float4(u_UvScale, 0, 0); }\n");
 		const auto descriptorPath = shaderRoot / "Sandbox.shader";
 		WriteText(descriptorPath,
@@ -171,7 +174,7 @@ namespace {
 		Require(HE::ComputeAssetSourceHash(descriptorPath, rootHash).Succeeded(), "Expected descriptor hash");
 		HE::AssetImportFingerprintInput firstInputs;
 		const auto fingerprintInputsResult = importer.BuildFingerprintInput(importContext, rootHash, firstInputs);
-		Require(fingerprintInputsResult.Succeeded() && firstInputs.Sources.size() == 3, "Expected descriptor, HLSL, and include fingerprint inputs: " + fingerprintInputsResult.Summary);
+		Require(fingerprintInputsResult.Succeeded() && firstInputs.Sources.size() == 4, "Expected descriptor, HLSL, local include, and asset-root include fingerprint inputs: " + fingerprintInputsResult.Summary);
 		std::string firstFingerprint;
 		Require(HE::ComputeAssetImportFingerprint(firstInputs, firstFingerprint).Succeeded(), "Expected shader fingerprint");
 
@@ -180,6 +183,16 @@ namespace {
 		HE::ShaderArtifactDataV2 artifact;
 		Require(HE::DecodeShaderArtifactV2(importResult.Artifact, artifact).Succeeded(), "Expected Shader Artifact V2 round-trip");
 		Require(artifact.Stages.size() == 2 && artifact.Stages[0].Spirv.front() == 0x07230203u, "Expected SPIR-V stage artifact");
+		HE::AssetArtifact rejectedArtifact;
+		auto duplicateStageArtifact = artifact;
+		duplicateStageArtifact.Stages[1].Stage = HE::Rendering::ShaderStage::Vertex;
+		Require(HE::EncodeShaderArtifactV2(duplicateStageArtifact, rejectedArtifact).Failed(), "Expected duplicate shader stage rejection");
+		auto emptyGlslArtifact = artifact;
+		emptyGlslArtifact.Stages[0].GeneratedOpenGlGlsl.clear();
+		Require(HE::EncodeShaderArtifactV2(emptyGlslArtifact, rejectedArtifact).Failed(), "Expected empty generated GLSL rejection");
+		auto invalidResourceArtifact = artifact;
+		invalidResourceArtifact.Interface.Gpu.Resources.front().Type = static_cast<HE::Rendering::ShaderResourceType>(0xff);
+		Require(HE::EncodeShaderArtifactV2(invalidResourceArtifact, rejectedArtifact).Failed(), "Expected invalid shader resource type rejection");
 		Require(artifact.Interface.Gpu.Stages[0].Outputs.size() == 1 && artifact.Interface.Gpu.Stages[1].Inputs.size() == 1, "Expected matching reflected stage interface");
 		Require(artifact.OpenGlCombinedSamplers.size() == 1 && artifact.Stages[1].GeneratedOpenGlGlsl.find(artifact.OpenGlCombinedSamplers[0].UniformName) != std::string::npos, "Expected stable combined sampler mapping in generated GLSL");
 		Require(artifact.OpenGlCombinedSamplers[0].TextureName == "u_Texture", "Expected combined sampler texture to retain the reflected resource name: " + artifact.OpenGlCombinedSamplers[0].TextureName);
@@ -221,6 +234,18 @@ namespace {
 			"stages:\n  vertex: { entry: VSMain, profile: vs_6_0 }\n  fragment: { entry: PSMain, profile: ps_6_0 }\nparameters: {}\n");
 		const HE::AssetManifestRecord conflictRecord{ .Guid = "conflict-guid", .AssetId = "Shaders/Conflict.shader", .Kind = HE::AssetKind::Shader, .Source = HE::AssetSource::File, .RelativePath = "Shaders/Conflict.shader", .ImportState = HE::AssetImportState::Registered };
 		Require(!importer.Import({ context, conflictRecord, conflictDescriptor, nullptr }).Success, "Expected conflicting SPIR-V binding rejection during import");
+
+		WriteText(shaderRoot / "Unsupported.hlsl",
+			"struct VSOutput { float4 Position : SV_Position; };\n"
+			"VSOutput VSMain(int2 position : POSITION) { VSOutput output; output.Position = float4(float2(position), 0, 1); return output; }\n"
+			"float4 PSMain() : SV_Target0 { return float4(1, 1, 1, 1); }\n");
+		const auto unsupportedDescriptor = shaderRoot / "Unsupported.shader";
+		WriteText(unsupportedDescriptor,
+			"name: Unsupported\nlanguage: HLSL\nsource: Unsupported.hlsl\n"
+			"stages:\n  vertex: { entry: VSMain, profile: vs_6_0 }\n  fragment: { entry: PSMain, profile: ps_6_0 }\nparameters: {}\n");
+		const HE::AssetManifestRecord unsupportedRecord{ .Guid = "unsupported-guid", .AssetId = "Shaders/Unsupported.shader", .Kind = HE::AssetKind::Shader, .Source = HE::AssetSource::File, .RelativePath = "Shaders/Unsupported.shader", .ImportState = HE::AssetImportState::Registered };
+		const auto unsupportedResult = importer.Import({ context, unsupportedRecord, unsupportedDescriptor, nullptr });
+		Require(!unsupportedResult.Success, "Expected integer vector shader interface rejection during import");
 	}
 }
 

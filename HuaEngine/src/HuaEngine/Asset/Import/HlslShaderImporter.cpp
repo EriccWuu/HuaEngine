@@ -24,13 +24,23 @@ namespace {
 		return !relative.empty() && !relative.is_absolute() && std::none_of(relative.begin(), relative.end(), [](const auto& part) { return part == ".."; });
 	}
 
-	ResultEnvelope CollectInputs(const AssetImportContext& context, const ShaderDescriptor& descriptor, std::string_view rootSourceHash, std::vector<AssetImportSourceInput>& output, std::filesystem::path& hlslPath) {
+	ResultEnvelope CollectInputs(
+		const AssetImportContext& context,
+		const ShaderDescriptor& descriptor,
+		std::string_view rootSourceHash,
+		std::vector<AssetImportSourceInput>& output,
+		std::filesystem::path& hlslPath,
+		std::vector<std::filesystem::path>& includeRoots) {
 		output.clear();
+		includeRoots.clear();
 		const auto sourceRoot = context.SourceAsset.Source == AssetSource::Builtin ? GetBuiltinAssetRootPath() : context.Project.GetAssetRootPath();
 		const auto assetRoot = std::filesystem::weakly_canonical(sourceRoot);
 		const auto descriptorPath = std::filesystem::weakly_canonical(context.SourcePath);
 		hlslPath = std::filesystem::weakly_canonical(descriptorPath.parent_path() / descriptor.Source);
 		if (!IsWithin(assetRoot, descriptorPath) || !IsWithin(assetRoot, hlslPath) || !std::filesystem::is_regular_file(hlslPath)) return Failure(context.SourcePath, "Shader source path escapes Assets or does not exist");
+		includeRoots = { hlslPath.parent_path(), assetRoot };
+		std::sort(includeRoots.begin(), includeRoots.end());
+		includeRoots.erase(std::unique(includeRoots.begin(), includeRoots.end()), includeRoots.end());
 		output.push_back({ descriptorPath.lexically_relative(assetRoot).generic_string(), std::string(rootSourceHash) });
 		std::set<std::filesystem::path> visited;
 		std::vector<std::filesystem::path> pending = { hlslPath };
@@ -50,8 +60,17 @@ namespace {
 				if (!std::regex_search(line, match, includePattern)) continue;
 				const std::filesystem::path includePath(match[1].str());
 				if (includePath.is_absolute() || includePath.has_root_name()) return Failure(current, "Absolute shader include path is forbidden");
-				const auto resolved = std::filesystem::weakly_canonical(current.parent_path() / includePath);
-				if (!IsWithin(assetRoot, resolved)) return Failure(current, "Shader include path escapes Assets");
+				std::filesystem::path resolved;
+				std::vector<std::filesystem::path> searchRoots = { current.parent_path() };
+				searchRoots.insert(searchRoots.end(), includeRoots.begin(), includeRoots.end());
+				for (const auto& root : searchRoots) {
+					const auto candidate = std::filesystem::weakly_canonical(root / includePath);
+					if (IsWithin(assetRoot, candidate) && std::filesystem::is_regular_file(candidate)) {
+						resolved = candidate;
+						break;
+					}
+				}
+				if (resolved.empty()) return Failure(current, "Shader include does not resolve through the compiler include roots");
 				pending.push_back(resolved);
 			}
 		}
@@ -84,8 +103,9 @@ namespace HE {
 		auto descriptorResult = LoadShaderDescriptor(context.SourcePath, descriptor);
 		if (!descriptorResult.Succeeded()) return descriptorResult;
 		std::filesystem::path hlslPath;
+		std::vector<std::filesystem::path> includeRoots;
 		std::vector<AssetImportSourceInput> sources;
-		auto inputsResult = CollectInputs(context, descriptor, rootSourceHash, sources, hlslPath);
+		auto inputsResult = CollectInputs(context, descriptor, rootSourceHash, sources, hlslPath, includeRoots);
 		if (!inputsResult.Succeeded()) return inputsResult;
 		Rendering::DxcShaderCompiler compiler;
 		std::string compilerIdentity;
@@ -110,12 +130,12 @@ namespace HE {
 		std::string descriptorHash;
 		if (!ComputeAssetSourceHash(context.SourcePath, descriptorHash).Succeeded()) return result;
 		std::filesystem::path hlslPath;
+		std::vector<std::filesystem::path> includeRoots;
 		std::vector<AssetImportSourceInput> inputs;
-		auto inputsResult = CollectInputs(context, descriptor, descriptorHash, inputs, hlslPath);
+		auto inputsResult = CollectInputs(context, descriptor, descriptorHash, inputs, hlslPath, includeRoots);
 		if (!inputsResult.Succeeded()) { AppendDiagnostics(inputsResult, result); return result; }
 		Rendering::DxcShaderCompiler compiler;
 		Rendering::DxcCompileOutput vertexOutput, fragmentOutput;
-		const std::vector<std::filesystem::path> includeRoots = { context.Project.GetAssetRootPath(), hlslPath.parent_path() };
 		auto vertexResult = compiler.Compile({ hlslPath, descriptor.Vertex.Entry, descriptor.Vertex.Profile, Rendering::ShaderStage::Vertex, includeRoots }, vertexOutput);
 		if (!vertexResult.Succeeded()) { AppendDiagnostics(vertexResult, result); return result; }
 		auto fragmentResult = compiler.Compile({ hlslPath, descriptor.Fragment.Entry, descriptor.Fragment.Profile, Rendering::ShaderStage::Fragment, includeRoots }, fragmentOutput);

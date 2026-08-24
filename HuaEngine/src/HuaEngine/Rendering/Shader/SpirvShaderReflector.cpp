@@ -18,6 +18,8 @@ namespace {
 		std::string Element;
 		std::vector<std::string> Members;
 		uint32_t Count = 0;
+		uint32_t Width = 0;
+		bool Signed = false;
 		std::string Storage;
 	};
 	struct Decorations {
@@ -51,31 +53,60 @@ namespace {
 		return begin != std::string_view::npos && end > begin ? std::string(line.substr(begin + 1, end - begin - 1)) : std::string();
 	}
 
-	ShaderValueType ValueType(const std::string& id, const std::unordered_map<std::string, TypeInfo>& types) {
+	HE::ResultEnvelope Failure(std::string message);
+
+	HE::ResultEnvelope ResolveValueType(
+		const std::string& id,
+		const std::unordered_map<std::string, TypeInfo>& types,
+		ShaderValueType& output) {
 		const auto it = types.find(id);
-		if (it == types.end()) return ShaderValueType::Float;
+		if (it == types.end()) return Failure("SPIR-V value references an unknown type");
 		const auto& type = it->second;
-		if (type.Kind == TypeKind::Int) return ShaderValueType::Int;
-		if (type.Kind == TypeKind::Float) return ShaderValueType::Float;
-		if (type.Kind == TypeKind::Vector) {
-			if (type.Count == 2) return ShaderValueType::Float2;
-			if (type.Count == 3) return ShaderValueType::Float3;
-			if (type.Count == 4) return ShaderValueType::Float4;
+		if (type.Kind == TypeKind::Int) {
+			if (type.Width != 32 || !type.Signed) return Failure("Only signed 32-bit scalar integers are supported");
+			output = ShaderValueType::Int;
+			return HE::ResultEnvelope::Success("shader.spirv.type", id, "SPIR-V scalar type resolved");
 		}
-		if (type.Kind == TypeKind::Matrix && type.Count == 4) return ShaderValueType::Float4x4;
-		return ShaderValueType::Float;
+		if (type.Kind == TypeKind::Float) {
+			if (type.Width != 32) return Failure("Only 32-bit floating point values are supported");
+			output = ShaderValueType::Float;
+			return HE::ResultEnvelope::Success("shader.spirv.type", id, "SPIR-V scalar type resolved");
+		}
+		if (type.Kind == TypeKind::Vector) {
+			const auto element = types.find(type.Element);
+			if (element == types.end() || element->second.Kind != TypeKind::Float || element->second.Width != 32) {
+				return Failure("Only floating point vectors are supported");
+			}
+			if (type.Count == 2) output = ShaderValueType::Float2;
+			else if (type.Count == 3) output = ShaderValueType::Float3;
+			else if (type.Count == 4) output = ShaderValueType::Float4;
+			else return Failure("Only two, three, or four component vectors are supported");
+			return HE::ResultEnvelope::Success("shader.spirv.type", id, "SPIR-V vector type resolved");
+		}
+		if (type.Kind == TypeKind::Matrix) {
+			const auto column = types.find(type.Element);
+			if (type.Count != 4 || column == types.end() || column->second.Kind != TypeKind::Vector || column->second.Count != 4) {
+				return Failure("Only float4x4 matrices are supported");
+			}
+			const auto scalar = types.find(column->second.Element);
+			if (scalar == types.end() || scalar->second.Kind != TypeKind::Float || scalar->second.Width != 32) {
+				return Failure("Only float4x4 matrices are supported");
+			}
+			output = ShaderValueType::Float4x4;
+			return HE::ResultEnvelope::Success("shader.spirv.type", id, "SPIR-V matrix type resolved");
+		}
+		if (type.Kind == TypeKind::Array) return Failure("Shader value arrays are not supported in the initial interface contract");
+		return Failure("SPIR-V value type is not supported by the shader interface contract");
 	}
 
-	uint32_t LogicalSize(const std::string& id, const std::unordered_map<std::string, TypeInfo>& types, uint32_t matrixStride = 0) {
-		const auto it = types.find(id);
-		if (it == types.end()) return 0;
-		const auto& type = it->second;
-		switch (type.Kind) {
-		case TypeKind::Int:
-		case TypeKind::Float: return 4;
-		case TypeKind::Vector: return LogicalSize(type.Element, types) * type.Count;
-		case TypeKind::Matrix: return (matrixStride ? matrixStride : 16) * type.Count;
-		case TypeKind::Array: return LogicalSize(type.Element, types) * type.Count;
+	uint32_t LogicalSize(ShaderValueType type) {
+		switch (type) {
+		case ShaderValueType::Int:
+		case ShaderValueType::Float: return 4;
+		case ShaderValueType::Float2: return 8;
+		case ShaderValueType::Float3: return 12;
+		case ShaderValueType::Float4: return 16;
+		case ShaderValueType::Float4x4: return 64;
 		default: return 0;
 		}
 	}
@@ -120,8 +151,8 @@ namespace HE::Rendering {
 			}
 			else if (tokens.size() >= 3 && tokens[1] == "=" && tokens[2].starts_with("OpType")) {
 				TypeInfo type;
-				if (tokens[2] == "OpTypeInt") type.Kind = TypeKind::Int;
-				else if (tokens[2] == "OpTypeFloat") type.Kind = TypeKind::Float;
+				if (tokens[2] == "OpTypeInt" && tokens.size() >= 5) { type.Kind = TypeKind::Int; type.Width = Number(tokens[3]); type.Signed = Number(tokens[4]) != 0; }
+				else if (tokens[2] == "OpTypeFloat" && tokens.size() >= 4) { type.Kind = TypeKind::Float; type.Width = Number(tokens[3]); }
 				else if (tokens[2] == "OpTypeVector" && tokens.size() >= 5) { type.Kind = TypeKind::Vector; type.Element = tokens[3]; type.Count = Number(tokens[4]); }
 				else if (tokens[2] == "OpTypeMatrix" && tokens.size() >= 5) { type.Kind = TypeKind::Matrix; type.Element = tokens[3]; type.Count = Number(tokens[4]); }
 				else if (tokens[2] == "OpTypeImage") type.Kind = TypeKind::Image;
@@ -141,14 +172,20 @@ namespace HE::Rendering {
 			if (pointer == types.end() || pointer->second.Kind != TypeKind::Pointer) continue;
 			const auto& decoration = decorations[id];
 			if ((variable.second == "Input" || variable.second == "Output") && decoration.Location && !decoration.Builtin) {
-				const ShaderStageVariable stageVariable{ *decoration.Location, ValueType(pointer->second.Element, types) };
+				ShaderValueType valueType = ShaderValueType::Float;
+				auto typeResult = ResolveValueType(pointer->second.Element, types, valueType);
+				if (!typeResult.Succeeded()) return typeResult;
+				const ShaderStageVariable stageVariable{ *decoration.Location, valueType };
 				if (variable.second == "Input") output.Stages.front().Inputs.push_back(stageVariable);
 				else output.Stages.front().Outputs.push_back(stageVariable);
 			}
 			if (variable.second == "Input" && stage == ShaderStage::Vertex && decoration.Location && !decoration.Builtin) {
 				std::string semantic = names[id];
 				if (semantic.starts_with("in.var.")) semantic.erase(0, 7);
-				output.VertexInputs.push_back({ semantic, *decoration.Location, ValueType(pointer->second.Element, types) });
+				ShaderValueType valueType = ShaderValueType::Float;
+				auto typeResult = ResolveValueType(pointer->second.Element, types, valueType);
+				if (!typeResult.Succeeded()) return typeResult;
+				output.VertexInputs.push_back({ semantic, *decoration.Location, valueType });
 				continue;
 			}
 			if (!decoration.Set || !decoration.Binding) continue;
@@ -160,7 +197,7 @@ namespace HE::Rendering {
 			resource.Binding = *decoration.Binding;
 			resource.StageMask = stageMask;
 			const TypeInfo* resourceType = &pointee->second;
-			if (resourceType->Kind == TypeKind::Array) { resource.ArrayCount = resourceType->Count; resourceType = &types[resourceType->Element]; }
+			if (resourceType->Kind == TypeKind::Array) return Failure("Shader resource arrays are not supported in the initial interface contract");
 			if (variable.second == "Uniform" && resourceType->Kind == TypeKind::Struct) {
 				resource.Type = ShaderResourceType::ConstantBuffer;
 				ShaderConstantBuffer buffer;
@@ -173,11 +210,15 @@ namespace HE::Rendering {
 					if (!memberDecoration.Offset) return Failure("SPIR-V constant member is missing an offset");
 					ShaderConstantMember member;
 					member.Name = memberNames[{ pointer->second.Element, index }];
-					member.Type = ValueType(memberType, types);
+					auto typeResult = ResolveValueType(memberType, types, member.Type);
+					if (!typeResult.Succeeded()) return typeResult;
 					member.Offset = *memberDecoration.Offset;
 					member.MatrixStride = memberDecoration.MatrixStride;
+					if (member.Type == ShaderValueType::Float4x4 && member.MatrixStride != 16) {
+						return Failure("Only column-major float4x4 matrices with a 16-byte stride are supported");
+					}
 					member.ColumnMajor = member.Type == ShaderValueType::Float4x4;
-					member.Size = LogicalSize(memberType, types, member.MatrixStride);
+					member.Size = LogicalSize(member.Type);
 					buffer.Size = std::max(buffer.Size, member.Offset + member.Size);
 					buffer.Members.emplace_back(std::move(member));
 				}

@@ -39,33 +39,33 @@
 - 约束：首版只接受 `int`、`float`、`float2/3/4`、`float4x4`、`Texture2D`、`SamplerState`；拒绝数组、非 32-bit scalar、整数向量和非 4x4 矩阵。
 - 约束：Artifact 必须恰好包含唯一 Vertex 和 Fragment stage，SPIR-V magic 正确，generated GLSL 非空，枚举和 StageMask 合法，重新 Finalize 后 digest 完全一致。
 
-- [ ] **步骤 1：添加 Artifact 损坏与不支持 SPIR-V 类型测试**
+- [x] **步骤 1：添加 Artifact 损坏与不支持 SPIR-V 类型测试**
 
   在 `ShaderInterfaceSmoke` 中构造重复 Vertex、空 GLSL、越界枚举和不支持 constant member type；使用临时 HLSL 编译 `int2`、`float3x4`、数组，断言反射或导入返回稳定失败 diagnostic。
 
-- [ ] **步骤 2：运行测试确认 RED**
+- [x] **步骤 2：运行测试确认 RED**
 
   运行：`cmake --build build --config Debug --target ShaderInterfaceSmoke && build/bin/Debug-Windows-x64/smoke/ShaderInterfaceSmoke.exe`
 
   预期：新增断言因当前静默降级或解码放行而失败。
 
-- [ ] **步骤 3：实现统一 Shader contract 校验**
+- [x] **步骤 3：实现统一 Shader contract 校验**
 
   `ValidateShaderGpuInterface()` 检查所有枚举、stage 唯一性、location、resource set/binding/type/StageMask、constant member 类型/offset/size/matrix stride；`FinalizeShaderInterface()` 先调用结构校验再计算 canonical digest。
 
-- [ ] **步骤 4：让反射类型解析显式失败**
+- [x] **步骤 4：让反射类型解析显式失败**
 
   将 `ValueType()` 改为返回 `ResultEnvelope + outType`，完整检查 SPIR-V scalar width/sign、vector element/count、matrix rows/columns、array count；禁止类型直接终止导入，不再回退为 Float。
 
-- [ ] **步骤 5：统一 Artifact encode/decode/candidate contract**
+- [x] **步骤 5：统一 Artifact encode/decode/candidate contract**
 
   encode 和 decode 都调用 `ValidateShaderArtifactV2Contract()`；decode 在任何 `static_cast` 前检查范围，拒绝重复 stage、空 GLSL、非法 digest 和 trailing data。
 
-- [ ] **步骤 6：统一 include roots**
+- [x] **步骤 6：统一 include roots**
 
   从 descriptor source root、HLSL parent 和 project/builtin asset root 构造同一份有序规范化 roots；依赖收集和 DXC compile request 共用该列表，递归收集实际 include 输入并检测 include 环。
 
-- [ ] **步骤 7：验证并提交 R1**
+- [x] **步骤 7：验证并提交 R1**
 
   运行：`ShaderInterfaceSmoke.exe`、`AssetImportSmoke.exe`。
 

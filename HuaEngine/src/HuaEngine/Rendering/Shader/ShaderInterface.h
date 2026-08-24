@@ -96,5 +96,6 @@ namespace HE::Rendering {
 		ShaderAuthoringMetadata Authoring;
 	};
 
+	ResultEnvelope ValidateShaderGpuInterface(const ShaderGpuInterface& gpuInterface);
 	ResultEnvelope FinalizeShaderInterface(ShaderInterface& shaderInterface);
 }

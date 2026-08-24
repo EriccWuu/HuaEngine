@@ -2,6 +2,7 @@
 #include "ShaderInterface.h"
 
 #include <algorithm>
+#include <cmath>
 #include <cstring>
 #include <set>
 
@@ -34,20 +35,144 @@ namespace {
 	HE::ResultEnvelope Failure(std::string message) {
 		return HE::ResultEnvelope::Failure("shader.interface.finalize", "shader-interface", std::move(message));
 	}
+
+	bool IsValidValueType(HE::Rendering::ShaderValueType type) {
+		using HE::Rendering::ShaderValueType;
+		switch (type) {
+		case ShaderValueType::Int:
+		case ShaderValueType::Float:
+		case ShaderValueType::Float2:
+		case ShaderValueType::Float3:
+		case ShaderValueType::Float4:
+		case ShaderValueType::Float4x4:
+		case ShaderValueType::Texture2D:
+		case ShaderValueType::SamplerState:
+			return true;
+		}
+		return false;
+	}
+
+	bool IsStageValueType(HE::Rendering::ShaderValueType type) {
+		using HE::Rendering::ShaderValueType;
+		return type == ShaderValueType::Int || type == ShaderValueType::Float ||
+			type == ShaderValueType::Float2 || type == ShaderValueType::Float3 || type == ShaderValueType::Float4;
+	}
+
+	uint32_t ConstantValueSize(HE::Rendering::ShaderValueType type) {
+		using HE::Rendering::ShaderValueType;
+		switch (type) {
+		case ShaderValueType::Int:
+		case ShaderValueType::Float: return 4;
+		case ShaderValueType::Float2: return 8;
+		case ShaderValueType::Float3: return 12;
+		case ShaderValueType::Float4: return 16;
+		case ShaderValueType::Float4x4: return 64;
+		default: return 0;
+		}
+	}
+
+	bool DefaultValueMatches(
+		HE::Rendering::ShaderValueType type,
+		const HE::Rendering::ShaderParameterValue& value) {
+		using namespace HE::Rendering;
+		switch (type) {
+		case ShaderValueType::Int: return std::holds_alternative<int32_t>(value);
+		case ShaderValueType::Float: return std::holds_alternative<float>(value);
+		case ShaderValueType::Float2: return std::holds_alternative<glm::vec2>(value);
+		case ShaderValueType::Float3: return std::holds_alternative<glm::vec3>(value);
+		case ShaderValueType::Float4: return std::holds_alternative<glm::vec4>(value);
+		case ShaderValueType::Float4x4: return std::holds_alternative<glm::mat4>(value);
+		case ShaderValueType::Texture2D:
+		case ShaderValueType::SamplerState: return std::holds_alternative<std::string>(value);
+		}
+		return false;
+	}
 }
 
 namespace HE::Rendering {
-	ResultEnvelope FinalizeShaderInterface(ShaderInterface& shaderInterface) {
-		auto& gpu = shaderInterface.Gpu;
+	ResultEnvelope ValidateShaderGpuInterface(const ShaderGpuInterface& gpu) {
+		if (gpu.Stages.size() != 2) return Failure("Shader interface must contain one vertex and one fragment stage");
+		std::set<ShaderStage> stageKinds;
+		for (const auto& stage : gpu.Stages) {
+			if ((stage.Stage != ShaderStage::Vertex && stage.Stage != ShaderStage::Fragment) ||
+				stage.EntryPoint.empty() || !stageKinds.emplace(stage.Stage).second) {
+				return Failure("Shader stage contract is invalid or duplicated");
+			}
+			for (const auto* variables : { &stage.Inputs, &stage.Outputs }) {
+				std::set<uint32_t> locations;
+				for (const auto& variable : *variables) {
+					if (!IsStageValueType(variable.Type) || !locations.emplace(variable.Location).second) {
+						return Failure("Shader stage variable contract is invalid");
+					}
+				}
+			}
+		}
+
+		std::set<uint32_t> vertexLocations;
+		for (const auto& input : gpu.VertexInputs) {
+			if (input.Semantic.empty() || !IsStageValueType(input.Type) || !vertexLocations.emplace(input.Location).second) {
+				return Failure("Shader vertex input contract is invalid");
+			}
+		}
+
 		std::set<std::pair<uint32_t, uint32_t>> bindings;
 		for (const auto& resource : gpu.Resources) {
-			if (resource.Name.empty() || resource.ArrayCount == 0 || resource.StageMask == 0) return Failure("Shader resource binding is invalid");
-			if (!bindings.emplace(resource.Set, resource.Binding).second) return Failure("Shader resource binding is duplicated");
+			const bool validType = resource.Type == ShaderResourceType::ConstantBuffer ||
+				resource.Type == ShaderResourceType::Texture2D || resource.Type == ShaderResourceType::Sampler;
+			if (resource.Name.empty() || !validType || resource.Set > 2 || resource.ArrayCount != 1 ||
+				resource.StageMask == 0 || (resource.StageMask & ~uint8_t{ 3 }) != 0 ||
+				!bindings.emplace(resource.Set, resource.Binding).second) {
+				return Failure("Shader resource binding contract is invalid or duplicated");
+			}
 		}
+
+		std::set<std::pair<uint32_t, uint32_t>> constantBufferBindings;
 		for (const auto& buffer : gpu.ConstantBuffers) {
-			if (buffer.Name.empty() || !bindings.contains({ buffer.Set, buffer.Binding })) return Failure("Constant buffer binding is missing from resources");
+			const auto resource = std::find_if(gpu.Resources.begin(), gpu.Resources.end(), [&](const auto& value) {
+				return value.Set == buffer.Set && value.Binding == buffer.Binding;
+			});
+			if (buffer.Name.empty() || buffer.Set > 2 || buffer.Size == 0 ||
+				resource == gpu.Resources.end() || resource->Type != ShaderResourceType::ConstantBuffer ||
+				resource->Name != buffer.Name || !constantBufferBindings.emplace(buffer.Set, buffer.Binding).second) {
+				return Failure("Shader constant buffer binding contract is invalid");
+			}
+			std::set<std::string> memberNames;
+			std::vector<std::pair<uint32_t, uint32_t>> ranges;
 			for (const auto& member : buffer.Members) {
-				if (member.Name.empty() || member.Size == 0 || member.Offset + member.Size > buffer.Size) return Failure("Constant buffer member is out of range");
+				const auto expectedSize = ConstantValueSize(member.Type);
+				const bool matrix = member.Type == ShaderValueType::Float4x4;
+				if (member.Name.empty() || expectedSize == 0 || member.Size != expectedSize ||
+					member.Offset > buffer.Size || member.Size > buffer.Size - member.Offset ||
+					member.ArrayStride != 0 || (matrix ? member.MatrixStride != 16 || !member.ColumnMajor : member.MatrixStride != 0 || member.ColumnMajor) ||
+					!memberNames.emplace(member.Name).second) {
+					return Failure("Shader constant member contract is invalid");
+				}
+				const auto range = std::pair{ member.Offset, member.Offset + member.Size };
+				if (std::any_of(ranges.begin(), ranges.end(), [&](const auto& value) { return range.first < value.second && value.first < range.second; })) {
+					return Failure("Shader constant members overlap");
+				}
+				ranges.push_back(range);
+			}
+		}
+		return ResultEnvelope::Success("shader.interface.validate", "shader-interface", "Shader GPU interface validated");
+	}
+
+	ResultEnvelope FinalizeShaderInterface(ShaderInterface& shaderInterface) {
+		auto& gpu = shaderInterface.Gpu;
+		auto validation = ValidateShaderGpuInterface(gpu);
+		if (!validation.Succeeded()) return validation;
+		std::set<std::string> parameterNames;
+		for (const auto& parameter : shaderInterface.Authoring.Parameters) {
+			const bool validScope = parameter.Scope == ShaderParameterScope::Frame ||
+				parameter.Scope == ShaderParameterScope::Material || parameter.Scope == ShaderParameterScope::Object;
+			const bool validEditor = parameter.Editor == ShaderEditorKind::Default ||
+				parameter.Editor == ShaderEditorKind::Color || parameter.Editor == ShaderEditorKind::Texture2D;
+			const bool validRange = parameter.Range.empty() ||
+				(parameter.Range.size() == 2 && std::isfinite(parameter.Range[0]) && std::isfinite(parameter.Range[1]) && parameter.Range[0] <= parameter.Range[1]);
+			if (parameter.Name.empty() || !IsValidValueType(parameter.Type) || !validScope || !validEditor ||
+				!DefaultValueMatches(parameter.Type, parameter.DefaultValue) || !validRange ||
+				!std::isfinite(parameter.Step) || parameter.Step < 0.0f || !parameterNames.emplace(parameter.Name).second) {
+				return Failure("Shader authoring parameter contract is invalid");
 			}
 		}
 
