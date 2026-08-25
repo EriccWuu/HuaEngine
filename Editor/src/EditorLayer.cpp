@@ -99,9 +99,9 @@ namespace HE {
 		m_AssetInspectorEditor->SetOpenSceneCallback([this](const std::filesystem::path& path) {
 			RequestWorkbenchAction({ WorkbenchActionType::OpenScene, path });
 		});
-        m_Inspector.reset(new InspectorPanel(*m_AssetInspectorEditor, m_AssetPickerCatalog));
-        m_Inspector->SetWorkbenchState(&m_WorkbenchState);
-        m_Inspector->SetInteractionHost(&m_InteractionHost);
+		m_SceneEntityInspectorEditor = CreateRef<Editor::SceneEntityInspectorEditor>(m_AssetPickerCatalog);
+		m_SceneEntityInspectorEditor->SetWorkbenchState(&m_WorkbenchState);
+        m_Inspector.reset(new InspectorPanel(*m_AssetInspectorEditor, *m_SceneEntityInspectorEditor));
         m_Concole.reset(new ConcolePanel);
         m_Concole->SetWorkbenchState(&m_WorkbenchState);
         m_InteractionHost.SetStateChangedCallback([this]() {
@@ -503,11 +503,11 @@ namespace HE {
 			}
         });
 
-        m_Inspector->SetInteractionHost(&m_InteractionHost);
-        m_Inspector->SetAddComponentCallback([this](EditorInspectableComponent type) {
+		m_SceneEntityInspectorEditor->BindInteractionHost(&m_InteractionHost);
+		m_SceneEntityInspectorEditor->SetAddComponentCallback([this](EditorInspectableComponent type) {
             AddComponentToPrimarySelection(type);
         });
-        m_Inspector->SetRemoveComponentCallback([this](EditorInspectableComponent type) {
+		m_SceneEntityInspectorEditor->SetRemoveComponentCallback([this](EditorInspectableComponent type) {
             RemoveComponentFromPrimarySelection(type);
         });
         if (m_HierarchyPanel) {

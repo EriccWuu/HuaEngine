@@ -125,6 +125,13 @@ int main() {
 	std::stringstream inspectorBuffer;
 	inspectorBuffer << inspectorStream.rdbuf();
 	const std::string inspectorSource = inspectorBuffer.str();
+	const std::filesystem::path sceneInspectorPath =
+		repositoryRoot / "Editor" / "src" / "Scene" / "SceneEntityInspectorEditor.cpp";
+	std::ifstream sceneInspectorStream(sceneInspectorPath);
+	Require(sceneInspectorStream.good(), "Expected SceneEntityInspectorEditor.cpp to be readable");
+	std::stringstream sceneInspectorBuffer;
+	sceneInspectorBuffer << sceneInspectorStream.rdbuf();
+	const std::string sceneInspectorSource = sceneInspectorBuffer.str();
 	const std::filesystem::path runtimeInspectorPath = repositoryRoot / "Editor" / "src" / "Panels" / "RuntimeInspector.cpp";
 	std::ifstream runtimeInspectorStream(runtimeInspectorPath);
 	Require(runtimeInspectorStream.good(), "Expected RuntimeInspector.cpp to be readable");
@@ -164,17 +171,22 @@ int main() {
 		inspectorSource.find("Refl::reflect") == std::string::npos,
 		"Expected InspectorPanel not to use static reflection field traversal");
 	Require(
-		inspectorSource.find("ListComponentTypes") != std::string::npos,
-		"Expected InspectorPanel to enumerate entity runtime component types");
+		inspectorSource.find("ListComponentTypes") == std::string::npos &&
+			inspectorSource.find("PushID(static_cast<int>(selection.GetUid()))") == std::string::npos &&
+			inspectorSource.find("GetAll()") == std::string::npos,
+		"Expected InspectorPanel to remain a selection router without component implementation");
 	Require(
-		inspectorSource.find("PushID(static_cast<int>(selection.GetUid()))") != std::string::npos,
+		sceneInspectorSource.find("ListComponentTypes") != std::string::npos,
+		"Expected SceneEntityInspectorEditor to enumerate entity runtime component types");
+	Require(
+		sceneInspectorSource.find("PushID(static_cast<int>(selection.GetUid()))") != std::string::npos,
 		"Expected inspector widget IDs to be scoped by selected entity");
 	Require(
-		inspectorSource.find("GetAll()") != std::string::npos,
+		sceneInspectorSource.find("GetAll()") != std::string::npos,
 		"Expected Add Component candidates to come from ComponentRegistry::GetAll()");
 	Require(
-		inspectorSource.find("editor.material_overrides.removed") != std::string::npos &&
-			inspectorSource.find("RecordEvent") != std::string::npos,
+		sceneInspectorSource.find("editor.material_overrides.removed") != std::string::npos &&
+			sceneInspectorSource.find("RecordEvent") != std::string::npos,
 		"Expected incompatible material override removal to publish one workbench event");
 	Require(
 		runtimeInspectorSource.find("LastGoodWithFailure") != std::string::npos,

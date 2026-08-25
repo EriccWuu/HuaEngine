@@ -7,11 +7,13 @@
 #include "HuaEngine.h"
 #include "Selection.h"
 #include "Selection/EditorSelectionService.h"
+#include "Assets/AssetPickerCatalog.h"
 #include "Interaction/ContextMenuRegistry.h"
 #include "Interaction/DragDropIntentRegistry.h"
 #include "Interaction/EditorInteractionHost.h"
 #include "Interaction/EditorSceneCommands.h"
 #include "Interaction/ShortcutRegistry.h"
+#include "Scene/SceneEntityInspectorEditor.h"
 #include "Workbench/EditorWorkbenchState.h"
 #include "Workbench/ProjectSession.h"
 #include "Workbench/SceneDocument.h"
@@ -47,6 +49,11 @@ namespace {
 }
 
 int main() {
+	HE::Editor::AssetPickerCatalog pickerCatalog;
+	HE::Editor::SceneEntityInspectorEditor sceneInspector(pickerCatalog);
+	sceneInspector.BindInteractionHost(nullptr);
+	Require(!sceneInspector.HasEditingContext(), "Expected no scene editing context without host");
+
 	HE::Editor::EditorSelectionService selectionService;
 	const HE::EntityUuid firstUuid{ 1, 2 };
 	const HE::EntityUuid secondUuid{ 3, 4 };

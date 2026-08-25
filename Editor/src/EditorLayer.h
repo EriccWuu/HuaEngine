@@ -16,6 +16,7 @@
 #include "Panels/InspectorPanel.h"
 #include "Panels/ConsolePanel.h"
 #include "Panels/ProjectPanel.h"
+#include "Scene/SceneEntityInspectorEditor.h"
 #include "Workbench/EditorWorkbenchState.h"
 #include "Workbench/EditorSessionStorage.h"
 #include "Workbench/ProjectSession.h"
@@ -128,6 +129,7 @@ namespace HE {
         Ref<HierarchyPanel> m_HierarchyPanel;
 		Editor::AssetPickerCatalog m_AssetPickerCatalog;
 		Ref<Editor::AssetInspectorEditor> m_AssetInspectorEditor;
+		Ref<Editor::SceneEntityInspectorEditor> m_SceneEntityInspectorEditor;
         Ref<InspectorPanel> m_Inspector;
         Ref<ConcolePanel> m_Concole;
         ProjectSession m_ProjectSession;

@@ -837,6 +837,8 @@ configure_smoke_target(ProjectWorkbenchSmoke)
 
 add_executable(EditorInteractionSmoke
     Tests/EditorInteractionSmoke.cpp
+	Editor/src/Assets/AssetPickerCatalog.cpp
+	Editor/src/Assets/AssetPickerModel.cpp
     Editor/src/Selection.cpp
     Editor/src/Selection/EditorSelectionService.cpp
     Editor/src/Interaction/ContextMenuRegistry.cpp
@@ -846,6 +848,8 @@ add_executable(EditorInteractionSmoke
     Editor/src/Interaction/EditorInteractionHost.cpp
     Editor/src/Interaction/EditorSceneCommands.cpp
     Editor/src/Interaction/ShortcutRegistry.cpp
+	Editor/src/Panels/RuntimeInspector.cpp
+	Editor/src/Scene/SceneEntityInspectorEditor.cpp
     Editor/src/Viewport/EditorCameraController.cpp
     Editor/src/Viewport/EditorGrid.cpp
 )
