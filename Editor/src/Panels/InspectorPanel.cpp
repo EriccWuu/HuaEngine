@@ -99,6 +99,22 @@ namespace HE {
 		return editor != nullptr && editor->IsDirty();
 	}
 
+	void InspectorPanel::QueueAssetReload(const AssetGuid& guid) {
+		m_PendingAssetReloadGuid = guid;
+	}
+
+	void InspectorPanel::ProcessPendingAssetReload() {
+		if (!m_PendingAssetReloadGuid) return;
+		const auto guid = std::move(*m_PendingAssetReloadGuid);
+		m_PendingAssetReloadGuid.reset();
+		if (!Selection::HasAssetSelection() || Selection::GetSelectedAssetGuid() != guid) return;
+
+		auto result = m_AssetInspectorHost.Open(guid, [](const AssetGuid& assetGuid, AssetInspectionSnapshot& snapshot) {
+			return Application::GetInstance().GetOperations().InspectAsset(assetGuid, snapshot);
+		});
+		if (!result.Succeeded() && m_WorkbenchState) m_WorkbenchState->RecordEvent(result, "Inspector");
+	}
+
 	ResultEnvelope InspectorPanel::ApplyAssetEdit() {
 		auto* editor = m_AssetInspectorHost.GetEditor();
 		const auto guid = m_AssetInspectorHost.GetSession().GetGuid();
@@ -111,9 +127,7 @@ namespace HE {
 			AssetApplyState state;
 			result = Application::GetInstance().GetOperations().ApplyAssetEdit(*m_ProjectContext, editor->BuildCommit(), state);
 			if (state == AssetApplyState::Applied || state == AssetApplyState::SavedButImportFailed || state == AssetApplyState::NoChanges) {
-				(void)m_AssetInspectorHost.Open(guid, [](const AssetGuid& assetGuid, AssetInspectionSnapshot& snapshot) {
-					return Application::GetInstance().GetOperations().InspectAsset(assetGuid, snapshot);
-				});
+				QueueAssetReload(guid);
 			}
 		}
 		if (m_WorkbenchState) m_WorkbenchState->RecordEvent(result, "Inspector");
@@ -180,6 +194,7 @@ namespace HE {
 	bool InspectorPanel::OnGuiRender() {
 		bool changed = false;
 		ImGui::Begin("Inspector");
+		ProcessPendingAssetReload();
         if (m_InteractionHost && m_InteractionHost->HasActiveScene()) {
             m_InteractionHost->Commands().SetLastRoute("panel.inspector");
         }
@@ -246,7 +261,7 @@ namespace HE {
 				ImGui::EndDisabled();
 				ImGui::SameLine();
 				if (ImGui::Button("Reload")) {
-					auto reload = [this, guid]() { (void)m_AssetInspectorHost.Open(guid, [](const AssetGuid& assetGuid, AssetInspectionSnapshot& output) { return Application::GetInstance().GetOperations().InspectAsset(assetGuid, output); }); };
+					auto reload = [this, guid]() { QueueAssetReload(guid); };
 					if (!RequestDirtyAssetResolution(reload)) reload();
 				}
 				ImGui::BeginDisabled(!snapshot || snapshot->Asset.Source != AssetSource::File);

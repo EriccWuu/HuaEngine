@@ -1,6 +1,7 @@
 #pragma once
 
 #include <functional>
+#include <optional>
 #include <span>
 #include <vector>
 
@@ -44,6 +45,8 @@ namespace HE {
 		}
 
 	private:
+		void QueueAssetReload(const AssetGuid& guid);
+		void ProcessPendingAssetReload();
         bool DrawRegisteredContextMenu(std::string_view contextId);
         void DrawAddComponentWindow();
         void RequestOpenAddComponentWindow() { m_ShowAddComponentWindow = true; }
@@ -62,6 +65,7 @@ namespace HE {
 		std::vector<Editor::AssetPickerOption> m_ShaderAssetOptions;
 		std::function<void()> m_DirtyAssetContinuation;
 		std::function<void(const std::filesystem::path&)> m_OpenSceneCallback;
+		std::optional<AssetGuid> m_PendingAssetReloadGuid;
 		bool m_OpenDirtyAssetPopup = false;
         bool m_ShowAddComponentWindow = false;
 	};
