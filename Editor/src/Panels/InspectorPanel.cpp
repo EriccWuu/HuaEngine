@@ -68,7 +68,89 @@ namespace HE {
 
     InspectorPanel::InspectorPanel() {
         RegisterCoreComponents(m_ComponentRegistry);
+		Selection::GetService().SetChangeGuard([this](const Editor::EditorSelection& selection) {
+			if (!HasDirtyAsset()) return true;
+			if (const auto* asset = std::get_if<Editor::AssetSelection>(&selection);
+				asset && asset->Guid == m_AssetInspectorHost.GetSession().GetGuid()) return true;
+			RequestDirtyAssetResolution([selection]() mutable {
+				Selection::GetService().AcceptGuardedSelection(std::move(selection));
+			});
+			return false;
+		});
     }
+
+	InspectorPanel::~InspectorPanel() {
+		Selection::GetService().SetChangeGuard({});
+	}
+
+	bool InspectorPanel::HasDirtyAsset() const {
+		const auto* editor = m_AssetInspectorHost.GetEditor();
+		return editor != nullptr && editor->IsDirty();
+	}
+
+	ResultEnvelope InspectorPanel::ApplyAssetEdit() {
+		auto* editor = m_AssetInspectorHost.GetEditor();
+		const auto guid = m_AssetInspectorHost.GetSession().GetGuid();
+		if (!editor || !m_ProjectContext || guid.empty()) {
+			return ResultEnvelope::Failure("asset.editor.apply", guid, "No editable asset is active");
+		}
+
+		auto result = editor->Validate();
+		if (result.Succeeded()) {
+			AssetApplyState state;
+			result = Application::GetInstance().GetOperations().ApplyAssetEdit(*m_ProjectContext, editor->BuildCommit(), state);
+			if (state == AssetApplyState::Applied || state == AssetApplyState::SavedButImportFailed || state == AssetApplyState::NoChanges) {
+				(void)m_AssetInspectorHost.Open(guid, [](const AssetGuid& assetGuid, AssetInspectionSnapshot& snapshot) {
+					return Application::GetInstance().GetOperations().InspectAsset(assetGuid, snapshot);
+				});
+			}
+		}
+		if (m_WorkbenchState) m_WorkbenchState->RecordEvent(result, "Inspector");
+		return result;
+	}
+
+	void InspectorPanel::RevertAssetEdit() {
+		if (auto* editor = m_AssetInspectorHost.GetEditor()) editor->Revert();
+	}
+
+	bool InspectorPanel::RequestDirtyAssetResolution(std::function<void()> continuation) {
+		if (!HasDirtyAsset()) return false;
+		m_DirtyAssetContinuation = std::move(continuation);
+		m_OpenDirtyAssetPopup = true;
+		return true;
+	}
+
+	void InspectorPanel::OnDirtyAssetPopup() {
+		if (m_OpenDirtyAssetPopup) {
+			ImGui::OpenPopup("Unsaved Asset Changes");
+			m_OpenDirtyAssetPopup = false;
+		}
+
+		if (!ImGui::BeginPopupModal("Unsaved Asset Changes", nullptr, ImGuiWindowFlags_AlwaysAutoResize)) return;
+		ImGui::TextWrapped("The current asset has unapplied changes. Apply before continuing?");
+		ImGui::Spacing();
+
+		if (ImGui::Button("Apply and Continue")) {
+			if (ApplyAssetEdit().Succeeded()) {
+				auto continuation = std::move(m_DirtyAssetContinuation);
+				ImGui::CloseCurrentPopup();
+				if (continuation) continuation();
+			}
+		}
+		ImGui::SameLine();
+		if (ImGui::Button("Discard and Continue")) {
+			RevertAssetEdit();
+			auto continuation = std::move(m_DirtyAssetContinuation);
+			ImGui::CloseCurrentPopup();
+			if (continuation) continuation();
+		}
+		ImGui::SameLine();
+		if (ImGui::Button("Cancel")) {
+			m_DirtyAssetContinuation = {};
+			ImGui::CloseCurrentPopup();
+		}
+		ImGui::EndPopup();
+	}
 
 	void InspectorPanel::SetAssetRecords(std::span<const AssetRecord> records) {
 		m_MeshAssetOptions = Editor::BuildAssetPickerOptions(records, AssetKind::Mesh);
@@ -111,20 +193,12 @@ namespace HE {
 				const bool dirty = editor->IsDirty();
 				ImGui::BeginDisabled(!dirty || !m_ProjectContext);
 				if (ImGui::Button("Apply")) {
-					auto validation = editor->Validate();
-					if (validation.Succeeded()) {
-						AssetApplyState state;
-						validation = Application::GetInstance().GetOperations().ApplyAssetEdit(*m_ProjectContext, editor->BuildCommit(), state);
-						if (state == AssetApplyState::Applied || state == AssetApplyState::SavedButImportFailed || state == AssetApplyState::NoChanges) {
-							(void)m_AssetInspectorHost.Open(guid, [](const AssetGuid& assetGuid, AssetInspectionSnapshot& snapshot) { return Application::GetInstance().GetOperations().InspectAsset(assetGuid, snapshot); });
-						}
-					}
-					if (m_WorkbenchState) m_WorkbenchState->RecordEvent(validation, "Inspector");
+					(void)ApplyAssetEdit();
 				}
 				ImGui::EndDisabled();
 				ImGui::SameLine();
 				ImGui::BeginDisabled(!dirty);
-				if (ImGui::Button("Revert")) editor->Revert();
+				if (ImGui::Button("Revert")) RevertAssetEdit();
 				ImGui::EndDisabled();
 				ImGui::Separator();
 				Editor::AssetEditorDrawContext context{

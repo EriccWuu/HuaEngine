@@ -20,7 +20,7 @@ namespace HE::Editor {
 			Clear();
 			return;
 		}
-		m_Selection = EntitySelection{ std::move(entities) };
+		(void)TrySelect(EntitySelection{ std::move(entities) });
 	}
 
 	void EditorSelectionService::SelectAsset(AssetGuid guid) {
@@ -28,11 +28,17 @@ namespace HE::Editor {
 			Clear();
 			return;
 		}
-		m_Selection = AssetSelection{ std::move(guid) };
+		(void)TrySelect(AssetSelection{ std::move(guid) });
 	}
 
 	void EditorSelectionService::Clear() {
-		m_Selection = NoEditorSelection{};
+		(void)TrySelect(NoEditorSelection{});
+	}
+
+	bool EditorSelectionService::TrySelect(EditorSelection selection) {
+		if (m_ChangeGuard && !m_ChangeGuard(selection)) return false;
+		m_Selection = std::move(selection);
+		return true;
 	}
 
 	bool EditorSelectionService::HasSelection() const {

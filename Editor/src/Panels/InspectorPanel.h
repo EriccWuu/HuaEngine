@@ -20,9 +20,14 @@ namespace HE {
 	class InspectorPanel {
 	public:
 		InspectorPanel();
-		~InspectorPanel() = default;
+		~InspectorPanel();
 
 		bool OnGuiRender();
+		void OnDirtyAssetPopup();
+		[[nodiscard]] bool HasDirtyAsset() const;
+		[[nodiscard]] ResultEnvelope ApplyAssetEdit();
+		void RevertAssetEdit();
+		bool RequestDirtyAssetResolution(std::function<void()> continuation);
 		void SetWorkbenchState(EditorWorkbenchState* state) { m_WorkbenchState = state; }
         void SetInteractionHost(EditorInteractionHost* host) { m_InteractionHost = host; }
         void SetAddComponentCallback(std::function<void(EditorInspectableComponent)> callback) { m_AddComponentCallback = std::move(callback); }
@@ -53,6 +58,8 @@ namespace HE {
 		std::vector<Editor::AssetPickerOption> m_MaterialAssetOptions;
 		std::vector<Editor::AssetPickerOption> m_TextureAssetOptions;
 		std::vector<Editor::AssetPickerOption> m_ShaderAssetOptions;
+		std::function<void()> m_DirtyAssetContinuation;
+		bool m_OpenDirtyAssetPopup = false;
         bool m_ShowAddComponentWindow = false;
 	};
 }

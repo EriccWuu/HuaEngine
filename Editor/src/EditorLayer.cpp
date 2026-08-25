@@ -484,11 +484,17 @@ namespace HE {
         });
         m_InteractionHost.Shortcuts().Register({
             .CommandId = "editor.scene.save",
-            .DisplayName = "Save Scene",
+            .DisplayName = "Save",
             .Chord = ImGuiMod_Ctrl | ImGuiKey_S,
             .Shortcut = "Ctrl+S",
-            .IsEnabled = [this]() { return m_SceneDocument.IsLoaded(); },
-            .Trigger = [this]() { SaveActiveSceneDocument(); }
+            .IsEnabled = [this]() { return m_SceneDocument.IsLoaded() || (Selection::HasAssetSelection() && m_Inspector->HasDirtyAsset()); },
+            .Trigger = [this]() {
+				if (Selection::HasAssetSelection() && m_Inspector->HasDirtyAsset()) {
+					(void)m_Inspector->ApplyAssetEdit();
+					return;
+				}
+				SaveActiveSceneDocument();
+			}
         });
 
         m_Inspector->SetInteractionHost(&m_InteractionHost);
@@ -770,6 +776,7 @@ namespace HE {
         if (action.Type == WorkbenchActionType::None) {
             return;
         }
+		if (m_Inspector && m_Inspector->RequestDirtyAssetResolution([this, action]() { RequestWorkbenchAction(action); })) return;
 
         if (m_SceneDocument.IsLoaded() && m_SceneDocument.Dirty) {
             switch (action.Type) {
@@ -999,6 +1006,7 @@ namespace HE {
 		ImGuizmo::BeginFrame();
         if (m_Mode == EditorWorkbenchMode::ProjectHub) {
             OnProjectHubShell();
+			m_Inspector->OnDirtyAssetPopup();
             OnUnsavedChangesPopup();
             return;
         }
@@ -1023,6 +1031,7 @@ namespace HE {
                 m_Concole->OnGuiRender();
             }
             OnUnsavedChangesPopup();
+			m_Inspector->OnDirtyAssetPopup();
             return;
         }
 
@@ -1083,6 +1092,7 @@ namespace HE {
         if (m_ShowConsolePanel) {
             m_Concole->OnGuiRender();
         }
+		m_Inspector->OnDirtyAssetPopup();
     }
 
     void EditorLayer::OnProjectHubShell() {

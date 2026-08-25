@@ -60,6 +60,16 @@ int main() {
 	Require(selectionService.HasEntitySelection() && !selectionService.HasAssetSelection(), "Expected entity selection to replace asset selection");
 	selectionService.Clear();
 	Require(!selectionService.HasSelection(), "Expected clear to remove editor selection");
+	bool selectionGuardCalled = false;
+	selectionService.SelectAsset("guarded-asset");
+	selectionService.SetChangeGuard([&selectionGuardCalled](const HE::Editor::EditorSelection&) {
+		selectionGuardCalled = true;
+		return false;
+	});
+	selectionService.SelectEntities({ firstUuid });
+	Require(selectionGuardCalled && selectionService.HasAssetSelection(), "Expected rejected selection change to preserve the active asset");
+	selectionService.AcceptGuardedSelection(HE::Editor::EntitySelection{ { firstUuid } });
+	Require(selectionService.HasEntitySelection(), "Expected confirmed selection change to bypass the guard");
 
 	HE::Selection::SelectAsset("facade-asset");
 	Require(HE::Selection::HasAssetSelection(), "Expected compatibility facade asset selection");
