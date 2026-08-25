@@ -22,7 +22,22 @@ namespace HE::Editor {
 	}
 
 	AssetInspectorEditor::AssetInspectorEditor(AssetPickerCatalog& pickerCatalog)
-		: m_PickerCatalog(pickerCatalog) {
+		: m_PickerCatalog(pickerCatalog),
+		  m_Host(SceneAssetEditorServices{
+			  .OpenScene = [this](const std::filesystem::path& scenePath) {
+				  if (m_OpenSceneCallback) m_OpenSceneCallback(scenePath);
+			  },
+			  .GetActiveDocument = [this] {
+				  SceneAssetDocumentState state;
+				  if (m_WorkbenchState) {
+					  if (const auto* scene = m_WorkbenchState->GetSceneDocumentSummary()) {
+						  state.ActiveScenePath = scene->ScenePath;
+						  state.Dirty = scene->Dirty;
+					  }
+				  }
+				  return state;
+			  }
+		  }) {
 		Selection::GetService().SetChangeGuard([this](const EditorSelection& selection) {
 			if (!HasDirtyEdit()) return true;
 			if (const auto* asset = std::get_if<AssetSelection>(&selection);
@@ -221,14 +236,7 @@ namespace HE::Editor {
 					: ResultEnvelope::Failure("asset.reimport", path.generic_string(), "Project context is unavailable");
 				RecordResult(result);
 				return result;
-			},
-			.OpenScene = m_OpenSceneCallback,
-			.ActiveScenePath = m_WorkbenchState && m_WorkbenchState->GetSceneDocumentSummary()
-				? std::filesystem::path(m_WorkbenchState->GetSceneDocumentSummary()->ScenePath)
-				: std::filesystem::path{},
-			.ActiveSceneDirty = m_WorkbenchState && m_WorkbenchState->GetSceneDocumentSummary()
-				? m_WorkbenchState->GetSceneDocumentSummary()->Dirty
-				: false
+			}
 		};
 		editor->Draw(context);
 		return false;

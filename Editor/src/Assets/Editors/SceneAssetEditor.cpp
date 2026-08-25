@@ -18,18 +18,21 @@ namespace HE::Editor {
 			: ResultEnvelope::Failure("asset.scene_editor.validate", m_Snapshot.Asset.Guid, "Scene source is unavailable");
 	}
 
-	void SceneAssetEditor::Draw(AssetEditorDrawContext& context) {
+	void SceneAssetEditor::Draw(AssetEditorDrawContext&) {
 		ImGui::Text("Source size: %llu bytes", static_cast<unsigned long long>(m_SourceBytes));
 		if (m_Snapshot.SceneStatistics) {
 			ImGui::Text("Name: %s", m_Snapshot.SceneStatistics->Name.c_str());
 			ImGui::Text("Format version: %u", m_Snapshot.SceneStatistics->FormatVersion);
 			ImGui::Text("Entities: %u", m_Snapshot.SceneStatistics->EntityCount);
 		}
-		const bool isActive = !context.ActiveScenePath.empty() &&
-			context.ActiveScenePath.lexically_normal() == m_Snapshot.Asset.AbsolutePath.lexically_normal();
+		const SceneAssetDocumentState document = m_Services.GetActiveDocument
+			? m_Services.GetActiveDocument()
+			: SceneAssetDocumentState{};
+		const bool isActive = !document.ActiveScenePath.empty() &&
+			document.ActiveScenePath.lexically_normal() == m_Snapshot.Asset.AbsolutePath.lexically_normal();
 		ImGui::Text("Active scene: %s", isActive ? "yes" : "no");
-		if (isActive) ImGui::Text("Active scene dirty: %s", context.ActiveSceneDirty ? "yes" : "no");
+		if (isActive) ImGui::Text("Active scene dirty: %s", document.Dirty ? "yes" : "no");
 		ImGui::TextDisabled("Scene content is edited through the active scene document.");
-		if (ImGui::Button("Open Scene") && context.OpenScene) context.OpenScene(m_Snapshot.Asset.AbsolutePath);
+		if (ImGui::Button("Open Scene") && m_Services.OpenScene) m_Services.OpenScene(m_Snapshot.Asset.AbsolutePath);
 	}
 }

@@ -8,13 +8,15 @@
 #include "Assets/Editors/SceneAssetEditor.h"
 
 namespace HE::Editor {
-	AssetInspectorHost::AssetInspectorHost() {
+	AssetInspectorHost::AssetInspectorHost(SceneAssetEditorServices sceneServices) {
 		m_Registry.SetFallbackFactory([] { return std::make_unique<GenericAssetInspector>(); });
 		(void)m_Registry.Register({ AssetKind::Material, "hua.material-yaml" }, [] { return std::make_unique<MaterialAssetEditor>(); });
 		(void)m_Registry.Register({ AssetKind::Mesh, "hua.mesh-obj" }, [] { return std::make_unique<ObjMeshImportEditor>(); });
 		(void)m_Registry.Register({ AssetKind::Texture2D, "hua.texture-png" }, [] { return std::make_unique<PngTextureImportEditor>(); });
 		(void)m_Registry.Register({ AssetKind::Shader, "hua.shader-hlsl" }, [] { return std::make_unique<ShaderAssetEditor>(); });
-		(void)m_Registry.Register({ AssetKind::Scene, "scene.native" }, [] { return std::make_unique<SceneAssetEditor>(); });
+		(void)m_Registry.Register(
+			{ AssetKind::Scene, "scene.native" },
+			[sceneServices = std::move(sceneServices)] { return std::make_unique<SceneAssetEditor>(sceneServices); });
 	}
 
 	ResultEnvelope AssetInspectorHost::Open(const AssetGuid& guid, const InspectAssetCallback& inspectAsset) {

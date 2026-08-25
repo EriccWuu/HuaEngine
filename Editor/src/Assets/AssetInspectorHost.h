@@ -4,13 +4,14 @@
 #include <memory>
 
 #include "Assets/AssetEditorRegistry.h"
+#include "Assets/Editors/SceneAssetEditor.h"
 
 namespace HE::Editor {
 	using InspectAssetCallback = std::function<ResultEnvelope(const AssetGuid&, AssetInspectionSnapshot&)>;
 
 	class AssetInspectorHost {
 	public:
-		AssetInspectorHost();
+		explicit AssetInspectorHost(SceneAssetEditorServices sceneServices = {});
 
 		[[nodiscard]] ResultEnvelope Open(const AssetGuid& guid, const InspectAssetCallback& inspectAsset);
 		void Close();

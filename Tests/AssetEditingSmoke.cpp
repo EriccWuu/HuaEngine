@@ -3,7 +3,9 @@
 #include <fstream>
 #include <iostream>
 #include <memory>
+#include <sstream>
 #include <string>
+#include <utility>
 
 #include "Assets/AssetEditorRegistry.h"
 #include "Assets/AssetInspectorEditor.h"
@@ -121,7 +123,19 @@ int main() {
 	Require(objEditor.IsDirty() && objEditor.Validate().Succeeded() && objEditor.BuildCommit().Target == HE::AssetEditTarget::Metadata, "Expected editable OBJ metadata commit");
 	objEditor.Revert();
 
-	HE::Editor::AssetInspectorHost host;
+	bool sceneOpenRequested = false;
+	HE::Editor::SceneAssetEditorServices sceneServices{
+		.OpenScene = [&sceneOpenRequested](const std::filesystem::path&) { sceneOpenRequested = true; },
+		.GetActiveDocument = [] {
+			return HE::Editor::SceneAssetDocumentState{
+				.ActiveScenePath = "Active.scene",
+				.Dirty = true
+			};
+		}
+	};
+	sceneServices.OpenScene("Scene.scene");
+	Require(sceneOpenRequested, "Expected scene editor open service contract");
+	HE::Editor::AssetInspectorHost host(std::move(sceneServices));
 	Require(host.GetRegistry().Register({ HE::AssetKind::Material, "material.native" }, [] { return std::make_unique<TestAssetEditor>(); }).Succeeded(), "Expected host editor registration");
 	const auto openResult = host.Open("asset-guid", [snapshot](const HE::AssetGuid& guid, HE::AssetInspectionSnapshot& output) {
 		if (guid != snapshot.Asset.Guid) return HE::ResultEnvelope::Failure("asset.inspect", guid, "Unexpected GUID");
@@ -138,6 +152,22 @@ int main() {
 	Require(host.Open("scene-guid", [sceneSnapshot](const HE::AssetGuid&, HE::AssetInspectionSnapshot& output) { output = sceneSnapshot; return HE::ResultEnvelope::Success("asset.inspect", "scene-guid", "Inspected"); }).Succeeded(), "Expected scene inspector open");
 	Require(dynamic_cast<HE::Editor::SceneAssetEditor*>(host.GetEditor()) != nullptr, "Expected specialized scene inspector");
 	host.Close();
+
+	std::filesystem::path repositoryRoot = std::filesystem::current_path();
+	while (!repositoryRoot.empty() && !std::filesystem::exists(repositoryRoot / "CMakeLists.txt")) {
+		repositoryRoot = repositoryRoot.parent_path();
+	}
+	Require(!repositoryRoot.empty(), "Expected to locate repository root");
+	std::ifstream assetEditorStream(repositoryRoot / "Editor" / "src" / "Assets" / "AssetEditor.h");
+	Require(assetEditorStream.good(), "Expected AssetEditor.h to be readable");
+	std::stringstream assetEditorBuffer;
+	assetEditorBuffer << assetEditorStream.rdbuf();
+	const std::string assetEditorSource = assetEditorBuffer.str();
+	Require(
+		assetEditorSource.find("OpenScene") == std::string::npos &&
+			assetEditorSource.find("ActiveScenePath") == std::string::npos &&
+			assetEditorSource.find("ActiveSceneDirty") == std::string::npos,
+		"Expected generic asset editor context to exclude scene document services");
 	std::filesystem::remove_all(sessionRoot, errorCode);
 
 	std::cout << "AssetEditingSmoke passed" << std::endl;

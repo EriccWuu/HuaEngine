@@ -18,9 +18,6 @@ namespace HE::Editor {
 		std::span<const AssetPickerOption> TextureAssets;
 		std::function<ResultEnvelope(const AssetGuid&, Rendering::ShaderAuthoringMetadata&)> GetShaderAuthoringMetadata;
 		std::function<ResultEnvelope(const std::filesystem::path&)> ReimportAsset;
-		std::function<void(const std::filesystem::path&)> OpenScene;
-		std::filesystem::path ActiveScenePath;
-		bool ActiveSceneDirty = false;
 	};
 
 	class IAssetEditor {
