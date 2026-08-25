@@ -595,6 +595,10 @@ namespace HE {
 		return m_Services->Assets().GetMaterialDefinition(materialGuid, outDefinition, outHealth);
 	}
 
+	ResultEnvelope ApplicationOperations::GetShaderAuthoringMetadata(const AssetGuid& shaderGuid, Rendering::ShaderAuthoringMetadata& outMetadata) const {
+		return m_Services->Assets().GetShaderAuthoringMetadata(shaderGuid, outMetadata);
+	}
+
 	ResultEnvelope ApplicationOperations::ResolveAsset(AssetHandle handle, AssetRecord& outRecord) const
 	{
 		return m_Services->Assets().ResolveAsset(handle, outRecord);

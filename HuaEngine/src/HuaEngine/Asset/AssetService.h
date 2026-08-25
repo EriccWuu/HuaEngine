@@ -143,6 +143,7 @@ namespace HE {
 		[[nodiscard]] ResultEnvelope GetAssetImportHealth(const AssetGuid& guid, AssetImportHealth& outHealth) const;
 		[[nodiscard]] ResultEnvelope InspectAsset(const AssetGuid& guid, AssetInspectionSnapshot& outSnapshot) const;
 		[[nodiscard]] ResultEnvelope GetMaterialDefinition(const AssetGuid& materialGuid, Rendering::MaterialDefinition& outDefinition, AssetImportHealth* outHealth = nullptr) const;
+		[[nodiscard]] ResultEnvelope GetShaderAuthoringMetadata(const AssetGuid& shaderGuid, Rendering::ShaderAuthoringMetadata& outMetadata) const;
 		[[nodiscard]] ResultEnvelope ValidateRegistry(const ProjectContext& context, AssetValidationReport* outReport = nullptr);
 
 		[[nodiscard]] const AssetRegistry& GetAssetRegistry() const { return m_Registry; }

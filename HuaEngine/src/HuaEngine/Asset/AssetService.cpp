@@ -531,6 +531,17 @@ namespace HE {
 		return result;
 	}
 
+	ResultEnvelope AssetService::GetShaderAuthoringMetadata(const AssetGuid& shaderGuid, Rendering::ShaderAuthoringMetadata& outMetadata) const {
+		outMetadata = {};
+		const auto* record = m_Manifest.FindByGuid(shaderGuid);
+		if (!record || record->Kind != AssetKind::Shader) return ResultEnvelope::Failure("asset.shader_authoring_metadata", shaderGuid, "Shader asset was not found");
+		AssetArtifact artifact;
+		ShaderArtifactDataV2 shader;
+		if (!m_Library.ReadArtifact(shaderGuid, artifact).Succeeded() || !DecodeShaderArtifactV2(artifact, shader).Succeeded()) return ResultEnvelope::ManualIntervention("asset.shader_authoring_metadata", shaderGuid, "Shader artifact is unavailable");
+		outMetadata = std::move(shader.Interface.Authoring);
+		return ResultEnvelope::Success("asset.shader_authoring_metadata", shaderGuid, "Shader authoring metadata loaded");
+	}
+
 	ResultEnvelope AssetService::RegisterSceneAsset(const ProjectContext& context, const std::filesystem::path& sourcePath, AssetGuid* outGuid) {
 		NormalizedAssetPath normalizedPath;
 		ResultEnvelope pathError;

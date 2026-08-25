@@ -36,6 +36,7 @@ namespace HE {
 		class Mesh;
 		class Material;
 		class MaterialDefinition;
+		struct ShaderAuthoringMetadata;
 		class TextureResource;
 		class RenderGraphExtension;
 		struct CameraComponent;
@@ -191,6 +192,7 @@ namespace HE {
 			AssetApplyState& outState,
 			AssetReimportReport* outReport = nullptr) const;
 		[[nodiscard]] ResultEnvelope GetMaterialDefinition(const AssetGuid& materialGuid, Rendering::MaterialDefinition& outDefinition, AssetImportHealth* outHealth = nullptr) const;
+		[[nodiscard]] ResultEnvelope GetShaderAuthoringMetadata(const AssetGuid& shaderGuid, Rendering::ShaderAuthoringMetadata& outMetadata) const;
 
 		[[nodiscard]] ResultEnvelope ResolveAsset(AssetHandle handle, AssetRecord& outRecord) const;
 		[[nodiscard]] ResultEnvelope ResolveAsset(std::string_view assetId, AssetRecord& outRecord) const;

@@ -15,10 +15,12 @@ namespace HE::Editor {
 
 		[[nodiscard]] Rendering::MaterialSourceData& GetWorkingCopy() { return m_WorkingCopy; }
 		[[nodiscard]] const Rendering::MaterialSourceData& GetWorkingCopy() const { return m_WorkingCopy; }
+		ResultEnvelope ReconcileShader(const Rendering::ShaderAuthoringMetadata& metadata);
 
 	private:
 		AssetInspectionSnapshot m_Snapshot;
 		Rendering::MaterialSourceData m_Baseline;
 		Rendering::MaterialSourceData m_WorkingCopy;
+		std::vector<std::string> m_RemovedParameters;
 	};
 }

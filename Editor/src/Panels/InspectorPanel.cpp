@@ -127,7 +127,11 @@ namespace HE {
 				if (ImGui::Button("Revert")) editor->Revert();
 				ImGui::EndDisabled();
 				ImGui::Separator();
-				Editor::AssetEditorDrawContext context{ .ShaderAssets = m_ShaderAssetOptions, .TextureAssets = m_TextureAssetOptions };
+				Editor::AssetEditorDrawContext context{
+					.ShaderAssets = m_ShaderAssetOptions,
+					.TextureAssets = m_TextureAssetOptions,
+					.GetShaderAuthoringMetadata = [](const AssetGuid& shaderGuid, Rendering::ShaderAuthoringMetadata& metadata) { return Application::GetInstance().GetOperations().GetShaderAuthoringMetadata(shaderGuid, metadata); }
+				};
 				editor->Draw(context);
 			}
 			else {

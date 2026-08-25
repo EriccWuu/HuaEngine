@@ -83,6 +83,10 @@ int main() {
 	materialEditor.GetWorkingCopy().Parameters.at("u_Value").Value = 0.75f;
 	Require(materialEditor.IsDirty() && materialEditor.Validate().Succeeded(), "Expected valid dirty material working copy");
 	Require(!materialEditor.BuildCommit().SerializedContent.empty(), "Expected serialized material edit commit");
+	HE::Rendering::ShaderAuthoringMetadata shaderMetadata;
+	shaderMetadata.Parameters.push_back({ .Name = "u_Color", .Scope = HE::Rendering::ShaderParameterScope::Material, .Type = HE::Rendering::ShaderValueType::Float4, .Editor = HE::Rendering::ShaderEditorKind::Color, .DefaultValue = glm::vec4(1.0f) });
+	Require(materialEditor.ReconcileShader(shaderMetadata).Succeeded(), "Expected shader parameter reconciliation");
+	Require(!materialEditor.GetWorkingCopy().Parameters.contains("u_Value") && materialEditor.GetWorkingCopy().Parameters.contains("u_Color"), "Expected incompatible parameters replaced by shader defaults");
 	materialEditor.Revert();
 	Require(!materialEditor.IsDirty(), "Expected material editor revert");
 

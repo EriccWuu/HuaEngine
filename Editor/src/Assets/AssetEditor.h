@@ -1,9 +1,11 @@
 #pragma once
 
 #include <span>
+#include <functional>
 
 #include "Assets/AssetEditSession.h"
 #include "Panels/AssetPickerModel.h"
+#include "HuaEngine/Rendering/Shader/ShaderInterface.h"
 #include "HuaEngine/Asset/Authoring/AssetEditCommit.h"
 
 namespace HE::Editor {
@@ -14,6 +16,7 @@ namespace HE::Editor {
 	struct AssetEditorDrawContext {
 		std::span<const AssetPickerOption> ShaderAssets;
 		std::span<const AssetPickerOption> TextureAssets;
+		std::function<ResultEnvelope(const AssetGuid&, Rendering::ShaderAuthoringMetadata&)> GetShaderAuthoringMetadata;
 	};
 
 	class IAssetEditor {
