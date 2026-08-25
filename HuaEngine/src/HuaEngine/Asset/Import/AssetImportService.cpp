@@ -304,6 +304,13 @@ namespace HE {
 			};
 			AssetImportFingerprintInput fingerprintInput;
 			auto fingerprintInputsResult = node.Importer->BuildFingerprintInput(importContext, sourceContentHash, fingerprintInput);
+			if (fingerprintInputsResult.Succeeded() && node.Settings) {
+				AssetMetaSettingsNode encodedSettings;
+				fingerprintInputsResult = node.Importer->EncodeSettings(*node.Settings, encodedSettings);
+				std::string settingsDigest;
+				if (fingerprintInputsResult.Succeeded()) fingerprintInputsResult = ComputeAssetMetaSettingsDigest(node.Importer->GetSettingsVersion(), encodedSettings, settingsDigest);
+				if (fingerprintInputsResult.Succeeded()) fingerprintInput.Options.emplace_back("settings_digest", std::move(settingsDigest));
+			}
 			std::string importFingerprint;
 			auto fingerprintResult = fingerprintInputsResult.Succeeded()
 				? ComputeAssetImportFingerprint(fingerprintInput, importFingerprint)

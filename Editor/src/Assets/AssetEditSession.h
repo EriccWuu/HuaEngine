@@ -12,6 +12,8 @@ namespace HE::Editor {
 		[[nodiscard]] bool IsDirty() const { return m_Dirty; }
 		[[nodiscard]] const AssetInspectionSnapshot* GetSnapshot() const { return m_Open ? &m_Snapshot : nullptr; }
 		[[nodiscard]] const AssetGuid& GetGuid() const { return m_Snapshot.Asset.Guid; }
+		[[nodiscard]] bool IsExternallyModified() const { return m_ExternallyModified; }
+		[[nodiscard]] ResultEnvelope CheckExternalModification();
 
 		void MarkDirty() { if (m_Open) m_Dirty = true; }
 		void MarkClean() { m_Dirty = false; }
@@ -20,5 +22,6 @@ namespace HE::Editor {
 		AssetInspectionSnapshot m_Snapshot;
 		bool m_Open = false;
 		bool m_Dirty = false;
+		bool m_ExternallyModified = false;
 	};
 }

@@ -28,6 +28,8 @@ namespace HE {
 		uint32_t SettingsVersion = 0;
 		AssetImportHealth Health;
 		std::string ImportFingerprint;
+		std::string SourceContentHash;
+		std::string MetaContentHash;
 		std::filesystem::path ArtifactRelativePath;
 		std::vector<AssetGuid> Dependencies;
 		std::vector<AssetGuid> Dependents;

@@ -14,6 +14,7 @@
 #include "HuaEngine/Asset/Import/ObjMeshImporter.h"
 #include "HuaEngine/Asset/Import/MaterialAssetImporter.h"
 #include "HuaEngine/Asset/Import/PngTextureImporter.h"
+#include "HuaEngine/Asset/Import/AssetSourceHash.h"
 #include "HuaEngine/Asset/Import/HlslShaderImporter.h"
 #include "HuaEngine/Asset/Artifact/MaterialArtifact.h"
 #include "HuaEngine/Asset/Artifact/ShaderArtifact.h"
@@ -295,6 +296,10 @@ namespace HE {
 		if (asset->Kind == AssetKind::Scene) {
 			outSnapshot.ImporterId = "scene.native";
 			outSnapshot.ImporterVersion = 1;
+		}
+		if (asset->Source == AssetSource::File && m_ProjectContext) {
+			(void)ComputeAssetSourceHash(asset->AbsolutePath, outSnapshot.SourceContentHash);
+			(void)ComputeAssetSourceHash(GetAssetMetaPath(asset->AbsolutePath), outSnapshot.MetaContentHash);
 		}
 
 		if (const auto* libraryRecord = m_Library.Find(guid)) {

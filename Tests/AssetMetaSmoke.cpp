@@ -33,6 +33,13 @@ int main() {
 	Require(encoded.find("color_space") < encoded.find("max_size"), "Expected stable settings key ordering");
 	HE::AssetMeta decoded;
 	Require(HE::DecodeAssetMeta(encoded, decoded).Succeeded() && decoded == meta, "Expected metadata round trip");
+	std::string firstSettingsDigest;
+	std::string secondSettingsDigest;
+	Require(HE::ComputeAssetMetaSettingsDigest(meta.SettingsVersion, meta.Settings, firstSettingsDigest).Succeeded(), "Expected settings digest");
+	auto reorderedSettings = meta.Settings;
+	Require(HE::ComputeAssetMetaSettingsDigest(meta.SettingsVersion, reorderedSettings, secondSettingsDigest).Succeeded() && firstSettingsDigest == secondSettingsDigest, "Expected canonical settings digest");
+	reorderedSettings.Values["max_size"] = "2048";
+	Require(HE::ComputeAssetMetaSettingsDigest(meta.SettingsVersion, reorderedSettings, secondSettingsDigest).Succeeded() && firstSettingsDigest != secondSettingsDigest, "Expected settings changes to affect digest");
 	Require(HE::DecodeAssetMeta("meta_version: 2\nguid: x\nimporter: mesh.obj\nsettings_version: 1\nsettings: {}\n", decoded).Failed(), "Expected future metadata version rejection");
 	Require(HE::DecodeAssetMeta("meta_version: 1\nguid: x\nimporter: mesh.obj\nsettings_version: 1\nsettings: { scale: 1, scale: 2 }\n", decoded).Failed(), "Expected duplicate settings key rejection");
 

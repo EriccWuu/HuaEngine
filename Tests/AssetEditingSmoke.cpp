@@ -1,4 +1,6 @@
 #include <cstdlib>
+#include <filesystem>
+#include <fstream>
 #include <iostream>
 #include <memory>
 #include <string>
@@ -6,6 +8,8 @@
 #include "Assets/AssetEditorRegistry.h"
 #include "Assets/AssetInspectorHost.h"
 #include "Assets/Editors/GenericAssetInspector.h"
+#include "HuaEngine/Asset/Import/AssetSourceHash.h"
+#include "HuaEngine/Asset/Metadata/AssetMeta.h"
 
 namespace {
 	void Require(bool condition, const std::string& message) {
@@ -41,10 +45,28 @@ int main() {
 
 	HE::Editor::AssetEditSession session;
 	HE::AssetInspectionSnapshot snapshot;
-	snapshot.Asset = { .Guid = "asset-guid", .Kind = HE::AssetKind::Material, .Source = HE::AssetSource::File, .AssetId = "Materials/Test.material", .ExistsOnDisk = true };
+	const auto sessionRoot = std::filesystem::temp_directory_path() / "HuaEngineAssetEditingSmoke";
+	const auto sourcePath = sessionRoot / "Test.material";
+	std::error_code errorCode;
+	std::filesystem::remove_all(sessionRoot, errorCode);
+	std::filesystem::create_directories(sessionRoot, errorCode);
+	{
+		std::ofstream stream(sourcePath);
+		stream << "name: Test\n";
+	}
+	Require(HE::SaveAssetMeta(sourcePath, { .Guid = "asset-guid", .ImporterId = "material.native" }).Succeeded(), "Expected session metadata fixture");
+	snapshot.Asset = { .Guid = "asset-guid", .Kind = HE::AssetKind::Material, .Source = HE::AssetSource::File, .AssetId = "Test.material", .AbsolutePath = sourcePath, .ExistsOnDisk = true };
 	snapshot.ImporterId = "material.native";
+	Require(HE::ComputeAssetSourceHash(sourcePath, snapshot.SourceContentHash).Succeeded(), "Expected source baseline hash");
+	Require(HE::ComputeAssetSourceHash(HE::GetAssetMetaPath(sourcePath), snapshot.MetaContentHash).Succeeded(), "Expected metadata baseline hash");
 	session.Open(snapshot);
 	Require(session.IsOpen() && !session.IsDirty(), "Expected clean opened asset edit session");
+	Require(session.CheckExternalModification().Succeeded() && !session.IsExternallyModified(), "Expected unchanged edit session baseline");
+	{
+		std::ofstream stream(sourcePath, std::ios::app);
+		stream << "external: true\n";
+	}
+	Require(session.CheckExternalModification().RequiresManualIntervention() && session.IsExternallyModified(), "Expected external source conflict");
 	session.MarkDirty();
 	Require(session.IsDirty(), "Expected session dirty state");
 	session.MarkClean();
@@ -63,6 +85,7 @@ int main() {
 	Require(dynamic_cast<TestAssetEditor*>(host.GetEditor()) != nullptr, "Expected host to select registered editor");
 	host.Close();
 	Require(!host.GetSession().IsOpen() && host.GetEditor() == nullptr, "Expected host close");
+	std::filesystem::remove_all(sessionRoot, errorCode);
 
 	std::cout << "AssetEditingSmoke passed" << std::endl;
 	return 0;

@@ -32,6 +32,7 @@ namespace HE {
 	[[nodiscard]] ResultEnvelope ValidateAssetMeta(const AssetMeta& meta);
 	[[nodiscard]] ResultEnvelope EncodeAssetMeta(const AssetMeta& meta, std::string& outText);
 	[[nodiscard]] ResultEnvelope DecodeAssetMeta(std::string_view text, AssetMeta& outMeta);
+	[[nodiscard]] ResultEnvelope ComputeAssetMetaSettingsDigest(uint32_t settingsVersion, const AssetMetaSettingsNode& settings, std::string& outDigest);
 	[[nodiscard]] ResultEnvelope LoadAssetMeta(const std::filesystem::path& sourcePath, AssetMeta& outMeta);
 	[[nodiscard]] ResultEnvelope SaveAssetMeta(const std::filesystem::path& sourcePath, const AssetMeta& meta);
 }

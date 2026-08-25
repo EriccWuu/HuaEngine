@@ -6,6 +6,8 @@
 #include <vector>
 
 #include "HuaEngine/Asset/Library/AssetArtifactIO.h"
+#include "HuaEngine/Asset/Library/AssetBinaryIO.h"
+#include "HuaEngine/Core/Sha256.h"
 #include "yaml-cpp/yaml.h"
 
 namespace {
@@ -85,6 +87,21 @@ namespace HE {
 			return Failure("asset.meta.invalid", error.what());
 		}
 		return ValidateAssetMeta(outMeta);
+	}
+
+	ResultEnvelope ComputeAssetMetaSettingsDigest(uint32_t settingsVersion, const AssetMetaSettingsNode& settings, std::string& outDigest) {
+		outDigest.clear();
+		if (settingsVersion == 0) return Failure("asset.meta.invalid", "Asset settings version must be positive");
+		AssetBinaryWriter writer;
+		writer.WriteU32(settingsVersion);
+		writer.WriteU32(static_cast<uint32_t>(settings.Values.size()));
+		for (const auto& [key, value] : settings.Values) {
+			if (key.empty()) return Failure("asset.meta.invalid", "Asset settings key is empty");
+			writer.WriteString(key);
+			writer.WriteString(value);
+		}
+		outDigest = Sha256ToHex(ComputeSha256(writer.GetData()));
+		return ResultEnvelope::Success("asset.meta.settings_digest", {}, "Asset settings digest computed");
 	}
 
 	ResultEnvelope LoadAssetMeta(const std::filesystem::path& sourcePath, AssetMeta& outMeta) {
