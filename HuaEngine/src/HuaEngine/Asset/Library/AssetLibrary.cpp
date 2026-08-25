@@ -17,9 +17,6 @@
 
 namespace {
 	constexpr std::array<uint8_t, 8> LibraryMagic = { 'H', 'U', 'A', 'L', 'I', 'B', 'R', 'Y' };
-	constexpr uint32_t LegacyAssetLibraryFormatVersion = 1;
-	constexpr uint32_t SourceHashAssetLibraryFormatVersion = 2;
-	constexpr uint32_t DependencyAssetLibraryFormatVersion = 3;
 	constexpr uint32_t MaxLibraryRecordCount = 1'000'000;
 	constexpr uint32_t MaxDependencyCount = 1'000'000;
 	constexpr uint32_t MaxDiagnosticCount = 10'000;
@@ -138,6 +135,15 @@ namespace HE {
 			auto result = ResultEnvelope::Success("asset.library.open", m_RootPath.generic_string(), "Asset library opened");
 			result.SetPayloadValue("record_count", std::to_string(m_Records.size()));
 			return result;
+		}
+
+		std::filesystem::remove_all(m_ArtifactRootPath, errorCode);
+		if (errorCode) {
+			return MakeLibraryFailure("asset.library.open", m_ArtifactRootPath, "asset.library.cache_clear_failed", errorCode.message());
+		}
+		std::filesystem::create_directories(m_ArtifactRootPath, errorCode);
+		if (errorCode) {
+			return MakeLibraryFailure("asset.library.open", m_ArtifactRootPath, "asset.library.directory_create_failed", errorCode.message());
 		}
 
 		m_Records.clear();
@@ -382,7 +388,7 @@ namespace HE {
 		if (!reader.ReadBytes(LibraryMagic.size(), magic) ||
 			!std::equal(magic.begin(), magic.end(), LibraryMagic.begin(), LibraryMagic.end()) ||
 			!reader.ReadU32(version) ||
-			(version != LegacyAssetLibraryFormatVersion && version != SourceHashAssetLibraryFormatVersion && version != DependencyAssetLibraryFormatVersion && version != AssetLibraryFormatVersion) ||
+			version != AssetLibraryFormatVersion ||
 			!reader.ReadU32(recordCount) || recordCount > MaxLibraryRecordCount) {
 			outError = "Asset library catalog header is invalid or unsupported";
 			return false;
@@ -399,12 +405,9 @@ namespace HE {
 				!reader.ReadU32(kindValue) ||
 				!reader.ReadString(record.ImporterId) ||
 				!reader.ReadU32(record.ImporterVersion) ||
-				!reader.ReadU32(record.ArtifactVersion)) {
+				!reader.ReadU32(record.ArtifactVersion) ||
+				!reader.ReadString(record.ImportFingerprint)) {
 				outError = "Asset library catalog record is invalid or truncated";
-				return false;
-			}
-			if (version >= SourceHashAssetLibraryFormatVersion && !reader.ReadString(record.ImportFingerprint)) {
-				outError = "Asset library catalog import fingerprint is invalid or truncated";
 				return false;
 			}
 			if (!reader.ReadString(artifactPath) ||
@@ -421,7 +424,7 @@ namespace HE {
 				record.ImporterId.empty() ||
 				record.ImporterVersion == 0 ||
 				record.ArtifactVersion == 0 ||
-				(!record.ImportFingerprint.empty() && !IsValidImportFingerprint(record.ImportFingerprint)) ||
+				!IsValidImportFingerprint(record.ImportFingerprint) ||
 				!IsSafeArtifactPath(record.ArtifactRelativePath)) {
 				outError = "Asset library catalog record metadata is invalid";
 				return false;
@@ -436,31 +439,29 @@ namespace HE {
 				}
 				record.Dependencies.push_back(std::move(dependency));
 			}
-			if (version >= AssetLibraryFormatVersion) {
-				uint32_t diagnosticCount = 0;
-				if (!reader.ReadString(record.LastFailedImportFingerprint) ||
-					!reader.ReadU32(diagnosticCount) || diagnosticCount > MaxDiagnosticCount) {
-					outError = "Asset library import failure record is invalid or truncated";
+			uint32_t diagnosticCount = 0;
+			if (!reader.ReadString(record.LastFailedImportFingerprint) ||
+				!reader.ReadU32(diagnosticCount) || diagnosticCount > MaxDiagnosticCount) {
+				outError = "Asset library import failure record is invalid or truncated";
+				return false;
+			}
+			if ((!record.LastFailedImportFingerprint.empty() && !IsValidImportFingerprint(record.LastFailedImportFingerprint)) ||
+				(record.LastFailedImportFingerprint.empty() != (diagnosticCount == 0))) {
+				outError = "Asset library import failure metadata is inconsistent";
+				return false;
+			}
+			record.LastImportFailureDiagnostics.reserve(diagnosticCount);
+			for (uint32_t diagnosticIndex = 0; diagnosticIndex < diagnosticCount; ++diagnosticIndex) {
+				uint32_t severity = 0;
+				DiagnosticEntry diagnostic;
+				if (!reader.ReadU32(severity) || severity > static_cast<uint32_t>(DiagnosticSeverity::Error) ||
+					!reader.ReadString(diagnostic.Code) || !reader.ReadString(diagnostic.Message) || !reader.ReadString(diagnostic.Context) ||
+					diagnostic.Code.empty() || diagnostic.Message.empty()) {
+					outError = "Asset library import failure diagnostic is invalid or truncated";
 					return false;
 				}
-				if ((!record.LastFailedImportFingerprint.empty() && !IsValidImportFingerprint(record.LastFailedImportFingerprint)) ||
-					(record.LastFailedImportFingerprint.empty() != (diagnosticCount == 0))) {
-					outError = "Asset library import failure metadata is inconsistent";
-					return false;
-				}
-				record.LastImportFailureDiagnostics.reserve(diagnosticCount);
-				for (uint32_t diagnosticIndex = 0; diagnosticIndex < diagnosticCount; ++diagnosticIndex) {
-					uint32_t severity = 0;
-					DiagnosticEntry diagnostic;
-					if (!reader.ReadU32(severity) || severity > static_cast<uint32_t>(DiagnosticSeverity::Error) ||
-						!reader.ReadString(diagnostic.Code) || !reader.ReadString(diagnostic.Message) || !reader.ReadString(diagnostic.Context) ||
-						diagnostic.Code.empty() || diagnostic.Message.empty()) {
-						outError = "Asset library import failure diagnostic is invalid or truncated";
-						return false;
-					}
-					diagnostic.Severity = static_cast<DiagnosticSeverity>(severity);
-					record.LastImportFailureDiagnostics.push_back(std::move(diagnostic));
-				}
+				diagnostic.Severity = static_cast<DiagnosticSeverity>(severity);
+				record.LastImportFailureDiagnostics.push_back(std::move(diagnostic));
 			}
 
 			if (!loadedRecords.emplace(record.Guid, std::move(record)).second) {

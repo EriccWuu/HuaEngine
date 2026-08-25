@@ -199,58 +199,68 @@ namespace {
 		Require(reopened.Find("invalid-shader-guid") == nullptr, "Expected invalid shader candidate not to publish a library record");
 	}
 
-	std::vector<uint8_t> MakeVersionOneCatalog() {
+	std::vector<uint8_t> MakeOutdatedCatalog() {
 		HE::AssetBinaryWriter writer;
 		writer.WriteBytes({ 'H', 'U', 'A', 'L', 'I', 'B', 'R', 'Y' });
 		writer.WriteU32(1);
 		writer.WriteU32(1);
-		writer.WriteString("legacy-guid");
+		writer.WriteString("outdated-guid");
 		writer.WriteU32(static_cast<uint32_t>(HE::AssetKind::Mesh));
 		writer.WriteString("hua.mesh-yaml");
 		writer.WriteU32(2);
 		writer.WriteU32(3);
-		writer.WriteString("Artifacts/legacy-guid.huamesh");
+		writer.WriteString("Artifacts/outdated-guid.huamesh");
 		writer.WriteU32(0);
 		return writer.TakeData();
 	}
 
-	void TestVersionOneCatalogMigration(const std::filesystem::path& root) {
+	void TestOutdatedCatalogRebuildsGeneratedCache(const std::filesystem::path& root) {
 		const auto context = MakeProjectContext(root);
-		WriteFileBytes(root / "Library" / "AssetLibrary.bin", MakeVersionOneCatalog());
+		WriteFileBytes(root / "Library" / "AssetLibrary.bin", MakeOutdatedCatalog());
 
 		HE::AssetArtifact artifact;
 		artifact.Kind = HE::AssetKind::Mesh;
 		artifact.ArtifactVersion = 3;
 		artifact.Payload = { 1, 2, 3 };
 		Require(
-			HE::WriteAssetArtifactFile(root / "Library" / "Artifacts" / "legacy-guid.huamesh", artifact).Succeeded(),
-			"Expected legacy artifact fixture");
+			HE::WriteAssetArtifactFile(root / "Library" / "Artifacts" / "outdated-guid.huamesh", artifact).Succeeded(),
+			"Expected outdated artifact fixture");
 
 		HE::AssetLibrary library;
-		Require(library.Open(context).Succeeded(), "Expected version one catalog compatibility");
-		const auto* record = library.Find("legacy-guid");
-		Require(record != nullptr, "Expected version one catalog record");
-		Require(record->ImportFingerprint.empty(), "Expected legacy record to have no import fingerprint");
-		Require(library.IsArtifactAvailable("legacy-guid", HE::AssetKind::Mesh, "hua.mesh-yaml", 2, 3), "Expected legacy artifact availability");
-		Require(!library.IsArtifactCurrent("legacy-guid", HE::AssetKind::Mesh, "hua.mesh-yaml", 2, 3, "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"), "Expected legacy artifact to require one reimport");
-		Require(library.Save().Succeeded(), "Expected version one catalog migration save");
+		const auto openResult = library.Open(context);
+		Require(openResult.Succeeded(), "Expected outdated generated catalog to rebuild automatically");
+		Require(!openResult.Details.empty() && openResult.Details.front().Code == "asset.library.catalog_rebuilt", "Expected outdated catalog rebuild diagnostic");
+		Require(library.Find("outdated-guid") == nullptr, "Expected outdated catalog records to be discarded");
+		Require(!std::filesystem::exists(root / "Library" / "Artifacts" / "outdated-guid.huamesh"), "Expected outdated generated artifacts to be removed");
+
+		std::vector<uint8_t> rebuiltCatalog;
+		Require(HE::ReadAssetBinaryFile(root / "Library" / "AssetLibrary.bin", rebuiltCatalog, "smoke.catalog_read").Succeeded(), "Expected rebuilt catalog read");
+		HE::AssetBinaryReader reader(rebuiltCatalog);
+		std::vector<uint8_t> magic;
+		uint32_t version = 0;
+		uint32_t recordCount = 1;
+		Require(reader.ReadBytes(8, magic) && reader.ReadU32(version) && reader.ReadU32(recordCount), "Expected rebuilt catalog header");
+		Require(version == HE::AssetLibraryFormatVersion && recordCount == 0, "Expected empty current-version catalog after rebuild");
 
 		HE::AssetLibrary reopened;
-		Require(reopened.Open(context).Succeeded(), "Expected migrated catalog reopen");
-		Require(reopened.Find("legacy-guid") != nullptr, "Expected migrated record persistence");
+		Require(reopened.Open(context).Succeeded(), "Expected rebuilt catalog reopen");
+		Require(reopened.Find("outdated-guid") == nullptr, "Expected rebuilt catalog to remain empty");
 	}
 
 	std::vector<uint8_t> MakeEscapingCatalog() {
 		HE::AssetBinaryWriter writer;
 		writer.WriteBytes({ 'H', 'U', 'A', 'L', 'I', 'B', 'R', 'Y' });
-		writer.WriteU32(1);
+		writer.WriteU32(HE::AssetLibraryFormatVersion);
 		writer.WriteU32(1);
 		writer.WriteString("escaping-guid");
 		writer.WriteU32(static_cast<uint32_t>(HE::AssetKind::Mesh));
 		writer.WriteString("hua.mesh-yaml");
 		writer.WriteU32(1);
 		writer.WriteU32(1);
+		writer.WriteString("0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef");
 		writer.WriteString("../outside.huamesh");
+		writer.WriteU32(0);
+		writer.WriteString("");
 		writer.WriteU32(0);
 		return writer.TakeData();
 	}
@@ -281,7 +291,7 @@ int main() {
 	TestSourceContentHash(smokeRoot / "Hash");
 	TestArtifactCommitAndCatalogRoundTrip(smokeRoot / "ValidProject");
 	TestTransactionalCommitRollback(smokeRoot / "TransactionProject");
-	TestVersionOneCatalogMigration(smokeRoot / "LegacyProject");
+	TestOutdatedCatalogRebuildsGeneratedCache(smokeRoot / "LegacyProject");
 	TestInvalidCatalogRebuildsEmpty(smokeRoot / "InvalidProject");
 
 	std::filesystem::remove_all(smokeRoot, errorCode);
