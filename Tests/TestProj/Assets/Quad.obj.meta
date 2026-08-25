@@ -1,0 +1,12 @@
+meta_version: 1
+guid: 15da0d336597b40d17f6cbf870ece1ff
+importer: hua.mesh-obj
+settings_version: 1
+settings:
+  flip_uv_v: false
+  forward_axis: -z
+  generate_normals_when_missing: true
+  import_scale: 1.000000
+  recalculate_normals: false
+  reverse_winding: false
+  up_axis: y

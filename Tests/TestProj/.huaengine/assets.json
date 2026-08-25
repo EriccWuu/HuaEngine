@@ -153,6 +153,15 @@
       "relative_path": "models/Red/RedBall.obj",
       "builtin_name": "",
       "import_state": "registered"
+    },
+    {
+      "guid": "ac5568f6462b326ee8926985f8452cfc",
+      "asset_id": "editor_workbench.scene",
+      "kind": "scene",
+      "source": "file",
+      "relative_path": "editor_workbench.scene",
+      "builtin_name": "",
+      "import_state": "registered"
     }
   ]
 }
