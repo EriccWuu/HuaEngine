@@ -4,7 +4,8 @@
 #include <vector>
 
 #include "HuaEngine/Asset/AssetRegistry.h"
-#include "Panels/AssetPickerModel.h"
+#include "Assets/AssetPickerCatalog.h"
+#include "Assets/AssetPickerModel.h"
 #include "Panels/RuntimeInspector.h"
 
 namespace {
@@ -56,6 +57,14 @@ int main() {
 	Require(materialOptions[0].Guid == "material-default", "Expected builtin material in sorted options");
 	Require(materialOptions[1].Guid == "material-metal", "Expected imported material in sorted options");
 	Require(materialOptions[2].Guid == "material-plastic", "Expected all imported materials in sorted options");
+
+	HE::Editor::AssetPickerCatalog catalog;
+	catalog.Rebuild(records);
+	Require(catalog.Get(HE::AssetKind::Mesh).size() == 2, "Expected catalog mesh options");
+	Require(catalog.Get(HE::AssetKind::Material).size() == 3, "Expected catalog material options");
+	Require(catalog.Get(HE::AssetKind::Shader).empty(), "Expected empty shader options");
+	catalog.Clear();
+	Require(catalog.Get(HE::AssetKind::Mesh).empty(), "Expected cleared catalog");
 
 	const HE::Editor::RuntimeInspectorContext context{
 		.MeshAssets = options,

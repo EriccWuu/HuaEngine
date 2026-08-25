@@ -7,7 +7,7 @@
 #include <unordered_map>
 
 #include "HuaEngine/Reflection/Reflection.h"
-#include "Panels/AssetPickerModel.h"
+#include "Assets/AssetPickerModel.h"
 #include "HuaEngine/Rendering/Material/MaterialDefinition.h"
 #include "Module/Rendering/RenderingComponent.h"
 

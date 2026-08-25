@@ -4,7 +4,7 @@
 #include <functional>
 
 #include "Assets/AssetEditSession.h"
-#include "Panels/AssetPickerModel.h"
+#include "Assets/AssetPickerModel.h"
 #include "HuaEngine/Rendering/Shader/ShaderInterface.h"
 #include "HuaEngine/Asset/Authoring/AssetEditCommit.h"
 

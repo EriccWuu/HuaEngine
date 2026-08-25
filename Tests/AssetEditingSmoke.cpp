@@ -6,7 +6,9 @@
 #include <string>
 
 #include "Assets/AssetEditorRegistry.h"
+#include "Assets/AssetInspectorEditor.h"
 #include "Assets/AssetInspectorHost.h"
+#include "Assets/AssetPickerCatalog.h"
 #include "Assets/Editors/GenericAssetInspector.h"
 #include "Assets/Editors/MaterialAssetEditor.h"
 #include "Assets/Editors/ImportSettingsEditors.h"
@@ -39,6 +41,12 @@ namespace {
 }
 
 int main() {
+	HE::Editor::AssetPickerCatalog pickerCatalog;
+	HE::Editor::AssetInspectorEditor assetInspector(pickerCatalog);
+	Require(!assetInspector.HasDirtyEdit(), "Expected clean asset inspector without selection");
+	assetInspector.BindProject(nullptr);
+	Require(!assetInspector.HasDirtyEdit(), "Expected unbound asset inspector to remain clean");
+
 	HE::Editor::AssetEditorRegistry registry;
 	Require(HE::IsAssetAuthoringDataSaved(HE::AssetApplyState::Applied), "Expected applied edits to report saved authoring data");
 	Require(HE::IsAssetAuthoringDataSaved(HE::AssetApplyState::NoChanges), "Expected unchanged edits to report saved authoring data");

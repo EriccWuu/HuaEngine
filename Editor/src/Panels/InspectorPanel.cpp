@@ -39,166 +39,16 @@ namespace HE {
             return metadata.TypeName;
         }
 
-		const char* GetImportHealthLabel(AssetImportHealthState state) {
-			switch (state) {
-			case AssetImportHealthState::Current: return "Current";
-			case AssetImportHealthState::LastGoodWithFailure: return "Last good with failure";
-			case AssetImportHealthState::Missing: return "Missing";
-			case AssetImportHealthState::Stale: return "Stale";
-			case AssetImportHealthState::NotApplicable: return "Not applicable";
-			}
-			return "Unknown";
-		}
-
-        void DrawContextMenuEntries(EditorInteractionHost* host, std::string_view contextId) {
-            if (!host) {
-                return;
-            }
-
-            const auto* actions = host->ContextMenus().Find(contextId);
-            if (!actions || actions->empty()) {
-                ImGui::TextDisabled("No actions registered");
-                return;
-            }
-
-            for (const auto& action : *actions) {
-                const bool enabled = action.IsEnabled ? action.IsEnabled() : action.Enabled;
-                if (ImGui::MenuItem(action.Label.c_str(), action.Shortcut.empty() ? nullptr : action.Shortcut.c_str(), false, enabled)) {
-                    host->Commands().SetLastRoute(std::string("context.") + std::string(contextId) + "." + action.Id);
-                    if (action.Trigger) {
-                        action.Trigger();
-                    }
-                }
-
-                if (!action.Tooltip.empty() && ImGui::IsItemHovered(ImGuiHoveredFlags_AllowWhenDisabled)) {
-                    ImGui::SetTooltip("%s", action.Tooltip.c_str());
-                }
-            }
-        }
     }
 
-    InspectorPanel::InspectorPanel() {
+    InspectorPanel::InspectorPanel(Editor::AssetInspectorEditor& assetEditor, const Editor::AssetPickerCatalog& pickerCatalog)
+		: m_AssetEditor(assetEditor), m_PickerCatalog(pickerCatalog) {
         RegisterCoreComponents(m_ComponentRegistry);
-		Selection::GetService().SetChangeGuard([this](const Editor::EditorSelection& selection) {
-			if (!HasDirtyAsset()) return true;
-			if (const auto* asset = std::get_if<Editor::AssetSelection>(&selection);
-				asset && asset->Guid == m_AssetInspectorHost.GetSession().GetGuid()) return true;
-			RequestDirtyAssetResolution([selection]() mutable {
-				Selection::GetService().AcceptGuardedSelection(std::move(selection));
-			});
-			return false;
-		});
     }
-
-	InspectorPanel::~InspectorPanel() {
-		Selection::GetService().SetChangeGuard({});
-	}
-
-	bool InspectorPanel::HasDirtyAsset() const {
-		const auto* editor = m_AssetInspectorHost.GetEditor();
-		return editor != nullptr && editor->IsDirty();
-	}
-
-	void InspectorPanel::QueueAssetReload(const AssetGuid& guid) {
-		m_PendingAssetReloadGuid = guid;
-	}
-
-	void InspectorPanel::ProcessPendingAssetReload() {
-		if (!m_PendingAssetReloadGuid) return;
-		const auto guid = std::move(*m_PendingAssetReloadGuid);
-		m_PendingAssetReloadGuid.reset();
-		if (!Selection::HasAssetSelection() || Selection::GetSelectedAssetGuid() != guid) return;
-
-		auto result = m_AssetInspectorHost.Open(guid, [](const AssetGuid& assetGuid, AssetInspectionSnapshot& snapshot) {
-			return Application::GetInstance().GetOperations().InspectAsset(assetGuid, snapshot);
-		});
-		if (!result.Succeeded() && m_WorkbenchState) m_WorkbenchState->RecordEvent(result, "Inspector");
-	}
-
-	ResultEnvelope InspectorPanel::ApplyAssetEdit(AssetApplyState* outState) {
-		auto* editor = m_AssetInspectorHost.GetEditor();
-		const auto guid = m_AssetInspectorHost.GetSession().GetGuid();
-		AssetApplyState state = AssetApplyState::ValidationFailed;
-		if (outState) *outState = state;
-		if (!editor || !m_ProjectContext || guid.empty()) {
-			return ResultEnvelope::Failure("asset.editor.apply", guid, "No editable asset is active");
-		}
-
-		auto result = editor->Validate();
-		if (result.Succeeded()) {
-			result = Application::GetInstance().GetOperations().ApplyAssetEdit(*m_ProjectContext, editor->BuildCommit(), state);
-			if (IsAssetAuthoringDataSaved(state)) {
-				QueueAssetReload(guid);
-			}
-		}
-		if (outState) *outState = state;
-		if (m_WorkbenchState) m_WorkbenchState->RecordEvent(result, "Inspector");
-		return result;
-	}
-
-	void InspectorPanel::RevertAssetEdit() {
-		if (auto* editor = m_AssetInspectorHost.GetEditor()) editor->Revert();
-	}
-
-	bool InspectorPanel::RequestDirtyAssetResolution(std::function<void()> continuation) {
-		if (!HasDirtyAsset()) return false;
-		m_DirtyAssetContinuation = std::move(continuation);
-		m_OpenDirtyAssetPopup = true;
-		return true;
-	}
-
-	void InspectorPanel::CheckExternalAssetModification() {
-		const auto* snapshot = m_AssetInspectorHost.GetSession().GetSnapshot();
-		if (!snapshot || snapshot->Asset.Source != AssetSource::File) return;
-		auto result = m_AssetInspectorHost.GetSession().CheckExternalModification();
-		if (m_WorkbenchState) m_WorkbenchState->RecordEvent(result, "Inspector");
-	}
-
-	void InspectorPanel::OnDirtyAssetPopup() {
-		if (m_OpenDirtyAssetPopup) {
-			ImGui::OpenPopup("Unsaved Asset Changes");
-			m_OpenDirtyAssetPopup = false;
-		}
-
-		if (!ImGui::BeginPopupModal("Unsaved Asset Changes", nullptr, ImGuiWindowFlags_AlwaysAutoResize)) return;
-		ImGui::TextWrapped("The current asset has unapplied changes. Apply before continuing?");
-		ImGui::Spacing();
-
-		if (ImGui::Button("Apply and Continue")) {
-			AssetApplyState state = AssetApplyState::ValidationFailed;
-			(void)ApplyAssetEdit(&state);
-			if (IsAssetAuthoringDataSaved(state)) {
-				auto continuation = std::move(m_DirtyAssetContinuation);
-				ImGui::CloseCurrentPopup();
-				if (continuation) continuation();
-			}
-		}
-		ImGui::SameLine();
-		if (ImGui::Button("Discard and Continue")) {
-			RevertAssetEdit();
-			auto continuation = std::move(m_DirtyAssetContinuation);
-			ImGui::CloseCurrentPopup();
-			if (continuation) continuation();
-		}
-		ImGui::SameLine();
-		if (ImGui::Button("Cancel")) {
-			m_DirtyAssetContinuation = {};
-			ImGui::CloseCurrentPopup();
-		}
-		ImGui::EndPopup();
-	}
-
-	void InspectorPanel::SetAssetRecords(std::span<const AssetRecord> records) {
-		m_MeshAssetOptions = Editor::BuildAssetPickerOptions(records, AssetKind::Mesh);
-		m_MaterialAssetOptions = Editor::BuildAssetPickerOptions(records, AssetKind::Material);
-		m_TextureAssetOptions = Editor::BuildAssetPickerOptions(records, AssetKind::Texture2D);
-		m_ShaderAssetOptions = Editor::BuildAssetPickerOptions(records, AssetKind::Shader);
-	}
 
 	bool InspectorPanel::OnGuiRender() {
 		bool changed = false;
 		ImGui::Begin("Inspector");
-		ProcessPendingAssetReload();
         if (m_InteractionHost && m_InteractionHost->HasActiveScene()) {
             m_InteractionHost->Commands().SetLastRoute("panel.inspector");
         }
@@ -219,93 +69,9 @@ namespace HE {
 			}
 		}
 		if (Selection::HasAssetSelection()) {
-			const auto guid = Selection::GetSelectedAssetGuid();
-			if (!m_AssetInspectorHost.GetSession().IsOpen() || m_AssetInspectorHost.GetSession().GetGuid() != guid) {
-				auto result = m_AssetInspectorHost.Open(guid, [](const AssetGuid& assetGuid, AssetInspectionSnapshot& snapshot) {
-					return Application::GetInstance().GetOperations().InspectAsset(assetGuid, snapshot);
-				});
-				if (!result.Succeeded() && m_WorkbenchState) m_WorkbenchState->RecordEvent(result, "Inspector");
-			}
-			if (auto* editor = m_AssetInspectorHost.GetEditor()) {
-				const bool dirty = editor->IsDirty();
-				const auto* snapshot = m_AssetInspectorHost.GetSession().GetSnapshot();
-				if (snapshot) {
-					ImGui::TextUnformatted(snapshot->Asset.AssetId.c_str());
-					ImGui::Text("Kind: %s", ToString(snapshot->Asset.Kind).data());
-					ImGui::TextWrapped("GUID: %s", snapshot->Asset.Guid.c_str());
-					ImGui::TextWrapped("Path: %s", snapshot->Asset.RelativePath.generic_string().c_str());
-					ImGui::Text("Importer: %s (settings v%u)", snapshot->ImporterId.c_str(), snapshot->SettingsVersion);
-					ImGui::Text("Import Health: %s%s", GetImportHealthLabel(snapshot->Health.State), dirty ? "  *" : "");
-					ImGui::Text("Dependencies: %zu  Dependents: %zu", snapshot->Dependencies.size(), snapshot->Dependents.size());
-					if (!snapshot->ImportFingerprint.empty()) ImGui::TextWrapped("Fingerprint: %s", snapshot->ImportFingerprint.c_str());
-					for (const auto& diagnostic : snapshot->Diagnostics) ImGui::TextWrapped("%s: %s", diagnostic.Code.c_str(), diagnostic.Message.c_str());
-					ImGui::Separator();
-				}
-				ImGui::BeginDisabled(!dirty || !m_ProjectContext);
-				if (ImGui::Button("Apply")) {
-					(void)ApplyAssetEdit();
-				}
-				ImGui::EndDisabled();
-				ImGui::SameLine();
-				ImGui::BeginDisabled(!dirty);
-				if (ImGui::Button("Revert")) RevertAssetEdit();
-				ImGui::EndDisabled();
-				ImGui::SameLine();
-				const bool canReimport = snapshot && snapshot->Asset.Source == AssetSource::File && snapshot->Asset.Kind != AssetKind::Scene && m_ProjectContext;
-				ImGui::BeginDisabled(!canReimport);
-				if (ImGui::Button("Reimport")) {
-					const auto path = snapshot->Asset.AbsolutePath;
-					auto reimport = [this, path]() {
-						AssetReimportReport report;
-						auto result = Application::GetInstance().GetOperations().ReimportAssets(*m_ProjectContext, path, &report);
-						if (m_WorkbenchState) m_WorkbenchState->RecordEvent(result, "Inspector");
-					};
-					if (!RequestDirtyAssetResolution(reimport)) reimport();
-				}
-				ImGui::EndDisabled();
-				ImGui::SameLine();
-				if (ImGui::Button("Reload")) {
-					auto reload = [this, guid]() { QueueAssetReload(guid); };
-					if (!RequestDirtyAssetResolution(reload)) reload();
-				}
-				ImGui::BeginDisabled(!snapshot || snapshot->Asset.Source != AssetSource::File);
-				if (ImGui::Button("Check External Changes")) {
-					CheckExternalAssetModification();
-				}
-				ImGui::EndDisabled();
-				if (m_AssetInspectorHost.GetSession().IsExternallyModified()) {
-					ImGui::TextWrapped("Source or metadata changed externally. Reload to replace the working copy, or cancel this notice.");
-					if (ImGui::Button("Cancel External Reload")) m_AssetInspectorHost.GetSession().DismissExternalModification();
-				}
-				ImGui::Separator();
-				Editor::AssetEditorDrawContext context{
-					.ShaderAssets = m_ShaderAssetOptions,
-					.TextureAssets = m_TextureAssetOptions,
-					.GetShaderAuthoringMetadata = [](const AssetGuid& shaderGuid, Rendering::ShaderAuthoringMetadata& metadata) { return Application::GetInstance().GetOperations().GetShaderAuthoringMetadata(shaderGuid, metadata); },
-					.ReimportAsset = [this](const std::filesystem::path& path) {
-						AssetReimportReport report;
-						auto result = m_ProjectContext
-							? Application::GetInstance().GetOperations().ReimportAssets(*m_ProjectContext, path, &report)
-							: ResultEnvelope::Failure("asset.reimport", path.generic_string(), "Project context is unavailable");
-						if (m_WorkbenchState) m_WorkbenchState->RecordEvent(result, "Inspector");
-						return result;
-					},
-					.OpenScene = m_OpenSceneCallback,
-					.ActiveScenePath = m_WorkbenchState && m_WorkbenchState->GetSceneDocumentSummary()
-						? std::filesystem::path(m_WorkbenchState->GetSceneDocumentSummary()->ScenePath)
-						: std::filesystem::path{},
-					.ActiveSceneDirty = m_WorkbenchState && m_WorkbenchState->GetSceneDocumentSummary()
-						? m_WorkbenchState->GetSceneDocumentSummary()->Dirty
-						: false
-				};
-				editor->Draw(context);
-			}
-			else {
-				ImGui::TextDisabled("Asset inspector unavailable.");
-			}
+			m_AssetEditor.Draw();
 		}
 		else if (Selection::HasSelection()) {
-			m_AssetInspectorHost.Close();
             if (!Selection::HasSingleSelection()) {
                 if (!m_InteractionHost || !m_InteractionHost->GetSceneDocument() || !m_InteractionHost->GetSceneDocument()->SceneRef) {
                     ImGui::TextUnformatted("No entity selected.");
@@ -406,9 +172,9 @@ namespace HE {
 							component,
 							m_RuntimeOverrides,
 							{
-								.MeshAssets = m_MeshAssetOptions,
-								.MaterialAssets = m_MaterialAssetOptions
-								, .TextureAssets = m_TextureAssetOptions
+								.MeshAssets = m_PickerCatalog.Get(AssetKind::Mesh),
+								.MaterialAssets = m_PickerCatalog.Get(AssetKind::Material),
+								.TextureAssets = m_PickerCatalog.Get(AssetKind::Texture2D)
 								, .ResolveMaterialDefinition = [](const AssetGuid& guid, Rendering::MaterialDefinition& definition, AssetImportHealth& health) { return Application::GetInstance().GetOperations().GetMaterialDefinition(guid, definition, &health); }
 								, .CommitMaterialOverrides = [this, selection](const Rendering::MaterialOverrideSet& overrides) {
 									if (!m_InteractionHost || !selection.IsValid() || !selection.HasComponent<Rendering::MaterialComponent>()) return;
@@ -447,7 +213,6 @@ namespace HE {
 			ImGui::PopID();
 		}
 		else {
-			m_AssetInspectorHost.Close();
 			ImGui::TextUnformatted("No entity selected.");
             if (ImGui::BeginPopupContextWindow("InspectorWindowContextMenu")) {
                 ImGui::TextDisabled("Select an entity first.");
@@ -457,21 +222,6 @@ namespace HE {
 		ImGui::End();
 		return changed;
 	}
-
-    bool InspectorPanel::DrawRegisteredContextMenu(std::string_view contextId) {
-        if (!m_InteractionHost) {
-            return false;
-        }
-
-        const auto* actions = m_InteractionHost->ContextMenus().Find(contextId);
-        if (!actions || actions->empty()) {
-            return false;
-        }
-
-        DrawContextMenuEntries(m_InteractionHost, contextId);
-        return true;
-    }
-
     void InspectorPanel::DrawAddComponentWindow() {
         if (!m_ShowAddComponentWindow) {
             return;

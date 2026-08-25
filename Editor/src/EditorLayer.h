@@ -10,6 +10,8 @@
 #include "Interaction/EditorInteractionHost.h"
 #include "Interaction/EditorSceneCommands.h"
 #include "HuaEngine/Project/ProjectContext.h"
+#include "Assets/AssetInspectorEditor.h"
+#include "Assets/AssetPickerCatalog.h"
 #include "Panels/HierarchyPanel.h"
 #include "Panels/InspectorPanel.h"
 #include "Panels/ConsolePanel.h"
@@ -83,7 +85,7 @@ namespace HE {
         void SyncSceneDocumentState();
         void RefreshInteractionHost();
         void RefreshCommandInputs();
-		bool RefreshInspectorAssetCatalog();
+		bool RefreshAssetPickerCatalog();
 		void ReimportProjectAssets(const std::filesystem::path& targetPath);
         std::filesystem::path ResolveScenePathInput(const std::filesystem::path& scenePath) const;
         void PersistCurrentProjectSession();
@@ -124,6 +126,8 @@ namespace HE {
 		Editor::EditorSceneRenderExtension m_SceneRenderExtension;
         Ref<ProjectPanel> m_ProjectPanel;
         Ref<HierarchyPanel> m_HierarchyPanel;
+		Editor::AssetPickerCatalog m_AssetPickerCatalog;
+		Ref<Editor::AssetInspectorEditor> m_AssetInspectorEditor;
         Ref<InspectorPanel> m_Inspector;
         Ref<ConcolePanel> m_Concole;
         ProjectSession m_ProjectSession;

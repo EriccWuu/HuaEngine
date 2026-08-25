@@ -871,7 +871,7 @@ configure_smoke_target(EditorInteractionSmoke)
 
 add_executable(EditorInspectorRuntimeSmoke
     Tests/EditorInspectorRuntimeSmoke.cpp
-    Editor/src/Panels/AssetPickerModel.cpp
+    Editor/src/Assets/AssetPickerModel.cpp
     Editor/src/Panels/RuntimeInspector.cpp
 )
 target_include_directories(EditorInspectorRuntimeSmoke PRIVATE
@@ -896,7 +896,8 @@ configure_smoke_target(EditorInspectorRuntimeSmoke)
 
 add_executable(EditorAssetPickerSmoke
     Tests/EditorAssetPickerSmoke.cpp
-    Editor/src/Panels/AssetPickerModel.cpp
+    Editor/src/Assets/AssetPickerModel.cpp
+    Editor/src/Assets/AssetPickerCatalog.cpp
 )
 target_include_directories(EditorAssetPickerSmoke PRIVATE
     ${CMAKE_SOURCE_DIR}/Editor/src
@@ -920,10 +921,15 @@ configure_smoke_target(EditorAssetPickerSmoke)
 
 add_executable(AssetEditingSmoke
     Tests/AssetEditingSmoke.cpp
+	Editor/src/Selection.cpp
+	Editor/src/Selection/EditorSelectionService.cpp
     Editor/src/Assets/AssetEditSession.cpp
+	Editor/src/Assets/AssetInspectorEditor.cpp
     Editor/src/Assets/AssetPreviewContext.cpp
     Editor/src/Assets/AssetEditorRegistry.cpp
     Editor/src/Assets/AssetInspectorHost.cpp
+	Editor/src/Assets/AssetPickerCatalog.cpp
+	Editor/src/Assets/AssetPickerModel.cpp
     Editor/src/Assets/Editors/GenericAssetInspector.cpp
     Editor/src/Assets/Editors/MaterialAssetEditor.cpp
     Editor/src/Assets/Editors/ImportSettingsEditors.cpp

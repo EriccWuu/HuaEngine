@@ -94,7 +94,12 @@ namespace HE {
 		m_ProjectPanel->SetCanReimportCallback([](const std::filesystem::path& sourcePath) {
 			return Application::GetInstance().GetOperations().CanImportAssetSource(sourcePath);
 		});
-        m_Inspector.reset(new InspectorPanel);
+		m_AssetInspectorEditor = CreateRef<Editor::AssetInspectorEditor>(m_AssetPickerCatalog);
+		m_AssetInspectorEditor->SetWorkbenchState(&m_WorkbenchState);
+		m_AssetInspectorEditor->SetOpenSceneCallback([this](const std::filesystem::path& path) {
+			RequestWorkbenchAction({ WorkbenchActionType::OpenScene, path });
+		});
+        m_Inspector.reset(new InspectorPanel(*m_AssetInspectorEditor, m_AssetPickerCatalog));
         m_Inspector->SetWorkbenchState(&m_WorkbenchState);
         m_Inspector->SetInteractionHost(&m_InteractionHost);
         m_Concole.reset(new ConcolePanel);
@@ -179,7 +184,7 @@ namespace HE {
         SyncSceneDocumentState();
         RefreshInteractionHost();
         m_ProjectSession.Context = context;
-		m_Inspector->SetProjectContext(&m_ProjectSession.Context);
+		m_AssetInspectorEditor->BindProject(&m_ProjectSession.Context);
         m_ProjectSession.LastStatus = status;
         m_ProjectSession.Loaded = true;
 
@@ -204,7 +209,7 @@ namespace HE {
 			CloseProjectSession(true, "Project assets failed to initialize");
 			return false;
 		}
-		if (!RefreshInspectorAssetCatalog()) {
+		if (!RefreshAssetPickerCatalog()) {
 			CloseProjectSession(true, "Project asset catalog failed to load");
 			return false;
 		}
@@ -317,7 +322,7 @@ namespace HE {
     }
 
     void EditorLayer::CloseProjectSession(bool preserveResumeState, std::string_view summary) {
-		m_Inspector->SetProjectContext(nullptr);
+		m_AssetInspectorEditor->BindProject(nullptr);
         if (preserveResumeState && m_ProjectSession.IsLoaded()) {
             PersistCurrentProjectSession();
         } else if (!preserveResumeState) {
@@ -326,7 +331,7 @@ namespace HE {
 
         m_ProjectSession.Reset();
         m_SceneDocument.Reset();
-		m_Inspector->ClearAssetRecords();
+		m_AssetPickerCatalog.Clear();
         SetSceneContext(nullptr);
         SyncWorkbenchSessionState();
         SyncSceneDocumentState();
@@ -488,10 +493,10 @@ namespace HE {
             .DisplayName = "Save",
             .Chord = ImGuiMod_Ctrl | ImGuiKey_S,
             .Shortcut = "Ctrl+S",
-            .IsEnabled = [this]() { return m_SceneDocument.IsLoaded() || (Selection::HasAssetSelection() && m_Inspector->HasDirtyAsset()); },
+            .IsEnabled = [this]() { return m_SceneDocument.IsLoaded() || (Selection::HasAssetSelection() && m_AssetInspectorEditor->HasDirtyEdit()); },
             .Trigger = [this]() {
-				if (Selection::HasAssetSelection() && m_Inspector->HasDirtyAsset()) {
-					(void)m_Inspector->ApplyAssetEdit();
+				if (Selection::HasAssetSelection() && m_AssetInspectorEditor->HasDirtyEdit()) {
+					(void)m_AssetInspectorEditor->Apply();
 					return;
 				}
 				SaveActiveSceneDocument();
@@ -505,7 +510,6 @@ namespace HE {
         m_Inspector->SetRemoveComponentCallback([this](EditorInspectableComponent type) {
             RemoveComponentFromPrimarySelection(type);
         });
-		m_Inspector->SetOpenSceneCallback([this](const std::filesystem::path& path) { RequestWorkbenchAction({ WorkbenchActionType::OpenScene, path }); });
         if (m_HierarchyPanel) {
             m_HierarchyPanel->SetInteractionHost(&m_InteractionHost);
         }
@@ -534,9 +538,9 @@ namespace HE {
         }
     }
 
-	bool EditorLayer::RefreshInspectorAssetCatalog() {
+	bool EditorLayer::RefreshAssetPickerCatalog() {
 		if (!m_ProjectSession.IsLoaded()) {
-			m_Inspector->ClearAssetRecords();
+			m_AssetPickerCatalog.Clear();
 			return true;
 		}
 
@@ -544,17 +548,17 @@ namespace HE {
 		auto result = Application::GetInstance().GetOperations().ListAssets(m_ProjectSession.Context, records);
 		if (!result.Succeeded()) {
 			CaptureOperationResult(result);
-			m_Inspector->ClearAssetRecords();
+			m_AssetPickerCatalog.Clear();
 			return false;
 		}
 
-		m_Inspector->SetAssetRecords(records);
+		m_AssetPickerCatalog.Rebuild(records);
 		m_ProjectPanel->SetAssetRecords(records);
 		return true;
 	}
 
 	void EditorLayer::ReimportProjectAssets(const std::filesystem::path& targetPath) {
-		if (m_Inspector && m_Inspector->RequestDirtyAssetResolution([this, targetPath]() { ReimportProjectAssets(targetPath); })) return;
+		if (m_AssetInspectorEditor && m_AssetInspectorEditor->RequestDirtyResolution([this, targetPath]() { ReimportProjectAssets(targetPath); })) return;
 		if (!m_ProjectSession.IsLoaded()) {
 			return;
 		}
@@ -563,7 +567,7 @@ namespace HE {
 			m_ProjectSession.Context,
 			targetPath);
 		CaptureOperationResult(result);
-		RefreshInspectorAssetCatalog();
+		RefreshAssetPickerCatalog();
 		RefreshWorkbenchValidation();
 	}
 
@@ -769,7 +773,7 @@ namespace HE {
         SyncSceneDocumentState();
         SyncWorkbenchSessionState();
         RefreshCommandInputs();
-		RefreshInspectorAssetCatalog();
+		RefreshAssetPickerCatalog();
         RefreshWorkbenchValidation();
         PersistCurrentProjectSession();
         return true;
@@ -780,7 +784,7 @@ namespace HE {
             return;
         }
 
-		const bool hasUnsavedChanges = (m_SceneDocument.IsLoaded() && m_SceneDocument.Dirty) || (m_Inspector && m_Inspector->HasDirtyAsset());
+		const bool hasUnsavedChanges = (m_SceneDocument.IsLoaded() && m_SceneDocument.Dirty) || (m_AssetInspectorEditor && m_AssetInspectorEditor->HasDirtyEdit());
 		const bool actionLeavesDocument = action.Type == WorkbenchActionType::OpenProject || action.Type == WorkbenchActionType::CloseProject ||
 			action.Type == WorkbenchActionType::NewScene || action.Type == WorkbenchActionType::OpenScene || action.Type == WorkbenchActionType::Exit;
 		if (hasUnsavedChanges && actionLeavesDocument) {
@@ -835,7 +839,7 @@ namespace HE {
     }
 
 	void EditorLayer::OnEvent(Event& event) {
-		if (event.GetEventType() == EventType::WindowClose && (m_SceneDocument.Dirty || (m_Inspector && m_Inspector->HasDirtyAsset()))) {
+		if (event.GetEventType() == EventType::WindowClose && (m_SceneDocument.Dirty || (m_AssetInspectorEditor && m_AssetInspectorEditor->HasDirtyEdit()))) {
 			event.Handled = true;
 			RequestWorkbenchAction({ WorkbenchActionType::Exit });
 			return;
@@ -977,7 +981,7 @@ namespace HE {
         }
 
 		if (ImGui::BeginPopupModal("Unsaved Changes", nullptr, ImGuiWindowFlags_AlwaysAutoResize)) {
-			const bool assetDirty = m_Inspector && m_Inspector->HasDirtyAsset();
+			const bool assetDirty = m_AssetInspectorEditor && m_AssetInspectorEditor->HasDirtyEdit();
 			const bool sceneDirty = m_SceneDocument.IsLoaded() && m_SceneDocument.Dirty;
 			ImGui::TextWrapped("The current editing context has unsaved changes. Apply and save before continuing?");
 			if (assetDirty) ImGui::BulletText("Asset working copy has unapplied changes");
@@ -986,7 +990,7 @@ namespace HE {
 
 			if (ImGui::Button("Apply, Save and Continue")) {
 				AssetApplyState assetApplyState = AssetApplyState::ValidationFailed;
-				if (assetDirty) (void)m_Inspector->ApplyAssetEdit(&assetApplyState);
+				if (assetDirty) (void)m_AssetInspectorEditor->Apply(&assetApplyState);
 				const bool assetSaved = !assetDirty || IsAssetAuthoringDataSaved(assetApplyState);
 				const bool sceneSaved = !sceneDirty || (assetSaved && SaveActiveSceneDocument());
 				if (assetSaved && sceneSaved) {
@@ -999,7 +1003,7 @@ namespace HE {
 
             ImGui::SameLine();
 			if (ImGui::Button("Discard and Continue")) {
-				if (assetDirty) m_Inspector->RevertAssetEdit();
+				if (assetDirty) m_AssetInspectorEditor->Revert();
                 const auto action = m_PendingAction;
                 m_PendingAction = {};
                 ImGui::CloseCurrentPopup();
@@ -1020,7 +1024,7 @@ namespace HE {
 		ImGuizmo::BeginFrame();
         if (m_Mode == EditorWorkbenchMode::ProjectHub) {
             OnProjectHubShell();
-			m_Inspector->OnDirtyAssetPopup();
+			m_AssetInspectorEditor->DrawModals();
             OnUnsavedChangesPopup();
             return;
         }
@@ -1045,7 +1049,7 @@ namespace HE {
                 m_Concole->OnGuiRender();
             }
             OnUnsavedChangesPopup();
-			m_Inspector->OnDirtyAssetPopup();
+			m_AssetInspectorEditor->DrawModals();
             return;
         }
 
@@ -1068,7 +1072,7 @@ namespace HE {
                             ProjectStatusReport status;
                             CaptureOperationResult(Application::GetInstance().GetOperations().CheckProjectStatus(m_ProjectSession.Context, &status));
                             if (m_LastOperationResult.Succeeded()) {
-								m_Inspector->CheckExternalAssetModification();
+								m_AssetInspectorEditor->CheckExternalModification();
                                 m_ProjectSession.LastStatus = status;
                                 SyncWorkbenchSessionState();
                                 RefreshWorkbenchValidation();
@@ -1113,7 +1117,7 @@ namespace HE {
         if (m_ShowConsolePanel) {
             m_Concole->OnGuiRender();
         }
-		m_Inspector->OnDirtyAssetPopup();
+		m_AssetInspectorEditor->DrawModals();
     }
 
     void EditorLayer::OnProjectHubShell() {
