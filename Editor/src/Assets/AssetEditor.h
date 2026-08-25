@@ -1,6 +1,9 @@
 #pragma once
 
+#include <span>
+
 #include "Assets/AssetEditSession.h"
+#include "Panels/AssetPickerModel.h"
 #include "HuaEngine/Asset/Authoring/AssetEditCommit.h"
 
 namespace HE::Editor {
@@ -8,7 +11,10 @@ namespace HE::Editor {
 		const AssetInspectionSnapshot& Snapshot;
 	};
 
-	struct AssetEditorDrawContext {};
+	struct AssetEditorDrawContext {
+		std::span<const AssetPickerOption> ShaderAssets;
+		std::span<const AssetPickerOption> TextureAssets;
+	};
 
 	class IAssetEditor {
 	public:

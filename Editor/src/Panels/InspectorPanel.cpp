@@ -74,6 +74,7 @@ namespace HE {
 		m_MeshAssetOptions = Editor::BuildAssetPickerOptions(records, AssetKind::Mesh);
 		m_MaterialAssetOptions = Editor::BuildAssetPickerOptions(records, AssetKind::Material);
 		m_TextureAssetOptions = Editor::BuildAssetPickerOptions(records, AssetKind::Texture2D);
+		m_ShaderAssetOptions = Editor::BuildAssetPickerOptions(records, AssetKind::Shader);
 	}
 
 	bool InspectorPanel::OnGuiRender() {
@@ -126,7 +127,7 @@ namespace HE {
 				if (ImGui::Button("Revert")) editor->Revert();
 				ImGui::EndDisabled();
 				ImGui::Separator();
-				Editor::AssetEditorDrawContext context;
+				Editor::AssetEditorDrawContext context{ .ShaderAssets = m_ShaderAssetOptions, .TextureAssets = m_TextureAssetOptions };
 				editor->Draw(context);
 			}
 			else {

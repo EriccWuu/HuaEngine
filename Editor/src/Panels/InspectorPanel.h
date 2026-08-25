@@ -33,6 +33,7 @@ namespace HE {
 			m_MeshAssetOptions.clear();
 			m_MaterialAssetOptions.clear();
 			m_TextureAssetOptions.clear();
+			m_ShaderAssetOptions.clear();
 		}
 
 	private:
@@ -51,6 +52,7 @@ namespace HE {
 		std::vector<Editor::AssetPickerOption> m_MeshAssetOptions;
 		std::vector<Editor::AssetPickerOption> m_MaterialAssetOptions;
 		std::vector<Editor::AssetPickerOption> m_TextureAssetOptions;
+		std::vector<Editor::AssetPickerOption> m_ShaderAssetOptions;
         bool m_ShowAddComponentWindow = false;
 	};
 }

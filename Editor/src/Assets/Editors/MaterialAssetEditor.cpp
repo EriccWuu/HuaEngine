@@ -37,6 +37,23 @@ namespace {
 			return false;
 		}
 	}
+
+	bool DrawAssetPicker(const char* label, std::string& guid, std::span<const HE::Editor::AssetPickerOption> options) {
+		const auto selected = std::find_if(options.begin(), options.end(), [&](const auto& option) { return option.Guid == guid; });
+		const char* preview = selected == options.end() ? (guid.empty() ? "None" : guid.c_str()) : selected->DisplayName.c_str();
+		bool changed = false;
+		if (ImGui::BeginCombo(label, preview)) {
+			for (const auto& option : options) {
+				const bool isSelected = option.Guid == guid;
+				if (ImGui::Selectable(option.DisplayName.c_str(), isSelected)) {
+					guid = option.Guid;
+					changed = true;
+				}
+			}
+			ImGui::EndCombo();
+		}
+		return changed;
+	}
 }
 
 namespace HE::Editor {
@@ -48,15 +65,19 @@ namespace HE::Editor {
 		return ResultEnvelope::Success("asset.material_editor.open", m_Snapshot.Asset.Guid, "Material editor opened");
 	}
 
-	void MaterialAssetEditor::Draw(AssetEditorDrawContext&) {
+	void MaterialAssetEditor::Draw(AssetEditorDrawContext& context) {
 		ImGui::TextUnformatted("Material Source");
 		ImGui::Separator();
 		(void)DrawText<256>("Name", m_WorkingCopy.Name);
-		(void)DrawText<256>("Shader", m_WorkingCopy.ShaderGuid);
+		(void)DrawAssetPicker("Shader", m_WorkingCopy.ShaderGuid, context.ShaderAssets);
 		std::vector<std::string> names;
 		for (const auto& [name, parameter] : m_WorkingCopy.Parameters) names.push_back(name);
 		std::sort(names.begin(), names.end());
-		for (const auto& name : names) (void)DrawParameter(m_WorkingCopy.Parameters.at(name));
+		for (const auto& name : names) {
+			auto& parameter = m_WorkingCopy.Parameters.at(name);
+			if (parameter.Type == Rendering::MaterialParameterType::Texture2D) (void)DrawAssetPicker(parameter.Name.c_str(), std::get<std::string>(parameter.Value), context.TextureAssets);
+			else (void)DrawParameter(parameter);
+		}
 	}
 
 	ResultEnvelope MaterialAssetEditor::Validate() const {
