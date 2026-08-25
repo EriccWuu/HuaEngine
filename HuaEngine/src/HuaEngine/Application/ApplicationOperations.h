@@ -23,6 +23,7 @@ namespace HE {
 	struct AssetValidationReport;
 	struct AssetImportReport;
 	struct AssetImportHealth;
+	struct AssetInspectionSnapshot;
 	struct AssetReimportReport;
 	struct TransformComponent;
 	struct ValidationReport;
@@ -177,6 +178,7 @@ namespace HE {
 		[[nodiscard]] ResultEnvelope ListAssets(
 			const ProjectContext& context,
 			std::vector<AssetRecord>& outRecords) const;
+		[[nodiscard]] ResultEnvelope InspectAsset(const AssetGuid& guid, AssetInspectionSnapshot& outSnapshot) const;
 		[[nodiscard]] ResultEnvelope GetMaterialDefinition(const AssetGuid& materialGuid, Rendering::MaterialDefinition& outDefinition, AssetImportHealth* outHealth = nullptr) const;
 
 		[[nodiscard]] ResultEnvelope ResolveAsset(AssetHandle handle, AssetRecord& outRecord) const;

@@ -7,6 +7,7 @@
 #include <vector>
 
 #include "AssetManifest.h"
+#include "AssetInspection.h"
 #include "AssetRegistry.h"
 #include "AssetRuntimeCache.h"
 #include "HuaEngine/Asset/Import/AssetImporterRegistry.h"
@@ -20,19 +21,6 @@
 #include "HuaEngine/Rendering/RHI/TextureResource.h"
 
 namespace HE {
-	enum class AssetImportHealthState : uint8_t {
-		Current = 0,
-		LastGoodWithFailure,
-		Missing,
-		Stale
-	};
-
-	struct AssetImportHealth {
-		AssetImportHealthState State = AssetImportHealthState::Missing;
-		AssetGuid Guid;
-		std::vector<DiagnosticEntry> Diagnostics;
-	};
-
 	struct AssetReimportReport {
 		uint32_t ScannedFiles = 0;
 		uint32_t SupportedFiles = 0;
@@ -148,6 +136,7 @@ namespace HE {
 		[[nodiscard]] ResultEnvelope ResolveTextureAsset(AssetHandle handle, Ref<Rendering::TextureResource>& outTexture) const;
 		[[nodiscard]] ResultEnvelope ResolveShaderAsset(AssetHandle handle, Ref<Rendering::ShaderProgram>& outShader) const;
 		[[nodiscard]] ResultEnvelope GetAssetImportHealth(const AssetGuid& guid, AssetImportHealth& outHealth) const;
+		[[nodiscard]] ResultEnvelope InspectAsset(const AssetGuid& guid, AssetInspectionSnapshot& outSnapshot) const;
 		[[nodiscard]] ResultEnvelope GetMaterialDefinition(const AssetGuid& materialGuid, Rendering::MaterialDefinition& outDefinition, AssetImportHealth* outHealth = nullptr) const;
 		[[nodiscard]] ResultEnvelope ValidateRegistry(const ProjectContext& context, AssetValidationReport* outReport = nullptr);
 

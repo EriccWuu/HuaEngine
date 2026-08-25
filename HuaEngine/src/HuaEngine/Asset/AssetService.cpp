@@ -274,6 +274,42 @@ namespace HE {
 		return ResultEnvelope::Success("asset.import_health", guid, "Asset artifact is current");
 	}
 
+	ResultEnvelope AssetService::InspectAsset(const AssetGuid& guid, AssetInspectionSnapshot& outSnapshot) const {
+		outSnapshot = {};
+		const auto* asset = FindRecordByGuid(guid);
+		const auto* manifestRecord = m_Manifest.FindByGuid(guid);
+		if (!asset || !manifestRecord) {
+			return ResultEnvelope::Failure("asset.inspect", guid, "Asset metadata is unavailable");
+		}
+
+		outSnapshot.Asset = *asset;
+		(void)GetAssetImportHealth(guid, outSnapshot.Health);
+		outSnapshot.Diagnostics = outSnapshot.Health.Diagnostics;
+
+		if (const auto* libraryRecord = m_Library.Find(guid)) {
+			outSnapshot.ImporterId = libraryRecord->ImporterId;
+			outSnapshot.ImporterVersion = libraryRecord->ImporterVersion;
+			outSnapshot.ImportFingerprint = libraryRecord->ImportFingerprint;
+			outSnapshot.ArtifactRelativePath = libraryRecord->ArtifactRelativePath;
+			outSnapshot.Dependencies = libraryRecord->Dependencies;
+			outSnapshot.Dependents = m_Library.FindDependents(guid);
+		}
+		else if (m_ProjectContext) {
+			std::filesystem::path sourcePath;
+			if (ResolveAssetSourcePath(*m_ProjectContext, *manifestRecord, sourcePath).Succeeded()) {
+				if (const auto* importer = m_ImporterRegistry.Find(manifestRecord->Kind, sourcePath.extension().string())) {
+					outSnapshot.ImporterId = std::string(importer->GetId());
+					outSnapshot.ImporterVersion = importer->GetVersion();
+				}
+			}
+		}
+
+		auto result = ResultEnvelope::Success("asset.inspect", guid, "Asset inspection snapshot created");
+		result.SetPayloadValue("dependency_count", std::to_string(outSnapshot.Dependencies.size()));
+		result.SetPayloadValue("dependent_count", std::to_string(outSnapshot.Dependents.size()));
+		return result;
+	}
+
 	ResultEnvelope AssetService::GetMaterialDefinition(const AssetGuid& materialGuid, Rendering::MaterialDefinition& outDefinition, AssetImportHealth* outHealth) const {
 		outDefinition = {};
 		AssetImportHealth materialHealth;

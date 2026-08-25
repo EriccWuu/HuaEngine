@@ -7,6 +7,7 @@
 #include <vector>
 
 #include "HuaEngine.h"
+#include "HuaEngine/Asset/AssetInspection.h"
 #include "HuaEngine/Application/ApplicationServices.h"
 #include "HuaEngine/Asset/Import/AssetImportService.h"
 #include "Support/TestTextureFixture.h"
@@ -145,6 +146,14 @@ int main() {
 	Require(listAssets.Succeeded(), "Expected asset.list to succeed through ApplicationOperations");
 	Require(listAssets.Payload.find("asset_count") != listAssets.Payload.end(), "Expected asset.list asset_count payload");
 	Require(!records.empty(), "Expected asset.list to return manifest registry records");
+	HE::AssetRecord registeredMeshRecord;
+	Require(operations.ResolveAsset(meshHandle, registeredMeshRecord).Succeeded(), "Expected registered mesh metadata resolve");
+	HE::AssetInspectionSnapshot inspection;
+	Require(operations.InspectAsset(registeredMeshRecord.Guid, inspection).Succeeded(), "Expected asset inspection snapshot");
+	Require(inspection.Asset.Guid == registeredMeshRecord.Guid, "Expected inspection asset identity");
+	Require(inspection.ImporterId == "hua.mesh-yaml", "Expected inspection importer identity");
+	Require(!inspection.ImportFingerprint.empty() && !inspection.ArtifactRelativePath.empty(), "Expected inspection artifact metadata");
+	Require(inspection.Health.State == HE::AssetImportHealthState::Current, "Expected current inspection health");
 
 	HE::ApplicationValidationRequest validationRequest;
 	validationRequest.Project = &projectContext;

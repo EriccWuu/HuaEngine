@@ -578,6 +578,10 @@ namespace HE {
 		return result;
 	}
 
+	ResultEnvelope ApplicationOperations::InspectAsset(const AssetGuid& guid, AssetInspectionSnapshot& outSnapshot) const {
+		return m_Services->Assets().InspectAsset(guid, outSnapshot);
+	}
+
 	ResultEnvelope ApplicationOperations::GetMaterialDefinition(const AssetGuid& materialGuid, Rendering::MaterialDefinition& outDefinition, AssetImportHealth* outHealth) const {
 		return m_Services->Assets().GetMaterialDefinition(materialGuid, outDefinition, outHealth);
 	}
