@@ -27,7 +27,7 @@ namespace {
 		}
 		void Draw(HE::Editor::AssetEditorDrawContext&) override {}
 		HE::ResultEnvelope Validate() const override { return HE::ResultEnvelope::Success("asset.editor.test.validate", m_Guid, "Valid"); }
-		HE::Editor::AssetEditCommit BuildCommit() const override { return { .Guid = m_Guid }; }
+		HE::AssetEditCommit BuildCommit() const override { return { .Guid = m_Guid }; }
 		bool IsDirty() const override { return false; }
 		void Revert() override {}
 	private:

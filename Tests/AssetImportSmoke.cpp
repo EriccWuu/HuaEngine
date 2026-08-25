@@ -13,6 +13,7 @@
 #include "HuaEngine/Asset/Artifact/MaterialArtifact.h"
 #include "HuaEngine/Asset/Artifact/TextureArtifact.h"
 #include "HuaEngine/Asset/Artifact/ShaderArtifact.h"
+#include "HuaEngine/Asset/Authoring/AssetAuthoringService.h"
 #include "HuaEngine/Asset/AssetResolver.h"
 #include "HuaEngine/Asset/AssetService.h"
 #include "HuaEngine/Asset/Import/AssetImporterRegistry.h"
@@ -631,6 +632,18 @@ namespace {
 		Require(assetService.GetMaterialDefinition(definitionRecord.Guid, definition).Succeeded(), "Expected CPU-only material definition query");
 		Require(definition.GetShaderGuid() == HE::BuiltinAssetGuids::UnlitColorShader && definition.GetParameters().size() == 1, "Expected shader-authored material definition");
 		Require(definition.GetParameters()[0].Name == "u_Color" && std::get<glm::vec4>(definition.GetParameters()[0].CurrentValue) == glm::vec4(0.2f, 0.4f, 0.6f, 1.0f), "Expected material definition current value");
+		HE::AssetInspectionSnapshot authoringSnapshot;
+		Require(assetService.InspectAsset(definitionRecord.Guid, authoringSnapshot).Succeeded(), "Expected material authoring baseline");
+		HE::Rendering::MaterialSourceData editedSource;
+		Require(HE::Rendering::LoadMaterialSourceData(materialPath, editedSource).Succeeded(), "Expected material authoring source load");
+		editedSource.Parameters.at("u_Color").Value = glm::vec4(0.8f, 0.3f, 0.1f, 1.0f);
+		std::string editedText;
+		Require(HE::Rendering::EncodeMaterialSourceData(editedSource, editedText).Succeeded(), "Expected material authoring serialization");
+		HE::AssetEditCommit editCommit{ .Guid = definitionRecord.Guid, .ExpectedSourceHash = authoringSnapshot.SourceContentHash, .ExpectedMetaHash = authoringSnapshot.MetaContentHash, .SerializedContent = std::vector<uint8_t>(editedText.begin(), editedText.end()) };
+		HE::AssetApplyState applyState;
+		Require(HE::AssetAuthoringService(assetService).Apply(context, editCommit, applyState).Succeeded() && applyState == HE::AssetApplyState::Applied, "Expected material source authoring apply");
+		Require(assetService.GetMaterialDefinition(definitionRecord.Guid, definition).Succeeded() && std::get<glm::vec4>(definition.GetParameters()[0].CurrentValue) == glm::vec4(0.8f, 0.3f, 0.1f, 1.0f), "Expected applied material definition update");
+		Require(HE::AssetAuthoringService(assetService).Apply(context, editCommit, applyState).RequiresManualIntervention() && applyState == HE::AssetApplyState::Conflict, "Expected stale authoring baseline conflict");
 		WriteTextFile(materialPath, "name: ImportedMaterial\nshader_guid: builtin-shader-unlit-color\nparameters:\n  u_Unknown: 1.0\n");
 		HE::AssetReimportReport invalidParameterReport;
 		Require(assetService.ReimportAssets(context, materialPath, &invalidParameterReport).Succeeded() && invalidParameterReport.FailedAssets == 1, "Expected unknown shader parameter rejection");

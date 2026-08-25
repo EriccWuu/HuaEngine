@@ -1,6 +1,7 @@
 #pragma once
 
 #include "Assets/AssetEditSession.h"
+#include "HuaEngine/Asset/Authoring/AssetEditCommit.h"
 
 namespace HE::Editor {
 	struct AssetEditorOpenContext {
@@ -8,10 +9,6 @@ namespace HE::Editor {
 	};
 
 	struct AssetEditorDrawContext {};
-
-	struct AssetEditCommit {
-		AssetGuid Guid;
-	};
 
 	class IAssetEditor {
 	public:
