@@ -98,7 +98,24 @@ namespace HE {
 				ImGui::Separator();
 			}
 		}
-		if (Selection::HasSelection()) {
+		if (Selection::HasAssetSelection()) {
+			const auto guid = Selection::GetSelectedAssetGuid();
+			if (!m_AssetInspectorHost.GetSession().IsOpen() || m_AssetInspectorHost.GetSession().GetGuid() != guid) {
+				auto result = m_AssetInspectorHost.Open(guid, [](const AssetGuid& assetGuid, AssetInspectionSnapshot& snapshot) {
+					return Application::GetInstance().GetOperations().InspectAsset(assetGuid, snapshot);
+				});
+				if (!result.Succeeded() && m_WorkbenchState) m_WorkbenchState->RecordEvent(result, "Inspector");
+			}
+			if (auto* editor = m_AssetInspectorHost.GetEditor()) {
+				Editor::AssetEditorDrawContext context;
+				editor->Draw(context);
+			}
+			else {
+				ImGui::TextDisabled("Asset inspector unavailable.");
+			}
+		}
+		else if (Selection::HasSelection()) {
+			m_AssetInspectorHost.Close();
             if (!Selection::HasSingleSelection()) {
                 if (!m_InteractionHost || !m_InteractionHost->GetSceneDocument() || !m_InteractionHost->GetSceneDocument()->SceneRef) {
                     ImGui::TextUnformatted("No entity selected.");
@@ -240,6 +257,7 @@ namespace HE {
 			ImGui::PopID();
 		}
 		else {
+			m_AssetInspectorHost.Close();
 			ImGui::TextUnformatted("No entity selected.");
             if (ImGui::BeginPopupContextWindow("InspectorWindowContextMenu")) {
                 ImGui::TextDisabled("Select an entity first.");

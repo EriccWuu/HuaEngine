@@ -10,6 +10,7 @@
 #include "Workbench/EditorWorkbenchState.h"
 #include "Interaction/EditorSceneCommands.h"
 #include "Panels/RuntimeInspector.h"
+#include "Assets/AssetInspectorHost.h"
 #include "imgui.h"
 #include "glm/glm.hpp"
 
@@ -44,6 +45,7 @@ namespace HE {
         std::function<void(EditorInspectableComponent)> m_RemoveComponentCallback;
         ComponentRegistry m_ComponentRegistry;
         Editor::RuntimeComponentEditorOverrideRegistry m_RuntimeOverrides;
+		Editor::AssetInspectorHost m_AssetInspectorHost;
 		std::vector<Editor::AssetPickerOption> m_MeshAssetOptions;
 		std::vector<Editor::AssetPickerOption> m_MaterialAssetOptions;
 		std::vector<Editor::AssetPickerOption> m_TextureAssetOptions;

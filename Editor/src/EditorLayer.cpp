@@ -539,6 +539,7 @@ namespace HE {
 		}
 
 		m_Inspector->SetAssetRecords(records);
+		m_ProjectPanel->SetAssetRecords(records);
 		return true;
 	}
 
@@ -1021,6 +1022,7 @@ namespace HE {
         }
 
         if (m_ShowProjectPanel && m_ProjectPanel) {
+			m_ProjectPanel->SetSelectedAssetGuid(Selection::GetSelectedAssetGuid());
             m_ProjectPanel->OnGuiRender();
             if (const auto action = m_ProjectPanel->ConsumePendingAction()) {
                 switch (action->Type) {
@@ -1049,6 +1051,9 @@ namespace HE {
 						if (m_ProjectSession.IsLoaded()) {
 							ReimportProjectAssets(m_ProjectSession.Context.GetAssetRootPath());
 						}
+						break;
+					case ProjectPanelActionType::SelectAsset:
+						Selection::SelectAsset(action->Guid);
 						break;
                     default:
                         break;

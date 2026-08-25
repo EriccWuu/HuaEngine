@@ -22,6 +22,14 @@ namespace HE {
 		};
 	}
 
+	void ProjectPanel::SetAssetRecords(std::span<const AssetRecord> records) {
+		m_AssetsByPath.clear();
+		for (const auto& record : records) {
+			if (record.Source != AssetSource::File || record.AbsolutePath.empty()) continue;
+			m_AssetsByPath[record.AbsolutePath.lexically_normal().generic_string()] = record;
+		}
+	}
+
 	std::optional<ProjectPanelAction> ProjectPanel::ConsumePendingAction() {
 		auto action = m_PendingAction;
 		m_PendingAction.reset();
@@ -155,10 +163,10 @@ namespace HE {
 			return;
 		}
 
-		std::error_code errorCode;
-		const bool selected = !m_CurrentScenePath.empty() && std::filesystem::equivalent(entry.path(), m_CurrentScenePath, errorCode);
-		if (ImGui::Selectable(fileName.c_str(), selected) && IsSceneFile(entry.path())) {
-			m_PendingAction = ProjectPanelAction{ ProjectPanelActionType::OpenScene, entry.path() };
+		const auto asset = m_AssetsByPath.find(entry.path().lexically_normal().generic_string());
+		const bool selected = asset != m_AssetsByPath.end() && asset->second.Guid == m_SelectedAssetGuid;
+		if (ImGui::Selectable(fileName.c_str(), selected) && asset != m_AssetsByPath.end()) {
+			m_PendingAction = ProjectPanelAction{ .Type = ProjectPanelActionType::SelectAsset, .Path = entry.path(), .Guid = asset->second.Guid };
 		}
 
 		if (ImGui::IsItemHovered() && IsSceneFile(entry.path()) && ImGui::IsMouseDoubleClicked(ImGuiMouseButton_Left)) {

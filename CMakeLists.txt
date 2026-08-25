@@ -910,8 +910,9 @@ target_include_directories(AssetEditingSmoke PRIVATE
     ${CMAKE_SOURCE_DIR}/HuaEngine/src
     ${SPDLOG_INCLUDE_DIR}
     ${GLM_INCLUDE_DIR}
+	${IMGUI_INCLUDE_DIR}
 )
-target_link_libraries(AssetEditingSmoke PRIVATE HuaEngine)
+target_link_libraries(AssetEditingSmoke PRIVATE HuaEngine ImGui)
 if(WIN32 AND MSVC)
     set_target_properties(AssetEditingSmoke PROPERTIES
         MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>"
