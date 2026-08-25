@@ -162,6 +162,15 @@
       "relative_path": "editor_workbench.scene",
       "builtin_name": "",
       "import_state": "registered"
+    },
+    {
+      "guid": "8d5519dc2eb22dcebfc6ee52ba37dc63",
+      "asset_id": "editorworkbench.scene",
+      "kind": "scene",
+      "source": "file",
+      "relative_path": "editorworkbench.scene",
+      "builtin_name": "",
+      "import_state": "registered"
     }
   ]
 }
