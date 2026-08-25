@@ -44,4 +44,6 @@ namespace HE::Rendering {
 	ResultEnvelope LoadMaterialSourceData(
 		const std::filesystem::path& path,
 		MaterialSourceData& outData);
+	ResultEnvelope EncodeMaterialSourceData(const MaterialSourceData& data, std::string& outText);
+	ResultEnvelope SaveMaterialSourceData(const std::filesystem::path& path, const MaterialSourceData& data);
 }

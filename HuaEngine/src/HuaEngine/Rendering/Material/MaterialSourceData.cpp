@@ -2,7 +2,9 @@
 #include "MaterialSourceData.h"
 
 #include <limits>
+#include <map>
 
+#include "HuaEngine/Asset/Library/AssetArtifactIO.h"
 #include "yaml-cpp/yaml.h"
 
 namespace {
@@ -142,6 +144,64 @@ namespace {
 		result.AddDetail({ HE::DiagnosticSeverity::Error, "asset.material_source.invalid", std::move(message), path.generic_string() });
 		return result;
 	}
+
+	const char* MaterialTypeName(MaterialType type) {
+		switch (type) {
+		case MaterialType::Standard: return "Standard";
+		case MaterialType::Unlit: return "Unlit";
+		case MaterialType::Custom: return "Custom";
+		case MaterialType::Empty: return "Empty";
+		}
+		return "Empty";
+	}
+
+	const char* ParameterTypeName(MaterialParameterType type) {
+		switch (type) {
+		case MaterialParameterType::Int: return "Int";
+		case MaterialParameterType::Float: return "Float";
+		case MaterialParameterType::Vec2: return "Vec2";
+		case MaterialParameterType::Vec3: return "Vec3";
+		case MaterialParameterType::Vec4: return "Vec4";
+		case MaterialParameterType::Mat3: return "Mat3";
+		case MaterialParameterType::Mat4: return "Mat4";
+		case MaterialParameterType::Texture2D: return "Texture2D";
+		case MaterialParameterType::IntArray: return "IntArray";
+		case MaterialParameterType::FloatArray: return "FloatArray";
+		case MaterialParameterType::TextureCube: return "TextureCube";
+		}
+		return "Float";
+	}
+
+	template<glm::length_t Length>
+	YAML::Node EmitVector(const glm::vec<Length, float>& value) {
+		static constexpr const char* Names[] = { "x", "y", "z", "w" };
+		YAML::Node node;
+		for (glm::length_t index = 0; index < Length; ++index) node[Names[index]] = value[index];
+		return node;
+	}
+
+	template<glm::length_t Length>
+	YAML::Node EmitMatrix(const glm::mat<Length, Length, float>& value) {
+		YAML::Node node(YAML::NodeType::Sequence);
+		for (glm::length_t column = 0; column < Length; ++column) for (glm::length_t row = 0; row < Length; ++row) node.push_back(value[column][row]);
+		return node;
+	}
+
+	YAML::Node EmitParameterValue(const MaterialSourceParameter& parameter) {
+		return std::visit([](const auto& value) -> YAML::Node {
+			using Value = std::decay_t<decltype(value)>;
+			if constexpr (std::is_same_v<Value, glm::vec2>) return EmitVector(value);
+			else if constexpr (std::is_same_v<Value, glm::vec3>) return EmitVector(value);
+			else if constexpr (std::is_same_v<Value, glm::vec4>) return EmitVector(value);
+			else if constexpr (std::is_same_v<Value, glm::mat3>) return EmitMatrix(value);
+			else if constexpr (std::is_same_v<Value, glm::mat4>) return EmitMatrix(value);
+			else {
+				YAML::Node node;
+				node = value;
+				return node;
+			}
+		}, parameter.Value);
+	}
 }
 
 namespace HE::Rendering {
@@ -193,5 +253,37 @@ namespace HE::Rendering {
 		catch (const YAML::Exception& error) {
 			return MakeSourceFailure(path, error.what());
 		}
+	}
+
+	ResultEnvelope EncodeMaterialSourceData(const MaterialSourceData& data, std::string& outText) {
+		outText.clear();
+		if (data.Name.empty() || data.ShaderGuid.empty() || data.Type == MaterialType::Empty) return MakeSourceFailure({}, "Material source identity is invalid");
+		YAML::Emitter emitter;
+		emitter << YAML::BeginMap;
+		emitter << YAML::Key << "name" << YAML::Value << data.Name;
+		emitter << YAML::Key << "material_type" << YAML::Value << MaterialTypeName(data.Type);
+		emitter << YAML::Key << "shader_guid" << YAML::Value << data.ShaderGuid;
+		emitter << YAML::Key << "parameters" << YAML::Value << YAML::BeginMap;
+		std::map<std::string, const MaterialSourceParameter*, std::less<>> parameters;
+		for (const auto& [name, parameter] : data.Parameters) parameters.emplace(name, &parameter);
+		for (const auto& [name, parameter] : parameters) {
+			if (name.empty() || parameter->Name != name || parameter->Type == MaterialParameterType::TextureCube) return MakeSourceFailure({}, "Material parameter is invalid");
+			emitter << YAML::Key << name << YAML::Value << YAML::BeginMap;
+			emitter << YAML::Key << "value_type" << YAML::Value << ParameterTypeName(parameter->Type);
+			emitter << YAML::Key << "value" << YAML::Value << EmitParameterValue(*parameter);
+			emitter << YAML::EndMap;
+		}
+		emitter << YAML::EndMap << YAML::EndMap;
+		if (!emitter.good()) return MakeSourceFailure({}, emitter.GetLastError());
+		outText.assign(emitter.c_str(), emitter.size());
+		outText.push_back('\n');
+		return ResultEnvelope::Success("asset.material_source.encode", data.Name, "Material source encoded");
+	}
+
+	ResultEnvelope SaveMaterialSourceData(const std::filesystem::path& path, const MaterialSourceData& data) {
+		std::string text;
+		auto encodeResult = EncodeMaterialSourceData(data, text);
+		if (!encodeResult.Succeeded()) return encodeResult;
+		return WriteAssetBinaryFileAtomically(path, std::vector<uint8_t>(text.begin(), text.end()), "asset.material_source.save");
 	}
 }

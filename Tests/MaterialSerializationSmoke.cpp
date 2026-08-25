@@ -6,6 +6,7 @@
 #include <variant>
 
 #include "HuaEngine.h"
+#include "HuaEngine/Rendering/Material/MaterialSourceData.h"
 #include "HuaEngine/Rendering/Material/MaterialSerializer.h"
 
 namespace {
@@ -81,6 +82,19 @@ int main() {
 	Require(nullTextureParameter != nullptr, "Expected null texture material parameter to remain stored");
 	const auto* storedNullTexture = std::get_if<HE::Ref<HE::Rendering::TextureResource>>(&nullTextureParameter->Value);
 	Require(storedNullTexture != nullptr && !*storedNullTexture, "Expected null texture parameter value to remain stored");
+
+	HE::Rendering::MaterialSourceData sourceData{
+		.Name = "CanonicalMaterial",
+		.Type = HE::Rendering::MaterialType::Custom,
+		.ShaderGuid = "shader-guid"
+	};
+	sourceData.Parameters.emplace("u_Value", HE::Rendering::MaterialSourceParameter{ "u_Value", HE::Rendering::MaterialParameterType::Float, 0.5f });
+	sourceData.Parameters.emplace("u_Color", HE::Rendering::MaterialSourceParameter{ "u_Color", HE::Rendering::MaterialParameterType::Vec4, glm::vec4(1.0f, 0.5f, 0.25f, 1.0f) });
+	const auto sourcePath = MakeSmokePath("canonical.material");
+	Require(HE::Rendering::SaveMaterialSourceData(sourcePath, sourceData).Succeeded(), "Expected canonical material source save");
+	HE::Rendering::MaterialSourceData loadedSource;
+	Require(HE::Rendering::LoadMaterialSourceData(sourcePath, loadedSource).Succeeded(), "Expected canonical material source load");
+	Require(loadedSource.Name == sourceData.Name && loadedSource.ShaderGuid == sourceData.ShaderGuid && loadedSource.Parameters.size() == 2, "Expected canonical material source round trip");
 
 	std::error_code errorCode;
 	std::filesystem::remove_all(materialPath.parent_path(), errorCode);
