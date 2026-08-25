@@ -3,4 +3,10 @@ guid: 8ca3d9fac9cb30dac433288bd3b59dfa
 importer: hua.mesh-obj
 settings_version: 1
 settings:
-  {}
+  flip_uv_v: false
+  forward_axis: -z
+  generate_normals_when_missing: true
+  import_scale: 1.000000
+  recalculate_normals: false
+  reverse_winding: false
+  up_axis: y
