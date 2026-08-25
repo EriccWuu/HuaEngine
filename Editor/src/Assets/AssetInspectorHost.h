@@ -16,6 +16,7 @@ namespace HE::Editor {
 		void Close();
 
 		[[nodiscard]] const AssetEditSession& GetSession() const { return m_Session; }
+		[[nodiscard]] AssetEditSession& GetSession() { return m_Session; }
 		[[nodiscard]] IAssetEditor* GetEditor() const { return m_Editor.get(); }
 		[[nodiscard]] AssetEditorRegistry& GetRegistry() { return m_Registry; }
 

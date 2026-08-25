@@ -7,6 +7,8 @@
 
 #ifdef HE_PLATFORM_WINDOWS
 #include <Windows.h>
+#include <shellapi.h>
+#pragma comment(lib, "Shell32.lib")
 #endif
 
 namespace {
@@ -98,5 +100,16 @@ namespace HE {
 
 	bool HostLaunch::LaunchSibling(const std::filesystem::path& executableName, const std::vector<std::string>& arguments, const std::filesystem::path& workingDirectory) {
 		return Launch(ResolveSiblingExecutable(executableName), arguments, workingDirectory);
+	}
+
+	bool HostLaunch::Open(const std::filesystem::path& path) {
+#ifdef HE_PLATFORM_WINDOWS
+		std::error_code errorCode;
+		if (!std::filesystem::is_regular_file(path, errorCode)) return false;
+		return reinterpret_cast<intptr_t>(ShellExecuteW(nullptr, L"open", path.wstring().c_str(), nullptr, path.parent_path().wstring().c_str(), SW_SHOWNORMAL)) > 32;
+#else
+		(void)path;
+		return false;
+#endif
 	}
 }

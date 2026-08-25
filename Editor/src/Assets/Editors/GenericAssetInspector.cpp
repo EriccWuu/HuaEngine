@@ -11,6 +11,7 @@ namespace HE::Editor {
 			case AssetImportHealthState::LastGoodWithFailure: return "Last good with failure";
 			case AssetImportHealthState::Missing: return "Missing";
 			case AssetImportHealthState::Stale: return "Stale";
+			case AssetImportHealthState::NotApplicable: return "Not applicable";
 			}
 			return "Unknown";
 		}
@@ -22,17 +23,8 @@ namespace HE::Editor {
 	}
 
 	void GenericAssetInspector::Draw(AssetEditorDrawContext&) {
-		ImGui::TextUnformatted(m_Snapshot.Asset.AssetId.c_str());
-		ImGui::Separator();
-		ImGui::Text("Kind: %s", ToString(m_Snapshot.Asset.Kind).data());
-		ImGui::TextWrapped("GUID: %s", m_Snapshot.Asset.Guid.c_str());
-		ImGui::TextWrapped("Path: %s", m_Snapshot.Asset.RelativePath.generic_string().c_str());
-		ImGui::Text("Importer: %s", m_Snapshot.ImporterId.empty() ? "Unavailable" : m_Snapshot.ImporterId.c_str());
-		ImGui::Text("Import Health: %s", ToLabel(m_Snapshot.Health.State));
-		ImGui::Text("Dependencies: %zu", m_Snapshot.Dependencies.size());
-		ImGui::Text("Dependents: %zu", m_Snapshot.Dependents.size());
+		ImGui::Text("Read-only asset (%s)", ToLabel(m_Snapshot.Health.State));
 		if (!m_Snapshot.ArtifactRelativePath.empty()) ImGui::TextWrapped("Artifact: %s", m_Snapshot.ArtifactRelativePath.generic_string().c_str());
-		for (const auto& diagnostic : m_Snapshot.Diagnostics) ImGui::TextWrapped("%s", diagnostic.Message.c_str());
 	}
 
 	ResultEnvelope GenericAssetInspector::Validate() const {

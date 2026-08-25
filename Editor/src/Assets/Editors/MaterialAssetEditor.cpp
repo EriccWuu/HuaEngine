@@ -80,6 +80,7 @@ namespace HE::Editor {
 		auto result = Rendering::LoadMaterialSourceData(m_Snapshot.Asset.AbsolutePath, m_Baseline);
 		if (!result.Succeeded()) return result;
 		m_WorkingCopy = m_Baseline;
+		m_ReferenceValidation = ResultEnvelope::Success("asset.material_editor.references", m_Snapshot.Asset.Guid, "Material references are valid");
 		return ResultEnvelope::Success("asset.material_editor.open", m_Snapshot.Asset.Guid, "Material editor opened");
 	}
 
@@ -102,13 +103,16 @@ namespace HE::Editor {
 			if (parameter.Type == Rendering::MaterialParameterType::Texture2D) (void)DrawAssetPicker(parameter.Name.c_str(), std::get<std::string>(parameter.Value), context.TextureAssets);
 			else (void)DrawParameter(parameter);
 		}
+		m_ReferenceValidation = ValidateReferences(context);
+		m_PreviewContext.SetMaterial(m_WorkingCopy);
+		m_PreviewContext.DrawMaterialPreview();
 	}
 
 	ResultEnvelope MaterialAssetEditor::Validate() const {
 		std::string text;
 		auto result = Rendering::EncodeMaterialSourceData(m_WorkingCopy, text);
 		if (!result.Succeeded()) result.Operation = "asset.edit.validation_failed";
-		return result;
+		return result.Succeeded() ? m_ReferenceValidation : result;
 	}
 
 	AssetEditCommit MaterialAssetEditor::BuildCommit() const {
@@ -149,5 +153,20 @@ namespace HE::Editor {
 		std::sort(m_RemovedParameters.begin(), m_RemovedParameters.end());
 		m_WorkingCopy.Parameters = std::move(reconciled);
 		return ResultEnvelope::Success("asset.material_editor.reconcile", m_Snapshot.Asset.Guid, "Material parameters reconciled with the shader interface");
+	}
+
+	ResultEnvelope MaterialAssetEditor::ValidateReferences(const AssetEditorDrawContext& context) const {
+		Rendering::ShaderAuthoringMetadata metadata;
+		if (m_WorkingCopy.ShaderGuid.empty() || !context.GetShaderAuthoringMetadata || !context.GetShaderAuthoringMetadata(m_WorkingCopy.ShaderGuid, metadata).Succeeded()) {
+			return ResultEnvelope::Failure("asset.edit.validation_failed", m_Snapshot.Asset.Guid, "Material shader is missing or unhealthy");
+		}
+		for (const auto& [name, parameter] : m_WorkingCopy.Parameters) {
+			if (parameter.Type != Rendering::MaterialParameterType::Texture2D) continue;
+			const auto& textureGuid = std::get<std::string>(parameter.Value);
+			if (!textureGuid.empty() && std::none_of(context.TextureAssets.begin(), context.TextureAssets.end(), [&](const auto& option) { return option.Guid == textureGuid; })) {
+				return ResultEnvelope::Failure("asset.edit.validation_failed", m_Snapshot.Asset.Guid, "Material references a missing or non-texture asset");
+			}
+		}
+		return ResultEnvelope::Success("asset.material_editor.references", m_Snapshot.Asset.Guid, "Material references are valid");
 	}
 }

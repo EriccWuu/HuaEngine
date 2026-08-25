@@ -299,6 +299,7 @@ namespace HE {
 		if (asset->Kind == AssetKind::Scene) {
 			outSnapshot.ImporterId = "scene.native";
 			outSnapshot.ImporterVersion = 1;
+			outSnapshot.Health.State = AssetImportHealthState::NotApplicable;
 		}
 		if (asset->Source == AssetSource::File && m_ProjectContext) {
 			(void)ComputeAssetSourceHash(asset->AbsolutePath, outSnapshot.SourceContentHash);

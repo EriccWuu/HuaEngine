@@ -28,12 +28,14 @@ namespace HE {
 		[[nodiscard]] ResultEnvelope ApplyAssetEdit();
 		void RevertAssetEdit();
 		bool RequestDirtyAssetResolution(std::function<void()> continuation);
+		void CheckExternalAssetModification();
 		void SetWorkbenchState(EditorWorkbenchState* state) { m_WorkbenchState = state; }
         void SetInteractionHost(EditorInteractionHost* host) { m_InteractionHost = host; }
         void SetAddComponentCallback(std::function<void(EditorInspectableComponent)> callback) { m_AddComponentCallback = std::move(callback); }
 		void SetRemoveComponentCallback(std::function<void(EditorInspectableComponent)> callback) { m_RemoveComponentCallback = std::move(callback); }
 		void SetAssetRecords(std::span<const AssetRecord> records);
 		void SetProjectContext(const ProjectContext* context) { m_ProjectContext = context; }
+		void SetOpenSceneCallback(std::function<void(const std::filesystem::path&)> callback) { m_OpenSceneCallback = std::move(callback); }
 		void ClearAssetRecords() {
 			m_MeshAssetOptions.clear();
 			m_MaterialAssetOptions.clear();
@@ -59,6 +61,7 @@ namespace HE {
 		std::vector<Editor::AssetPickerOption> m_TextureAssetOptions;
 		std::vector<Editor::AssetPickerOption> m_ShaderAssetOptions;
 		std::function<void()> m_DirtyAssetContinuation;
+		std::function<void(const std::filesystem::path&)> m_OpenSceneCallback;
 		bool m_OpenDirtyAssetPopup = false;
         bool m_ShowAddComponentWindow = false;
 	};

@@ -13,6 +13,7 @@ namespace HE {
 	enum class ProjectPanelActionType {
 		None,
 		OpenScene,
+		OpenSource,
 		RefreshProject,
 		ReimportPath,
 		ReimportAll,

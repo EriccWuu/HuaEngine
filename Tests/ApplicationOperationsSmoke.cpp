@@ -91,7 +91,7 @@ int main() {
 	HE::AssetInspectionSnapshot sceneInspection;
 	Require(operations.InspectAsset(sceneGuid, sceneInspection).Succeeded(), "Expected scene inspection snapshot");
 	Require(sceneInspection.Asset.Kind == HE::AssetKind::Scene && sceneInspection.ImporterId == "scene.native", "Expected native scene inspection identity");
-	Require(sceneInspection.Health.State == HE::AssetImportHealthState::Current && sceneInspection.ArtifactRelativePath.empty(), "Expected scene source health without an artifact");
+	Require(sceneInspection.Health.State == HE::AssetImportHealthState::NotApplicable && sceneInspection.ArtifactRelativePath.empty(), "Expected scene artifact state to be not applicable");
 	HE::AssetGuid repeatedSceneGuid;
 	Require(operations.RegisterSceneAsset(projectContext, scenePath, &repeatedSceneGuid).Succeeded() && repeatedSceneGuid == sceneGuid, "Expected stable scene asset identity");
 

@@ -10,6 +10,7 @@
 
 #include "HuaEngine/Application/ApplicationOperations.h"
 #include "HuaEngine/Core/HostLaunch.h"
+#include "HuaEngine/Asset/Import/ShaderDescriptor.h"
 #include "HuaEngine/Rendering/RHI/RenderHardwareInterface.h"
 #include "Interaction/EditorSceneCommands.h"
 #include "ImGuizmo.h"
@@ -504,6 +505,7 @@ namespace HE {
         m_Inspector->SetRemoveComponentCallback([this](EditorInspectableComponent type) {
             RemoveComponentFromPrimarySelection(type);
         });
+		m_Inspector->SetOpenSceneCallback([this](const std::filesystem::path& path) { RequestWorkbenchAction({ WorkbenchActionType::OpenScene, path }); });
         if (m_HierarchyPanel) {
             m_HierarchyPanel->SetInteractionHost(&m_InteractionHost);
         }
@@ -552,6 +554,7 @@ namespace HE {
 	}
 
 	void EditorLayer::ReimportProjectAssets(const std::filesystem::path& targetPath) {
+		if (m_Inspector && m_Inspector->RequestDirtyAssetResolution([this, targetPath]() { ReimportProjectAssets(targetPath); })) return;
 		if (!m_ProjectSession.IsLoaded()) {
 			return;
 		}
@@ -776,22 +779,15 @@ namespace HE {
         if (action.Type == WorkbenchActionType::None) {
             return;
         }
-		if (m_Inspector && m_Inspector->RequestDirtyAssetResolution([this, action]() { RequestWorkbenchAction(action); })) return;
 
-        if (m_SceneDocument.IsLoaded() && m_SceneDocument.Dirty) {
-            switch (action.Type) {
-                case WorkbenchActionType::OpenProject:
-                case WorkbenchActionType::CloseProject:
-                case WorkbenchActionType::NewScene:
-                case WorkbenchActionType::OpenScene:
-				case WorkbenchActionType::Exit:
-                    m_PendingAction = action;
-                    m_OpenUnsavedChangesPopup = true;
-                    return;
-                default:
-                    break;
-            }
-        }
+		const bool hasUnsavedChanges = (m_SceneDocument.IsLoaded() && m_SceneDocument.Dirty) || (m_Inspector && m_Inspector->HasDirtyAsset());
+		const bool actionLeavesDocument = action.Type == WorkbenchActionType::OpenProject || action.Type == WorkbenchActionType::CloseProject ||
+			action.Type == WorkbenchActionType::NewScene || action.Type == WorkbenchActionType::OpenScene || action.Type == WorkbenchActionType::Exit;
+		if (hasUnsavedChanges && actionLeavesDocument) {
+			m_PendingAction = action;
+			m_OpenUnsavedChangesPopup = true;
+			return;
+		}
 
         ExecuteWorkbenchAction(action);
     }
@@ -976,17 +972,23 @@ namespace HE {
 
     void EditorLayer::OnUnsavedChangesPopup() {
         if (m_OpenUnsavedChangesPopup) {
-            ImGui::OpenPopup("Unsaved Scene Changes");
+			ImGui::OpenPopup("Unsaved Changes");
             m_OpenUnsavedChangesPopup = false;
         }
 
-        if (ImGui::BeginPopupModal("Unsaved Scene Changes", nullptr, ImGuiWindowFlags_AlwaysAutoResize)) {
-            ImGui::TextWrapped("The current scene has unsaved changes. Save before continuing?");
+		if (ImGui::BeginPopupModal("Unsaved Changes", nullptr, ImGuiWindowFlags_AlwaysAutoResize)) {
+			const bool assetDirty = m_Inspector && m_Inspector->HasDirtyAsset();
+			const bool sceneDirty = m_SceneDocument.IsLoaded() && m_SceneDocument.Dirty;
+			ImGui::TextWrapped("The current editing context has unsaved changes. Apply and save before continuing?");
+			if (assetDirty) ImGui::BulletText("Asset working copy has unapplied changes");
+			if (sceneDirty) ImGui::BulletText("Scene document has unsaved changes");
             ImGui::Spacing();
 
-            if (ImGui::Button("Save and Continue")) {
-                if (SaveActiveSceneDocument()) {
-                    const auto action = m_PendingAction;
+			if (ImGui::Button("Apply, Save and Continue")) {
+				const bool assetSaved = !assetDirty || m_Inspector->ApplyAssetEdit().Succeeded();
+				const bool sceneSaved = !sceneDirty || (assetSaved && SaveActiveSceneDocument());
+				if (assetSaved && sceneSaved) {
+					const auto action = m_PendingAction;
                     m_PendingAction = {};
                     ImGui::CloseCurrentPopup();
                     ExecuteWorkbenchAction(action);
@@ -994,7 +996,8 @@ namespace HE {
             }
 
             ImGui::SameLine();
-            if (ImGui::Button("Discard and Continue")) {
+			if (ImGui::Button("Discard and Continue")) {
+				if (assetDirty) m_Inspector->RevertAssetEdit();
                 const auto action = m_PendingAction;
                 m_PendingAction = {};
                 ImGui::CloseCurrentPopup();
@@ -1052,11 +1055,18 @@ namespace HE {
                     case ProjectPanelActionType::OpenScene:
                         RequestWorkbenchAction({ WorkbenchActionType::OpenScene, action->Path });
                         break;
+					case ProjectPanelActionType::OpenSource: {
+						ShaderDescriptor descriptor;
+						const auto sourcePath = LoadShaderDescriptor(action->Path, descriptor).Succeeded() ? action->Path.parent_path() / descriptor.Source : action->Path;
+						(void)HostLaunch::Open(sourcePath);
+						break;
+					}
                     case ProjectPanelActionType::RefreshProject:
                         if (m_ProjectSession.IsLoaded()) {
                             ProjectStatusReport status;
                             CaptureOperationResult(Application::GetInstance().GetOperations().CheckProjectStatus(m_ProjectSession.Context, &status));
                             if (m_LastOperationResult.Succeeded()) {
+								m_Inspector->CheckExternalAssetModification();
                                 m_ProjectSession.LastStatus = status;
                                 SyncWorkbenchSessionState();
                                 RefreshWorkbenchValidation();

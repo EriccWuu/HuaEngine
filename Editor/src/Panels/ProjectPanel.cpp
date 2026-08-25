@@ -2,6 +2,7 @@
 #include "ProjectPanel.h"
 
 #include <algorithm>
+#include <cctype>
 #include <vector>
 
 #include "imgui.h"
@@ -9,6 +10,12 @@
 namespace {
 	bool IsSceneFile(const std::filesystem::path& path) {
 		return path.extension() == ".scene";
+	}
+
+	bool IsShaderFile(const std::filesystem::path& path) {
+		auto extension = path.extension().string();
+		std::transform(extension.begin(), extension.end(), extension.begin(), [](unsigned char value) { return static_cast<char>(std::tolower(value)); });
+		return extension == ".shader";
 	}
 }
 
@@ -171,6 +178,9 @@ namespace HE {
 
 		if (ImGui::IsItemHovered() && IsSceneFile(entry.path()) && ImGui::IsMouseDoubleClicked(ImGuiMouseButton_Left)) {
 			m_PendingAction = ProjectPanelAction{ ProjectPanelActionType::OpenScene, entry.path() };
+		}
+		if (ImGui::IsItemHovered() && IsShaderFile(entry.path()) && ImGui::IsMouseDoubleClicked(ImGuiMouseButton_Left)) {
+			m_PendingAction = ProjectPanelAction{ ProjectPanelActionType::OpenSource, entry.path() };
 		}
 
 		if (ImGui::BeginPopupContextItem("FileContext")) {

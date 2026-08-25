@@ -10,6 +10,7 @@
 #include "Assets/Editors/GenericAssetInspector.h"
 #include "Assets/Editors/MaterialAssetEditor.h"
 #include "Assets/Editors/ImportSettingsEditors.h"
+#include "Assets/Editors/SceneAssetEditor.h"
 #include "HuaEngine/Asset/Import/AssetSourceHash.h"
 #include "HuaEngine/Asset/Metadata/AssetMeta.h"
 
@@ -90,6 +91,9 @@ int main() {
 	Require(!materialEditor.GetWorkingCopy().Parameters.contains("u_Value") && materialEditor.GetWorkingCopy().Parameters.contains("u_Color"), "Expected incompatible parameters replaced by shader defaults");
 	materialEditor.Revert();
 	Require(!materialEditor.IsDirty(), "Expected material editor revert");
+	HE::Editor::AssetEditorDrawContext invalidReferenceContext;
+	invalidReferenceContext.GetShaderAuthoringMetadata = [](const HE::AssetGuid&, HE::Rendering::ShaderAuthoringMetadata&) { return HE::ResultEnvelope::Failure("asset.shader", "shader-guid", "Unhealthy"); };
+	Require(materialEditor.ValidateReferences(invalidReferenceContext).Failed(), "Expected unhealthy shader reference rejection");
 	const auto objPath = sessionRoot / "Editable.obj";
 	{
 		std::ofstream stream(objPath); stream << "v 0 0 0\nv 1 0 0\nv 0 1 0\nf 1 2 3\n";
@@ -116,6 +120,12 @@ int main() {
 	Require(dynamic_cast<TestAssetEditor*>(host.GetEditor()) != nullptr, "Expected host to select registered editor");
 	host.Close();
 	Require(!host.GetSession().IsOpen() && host.GetEditor() == nullptr, "Expected host close");
+	HE::AssetInspectionSnapshot sceneSnapshot;
+	sceneSnapshot.Asset = { .Guid = "scene-guid", .Kind = HE::AssetKind::Scene, .Source = HE::AssetSource::File, .AssetId = "Scene.scene", .AbsolutePath = sourcePath, .ExistsOnDisk = true };
+	sceneSnapshot.ImporterId = "scene.native";
+	Require(host.Open("scene-guid", [sceneSnapshot](const HE::AssetGuid&, HE::AssetInspectionSnapshot& output) { output = sceneSnapshot; return HE::ResultEnvelope::Success("asset.inspect", "scene-guid", "Inspected"); }).Succeeded(), "Expected scene inspector open");
+	Require(dynamic_cast<HE::Editor::SceneAssetEditor*>(host.GetEditor()) != nullptr, "Expected specialized scene inspector");
+	host.Close();
 	std::filesystem::remove_all(sessionRoot, errorCode);
 
 	std::cout << "AssetEditingSmoke passed" << std::endl;

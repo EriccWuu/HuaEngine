@@ -39,6 +39,17 @@ namespace HE {
             return metadata.TypeName;
         }
 
+		const char* GetImportHealthLabel(AssetImportHealthState state) {
+			switch (state) {
+			case AssetImportHealthState::Current: return "Current";
+			case AssetImportHealthState::LastGoodWithFailure: return "Last good with failure";
+			case AssetImportHealthState::Missing: return "Missing";
+			case AssetImportHealthState::Stale: return "Stale";
+			case AssetImportHealthState::NotApplicable: return "Not applicable";
+			}
+			return "Unknown";
+		}
+
         void DrawContextMenuEntries(EditorInteractionHost* host, std::string_view contextId) {
             if (!host) {
                 return;
@@ -120,6 +131,13 @@ namespace HE {
 		return true;
 	}
 
+	void InspectorPanel::CheckExternalAssetModification() {
+		const auto* snapshot = m_AssetInspectorHost.GetSession().GetSnapshot();
+		if (!snapshot || snapshot->Asset.Source != AssetSource::File) return;
+		auto result = m_AssetInspectorHost.GetSession().CheckExternalModification();
+		if (m_WorkbenchState) m_WorkbenchState->RecordEvent(result, "Inspector");
+	}
+
 	void InspectorPanel::OnDirtyAssetPopup() {
 		if (m_OpenDirtyAssetPopup) {
 			ImGui::OpenPopup("Unsaved Asset Changes");
@@ -191,6 +209,19 @@ namespace HE {
 			}
 			if (auto* editor = m_AssetInspectorHost.GetEditor()) {
 				const bool dirty = editor->IsDirty();
+				const auto* snapshot = m_AssetInspectorHost.GetSession().GetSnapshot();
+				if (snapshot) {
+					ImGui::TextUnformatted(snapshot->Asset.AssetId.c_str());
+					ImGui::Text("Kind: %s", ToString(snapshot->Asset.Kind).data());
+					ImGui::TextWrapped("GUID: %s", snapshot->Asset.Guid.c_str());
+					ImGui::TextWrapped("Path: %s", snapshot->Asset.RelativePath.generic_string().c_str());
+					ImGui::Text("Importer: %s (settings v%u)", snapshot->ImporterId.c_str(), snapshot->SettingsVersion);
+					ImGui::Text("Import Health: %s%s", GetImportHealthLabel(snapshot->Health.State), dirty ? "  *" : "");
+					ImGui::Text("Dependencies: %zu  Dependents: %zu", snapshot->Dependencies.size(), snapshot->Dependents.size());
+					if (!snapshot->ImportFingerprint.empty()) ImGui::TextWrapped("Fingerprint: %s", snapshot->ImportFingerprint.c_str());
+					for (const auto& diagnostic : snapshot->Diagnostics) ImGui::TextWrapped("%s: %s", diagnostic.Code.c_str(), diagnostic.Message.c_str());
+					ImGui::Separator();
+				}
 				ImGui::BeginDisabled(!dirty || !m_ProjectContext);
 				if (ImGui::Button("Apply")) {
 					(void)ApplyAssetEdit();
@@ -200,6 +231,33 @@ namespace HE {
 				ImGui::BeginDisabled(!dirty);
 				if (ImGui::Button("Revert")) RevertAssetEdit();
 				ImGui::EndDisabled();
+				ImGui::SameLine();
+				const bool canReimport = snapshot && snapshot->Asset.Source == AssetSource::File && snapshot->Asset.Kind != AssetKind::Scene && m_ProjectContext;
+				ImGui::BeginDisabled(!canReimport);
+				if (ImGui::Button("Reimport")) {
+					const auto path = snapshot->Asset.AbsolutePath;
+					auto reimport = [this, path]() {
+						AssetReimportReport report;
+						auto result = Application::GetInstance().GetOperations().ReimportAssets(*m_ProjectContext, path, &report);
+						if (m_WorkbenchState) m_WorkbenchState->RecordEvent(result, "Inspector");
+					};
+					if (!RequestDirtyAssetResolution(reimport)) reimport();
+				}
+				ImGui::EndDisabled();
+				ImGui::SameLine();
+				if (ImGui::Button("Reload")) {
+					auto reload = [this, guid]() { (void)m_AssetInspectorHost.Open(guid, [](const AssetGuid& assetGuid, AssetInspectionSnapshot& output) { return Application::GetInstance().GetOperations().InspectAsset(assetGuid, output); }); };
+					if (!RequestDirtyAssetResolution(reload)) reload();
+				}
+				ImGui::BeginDisabled(!snapshot || snapshot->Asset.Source != AssetSource::File);
+				if (ImGui::Button("Check External Changes")) {
+					CheckExternalAssetModification();
+				}
+				ImGui::EndDisabled();
+				if (m_AssetInspectorHost.GetSession().IsExternallyModified()) {
+					ImGui::TextWrapped("Source or metadata changed externally. Reload to replace the working copy, or cancel this notice.");
+					if (ImGui::Button("Cancel External Reload")) m_AssetInspectorHost.GetSession().DismissExternalModification();
+				}
 				ImGui::Separator();
 				Editor::AssetEditorDrawContext context{
 					.ShaderAssets = m_ShaderAssetOptions,
@@ -212,7 +270,8 @@ namespace HE {
 							: ResultEnvelope::Failure("asset.reimport", path.generic_string(), "Project context is unavailable");
 						if (m_WorkbenchState) m_WorkbenchState->RecordEvent(result, "Inspector");
 						return result;
-					}
+					},
+					.OpenScene = m_OpenSceneCallback
 				};
 				editor->Draw(context);
 			}

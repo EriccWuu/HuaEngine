@@ -14,6 +14,7 @@ namespace HE::Editor {
 		[[nodiscard]] const AssetGuid& GetGuid() const { return m_Snapshot.Asset.Guid; }
 		[[nodiscard]] bool IsExternallyModified() const { return m_ExternallyModified; }
 		[[nodiscard]] ResultEnvelope CheckExternalModification();
+		void DismissExternalModification() { m_ExternallyModified = false; }
 
 		void MarkDirty() { if (m_Open) m_Dirty = true; }
 		void MarkClean() { m_Dirty = false; }

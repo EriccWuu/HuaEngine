@@ -34,7 +34,8 @@ namespace HE {
 		Current = 0,
 		LastGoodWithFailure,
 		Missing,
-		Stale
+		Stale,
+		NotApplicable
 	};
 
 	struct AssetImportHealth {

@@ -921,12 +921,14 @@ configure_smoke_target(EditorAssetPickerSmoke)
 add_executable(AssetEditingSmoke
     Tests/AssetEditingSmoke.cpp
     Editor/src/Assets/AssetEditSession.cpp
+    Editor/src/Assets/AssetPreviewContext.cpp
     Editor/src/Assets/AssetEditorRegistry.cpp
     Editor/src/Assets/AssetInspectorHost.cpp
     Editor/src/Assets/Editors/GenericAssetInspector.cpp
     Editor/src/Assets/Editors/MaterialAssetEditor.cpp
     Editor/src/Assets/Editors/ImportSettingsEditors.cpp
     Editor/src/Assets/Editors/ShaderAssetEditor.cpp
+    Editor/src/Assets/Editors/SceneAssetEditor.cpp
 )
 target_include_directories(AssetEditingSmoke PRIVATE
     ${CMAKE_SOURCE_DIR}/Editor/src

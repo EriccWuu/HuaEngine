@@ -2,6 +2,7 @@
 
 #include "Assets/AssetEditor.h"
 #include "HuaEngine/Rendering/Material/MaterialSourceData.h"
+#include "Assets/AssetPreviewContext.h"
 
 namespace HE::Editor {
 	class MaterialAssetEditor final : public IAssetEditor {
@@ -16,11 +17,14 @@ namespace HE::Editor {
 		[[nodiscard]] Rendering::MaterialSourceData& GetWorkingCopy() { return m_WorkingCopy; }
 		[[nodiscard]] const Rendering::MaterialSourceData& GetWorkingCopy() const { return m_WorkingCopy; }
 		ResultEnvelope ReconcileShader(const Rendering::ShaderAuthoringMetadata& metadata);
+		ResultEnvelope ValidateReferences(const AssetEditorDrawContext& context) const;
 
 	private:
 		AssetInspectionSnapshot m_Snapshot;
 		Rendering::MaterialSourceData m_Baseline;
 		Rendering::MaterialSourceData m_WorkingCopy;
 		std::vector<std::string> m_RemovedParameters;
+		ResultEnvelope m_ReferenceValidation;
+		AssetPreviewContext m_PreviewContext;
 	};
 }

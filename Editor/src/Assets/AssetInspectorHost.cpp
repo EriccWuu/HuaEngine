@@ -5,6 +5,7 @@
 #include "Assets/Editors/MaterialAssetEditor.h"
 #include "Assets/Editors/ImportSettingsEditors.h"
 #include "Assets/Editors/ShaderAssetEditor.h"
+#include "Assets/Editors/SceneAssetEditor.h"
 
 namespace HE::Editor {
 	AssetInspectorHost::AssetInspectorHost() {
@@ -13,6 +14,7 @@ namespace HE::Editor {
 		(void)m_Registry.Register({ AssetKind::Mesh, "hua.mesh-obj" }, [] { return std::make_unique<ObjMeshImportEditor>(); });
 		(void)m_Registry.Register({ AssetKind::Texture2D, "hua.texture-png" }, [] { return std::make_unique<PngTextureImportEditor>(); });
 		(void)m_Registry.Register({ AssetKind::Shader, "hua.shader-hlsl" }, [] { return std::make_unique<ShaderAssetEditor>(); });
+		(void)m_Registry.Register({ AssetKind::Scene, "scene.native" }, [] { return std::make_unique<SceneAssetEditor>(); });
 	}
 
 	ResultEnvelope AssetInspectorHost::Open(const AssetGuid& guid, const InspectAssetCallback& inspectAsset) {
