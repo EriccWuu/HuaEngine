@@ -925,6 +925,7 @@ add_executable(AssetEditingSmoke
     Editor/src/Assets/AssetInspectorHost.cpp
     Editor/src/Assets/Editors/GenericAssetInspector.cpp
     Editor/src/Assets/Editors/MaterialAssetEditor.cpp
+    Editor/src/Assets/Editors/ImportSettingsEditors.cpp
 )
 target_include_directories(AssetEditingSmoke PRIVATE
     ${CMAKE_SOURCE_DIR}/Editor/src

@@ -162,6 +162,7 @@ int main() {
 	Require(operations.InspectAsset(registeredMeshRecord.Guid, inspection).Succeeded(), "Expected asset inspection snapshot");
 	Require(inspection.Asset.Guid == registeredMeshRecord.Guid, "Expected inspection asset identity");
 	Require(inspection.ImporterId == "hua.mesh-yaml", "Expected inspection importer identity");
+	Require(inspection.MeshStatistics.has_value() && inspection.MeshStatistics->VertexCount > 0 && inspection.MeshStatistics->IndexCount > 0, "Expected mesh artifact statistics");
 	Require(!inspection.ImportFingerprint.empty() && !inspection.ArtifactRelativePath.empty(), "Expected inspection artifact metadata");
 	Require(inspection.Health.State == HE::AssetImportHealthState::Current, "Expected current inspection health");
 

@@ -1,6 +1,8 @@
 #pragma once
 
+#include <array>
 #include <filesystem>
+#include <optional>
 #include <string>
 #include <vector>
 
@@ -8,6 +10,25 @@
 #include "HuaEngine/Core/ResultEnvelope.h"
 
 namespace HE {
+	struct MeshArtifactStatistics {
+		uint32_t VertexCount = 0;
+		uint32_t IndexCount = 0;
+		std::array<float, 3> BoundsMin{};
+		std::array<float, 3> BoundsMax{};
+		bool HasUv = false;
+		bool HasNormals = false;
+		bool HasTangents = false;
+	};
+
+	struct TextureArtifactStatistics {
+		uint32_t SourceWidth = 0;
+		uint32_t SourceHeight = 0;
+		uint32_t SourceChannels = 0;
+		uint32_t Width = 0;
+		uint32_t Height = 0;
+		uint32_t MipLevels = 0;
+		bool HasAlpha = false;
+	};
 	enum class AssetImportHealthState : uint8_t {
 		Current = 0,
 		LastGoodWithFailure,
@@ -34,5 +55,7 @@ namespace HE {
 		std::vector<AssetGuid> Dependencies;
 		std::vector<AssetGuid> Dependents;
 		std::vector<DiagnosticEntry> Diagnostics;
+		std::optional<MeshArtifactStatistics> MeshStatistics;
+		std::optional<TextureArtifactStatistics> TextureStatistics;
 	};
 }

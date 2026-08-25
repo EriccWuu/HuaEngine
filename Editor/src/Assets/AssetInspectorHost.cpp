@@ -3,11 +3,14 @@
 
 #include "Assets/Editors/GenericAssetInspector.h"
 #include "Assets/Editors/MaterialAssetEditor.h"
+#include "Assets/Editors/ImportSettingsEditors.h"
 
 namespace HE::Editor {
 	AssetInspectorHost::AssetInspectorHost() {
 		m_Registry.SetFallbackFactory([] { return std::make_unique<GenericAssetInspector>(); });
 		(void)m_Registry.Register({ AssetKind::Material, "hua.material-yaml" }, [] { return std::make_unique<MaterialAssetEditor>(); });
+		(void)m_Registry.Register({ AssetKind::Mesh, "hua.mesh-obj" }, [] { return std::make_unique<ObjMeshImportEditor>(); });
+		(void)m_Registry.Register({ AssetKind::Texture2D, "hua.texture-png" }, [] { return std::make_unique<PngTextureImportEditor>(); });
 	}
 
 	ResultEnvelope AssetInspectorHost::Open(const AssetGuid& guid, const InspectAssetCallback& inspectAsset) {

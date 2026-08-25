@@ -20,6 +20,7 @@
 #include "HuaEngine/Asset/Import/AssetImportService.h"
 #include "HuaEngine/Asset/Import/MaterialAssetImporter.h"
 #include "HuaEngine/Asset/Import/MeshAssetImporter.h"
+#include "HuaEngine/Asset/Import/ObjMeshImporter.h"
 #include "HuaEngine/Asset/Import/PngTextureImporter.h"
 #include "HuaEngine/Asset/Import/HlslShaderImporter.h"
 #include "HuaEngine/Asset/Library/AssetLibrary.h"
@@ -388,12 +389,31 @@ namespace {
 		Require(HE::DecodeMeshArtifact(quadArtifact, quadMesh).Succeeded() && quadMesh, "Expected OBJ mesh artifact decode");
 		Require(quadMesh->GetName() == "ObjQuad", "Expected OBJ mesh name from source filename");
 		const auto& quadData = quadMesh->GetMeshData();
-		Require(quadData.Layout.Stride == 20, "Expected OBJ Position+UV vertex stride");
-		Require(quadData.Layout.Elements.size() == 2, "Expected OBJ Position+UV layout");
+		Require(quadData.Layout.Stride == 32, "Expected OBJ Position, UV, and normal vertex stride");
+		Require(quadData.Layout.Elements.size() == 3, "Expected OBJ Position, UV, and normal layout");
 		Require(quadData.Layout.Elements[0].Name == "a_Position", "Expected OBJ position attribute");
 		Require(quadData.Layout.Elements[1].Name == "a_TexCoord", "Expected OBJ texture coordinate attribute");
-		Require(quadData.VertexData.size() == 20, "Expected four deduplicated OBJ vertices");
+		Require(quadData.Layout.Elements[2].Name == "a_Normal", "Expected OBJ normal attribute");
+		Require(quadData.VertexData.size() == 32, "Expected four deduplicated OBJ vertices");
 		Require(quadData.IndexData.size() == 6, "Expected OBJ quad triangulation");
+		HE::AssetMeta quadMeta;
+		Require(HE::LoadAssetMeta(quadPath, quadMeta).Succeeded(), "Expected OBJ metadata");
+		HE::ObjMeshImportSettings changedObjSettings;
+		changedObjSettings.ImportScale = 2.0f;
+		changedObjSettings.UpAxis = HE::MeshAxis::PositiveZ;
+		changedObjSettings.ForwardAxis = HE::MeshAxis::NegativeY;
+		changedObjSettings.FlipUvV = true;
+		changedObjSettings.RecalculateNormals = true;
+		changedObjSettings.ReverseWinding = true;
+		HE::ObjMeshImporter settingsImporter;
+		Require(settingsImporter.EncodeSettings(changedObjSettings, quadMeta.Settings).Succeeded() && HE::SaveAssetMeta(quadPath, quadMeta).Succeeded(), "Expected changed OBJ settings save");
+		HE::AssetReimportReport settingsReport;
+		Require(assetService.ReimportAssets(context, quadPath, &settingsReport).Succeeded() && settingsReport.ReimportedAssets == 1, "Expected OBJ settings reimport");
+		HE::AssetArtifact changedObjArtifact;
+		Require(assetService.GetLibrary().ReadArtifact(quadRecord.Guid, changedObjArtifact).Succeeded() && changedObjArtifact.Payload != quadArtifact.Payload, "Expected OBJ settings to change the artifact");
+		HE::Ref<HE::Rendering::Mesh> changedObjMesh;
+		Require(HE::DecodeMeshArtifact(changedObjArtifact, changedObjMesh).Succeeded(), "Expected changed OBJ artifact decode");
+		Require(std::abs(changedObjMesh->GetMeshData().VertexData[0]) == 2.0f, "Expected OBJ import scale to affect positions");
 
 		const auto trianglePath = context.GetAssetRootPath() / "Models" / "NoUvTriangle.obj";
 		WriteTextFile(trianglePath,
@@ -411,12 +431,12 @@ namespace {
 		HE::Ref<HE::Rendering::Mesh> triangleMesh;
 		Require(HE::DecodeMeshArtifact(triangleArtifact, triangleMesh).Succeeded() && triangleMesh, "Expected missing-UV OBJ decode");
 		const auto& triangleVertices = triangleMesh->GetMeshData().VertexData;
-		Require(triangleVertices.size() == 15, "Expected three missing-UV OBJ vertices");
+		Require(triangleVertices.size() == 24, "Expected three missing-UV OBJ vertices with generated normals");
 		for (size_t vertex = 0; vertex < 3; ++vertex) {
-			Require(triangleVertices[vertex * 5 + 3] == 0.0f && triangleVertices[vertex * 5 + 4] == 0.0f, "Expected missing OBJ UVs to default to zero");
+			Require(triangleVertices[vertex * 8 + 3] == 0.0f && triangleVertices[vertex * 8 + 4] == 0.0f, "Expected missing OBJ UVs to default to zero");
 		}
 
-		const auto preservedPayload = quadArtifact.Payload;
+		const auto preservedPayload = changedObjArtifact.Payload;
 		WriteTextFile(quadPath, "o Invalid\nf 1 2 3\n");
 		HE::AssetReimportReport invalidReport;
 		Require(assetService.ReimportAssets(context, quadPath, &invalidReport).Succeeded(), "Expected invalid OBJ to report a per-asset failure");
@@ -462,11 +482,12 @@ namespace {
 			.ImportState = HE::AssetImportState::Registered
 		};
 		const HE::PngTextureImporter importer;
+		const auto defaultSettings = importer.CreateDefaultSettings();
 		Require(importer.CanImport(HE::AssetKind::Texture2D, ".png"), "Expected PNG importer selection");
 		Require(!importer.CanImport(HE::AssetKind::Texture2D, ".jpg"), "Expected JPG importer rejection");
 		Require(!importer.CanImport(HE::AssetKind::Mesh, ".png"), "Expected non-texture PNG rejection");
 
-		const auto importResult = importer.Import({ projectContext, textureRecord, pngPath, nullptr });
+		const auto importResult = importer.Import({ projectContext, textureRecord, pngPath, nullptr, nullptr, defaultSettings.get() });
 		Require(importResult.Success, "Expected 2x2 PNG import");
 		HE::TextureArtifactData textureData;
 		Require(HE::DecodeTextureArtifact(importResult.Artifact, textureData).Succeeded(), "Expected texture artifact decode");
@@ -478,13 +499,22 @@ namespace {
 			255, 0, 0, 255, 0, 255, 0, 255
 		};
 		Require(textureData.Pixels == expectedFlippedPixels, "Expected importer-owned vertical flip");
+		HE::PngTextureImportSettings resizedSettings;
+		resizedSettings.MaxSize = 1;
+		resizedSettings.AlphaMode = HE::TextureAlphaMode::Opaque;
+		const auto resizedResult = importer.Import({ projectContext, textureRecord, pngPath, nullptr, nullptr, &resizedSettings });
+		HE::TextureArtifactData resizedTexture;
+		Require(resizedResult.Success && HE::DecodeTextureArtifact(resizedResult.Artifact, resizedTexture).Succeeded(), "Expected resized PNG import");
+		Require(resizedTexture.Width == 1 && resizedTexture.Height == 1 && resizedTexture.Pixels[3] == 255, "Expected max size and opaque alpha settings to affect the artifact");
+		resizedSettings.GenerateMipmaps = true;
+		Require(importer.ValidateSettings(resizedSettings).Failed(), "Expected unsupported mipmap setting rejection");
 
 		const auto invalidPath = root / "Invalid.png";
 		WriteBinaryFile(invalidPath, { 0x89, 0x50, 0x4e, 0x47 });
 		auto invalidRecord = textureRecord;
 		invalidRecord.AssetId = "Invalid.png";
 		invalidRecord.RelativePath = "Invalid.png";
-		Require(!importer.Import({ projectContext, invalidRecord, invalidPath, nullptr }).Success, "Expected invalid PNG rejection");
+		Require(!importer.Import({ projectContext, invalidRecord, invalidPath, nullptr, nullptr, defaultSettings.get() }).Success, "Expected invalid PNG rejection");
 	}
 
 	void TestMaterialSourceAndArtifact(const std::filesystem::path& root) {

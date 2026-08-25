@@ -9,6 +9,7 @@
 #include "Assets/AssetInspectorHost.h"
 #include "Assets/Editors/GenericAssetInspector.h"
 #include "Assets/Editors/MaterialAssetEditor.h"
+#include "Assets/Editors/ImportSettingsEditors.h"
 #include "HuaEngine/Asset/Import/AssetSourceHash.h"
 #include "HuaEngine/Asset/Metadata/AssetMeta.h"
 
@@ -89,6 +90,20 @@ int main() {
 	Require(!materialEditor.GetWorkingCopy().Parameters.contains("u_Value") && materialEditor.GetWorkingCopy().Parameters.contains("u_Color"), "Expected incompatible parameters replaced by shader defaults");
 	materialEditor.Revert();
 	Require(!materialEditor.IsDirty(), "Expected material editor revert");
+	const auto objPath = sessionRoot / "Editable.obj";
+	{
+		std::ofstream stream(objPath); stream << "v 0 0 0\nv 1 0 0\nv 0 1 0\nf 1 2 3\n";
+	}
+	Require(HE::SaveAssetMeta(objPath, { .Guid = "obj-guid", .ImporterId = "hua.mesh-obj" }).Succeeded(), "Expected OBJ metadata fixture");
+	HE::AssetInspectionSnapshot objSnapshot;
+	objSnapshot.Asset = { .Guid = "obj-guid", .Kind = HE::AssetKind::Mesh, .Source = HE::AssetSource::File, .AssetId = "Editable.obj", .AbsolutePath = objPath, .ExistsOnDisk = true };
+	objSnapshot.ImporterId = "hua.mesh-obj";
+	Require(HE::ComputeAssetSourceHash(objPath, objSnapshot.SourceContentHash).Succeeded() && HE::ComputeAssetSourceHash(HE::GetAssetMetaPath(objPath), objSnapshot.MetaContentHash).Succeeded(), "Expected OBJ editor hashes");
+	HE::Editor::ObjMeshImportEditor objEditor;
+	Require(objEditor.Open({ objSnapshot }).Succeeded() && !objEditor.IsDirty(), "Expected OBJ settings editor open");
+	objEditor.GetWorkingCopy().ImportScale = 2.0f;
+	Require(objEditor.IsDirty() && objEditor.Validate().Succeeded() && objEditor.BuildCommit().Target == HE::AssetEditTarget::Metadata, "Expected editable OBJ metadata commit");
+	objEditor.Revert();
 
 	HE::Editor::AssetInspectorHost host;
 	Require(host.GetRegistry().Register({ HE::AssetKind::Material, "material.native" }, [] { return std::make_unique<TestAssetEditor>(); }).Succeeded(), "Expected host editor registration");

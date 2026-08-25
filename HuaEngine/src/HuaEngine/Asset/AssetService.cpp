@@ -17,11 +17,14 @@
 #include "HuaEngine/Asset/Import/AssetSourceHash.h"
 #include "HuaEngine/Asset/Import/HlslShaderImporter.h"
 #include "HuaEngine/Asset/Artifact/MaterialArtifact.h"
+#include "HuaEngine/Asset/Artifact/MeshArtifact.h"
+#include "HuaEngine/Asset/Artifact/TextureArtifact.h"
 #include "HuaEngine/Asset/Artifact/ShaderArtifact.h"
 #include "HuaEngine/Rendering/Material/MaterialLibrary.h"
 #include "HuaEngine/Rendering/Material/MaterialSerializer.h"
 #include "HuaEngine/Rendering/Mesh/MeshManager.h"
 #include "HuaEngine/Serialization/Serialization.h"
+#include "stb_image.h"
 
 namespace {
 	struct NormalizedAssetPath {
@@ -300,6 +303,8 @@ namespace HE {
 		if (asset->Source == AssetSource::File && m_ProjectContext) {
 			(void)ComputeAssetSourceHash(asset->AbsolutePath, outSnapshot.SourceContentHash);
 			(void)ComputeAssetSourceHash(GetAssetMetaPath(asset->AbsolutePath), outSnapshot.MetaContentHash);
+			AssetMeta meta;
+			if (LoadAssetMeta(asset->AbsolutePath, meta).Succeeded()) outSnapshot.SettingsVersion = meta.SettingsVersion;
 		}
 
 		if (const auto* libraryRecord = m_Library.Find(guid)) {
@@ -309,6 +314,39 @@ namespace HE {
 			outSnapshot.ArtifactRelativePath = libraryRecord->ArtifactRelativePath;
 			outSnapshot.Dependencies = libraryRecord->Dependencies;
 			outSnapshot.Dependents = m_Library.FindDependents(guid);
+			AssetArtifact artifact;
+			if (m_Library.ReadArtifact(guid, artifact).Succeeded() && asset->Kind == AssetKind::Mesh) {
+				Ref<Rendering::Mesh> mesh;
+				if (DecodeMeshArtifact(artifact, mesh).Succeeded() && mesh) {
+					const auto& data = mesh->GetMeshData();
+					MeshArtifactStatistics statistics;
+					statistics.VertexCount = data.Layout.Stride == 0 ? 0 : static_cast<uint32_t>(data.VertexData.size() * sizeof(float) / data.Layout.Stride);
+					statistics.IndexCount = static_cast<uint32_t>(data.IndexData.size());
+					for (const auto& element : data.Layout.Elements) {
+						statistics.HasUv |= element.Name == "a_TexCoord";
+						statistics.HasNormals |= element.Name == "a_Normal";
+						statistics.HasTangents |= element.Name == "a_Tangent";
+					}
+					if (statistics.VertexCount > 0 && data.Layout.Stride >= 12) {
+						statistics.BoundsMin = statistics.BoundsMax = { data.VertexData[0], data.VertexData[1], data.VertexData[2] };
+						const size_t stride = data.Layout.Stride / sizeof(float);
+						for (size_t index = 0; index < data.VertexData.size(); index += stride) for (size_t axis = 0; axis < 3; ++axis) {
+							statistics.BoundsMin[axis] = (std::min)(statistics.BoundsMin[axis], data.VertexData[index + axis]);
+							statistics.BoundsMax[axis] = (std::max)(statistics.BoundsMax[axis], data.VertexData[index + axis]);
+						}
+					}
+					outSnapshot.MeshStatistics = statistics;
+				}
+			}
+			if (m_Library.ReadArtifact(guid, artifact).Succeeded() && asset->Kind == AssetKind::Texture2D) {
+				TextureArtifactData texture;
+				if (DecodeTextureArtifact(artifact, texture).Succeeded()) {
+					TextureArtifactStatistics statistics{ .Width = texture.Width, .Height = texture.Height, .MipLevels = texture.MipLevels };
+					int width = 0, height = 0, channels = 0;
+					if (stbi_info(asset->AbsolutePath.string().c_str(), &width, &height, &channels)) { statistics.SourceWidth = width; statistics.SourceHeight = height; statistics.SourceChannels = channels; statistics.HasAlpha = channels == 2 || channels == 4; }
+					outSnapshot.TextureStatistics = statistics;
+				}
+			}
 		}
 		else if (m_ProjectContext) {
 			std::filesystem::path sourcePath;
@@ -989,7 +1027,11 @@ namespace HE {
 		sourceRecord.Source = AssetSource::File;
 		sourceRecord.RelativePath = normalizedPath.RelativePath;
 		sourceRecord.ImportState = AssetImportState::Registered;
-		const auto importResult = importer->Import({ context, sourceRecord, normalizedPath.AbsolutePath, &m_Manifest });
+		const auto settings = importer->CreateDefaultSettings();
+		if (!settings || !importer->ValidateSettings(*settings).Succeeded()) {
+			return ResultEnvelope::Failure("asset.load_mesh", normalizedPath.AssetId, "Mesh importer default settings are invalid");
+		}
+		const auto importResult = importer->Import({ context, sourceRecord, normalizedPath.AbsolutePath, &m_Manifest, &m_Library, settings.get() });
 		if (!importResult.Success) {
 			auto result = ResultEnvelope::ManualIntervention("asset.load_mesh", normalizedPath.AssetId, "Mesh asset source could not be imported");
 			for (const auto& diagnostic : importResult.Diagnostics) {
