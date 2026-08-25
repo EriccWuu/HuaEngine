@@ -898,6 +898,28 @@ if(WIN32)
 endif()
 configure_smoke_target(EditorAssetPickerSmoke)
 
+add_executable(AssetEditingSmoke
+    Tests/AssetEditingSmoke.cpp
+    Editor/src/Assets/AssetEditSession.cpp
+    Editor/src/Assets/AssetEditorRegistry.cpp
+    Editor/src/Assets/AssetInspectorHost.cpp
+    Editor/src/Assets/Editors/GenericAssetInspector.cpp
+)
+target_include_directories(AssetEditingSmoke PRIVATE
+    ${CMAKE_SOURCE_DIR}/Editor/src
+    ${CMAKE_SOURCE_DIR}/HuaEngine/src
+    ${SPDLOG_INCLUDE_DIR}
+    ${GLM_INCLUDE_DIR}
+)
+target_link_libraries(AssetEditingSmoke PRIVATE HuaEngine)
+if(WIN32 AND MSVC)
+    set_target_properties(AssetEditingSmoke PROPERTIES
+        MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>"
+    )
+    target_compile_options(AssetEditingSmoke PRIVATE /utf-8)
+endif()
+configure_smoke_target(AssetEditingSmoke)
+
 add_executable(ProjectPanelActionSmoke
     Tests/ProjectPanelActionSmoke.cpp
     Editor/src/Panels/ProjectPanel.cpp
@@ -965,4 +987,5 @@ set_property(TARGET ProjectWorkbenchSmoke PROPERTY FOLDER "Tests")
 set_property(TARGET EditorInteractionSmoke PROPERTY FOLDER "Tests")
 set_property(TARGET EditorInspectorRuntimeSmoke PROPERTY FOLDER "Tests")
 set_property(TARGET EditorAssetPickerSmoke PROPERTY FOLDER "Tests")
+set_property(TARGET AssetEditingSmoke PROPERTY FOLDER "Tests")
 set_property(TARGET ProjectPanelActionSmoke PROPERTY FOLDER "Tests")
