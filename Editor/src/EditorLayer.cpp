@@ -985,7 +985,9 @@ namespace HE {
             ImGui::Spacing();
 
 			if (ImGui::Button("Apply, Save and Continue")) {
-				const bool assetSaved = !assetDirty || m_Inspector->ApplyAssetEdit().Succeeded();
+				AssetApplyState assetApplyState = AssetApplyState::ValidationFailed;
+				if (assetDirty) (void)m_Inspector->ApplyAssetEdit(&assetApplyState);
+				const bool assetSaved = !assetDirty || IsAssetAuthoringDataSaved(assetApplyState);
 				const bool sceneSaved = !sceneDirty || (assetSaved && SaveActiveSceneDocument());
 				if (assetSaved && sceneSaved) {
 					const auto action = m_PendingAction;

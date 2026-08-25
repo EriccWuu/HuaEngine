@@ -32,6 +32,32 @@
 #include "HuaEngine/Serialization/Serialization.h"
 
 namespace {
+	class TransientMeshImporter final : public HE::AssetImporter {
+	public:
+		explicit TransientMeshImporter(bool& failImport) : m_FailImport(&failImport) {}
+
+		std::string_view GetId() const override { return "smoke.mesh-transient"; }
+		uint32_t GetVersion() const override { return 1; }
+		uint32_t GetArtifactVersion() const override { return HE::MeshArtifactVersion; }
+		bool CanImport(HE::AssetKind kind, std::string_view extension) const override {
+			return kind == HE::AssetKind::Mesh && extension == ".transient";
+		}
+		HE::AssetImportResult Import(const HE::AssetImportContext& context) const override {
+			HE::AssetImportResult result;
+			if (*m_FailImport) {
+				result.Diagnostics.push_back({ HE::DiagnosticSeverity::Error, "smoke.transient_failure", "Transient importer failure", context.SourcePath.generic_string() });
+				return result;
+			}
+			auto mesh = HE::Rendering::Mesh::CreateQuad("TransientMesh");
+			if (!mesh || !HE::EncodeMeshArtifact(*mesh, result.Artifact).Succeeded()) return result;
+			result.Success = true;
+			return result;
+		}
+
+	private:
+		bool* m_FailImport = nullptr;
+	};
+
 	void Require(bool condition, const std::string& message) {
 		if (!condition) {
 			std::cerr << "[AssetImportSmoke] " << message << std::endl;
@@ -871,6 +897,32 @@ namespace {
 		Require(
 			assetService.GetAssetImportHealth(shaderRecord.Guid, currentShaderHealth).Succeeded() && currentShaderHealth.State == HE::AssetImportHealthState::Current,
 			"Expected successful shader reimport to clear previous failure health");
+
+		bool transientImportFailure = false;
+		Require(assetService.GetImporterRegistry().Register(std::make_unique<TransientMeshImporter>(transientImportFailure)), "Expected transient smoke importer registration");
+		const auto transientPath = context.GetAssetRootPath() / "Transient" / "Stable.transient";
+		WriteTextFile(transientPath, "stable source fingerprint");
+		HE::AssetReimportReport transientInitialReport;
+		Require(assetService.ReimportAssets(context, transientPath, &transientInitialReport).Succeeded() && transientInitialReport.ReimportedAssets == 1, "Expected initial transient mesh import");
+		HE::AssetRecord transientRecord;
+		Require(assetService.ResolveAsset("Transient/Stable.transient", transientRecord).Succeeded(), "Expected transient mesh record");
+		transientImportFailure = true;
+		HE::AssetReimportReport transientFailureReport;
+		Require(assetService.ReimportAssets(context, transientPath, &transientFailureReport).Succeeded() && transientFailureReport.FailedAssets == 1, "Expected same-fingerprint transient import failure");
+		HE::AssetImportHealth transientFailureHealth;
+		Require(assetService.GetAssetImportHealth(transientRecord.Guid, transientFailureHealth).Succeeded() && transientFailureHealth.State == HE::AssetImportHealthState::LastGoodWithFailure, "Expected in-memory transient failure health");
+
+		transientImportFailure = false;
+		HE::AssetService transientRestartedService;
+		Require(transientRestartedService.GetImporterRegistry().Register(std::make_unique<TransientMeshImporter>(transientImportFailure)), "Expected restarted transient smoke importer registration");
+		HE::AssetImportReport transientRestartReport;
+		Require(transientRestartedService.InitializeProjectAssets(context, &transientRestartReport).Succeeded(), "Expected project restart with current transient artifact");
+		HE::AssetImportHealth persistedTransientHealth;
+		Require(
+			transientRestartedService.GetAssetImportHealth(transientRecord.Guid, persistedTransientHealth).Succeeded() &&
+				persistedTransientHealth.State == HE::AssetImportHealthState::LastGoodWithFailure &&
+				!persistedTransientHealth.Diagnostics.empty(),
+			"Expected same-fingerprint transient import failure to survive restart");
 		HE::AssetInspectionSnapshot shaderInspection;
 		Require(assetService.InspectAsset(shaderRecord.Guid, shaderInspection).Succeeded() && shaderInspection.ShaderData.has_value(), "Expected shader artifact inspection data");
 		HE::AssetImportHealth missingHealth;

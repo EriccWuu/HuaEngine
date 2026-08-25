@@ -37,6 +37,10 @@ namespace HE {
 			uint32_t importerVersion,
 			std::string_view importFingerprint,
 			const AssetArtifact& artifact);
+		ResultEnvelope RecordImportFailure(
+			const AssetGuid& guid,
+			std::string_view importFingerprint,
+			const std::vector<DiagnosticEntry>& diagnostics);
 
 		ResultEnvelope ReadArtifact(
 			const AssetGuid& guid,

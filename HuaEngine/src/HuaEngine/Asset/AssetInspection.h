@@ -30,6 +30,12 @@ namespace HE {
 		uint32_t MipLevels = 0;
 		bool HasAlpha = false;
 	};
+
+	struct SceneAssetStatistics {
+		std::string Name;
+		uint32_t FormatVersion = 0;
+		uint32_t EntityCount = 0;
+	};
 	enum class AssetImportHealthState : uint8_t {
 		Current = 0,
 		LastGoodWithFailure,
@@ -60,5 +66,6 @@ namespace HE {
 		std::optional<MeshArtifactStatistics> MeshStatistics;
 		std::optional<TextureArtifactStatistics> TextureStatistics;
 		std::optional<ShaderArtifactDataV2> ShaderData;
+		std::optional<SceneAssetStatistics> SceneStatistics;
 	};
 }

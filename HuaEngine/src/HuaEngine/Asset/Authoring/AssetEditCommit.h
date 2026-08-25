@@ -28,4 +28,10 @@ namespace HE {
 		SaveFailed,
 		SavedButImportFailed
 	};
+
+	[[nodiscard]] constexpr bool IsAssetAuthoringDataSaved(AssetApplyState state) {
+		return state == AssetApplyState::Applied ||
+			state == AssetApplyState::NoChanges ||
+			state == AssetApplyState::SavedButImportFailed;
+	}
 }

@@ -413,8 +413,10 @@ int main() {
 	Require(operations.InitializeProjectAssets(texturedProject).Succeeded(), "Expected textured test project assets");
 	HE::Ref<HE::Rendering::Mesh> resolvedTexturedMesh;
 	Require(application.Services().GetAssetResolver().ResolveMesh("15da0d336597b40d17f6cbf870ece1ff", resolvedTexturedMesh).Succeeded(), "Expected textured mesh resolve");
-	Require(resolvedTexturedMesh && resolvedTexturedMesh->GetMeshData().Layout.Elements.size() == 2, "Expected textured mesh vertex layout");
-	Require(resolvedTexturedMesh->GetMeshData().VertexData.size() >= 20 && resolvedTexturedMesh->GetMeshData().VertexData[8] == 1.0f, "Expected textured mesh UV data");
+	Require(resolvedTexturedMesh && resolvedTexturedMesh->GetMeshData().Layout.Elements.size() == 3, "Expected textured mesh vertex layout with generated normals");
+	const auto& texturedMeshData = resolvedTexturedMesh->GetMeshData();
+	const auto texturedVertexStride = texturedMeshData.Layout.Stride / sizeof(float);
+	Require(texturedVertexStride >= 8 && texturedMeshData.VertexData.size() >= texturedVertexStride * 2 && texturedMeshData.VertexData[texturedVertexStride + 3] == 1.0f, "Expected textured mesh UV data");
 	HE::Ref<HE::Rendering::Material> resolvedTexturedMaterial;
 	Require(application.Services().GetAssetResolver().ResolveMaterial("6de06c0940c1fcd1aa64972a6eaf9f1b", resolvedTexturedMaterial).Succeeded(), "Expected textured material resolve");
 	Require(resolvedTexturedMaterial && resolvedTexturedMaterial->GetShaderProgram(), "Expected textured shader program");

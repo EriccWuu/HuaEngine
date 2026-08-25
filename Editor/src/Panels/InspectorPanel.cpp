@@ -115,21 +115,23 @@ namespace HE {
 		if (!result.Succeeded() && m_WorkbenchState) m_WorkbenchState->RecordEvent(result, "Inspector");
 	}
 
-	ResultEnvelope InspectorPanel::ApplyAssetEdit() {
+	ResultEnvelope InspectorPanel::ApplyAssetEdit(AssetApplyState* outState) {
 		auto* editor = m_AssetInspectorHost.GetEditor();
 		const auto guid = m_AssetInspectorHost.GetSession().GetGuid();
+		AssetApplyState state = AssetApplyState::ValidationFailed;
+		if (outState) *outState = state;
 		if (!editor || !m_ProjectContext || guid.empty()) {
 			return ResultEnvelope::Failure("asset.editor.apply", guid, "No editable asset is active");
 		}
 
 		auto result = editor->Validate();
 		if (result.Succeeded()) {
-			AssetApplyState state;
 			result = Application::GetInstance().GetOperations().ApplyAssetEdit(*m_ProjectContext, editor->BuildCommit(), state);
-			if (state == AssetApplyState::Applied || state == AssetApplyState::SavedButImportFailed || state == AssetApplyState::NoChanges) {
+			if (IsAssetAuthoringDataSaved(state)) {
 				QueueAssetReload(guid);
 			}
 		}
+		if (outState) *outState = state;
 		if (m_WorkbenchState) m_WorkbenchState->RecordEvent(result, "Inspector");
 		return result;
 	}
@@ -163,7 +165,9 @@ namespace HE {
 		ImGui::Spacing();
 
 		if (ImGui::Button("Apply and Continue")) {
-			if (ApplyAssetEdit().Succeeded()) {
+			AssetApplyState state = AssetApplyState::ValidationFailed;
+			(void)ApplyAssetEdit(&state);
+			if (IsAssetAuthoringDataSaved(state)) {
 				auto continuation = std::move(m_DirtyAssetContinuation);
 				ImGui::CloseCurrentPopup();
 				if (continuation) continuation();
@@ -286,7 +290,13 @@ namespace HE {
 						if (m_WorkbenchState) m_WorkbenchState->RecordEvent(result, "Inspector");
 						return result;
 					},
-					.OpenScene = m_OpenSceneCallback
+					.OpenScene = m_OpenSceneCallback,
+					.ActiveScenePath = m_WorkbenchState && m_WorkbenchState->GetSceneDocumentSummary()
+						? std::filesystem::path(m_WorkbenchState->GetSceneDocumentSummary()->ScenePath)
+						: std::filesystem::path{},
+					.ActiveSceneDirty = m_WorkbenchState && m_WorkbenchState->GetSceneDocumentSummary()
+						? m_WorkbenchState->GetSceneDocumentSummary()->Dirty
+						: false
 				};
 				editor->Draw(context);
 			}

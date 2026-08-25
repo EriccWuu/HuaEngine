@@ -40,6 +40,10 @@ namespace {
 
 int main() {
 	HE::Editor::AssetEditorRegistry registry;
+	Require(HE::IsAssetAuthoringDataSaved(HE::AssetApplyState::Applied), "Expected applied edits to report saved authoring data");
+	Require(HE::IsAssetAuthoringDataSaved(HE::AssetApplyState::NoChanges), "Expected unchanged edits to report saved authoring data");
+	Require(HE::IsAssetAuthoringDataSaved(HE::AssetApplyState::SavedButImportFailed), "Expected saved edits with import failures to report saved authoring data");
+	Require(!HE::IsAssetAuthoringDataSaved(HE::AssetApplyState::Conflict), "Expected conflicted edits to remain unsaved");
 	registry.SetFallbackFactory([] { return std::make_unique<HE::Editor::GenericAssetInspector>(); });
 	Require(registry.Register({ HE::AssetKind::Material, "material.native" }, [] { return std::make_unique<TestAssetEditor>(); }).Succeeded(), "Expected asset editor registration");
 	Require(registry.Register({ HE::AssetKind::Material, "material.native" }, [] { return std::make_unique<TestAssetEditor>(); }).Failed(), "Expected duplicate editor rejection");

@@ -14,6 +14,7 @@
 #include "HuaEngine/Asset/Import/ObjMeshImporter.h"
 #include "HuaEngine/Asset/Import/MaterialAssetImporter.h"
 #include "HuaEngine/Asset/Import/PngTextureImporter.h"
+#include "yaml-cpp/yaml.h"
 #include "HuaEngine/Asset/Import/AssetSourceHash.h"
 #include "HuaEngine/Asset/Import/HlslShaderImporter.h"
 #include "HuaEngine/Asset/Artifact/MaterialArtifact.h"
@@ -268,6 +269,11 @@ namespace HE {
 			importer->GetId(),
 			importer->GetVersion(),
 			importer->GetArtifactVersion());
+		if (libraryRecord && !libraryRecord->LastImportFailureDiagnostics.empty()) {
+			outHealth.State = artifactAvailable ? AssetImportHealthState::LastGoodWithFailure : AssetImportHealthState::Missing;
+			outHealth.Diagnostics = libraryRecord->LastImportFailureDiagnostics;
+			return ResultEnvelope::Success("asset.import_health", guid, artifactAvailable ? "Last-good artifact is active after an import failure" : "Import failed and no compatible artifact is available");
+		}
 		if (const auto failure = m_LastImportFailures.find(guid); failure != m_LastImportFailures.end()) {
 			outHealth.State = artifactAvailable ? AssetImportHealthState::LastGoodWithFailure : AssetImportHealthState::Missing;
 			outHealth.Diagnostics = failure->second;
@@ -300,6 +306,23 @@ namespace HE {
 			outSnapshot.ImporterId = "scene.native";
 			outSnapshot.ImporterVersion = 1;
 			outSnapshot.Health.State = AssetImportHealthState::NotApplicable;
+			try {
+				const auto root = YAML::LoadFile(asset->AbsolutePath.string());
+				const auto name = root["name"];
+				const auto version = root["version"];
+				const auto entities = root["entities"];
+				if (!root.IsMap() || !name.IsScalar() || !version.IsScalar() || !entities.IsSequence()) {
+					throw YAML::RepresentationException(root.Mark(), "Scene summary fields are missing or invalid");
+				}
+				outSnapshot.SceneStatistics = SceneAssetStatistics{
+					.Name = name.as<std::string>(),
+					.FormatVersion = version.as<uint32_t>(),
+					.EntityCount = static_cast<uint32_t>(entities.size())
+				};
+			}
+			catch (const YAML::Exception& error) {
+				outSnapshot.Diagnostics.push_back({ DiagnosticSeverity::Warning, "asset.scene.summary_invalid", error.what(), asset->AbsolutePath.generic_string() });
+			}
 		}
 		if (asset->Source == AssetSource::File && m_ProjectContext) {
 			(void)ComputeAssetSourceHash(asset->AbsolutePath, outSnapshot.SourceContentHash);

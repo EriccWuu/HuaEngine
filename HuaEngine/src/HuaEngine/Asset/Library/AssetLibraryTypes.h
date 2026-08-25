@@ -6,10 +6,11 @@
 #include <vector>
 
 #include "HuaEngine/Asset/AssetTypes.h"
+#include "HuaEngine/Core/ResultEnvelope.h"
 
 namespace HE {
 	inline constexpr uint32_t AssetArtifactContainerVersion = 1;
-	inline constexpr uint32_t AssetLibraryFormatVersion = 3;
+	inline constexpr uint32_t AssetLibraryFormatVersion = 4;
 
 	struct AssetArtifactHeader {
 		uint32_t ContainerVersion = AssetArtifactContainerVersion;
@@ -34,5 +35,7 @@ namespace HE {
 		std::string ImportFingerprint;
 		std::filesystem::path ArtifactRelativePath;
 		std::vector<AssetGuid> Dependencies;
+		std::string LastFailedImportFingerprint;
+		std::vector<DiagnosticEntry> LastImportFailureDiagnostics;
 	};
 }

@@ -96,6 +96,7 @@ imgui.ini
 
 # Test results
 TestResults/
+Tests/*/Library/
 
 # Local agent worktrees
 .worktrees/

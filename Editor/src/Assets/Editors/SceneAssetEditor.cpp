@@ -20,6 +20,15 @@ namespace HE::Editor {
 
 	void SceneAssetEditor::Draw(AssetEditorDrawContext& context) {
 		ImGui::Text("Source size: %llu bytes", static_cast<unsigned long long>(m_SourceBytes));
+		if (m_Snapshot.SceneStatistics) {
+			ImGui::Text("Name: %s", m_Snapshot.SceneStatistics->Name.c_str());
+			ImGui::Text("Format version: %u", m_Snapshot.SceneStatistics->FormatVersion);
+			ImGui::Text("Entities: %u", m_Snapshot.SceneStatistics->EntityCount);
+		}
+		const bool isActive = !context.ActiveScenePath.empty() &&
+			context.ActiveScenePath.lexically_normal() == m_Snapshot.Asset.AbsolutePath.lexically_normal();
+		ImGui::Text("Active scene: %s", isActive ? "yes" : "no");
+		if (isActive) ImGui::Text("Active scene dirty: %s", context.ActiveSceneDirty ? "yes" : "no");
 		ImGui::TextDisabled("Scene content is edited through the active scene document.");
 		if (ImGui::Button("Open Scene") && context.OpenScene) context.OpenScene(m_Snapshot.Asset.AbsolutePath);
 	}

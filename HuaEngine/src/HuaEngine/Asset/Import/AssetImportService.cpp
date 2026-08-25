@@ -342,10 +342,12 @@ namespace HE {
 
 			auto importResult = node.Importer->Import(importContext);
 			if (!importResult.Success) {
+				const auto persistResult = m_Library->RecordImportFailure(record.Guid, importFingerprint, importResult.Diagnostics);
 				++report.FailedAssets;
 				builtinFailure |= record.Source == AssetSource::Builtin;
 				report.Failures.push_back({ record.Guid, importResult.Diagnostics });
 				for (auto& diagnostic : importResult.Diagnostics) result.AddDetail(std::move(diagnostic));
+				if (!persistResult.Succeeded()) for (const auto& diagnostic : persistResult.Details) result.AddDetail(diagnostic);
 				continue;
 			}
 
@@ -356,6 +358,7 @@ namespace HE {
 				importFingerprint,
 				importResult.Artifact);
 			if (!commitResult.Succeeded()) {
+				(void)m_Library->RecordImportFailure(record.Guid, importFingerprint, commitResult.Details);
 				++report.FailedAssets;
 				builtinFailure |= record.Source == AssetSource::Builtin;
 				report.Failures.push_back({ record.Guid, commitResult.Details });

@@ -305,9 +305,6 @@ int main() {
 	Require(textureAssetService.GetLibrary().ReadArtifact(importedTextureRecord.Guid, importedTextureArtifact).Succeeded(), "Expected imported texture artifact");
 	HE::TextureArtifactData importedTextureData;
 	Require(HE::DecodeTextureArtifact(importedTextureArtifact, importedTextureData).Succeeded(), "Expected imported texture artifact decode");
-	std::filesystem::remove(importedTexturePath, textureError);
-	Require(!textureError, "Expected imported texture source removal");
-
 	HE::AssetResolver textureResolver(textureAssetService);
 	HE::Ref<HE::Rendering::TextureResource> resolvedTexture;
 	Require(textureResolver.ResolveTexture(importedTextureRecord.Guid, resolvedTexture).Succeeded(), "Expected texture resolve from Library");
@@ -339,7 +336,7 @@ int main() {
 	Require(textureAssetService.InitializeProjectAssets(textureProject, &shaderImportReport).Succeeded(), "Expected project shader artifact import");
 	Require(shaderImportReport.ImportedAssets == 1 && shaderImportReport.FailedAssets == 0, "Expected one project shader artifact import");
 	HE::AssetRecord importedShaderRecord;
-	Require(textureAssetService.ResolveAsset(importedShaderHandle, importedShaderRecord).Succeeded(), "Expected imported shader record");
+	Require(textureAssetService.ResolveAsset("Shaders/Imported.shader", importedShaderRecord).Succeeded(), "Expected imported shader record after registry rebuild");
 	Require(importedShaderRecord.Kind == HE::AssetKind::Shader, "Expected imported shader asset kind");
 
 	const auto importedMaterialPath = textureProject.GetAssetRootPath() / "Materials" / "ImportedTextured.material";
@@ -362,9 +359,11 @@ int main() {
 	HE::AssetImportReport materialImportReport;
 	Require(textureAssetService.InitializeProjectAssets(textureProject, &materialImportReport).Succeeded(), "Expected textured material import");
 	Require(materialImportReport.ImportedAssets == 1 && materialImportReport.FailedAssets == 0, "Expected material artifact import beside skipped texture");
+	std::filesystem::remove(importedTexturePath, textureError);
+	Require(!textureError, "Expected imported texture source removal after material dependency resolution");
 	textureAssetService.GetRuntimeCache() = HE::AssetRuntimeCache();
 	HE::AssetRecord importedMaterialRecord;
-	Require(textureAssetService.ResolveAsset(importedMaterialHandle, importedMaterialRecord).Succeeded(), "Expected imported material record");
+	Require(textureAssetService.ResolveAsset("Materials/ImportedTextured.material", importedMaterialRecord).Succeeded(), "Expected imported material record after registry rebuild");
 	HE::Ref<HE::Rendering::Material> resolvedTexturedMaterial;
 	Require(textureResolver.ResolveMaterial(importedMaterialRecord.Guid, resolvedTexturedMaterial).Succeeded(), "Expected textured material resolve from Library");
 	Require(resolvedTexturedMaterial->GetShaderProgram() != nullptr, "Expected material shader GUID resolution");

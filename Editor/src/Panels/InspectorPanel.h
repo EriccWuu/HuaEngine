@@ -26,7 +26,7 @@ namespace HE {
 		bool OnGuiRender();
 		void OnDirtyAssetPopup();
 		[[nodiscard]] bool HasDirtyAsset() const;
-		[[nodiscard]] ResultEnvelope ApplyAssetEdit();
+		[[nodiscard]] ResultEnvelope ApplyAssetEdit(AssetApplyState* outState = nullptr);
 		void RevertAssetEdit();
 		bool RequestDirtyAssetResolution(std::function<void()> continuation);
 		void CheckExternalAssetModification();
