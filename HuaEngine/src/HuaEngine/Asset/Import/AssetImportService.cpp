@@ -13,6 +13,7 @@
 #include "HuaEngine/Asset/AssetSourcePath.h"
 #include "HuaEngine/Asset/Import/AssetImportFingerprint.h"
 #include "HuaEngine/Asset/Import/AssetSourceHash.h"
+#include "HuaEngine/Asset/Metadata/AssetMeta.h"
 
 namespace {
 	struct ImportPlanNode {
@@ -21,6 +22,7 @@ namespace {
 		const HE::AssetImporter* Importer = nullptr;
 		std::filesystem::path SourcePath;
 		std::vector<HE::AssetGuid> Dependencies;
+		std::shared_ptr<const HE::AssetImportSettings> Settings;
 		bool Force = false;
 		bool SkipWithoutSource = false;
 	};
@@ -89,6 +91,27 @@ namespace {
 				diagnostics.push_back({ HE::DiagnosticSeverity::Error, "asset.import.importer_missing", "No asset importer supports the manifest kind and source extension", node.Record->AssetId });
 				return;
 			}
+			std::unique_ptr<HE::AssetImportSettings> settings;
+			if (node.Record->Source == HE::AssetSource::File) {
+				HE::AssetMeta meta;
+				auto metaResult = HE::LoadAssetMeta(node.SourcePath, meta);
+				if (!metaResult.Succeeded() || meta.ImporterId != node.Importer->GetId() || meta.SettingsVersion != node.Importer->GetSettingsVersion()) {
+					invalidGuids.insert(guid);
+					AppendDetails(diagnostics, metaResult);
+					diagnostics.push_back({ HE::DiagnosticSeverity::Error, "asset.meta.importer_mismatch", "Asset metadata does not match the selected importer settings schema", node.SourcePath.generic_string() });
+					return;
+				}
+				auto decodeResult = node.Importer->DecodeSettings(meta.Settings, settings);
+				if (!decodeResult.Succeeded() || !settings || !node.Importer->ValidateSettings(*settings).Succeeded()) {
+					invalidGuids.insert(guid);
+					AppendDetails(diagnostics, decodeResult);
+					return;
+				}
+			}
+			else {
+				settings = node.Importer->CreateDefaultSettings();
+			}
+			node.Settings = std::move(settings);
 
 			std::error_code errorCode;
 			if (!std::filesystem::is_regular_file(node.SourcePath, errorCode)) {
@@ -111,7 +134,8 @@ namespace {
 				.SourceAsset = *node.Record,
 				.SourcePath = node.SourcePath,
 				.Manifest = &manifest,
-				.Library = &library
+				.Library = &library,
+				.Settings = node.Settings.get()
 			};
 			auto dependencyResult = node.Importer->CollectDependencies(importContext, node.Dependencies);
 			if (!dependencyResult.Succeeded()) {
@@ -275,7 +299,8 @@ namespace HE {
 				.SourceAsset = record,
 				.SourcePath = node.SourcePath,
 				.Manifest = &manifest,
-				.Library = m_Library
+				.Library = m_Library,
+				.Settings = node.Settings.get()
 			};
 			AssetImportFingerprintInput fingerprintInput;
 			auto fingerprintInputsResult = node.Importer->BuildFingerprintInput(importContext, sourceContentHash, fingerprintInput);

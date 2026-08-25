@@ -22,6 +22,7 @@
 #include "HuaEngine/Asset/Import/PngTextureImporter.h"
 #include "HuaEngine/Asset/Import/HlslShaderImporter.h"
 #include "HuaEngine/Asset/Library/AssetLibrary.h"
+#include "HuaEngine/Asset/Metadata/AssetMeta.h"
 #include "HuaEngine/Project/ProjectService.h"
 #include "HuaEngine/Rendering/Mesh/MeshCore.h"
 #include "HuaEngine/Rendering/Material/MaterialSourceData.h"
@@ -80,7 +81,7 @@ namespace {
 		return context;
 	}
 
-	void AddDagRecord(HE::AssetManifest& manifest, std::string guid) {
+	void AddDagRecord(const HE::ProjectContext& context, HE::AssetManifest& manifest, std::string guid) {
 		const auto relativePath = std::filesystem::path("Dag") / (guid + ".dag");
 		Require(manifest.Upsert({
 			.Guid = guid,
@@ -90,6 +91,7 @@ namespace {
 			.RelativePath = relativePath,
 			.ImportState = HE::AssetImportState::Registered
 		}), "Expected DAG manifest record");
+		Require(HE::SaveAssetMeta(context.GetAssetRootPath() / relativePath, { .Guid = guid, .ImporterId = "test.dag" }).Succeeded(), "Expected DAG metadata sidecar");
 	}
 
 	void TestGenericImportDag(const std::filesystem::path& root) {
@@ -98,9 +100,9 @@ namespace {
 		WriteTextFile(orderedContext.GetAssetRootPath() / "Dag" / "B.dag", "C\n");
 		WriteTextFile(orderedContext.GetAssetRootPath() / "Dag" / "C.dag", "");
 		HE::AssetManifest orderedManifest;
-		AddDagRecord(orderedManifest, "A");
-		AddDagRecord(orderedManifest, "B");
-		AddDagRecord(orderedManifest, "C");
+		AddDagRecord(orderedContext, orderedManifest, "A");
+		AddDagRecord(orderedContext, orderedManifest, "B");
+		AddDagRecord(orderedContext, orderedManifest, "C");
 		HE::AssetLibrary orderedLibrary;
 		Require(orderedLibrary.Open(orderedContext).Succeeded(), "Expected ordered DAG library open");
 		std::vector<HE::AssetGuid> orderedImports;
@@ -121,8 +123,8 @@ namespace {
 		WriteTextFile(cycleContext.GetAssetRootPath() / "Dag" / "A.dag", "B\n");
 		WriteTextFile(cycleContext.GetAssetRootPath() / "Dag" / "B.dag", "A\n");
 		HE::AssetManifest cycleManifest;
-		AddDagRecord(cycleManifest, "A");
-		AddDagRecord(cycleManifest, "B");
+		AddDagRecord(cycleContext, cycleManifest, "A");
+		AddDagRecord(cycleContext, cycleManifest, "B");
 		HE::AssetLibrary cycleLibrary;
 		Require(cycleLibrary.Open(cycleContext).Succeeded(), "Expected cycle DAG library open");
 		std::vector<HE::AssetGuid> cycleImports;

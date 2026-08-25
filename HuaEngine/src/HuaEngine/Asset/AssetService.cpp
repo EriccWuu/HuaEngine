@@ -461,10 +461,19 @@ namespace HE {
 				if (!loadMetaResult.Succeeded()) return loadMetaResult;
 				if (meta.ImporterId != importerId) return ResultEnvelope::Failure("asset.meta.migrate", assetId, "Asset metadata importer does not match the source type");
 				if (legacyRecord && legacyRecord->Guid != meta.Guid) return ResultEnvelope::Failure("asset.meta.migrate", assetId, "Asset metadata GUID conflicts with the existing manifest");
+				if (importerMatch) {
+					std::unique_ptr<AssetImportSettings> settings;
+					if (meta.SettingsVersion != importerMatch->Importer->GetSettingsVersion()) return ResultEnvelope::Failure("asset.meta.version_unsupported", assetId, "Asset settings version is unsupported");
+					auto decodeResult = importerMatch->Importer->DecodeSettings(meta.Settings, settings);
+					if (!decodeResult.Succeeded() || !settings) return decodeResult;
+					auto validateResult = importerMatch->Importer->ValidateSettings(*settings);
+					if (!validateResult.Succeeded()) return validateResult;
+				}
 			}
 			else {
 				meta.Guid = legacyRecord ? legacyRecord->Guid : GenerateAssetGuid();
 				meta.ImporterId = importerId;
+				meta.SettingsVersion = importerMatch ? importerMatch->Importer->GetSettingsVersion() : 1;
 				if (auto saveMetaResult = SaveAssetMeta(sourcePath, meta); !saveMetaResult.Succeeded()) return saveMetaResult;
 			}
 			if (!fileGuids.insert(meta.Guid).second || derivedManifest.FindByGuid(meta.Guid)) return ResultEnvelope::Failure("asset.meta.migrate", assetId, "Asset metadata contains a duplicate GUID");
@@ -687,6 +696,28 @@ namespace HE {
 			manifestRecord.Source = AssetSource::File;
 			manifestRecord.RelativePath = candidate.RelativePath;
 			manifestRecord.ImportState = AssetImportState::Registered;
+			const auto sourcePath = assetRoot / candidate.RelativePath;
+			const auto* importer = m_ImporterRegistry.Find(candidate.Kind, candidate.RelativePath.extension().string());
+			AssetMeta meta;
+			std::error_code metaError;
+			if (std::filesystem::is_regular_file(GetAssetMetaPath(sourcePath), metaError) && !metaError) {
+				auto loadMetaResult = LoadAssetMeta(sourcePath, meta);
+				if (!loadMetaResult.Succeeded() || !importer || meta.Guid != manifestRecord.Guid || meta.ImporterId != importer->GetId()) {
+					++report.FailedAssets;
+					result.AddDetail({ DiagnosticSeverity::Error, "asset.meta.importer_mismatch", "Asset metadata conflicts with the reimport source", candidate.AssetId });
+					continue;
+				}
+			}
+			else {
+				meta.Guid = manifestRecord.Guid;
+				meta.ImporterId = importer ? std::string(importer->GetId()) : std::string();
+				meta.SettingsVersion = importer ? importer->GetSettingsVersion() : 1;
+				if (auto saveMetaResult = SaveAssetMeta(sourcePath, meta); !saveMetaResult.Succeeded()) {
+					++report.FailedAssets;
+					for (auto& detail : saveMetaResult.Details) result.AddDetail(std::move(detail));
+					continue;
+				}
+			}
 			if (!m_Manifest.Upsert(manifestRecord)) {
 				++report.FailedAssets;
 				result.AddDetail({ DiagnosticSeverity::Error, "asset.reimport.manifest_conflict", "Asset manifest rejected the source record", candidate.AssetId });
