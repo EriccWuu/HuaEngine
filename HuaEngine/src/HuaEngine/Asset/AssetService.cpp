@@ -247,6 +247,12 @@ namespace HE {
 		if (!record || !m_ProjectContext) {
 			return ResultEnvelope::Failure("asset.import_health", guid, "Asset metadata is unavailable");
 		}
+		if (record->Kind == AssetKind::Scene) {
+			std::error_code errorCode;
+			const bool available = std::filesystem::is_regular_file(m_ProjectContext->GetAssetRootPath() / record->RelativePath, errorCode);
+			outHealth.State = available ? AssetImportHealthState::Current : AssetImportHealthState::Missing;
+			return ResultEnvelope::Success("asset.import_health", guid, available ? "Native scene source is available" : "Native scene source is missing");
+		}
 		std::filesystem::path sourcePath;
 		auto sourceResult = ResolveAssetSourcePath(*m_ProjectContext, *record, sourcePath);
 		const auto* importer = sourceResult.Succeeded() ? m_ImporterRegistry.Find(record->Kind, sourcePath.extension().string()) : nullptr;
@@ -285,6 +291,10 @@ namespace HE {
 		outSnapshot.Asset = *asset;
 		(void)GetAssetImportHealth(guid, outSnapshot.Health);
 		outSnapshot.Diagnostics = outSnapshot.Health.Diagnostics;
+		if (asset->Kind == AssetKind::Scene) {
+			outSnapshot.ImporterId = "scene.native";
+			outSnapshot.ImporterVersion = 1;
+		}
 
 		if (const auto* libraryRecord = m_Library.Find(guid)) {
 			outSnapshot.ImporterId = libraryRecord->ImporterId;
@@ -425,6 +435,23 @@ namespace HE {
 			return manifestResult;
 		}
 
+		std::error_code scanError;
+		std::filesystem::recursive_directory_iterator iterator(
+			context.GetAssetRootPath(),
+			std::filesystem::directory_options::skip_permission_denied,
+			scanError);
+		const std::filesystem::recursive_directory_iterator end;
+		while (!scanError && iterator != end) {
+			if (iterator->is_regular_file(scanError) && !scanError && iterator->path().extension() == ".scene") {
+				auto registerResult = RegisterSceneAsset(context, iterator->path());
+				if (!registerResult.Succeeded()) return registerResult;
+			}
+			if (!scanError) iterator.increment(scanError);
+		}
+		if (scanError) {
+			return ResultEnvelope::Failure("asset.initialize_project", context.GetAssetRootPath().generic_string(), "Failed to discover scene assets");
+		}
+
 		auto libraryResult = m_Library.Open(context);
 		if (!libraryResult.Succeeded()) {
 			libraryResult.Operation = "asset.initialize_project";
@@ -444,6 +471,39 @@ namespace HE {
 		result.Operation = "asset.initialize_project";
 		result.SetPayloadValue("library_path", m_Library.GetRootPath().generic_string());
 		return result;
+	}
+
+	ResultEnvelope AssetService::RegisterSceneAsset(const ProjectContext& context, const std::filesystem::path& sourcePath, AssetGuid* outGuid) {
+		NormalizedAssetPath normalizedPath;
+		ResultEnvelope pathError;
+		if (!TryNormalizeAssetPath(context, sourcePath.generic_string(), normalizedPath, pathError)) return pathError;
+		if (normalizedPath.RelativePath.extension() != ".scene" || !normalizedPath.ExistsOnDisk) {
+			return ResultEnvelope::Failure("asset.scene.register", normalizedPath.AssetId, "Scene source must be an existing .scene file under the asset root");
+		}
+		if (m_Manifest.Empty()) {
+			auto loadResult = LoadOrCreateManifestInternal(context, false);
+			if (!loadResult.Succeeded()) return loadResult;
+		}
+		const auto* existing = m_Manifest.FindByAssetId(normalizedPath.AssetId);
+		if (existing && (existing->Kind != AssetKind::Scene || existing->Source != AssetSource::File)) {
+			return ResultEnvelope::Failure("asset.scene.register", normalizedPath.AssetId, "Existing asset metadata conflicts with the scene source");
+		}
+		AssetManifestRecord manifestRecord{
+			.Guid = existing ? existing->Guid : GetExistingGuidOrGenerate(m_Registry, m_Manifest, normalizedPath.AssetId),
+			.AssetId = normalizedPath.AssetId,
+			.Kind = AssetKind::Scene,
+			.Source = AssetSource::File,
+			.RelativePath = normalizedPath.RelativePath,
+			.ImportState = AssetImportState::Registered
+		};
+		if (!m_Manifest.Upsert(manifestRecord)) return ResultEnvelope::Failure("asset.scene.register", normalizedPath.AssetId, "Asset manifest rejected the scene source");
+		auto record = MakeRegistryRecord(context, manifestRecord);
+		record.Handle = m_Registry.Upsert(record);
+		if (record.Handle == 0) return ResultEnvelope::Failure("asset.scene.register", normalizedPath.AssetId, "Asset registry rejected the scene source");
+		auto saveResult = SaveAssetManifest(context, m_Manifest);
+		if (!saveResult.Succeeded()) return saveResult;
+		if (outGuid) *outGuid = record.Guid;
+		return MakeRegistrationResult("asset.scene.register", record, "Scene asset registered");
 	}
 
 	bool AssetService::CanImportSource(const std::filesystem::path& sourcePath) const {
@@ -1231,7 +1291,7 @@ namespace HE {
 			if (record.Guid == BuiltinAssetGuids::FallbackMesh || record.Guid == BuiltinAssetGuids::FallbackMaterial) {
 				++report.FallbackAssets;
 			}
-			if ((record.Source == AssetSource::File || record.Source == AssetSource::Builtin) && !hasMetadataBlockingIssue) {
+			if ((record.Source == AssetSource::File || record.Source == AssetSource::Builtin) && record.Kind != AssetKind::Scene && !hasMetadataBlockingIssue) {
 				const auto* importer = m_ImporterRegistry.Find(record.Kind, record.RelativePath.extension().string());
 				if (!importer) {
 					if (record.Source == AssetSource::Builtin) {
@@ -1269,6 +1329,9 @@ namespace HE {
 			case AssetKind::Shader:
 				++report.ShaderAssets;
 				break;
+			case AssetKind::Scene:
+				++report.SceneAssets;
+				break;
 			case AssetKind::Unknown:
 			default:
 				++report.UnknownKindAssets;
@@ -1292,6 +1355,7 @@ namespace HE {
 		result.SetPayloadValue("material_asset_count", CountToString(report.MaterialAssets));
 		result.SetPayloadValue("texture_asset_count", CountToString(report.TextureAssets));
 		result.SetPayloadValue("shader_asset_count", CountToString(report.ShaderAssets));
+		result.SetPayloadValue("scene_asset_count", CountToString(report.SceneAssets));
 		result.SetPayloadValue("unknown_kind_asset_count", CountToString(report.UnknownKindAssets));
 		result.SetPayloadValue("invalid_asset_record_count", CountToString(report.InvalidAssetRecords));
 		result.SetPayloadValue("assets_outside_project_root", CountToString(report.AssetsOutsideProjectRoot));

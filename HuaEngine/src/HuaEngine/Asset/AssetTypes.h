@@ -13,7 +13,8 @@ namespace HE {
 		Mesh,
 		Material,
 		Texture2D,
-		Shader
+		Shader,
+		Scene
 	};
 
 	enum class AssetSource {

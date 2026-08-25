@@ -578,6 +578,11 @@ namespace HE {
 		return result;
 	}
 
+	ResultEnvelope ApplicationOperations::RegisterSceneAsset(const ProjectContext& context, const std::filesystem::path& sourcePath, AssetGuid* outGuid) const
+	{
+		return m_Services->Assets().RegisterSceneAsset(context, sourcePath, outGuid);
+	}
+
 	ResultEnvelope ApplicationOperations::InspectAsset(const AssetGuid& guid, AssetInspectionSnapshot& outSnapshot) const {
 		return m_Services->Assets().InspectAsset(guid, outSnapshot);
 	}

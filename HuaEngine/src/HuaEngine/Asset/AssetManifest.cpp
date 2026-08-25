@@ -425,6 +425,8 @@ namespace HE {
 			return "texture2d";
 		case AssetKind::Shader:
 			return "shader";
+		case AssetKind::Scene:
+			return "scene";
 		case AssetKind::Unknown:
 		default:
 			return "unknown";
@@ -484,6 +486,9 @@ namespace HE {
 		}
 		if (value == "shader") {
 			return AssetKind::Shader;
+		}
+		if (value == "scene") {
+			return AssetKind::Scene;
 		}
 		return AssetKind::Unknown;
 	}

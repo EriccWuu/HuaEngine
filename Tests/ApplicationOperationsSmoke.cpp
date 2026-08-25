@@ -84,6 +84,16 @@ int main() {
 	auto createScene = operations.CreateScene("OperationsScene", scene);
 	Require(createScene.Succeeded(), "Expected scene.create to succeed through ApplicationOperations");
 	Require(static_cast<bool>(scene), "Expected scene.create to populate an in-memory scene");
+	const auto scenePath = projectContext.GetAssetRootPath() / "Scenes" / "Operations.scene";
+	Require(operations.SaveScene(*scene, scenePath).Succeeded(), "Expected scene fixture save");
+	HE::AssetGuid sceneGuid;
+	Require(operations.RegisterSceneAsset(projectContext, scenePath, &sceneGuid).Succeeded() && !sceneGuid.empty(), "Expected native scene asset registration");
+	HE::AssetInspectionSnapshot sceneInspection;
+	Require(operations.InspectAsset(sceneGuid, sceneInspection).Succeeded(), "Expected scene inspection snapshot");
+	Require(sceneInspection.Asset.Kind == HE::AssetKind::Scene && sceneInspection.ImporterId == "scene.native", "Expected native scene inspection identity");
+	Require(sceneInspection.Health.State == HE::AssetImportHealthState::Current && sceneInspection.ArtifactRelativePath.empty(), "Expected scene source health without an artifact");
+	HE::AssetGuid repeatedSceneGuid;
+	Require(operations.RegisterSceneAsset(projectContext, scenePath, &repeatedSceneGuid).Succeeded() && repeatedSceneGuid == sceneGuid, "Expected stable scene asset identity");
 
 	uint32_t entityId = 0;
 	auto createEntity = operations.CreateSceneEntity(*scene, "OperationsEntity", &entityId);

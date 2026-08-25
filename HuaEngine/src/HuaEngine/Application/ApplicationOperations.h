@@ -175,6 +175,10 @@ namespace HE {
 			const ProjectContext& context,
 			const std::filesystem::path& targetPath,
 			AssetReimportReport* outReport = nullptr) const;
+		[[nodiscard]] ResultEnvelope RegisterSceneAsset(
+			const ProjectContext& context,
+			const std::filesystem::path& sourcePath,
+			AssetGuid* outGuid = nullptr) const;
 		[[nodiscard]] ResultEnvelope ListAssets(
 			const ProjectContext& context,
 			std::vector<AssetRecord>& outRecords) const;

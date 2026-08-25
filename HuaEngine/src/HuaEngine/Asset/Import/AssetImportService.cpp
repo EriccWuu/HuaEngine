@@ -216,7 +216,7 @@ namespace HE {
 		AssetImportReport* outReport) const {
 		std::vector<AssetGuid> assetGuids;
 		manifest.ForEachRecord([&assetGuids](const AssetManifestRecord& record) {
-			if (record.Source == AssetSource::File || record.Source == AssetSource::Builtin) assetGuids.push_back(record.Guid);
+			if ((record.Source == AssetSource::File || record.Source == AssetSource::Builtin) && record.Kind != AssetKind::Scene) assetGuids.push_back(record.Guid);
 		});
 
 		AssetImportReport report;

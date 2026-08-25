@@ -749,6 +749,8 @@ namespace HE {
         if (!m_LastOperationResult.Succeeded()) {
             return false;
         }
+		CaptureOperationResult(Application::GetInstance().GetOperations().RegisterSceneAsset(m_ProjectSession.Context, resolvedPath));
+		if (!m_LastOperationResult.Succeeded()) return false;
 
         m_SceneDocument.MarkSaved(resolvedPath);
         m_InteractionHost.MarkSaved();
@@ -756,6 +758,7 @@ namespace HE {
         SyncSceneDocumentState();
         SyncWorkbenchSessionState();
         RefreshCommandInputs();
+		RefreshInspectorAssetCatalog();
         RefreshWorkbenchValidation();
         PersistCurrentProjectSession();
         return true;

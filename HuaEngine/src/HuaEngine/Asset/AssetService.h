@@ -36,6 +36,7 @@ namespace HE {
 		uint32_t MaterialAssets = 0;
 		uint32_t TextureAssets = 0;
 		uint32_t ShaderAssets = 0;
+		uint32_t SceneAssets = 0;
 		uint32_t UnknownKindAssets = 0;
 		uint32_t InvalidAssetRecords = 0;
 		uint32_t AssetsOutsideProjectRoot = 0;
@@ -88,6 +89,10 @@ namespace HE {
 			const ProjectContext& context,
 			const std::filesystem::path& targetPath,
 			AssetReimportReport* outReport = nullptr);
+		[[nodiscard]] ResultEnvelope RegisterSceneAsset(
+			const ProjectContext& context,
+			const std::filesystem::path& sourcePath,
+			AssetGuid* outGuid = nullptr);
 
 		[[nodiscard]] ResultEnvelope CreateBuiltinMeshAsset(
 			const ProjectContext& context,
