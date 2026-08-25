@@ -818,6 +818,7 @@ configure_smoke_target(ProjectWorkbenchSmoke)
 add_executable(EditorInteractionSmoke
     Tests/EditorInteractionSmoke.cpp
     Editor/src/Selection.cpp
+    Editor/src/Selection/EditorSelectionService.cpp
     Editor/src/Interaction/ContextMenuRegistry.cpp
     Editor/src/Interaction/DragDropIntentRegistry.cpp
     Editor/src/Interaction/EditorCommandRouter.cpp

@@ -6,6 +6,7 @@
 
 #include "HuaEngine.h"
 #include "Selection.h"
+#include "Selection/EditorSelectionService.h"
 #include "Interaction/ContextMenuRegistry.h"
 #include "Interaction/DragDropIntentRegistry.h"
 #include "Interaction/EditorInteractionHost.h"
@@ -46,6 +47,27 @@ namespace {
 }
 
 int main() {
+	HE::Editor::EditorSelectionService selectionService;
+	const HE::EntityUuid firstUuid{ 1, 2 };
+	const HE::EntityUuid secondUuid{ 3, 4 };
+	selectionService.SelectEntities({ firstUuid, secondUuid });
+	Require(selectionService.HasEntitySelection(), "Expected entity selection state");
+	Require(selectionService.GetEntitySelection()->Entities.size() == 2, "Expected all selected entity UUIDs");
+	selectionService.SelectAsset("asset-guid");
+	Require(selectionService.HasAssetSelection(), "Expected asset selection state");
+	Require(!selectionService.HasEntitySelection(), "Expected asset selection to replace entity selection");
+	selectionService.SelectEntities({ firstUuid });
+	Require(selectionService.HasEntitySelection() && !selectionService.HasAssetSelection(), "Expected entity selection to replace asset selection");
+	selectionService.Clear();
+	Require(!selectionService.HasSelection(), "Expected clear to remove editor selection");
+
+	HE::Selection::SelectAsset("facade-asset");
+	Require(HE::Selection::HasAssetSelection(), "Expected compatibility facade asset selection");
+	Require(!HE::Selection::HasSelection(), "Expected entity-only compatibility query to exclude asset selection");
+	HE::Selection::SetSelectedEntities({ firstUuid });
+	Require(HE::Selection::HasSingleSelection() && !HE::Selection::HasAssetSelection(), "Expected compatibility facade entity selection to replace asset selection");
+	HE::Selection::ClearSelection();
+
     const glm::vec3 distantCameraPosition(513.0f, 200.0f, -777.0f);
     const auto gridLayout = HE::Editor::CalculateEditorGridLayout(distantCameraPosition);
     Require(

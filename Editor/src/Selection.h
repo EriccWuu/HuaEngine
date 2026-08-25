@@ -6,6 +6,7 @@
 #include "HuaEngine/ECS/Entity.h"
 #include "HuaEngine/ECS/EntityId.h"
 #include "HuaEngine/ECS/World.h"
+#include "Selection/EditorSelectionService.h"
 
 namespace HE {
 	class Selection {
@@ -31,9 +32,9 @@ namespace HE {
 		static void ClearSelection();
 		static void RemoveInvalidSelections();
 		static void RemoveInvalidSelections(World& world);
-	private:
-		static std::vector<EntityUuid> m_SelectedEntityUuids;
-		static std::vector<Entity> m_ResolvedSelections;
-		static Entity m_EmptySelection;
+		static void SelectAsset(AssetGuid guid);
+		static bool HasAssetSelection();
+		static AssetGuid GetSelectedAssetGuid();
+		static Editor::EditorSelectionService& GetService();
 	};
 }
