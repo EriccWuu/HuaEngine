@@ -1,9 +1,14 @@
 #include <cstdlib>
 #include <filesystem>
+#include <fstream>
 #include <iostream>
 #include <string>
 
+#include "HuaEngine.h"
 #include "HuaEngine/Asset/Metadata/AssetMeta.h"
+#include "HuaEngine/Asset/AssetManifest.h"
+#include "HuaEngine/Asset/AssetService.h"
+#include "HuaEngine/Project/ProjectService.h"
 
 namespace {
 	void Require(bool condition, const char* message) {
@@ -15,6 +20,8 @@ namespace {
 }
 
 int main() {
+	HE::Log::Init();
+	HE::Serialization::InitializeSerialization();
 	const HE::AssetMeta meta{
 		.Guid = "0123456789abcdef0123456789abcdef",
 		.ImporterId = "texture.png",
@@ -38,6 +45,26 @@ int main() {
 	Require(HE::LoadAssetMeta(source, loaded).Succeeded() && loaded == meta, "Expected saved metadata load");
 	std::filesystem::remove_all(root, errorCode);
 	Require(!errorCode, "Expected temporary metadata cleanup");
+
+	HE::ProjectService projects;
+	HE::ProjectContext context;
+	Require(projects.InitializeProject(root, &context, "MetaMigration").Succeeded(), "Expected migration project setup");
+	const auto meshPath = context.GetAssetRootPath() / "Legacy.obj";
+	{
+		std::ofstream stream(meshPath);
+		stream << "o Legacy\n";
+	}
+	HE::AssetManifest legacyManifest;
+	Require(legacyManifest.Upsert({ .Guid = "legacy-guid", .AssetId = "Legacy.obj", .Kind = HE::AssetKind::Mesh, .Source = HE::AssetSource::File, .RelativePath = "Legacy.obj", .ImportState = HE::AssetImportState::Registered }), "Expected legacy manifest fixture");
+	Require(HE::SaveAssetManifest(context, legacyManifest).Succeeded(), "Expected legacy manifest save");
+	HE::AssetService assets;
+	Require(assets.LoadOrCreateManifest(context).Succeeded(), "Expected sidecar migration");
+	HE::AssetMeta migrated;
+	Require(HE::LoadAssetMeta(meshPath, migrated).Succeeded(), "Expected migrated sidecar");
+	Require(migrated.Guid == "legacy-guid" && migrated.ImporterId == "hua.mesh-obj", "Expected legacy GUID and importer identity preservation");
+	Require(assets.GetManifest().FindByAssetId("Legacy.obj") != nullptr, "Expected derived manifest record");
+	std::filesystem::remove_all(root, errorCode);
+	Require(!errorCode, "Expected migration project cleanup");
 	std::cout << "AssetMetaSmoke passed" << std::endl;
 	return 0;
 }

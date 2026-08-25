@@ -398,14 +398,14 @@ int main() {
 	Require(missingCachedMeshValidationReport.MissingFileAssets == 1, "Expected missing cached mesh validation to count the missing file");
 	Require(missingCachedMeshValidationReport.MetadataIssueCount() == 2, "Expected validation to report the missing file and forged builtin metadata");
 	Require(
-		missingCachedMeshValidationReport.FileAssetsMissingArtifacts == 1,
-		"Expected one missing artifact after the mesh record kind mutation, got " + std::to_string(missingCachedMeshValidationReport.FileAssetsMissingArtifacts));
+		missingCachedMeshValidationReport.FileAssetsMissingArtifacts == 0,
+		"Expected metadata-blocked file assets to skip artifact validation, got " + std::to_string(missingCachedMeshValidationReport.FileAssetsMissingArtifacts));
 	Require(
 		missingCachedMeshValidationReport.FileAssetsWithoutImporter == 1,
 		"Expected one unsupported importer, got " + std::to_string(missingCachedMeshValidationReport.FileAssetsWithoutImporter));
-	Require(missingCachedMeshValidationReport.RuntimeIssueCount() == 2, "Expected validation to count one missing artifact and one unsupported texture importer");
+	Require(missingCachedMeshValidationReport.RuntimeIssueCount() == 1, "Expected validation to count the unsupported texture importer");
 	Require(missingCachedMeshValidation.Payload.at("metadata_issue_count") == "2", "Expected missing cached mesh metadata issue payload");
-	Require(missingCachedMeshValidation.Payload.at("runtime_issue_count") == "2", "Expected missing cached mesh runtime issue payload");
+	Require(missingCachedMeshValidation.Payload.at("runtime_issue_count") == "1", "Expected missing cached mesh runtime issue payload");
 	Require(missingCachedMeshValidation.Payload.at("fallback_asset_count") == "2", "Expected fallback asset payload to remain stable");
 
 	HE::AssetService badBuiltinAssetService;
@@ -423,10 +423,10 @@ int main() {
 	Require(badBuiltinValidation.RequiresManualIntervention(), "Expected illegal builtin metadata validation to require manual intervention");
 	Require(badBuiltinValidationReport.BuiltinMetadataIssues == 1, "Expected illegal builtin metadata validation to count the bad builtin");
 	Require(badBuiltinValidationReport.MetadataIssueCount() == 1, "Expected illegal builtin metadata validation to report one metadata issue");
-	Require(badBuiltinValidationReport.FileAssetsWithoutImporter == 1, "Expected unsupported texture importer to remain reported");
-	Require(badBuiltinValidationReport.RuntimeIssueCount() == 1, "Expected unsupported texture importer to remain visible beside illegal builtin metadata");
+	Require(badBuiltinValidationReport.FileAssetsWithoutImporter == 0, "Expected derived manifest rebuild to omit unsupported file records");
+	Require(badBuiltinValidationReport.RuntimeIssueCount() == 0, "Expected no runtime issue after unsupported file records are omitted");
 	Require(badBuiltinValidation.Payload.at("metadata_issue_count") == "1", "Expected illegal builtin metadata issue payload");
-	Require(badBuiltinValidation.Payload.at("runtime_issue_count") == "1", "Expected illegal builtin runtime issue payload");
+	Require(badBuiltinValidation.Payload.at("runtime_issue_count") == "0", "Expected illegal builtin runtime issue payload");
 
 	HE::AssetRecord missingRecord;
 	auto missingAssetResult = assetService.ResolveAsset(static_cast<HE::AssetHandle>(9999), missingRecord);
@@ -436,8 +436,8 @@ int main() {
 	auto reloadManifestResult = assetService.LoadOrCreateManifest(projectContext);
 	Require(reloadManifestResult.Succeeded(), "Expected asset service manifest reload to succeed");
 	HE::Ref<HE::Rendering::Mesh> staleMesh;
-	Require(resolver.ResolveMesh(quadRecord.Guid, staleMesh).Failed(), "Expected manifest reload to remove stale mesh metadata and runtime cache");
-	Require(assetService.GetAssetRegistry().GetAssetCount() == 7, "Expected registry reload to contain only manifest builtin records");
+	Require(resolver.ResolveMesh(quadRecord.Guid, staleMesh).Succeeded(), "Expected manifest rebuild to recover the mesh from its sidecar");
+	Require(assetService.GetAssetRegistry().GetAssetCount() == 9, "Expected registry rebuild to contain builtin and discovered file records");
 
 	HE::ApplicationServices applicationServices;
 	Require(applicationServices.Assets().InitializeProjectAssets(projectContext).Succeeded(), "Expected application asset service to initialize Library artifacts before local resolver construction");

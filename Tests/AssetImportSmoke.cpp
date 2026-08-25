@@ -732,7 +732,7 @@ namespace {
 		Require(firstResult.Succeeded(), "Expected directory reimport success");
 		Require(firstReport.ScannedFiles == 4, "Expected recursive scan count");
 		Require(firstReport.SupportedFiles == 3, "Expected supported asset count");
-		Require(firstReport.RegisteredAssets == 3, "Expected unregistered assets to be registered");
+		Require(firstReport.RegisteredAssets == 0, "Expected metadata discovery to register assets before reimport");
 		Require(firstReport.ReimportedAssets == 3, "Expected supported assets to be imported");
 		Require(firstReport.SkippedFiles == 1, "Expected unsupported file skip");
 		Require(assetService.GetRuntimeCache().FindMesh("unrelated-guid") != nullptr, "Expected initial reimport to preserve unrelated runtime cache entries");

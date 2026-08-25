@@ -9,6 +9,7 @@
 #include "AssetResolver.h"
 #include "AssetSourcePath.h"
 #include "BuiltinAssetCatalog.h"
+#include "HuaEngine/Asset/Metadata/AssetMeta.h"
 #include "HuaEngine/Asset/Import/MeshAssetImporter.h"
 #include "HuaEngine/Asset/Import/ObjMeshImporter.h"
 #include "HuaEngine/Asset/Import/MaterialAssetImporter.h"
@@ -413,6 +414,66 @@ namespace HE {
 			return result;
 		}
 
+		AssetManifest derivedManifest;
+		std::unordered_map<std::string, size_t> legacyOrder;
+		size_t legacyIndex = 0;
+		loadedManifest.ForEachRecord([&](const AssetManifestRecord& record) {
+			if (record.Source == AssetSource::Builtin) (void)derivedManifest.Upsert(record);
+			else legacyOrder.emplace(record.AssetId, legacyIndex++);
+		});
+		std::vector<std::filesystem::path> sourcePaths;
+		std::error_code scanError;
+		std::filesystem::recursive_directory_iterator iterator(context.GetAssetRootPath(), std::filesystem::directory_options::skip_permission_denied, scanError);
+		const std::filesystem::recursive_directory_iterator end;
+		while (!scanError && iterator != end) {
+			if (iterator->is_regular_file(scanError) && !scanError) {
+				const auto& path = iterator->path();
+				if (path.extension() == ".scene" || m_ImporterRegistry.FindByExtension(path.extension().string())) sourcePaths.push_back(path);
+			}
+			if (!scanError) iterator.increment(scanError);
+		}
+		if (scanError) return ResultEnvelope::Failure("asset.meta.migrate", context.GetAssetRootPath().generic_string(), "Failed to scan project asset sources");
+		std::sort(sourcePaths.begin(), sourcePaths.end(), [&](const auto& left, const auto& right) {
+			const auto leftId = left.lexically_relative(context.GetAssetRootPath()).lexically_normal().generic_string();
+			const auto rightId = right.lexically_relative(context.GetAssetRootPath()).lexically_normal().generic_string();
+			const auto leftOrder = legacyOrder.find(leftId);
+			const auto rightOrder = legacyOrder.find(rightId);
+			if (leftOrder != legacyOrder.end() || rightOrder != legacyOrder.end()) {
+				if (leftOrder == legacyOrder.end()) return false;
+				if (rightOrder == legacyOrder.end()) return true;
+				return leftOrder->second < rightOrder->second;
+			}
+			return leftId < rightId;
+		});
+		std::unordered_set<AssetGuid> fileGuids;
+		for (const auto& sourcePath : sourcePaths) {
+			const auto relativePath = sourcePath.lexically_relative(context.GetAssetRootPath()).lexically_normal();
+			const auto assetId = relativePath.generic_string();
+			const auto importerMatch = m_ImporterRegistry.FindByExtension(sourcePath.extension().string());
+			const AssetKind kind = sourcePath.extension() == ".scene" ? AssetKind::Scene : importerMatch->Kind;
+			const std::string importerId = kind == AssetKind::Scene ? "scene.native" : std::string(importerMatch->Importer->GetId());
+			const auto* legacyRecord = loadedManifest.FindByAssetId(assetId);
+			AssetMeta meta;
+			scanError.clear();
+			const bool hasMeta = std::filesystem::is_regular_file(GetAssetMetaPath(sourcePath), scanError) && !scanError;
+			if (hasMeta) {
+				auto loadMetaResult = LoadAssetMeta(sourcePath, meta);
+				if (!loadMetaResult.Succeeded()) return loadMetaResult;
+				if (meta.ImporterId != importerId) return ResultEnvelope::Failure("asset.meta.migrate", assetId, "Asset metadata importer does not match the source type");
+				if (legacyRecord && legacyRecord->Guid != meta.Guid) return ResultEnvelope::Failure("asset.meta.migrate", assetId, "Asset metadata GUID conflicts with the existing manifest");
+			}
+			else {
+				meta.Guid = legacyRecord ? legacyRecord->Guid : GenerateAssetGuid();
+				meta.ImporterId = importerId;
+				if (auto saveMetaResult = SaveAssetMeta(sourcePath, meta); !saveMetaResult.Succeeded()) return saveMetaResult;
+			}
+			if (!fileGuids.insert(meta.Guid).second || derivedManifest.FindByGuid(meta.Guid)) return ResultEnvelope::Failure("asset.meta.migrate", assetId, "Asset metadata contains a duplicate GUID");
+			AssetManifestRecord record{ .Guid = meta.Guid, .AssetId = assetId, .Kind = kind, .Source = AssetSource::File, .RelativePath = relativePath, .ImportState = AssetImportState::Registered };
+			if (!derivedManifest.Upsert(std::move(record))) return ResultEnvelope::Failure("asset.meta.migrate", assetId, "Asset metadata conflicts with another source path");
+		}
+		if (auto saveManifestResult = SaveAssetManifest(context, derivedManifest); !saveManifestResult.Succeeded()) return saveManifestResult;
+		loadedManifest = std::move(derivedManifest);
+
 		m_Registry = AssetRegistry();
 		if (resetRuntimeCache) {
 			m_RuntimeCache = AssetRuntimeCache();
@@ -433,23 +494,6 @@ namespace HE {
 		if (!manifestResult.Succeeded()) {
 			manifestResult.Operation = "asset.initialize_project";
 			return manifestResult;
-		}
-
-		std::error_code scanError;
-		std::filesystem::recursive_directory_iterator iterator(
-			context.GetAssetRootPath(),
-			std::filesystem::directory_options::skip_permission_denied,
-			scanError);
-		const std::filesystem::recursive_directory_iterator end;
-		while (!scanError && iterator != end) {
-			if (iterator->is_regular_file(scanError) && !scanError && iterator->path().extension() == ".scene") {
-				auto registerResult = RegisterSceneAsset(context, iterator->path());
-				if (!registerResult.Succeeded()) return registerResult;
-			}
-			if (!scanError) iterator.increment(scanError);
-		}
-		if (scanError) {
-			return ResultEnvelope::Failure("asset.initialize_project", context.GetAssetRootPath().generic_string(), "Failed to discover scene assets");
 		}
 
 		auto libraryResult = m_Library.Open(context);
@@ -488,8 +532,20 @@ namespace HE {
 		if (existing && (existing->Kind != AssetKind::Scene || existing->Source != AssetSource::File)) {
 			return ResultEnvelope::Failure("asset.scene.register", normalizedPath.AssetId, "Existing asset metadata conflicts with the scene source");
 		}
+		AssetMeta meta;
+		std::error_code metaError;
+		if (std::filesystem::is_regular_file(GetAssetMetaPath(normalizedPath.AbsolutePath), metaError) && !metaError) {
+			auto loadMetaResult = LoadAssetMeta(normalizedPath.AbsolutePath, meta);
+			if (!loadMetaResult.Succeeded()) return loadMetaResult;
+			if (meta.ImporterId != "scene.native" || (existing && existing->Guid != meta.Guid)) return ResultEnvelope::Failure("asset.meta.guid_conflict", normalizedPath.AssetId, "Scene metadata conflicts with the existing identity");
+		}
+		else {
+			meta.Guid = existing ? existing->Guid : GetExistingGuidOrGenerate(m_Registry, m_Manifest, normalizedPath.AssetId);
+			meta.ImporterId = "scene.native";
+			if (auto saveMetaResult = SaveAssetMeta(normalizedPath.AbsolutePath, meta); !saveMetaResult.Succeeded()) return saveMetaResult;
+		}
 		AssetManifestRecord manifestRecord{
-			.Guid = existing ? existing->Guid : GetExistingGuidOrGenerate(m_Registry, m_Manifest, normalizedPath.AssetId),
+			.Guid = meta.Guid,
 			.AssetId = normalizedPath.AssetId,
 			.Kind = AssetKind::Scene,
 			.Source = AssetSource::File,
@@ -547,7 +603,7 @@ namespace HE {
 				errorCode);
 			const std::filesystem::recursive_directory_iterator end;
 			while (!errorCode && iterator != end) {
-				if (iterator->is_regular_file(errorCode) && !errorCode) {
+				if (iterator->is_regular_file(errorCode) && !errorCode && iterator->path().extension() != ".meta") {
 					sourcePaths.push_back(std::filesystem::weakly_canonical(iterator->path(), errorCode));
 				}
 				if (!errorCode) {
