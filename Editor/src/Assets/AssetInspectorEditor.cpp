@@ -184,7 +184,6 @@ namespace HE::Editor {
 			ImGui::Text("Importer: %s (settings v%u)", snapshot->ImporterId.c_str(), snapshot->SettingsVersion);
 			ImGui::Text("Import Health: %s%s", GetImportHealthLabel(snapshot->Health.State), dirty ? "  *" : "");
 			ImGui::Text("Dependencies: %zu  Dependents: %zu", snapshot->Dependencies.size(), snapshot->Dependents.size());
-			if (!snapshot->ImportFingerprint.empty()) ImGui::TextWrapped("Fingerprint: %s", snapshot->ImportFingerprint.c_str());
 			for (const auto& diagnostic : snapshot->Diagnostics) ImGui::TextWrapped("%s: %s", diagnostic.Code.c_str(), diagnostic.Message.c_str());
 			ImGui::Separator();
 		}

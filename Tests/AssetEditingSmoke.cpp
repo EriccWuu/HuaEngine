@@ -168,6 +168,13 @@ int main() {
 			assetEditorSource.find("ActiveScenePath") == std::string::npos &&
 			assetEditorSource.find("ActiveSceneDirty") == std::string::npos,
 		"Expected generic asset editor context to exclude scene document services");
+	std::ifstream assetInspectorEditorStream(repositoryRoot / "Editor" / "src" / "Assets" / "AssetInspectorEditor.cpp");
+	Require(assetInspectorEditorStream.good(), "Expected AssetInspectorEditor.cpp to be readable");
+	std::stringstream assetInspectorEditorBuffer;
+	assetInspectorEditorBuffer << assetInspectorEditorStream.rdbuf();
+	Require(
+		assetInspectorEditorBuffer.str().find("Fingerprint:") == std::string::npos,
+		"Expected asset inspector to hide internal import fingerprints");
 	std::filesystem::remove_all(sessionRoot, errorCode);
 
 	std::cout << "AssetEditingSmoke passed" << std::endl;
