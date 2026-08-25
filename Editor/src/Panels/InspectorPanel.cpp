@@ -107,6 +107,25 @@ namespace HE {
 				if (!result.Succeeded() && m_WorkbenchState) m_WorkbenchState->RecordEvent(result, "Inspector");
 			}
 			if (auto* editor = m_AssetInspectorHost.GetEditor()) {
+				const bool dirty = editor->IsDirty();
+				ImGui::BeginDisabled(!dirty || !m_ProjectContext);
+				if (ImGui::Button("Apply")) {
+					auto validation = editor->Validate();
+					if (validation.Succeeded()) {
+						AssetApplyState state;
+						validation = Application::GetInstance().GetOperations().ApplyAssetEdit(*m_ProjectContext, editor->BuildCommit(), state);
+						if (state == AssetApplyState::Applied || state == AssetApplyState::SavedButImportFailed || state == AssetApplyState::NoChanges) {
+							(void)m_AssetInspectorHost.Open(guid, [](const AssetGuid& assetGuid, AssetInspectionSnapshot& snapshot) { return Application::GetInstance().GetOperations().InspectAsset(assetGuid, snapshot); });
+						}
+					}
+					if (m_WorkbenchState) m_WorkbenchState->RecordEvent(validation, "Inspector");
+				}
+				ImGui::EndDisabled();
+				ImGui::SameLine();
+				ImGui::BeginDisabled(!dirty);
+				if (ImGui::Button("Revert")) editor->Revert();
+				ImGui::EndDisabled();
+				ImGui::Separator();
 				Editor::AssetEditorDrawContext context;
 				editor->Draw(context);
 			}

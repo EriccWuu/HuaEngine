@@ -2,10 +2,12 @@
 #include "Assets/AssetInspectorHost.h"
 
 #include "Assets/Editors/GenericAssetInspector.h"
+#include "Assets/Editors/MaterialAssetEditor.h"
 
 namespace HE::Editor {
 	AssetInspectorHost::AssetInspectorHost() {
 		m_Registry.SetFallbackFactory([] { return std::make_unique<GenericAssetInspector>(); });
+		(void)m_Registry.Register({ AssetKind::Material, "hua.material-yaml" }, [] { return std::make_unique<MaterialAssetEditor>(); });
 	}
 
 	ResultEnvelope AssetInspectorHost::Open(const AssetGuid& guid, const InspectAssetCallback& inspectAsset) {

@@ -28,6 +28,7 @@ namespace HE {
         void SetAddComponentCallback(std::function<void(EditorInspectableComponent)> callback) { m_AddComponentCallback = std::move(callback); }
 		void SetRemoveComponentCallback(std::function<void(EditorInspectableComponent)> callback) { m_RemoveComponentCallback = std::move(callback); }
 		void SetAssetRecords(std::span<const AssetRecord> records);
+		void SetProjectContext(const ProjectContext* context) { m_ProjectContext = context; }
 		void ClearAssetRecords() {
 			m_MeshAssetOptions.clear();
 			m_MaterialAssetOptions.clear();
@@ -40,6 +41,7 @@ namespace HE {
         void RequestOpenAddComponentWindow() { m_ShowAddComponentWindow = true; }
 
 		EditorWorkbenchState* m_WorkbenchState = nullptr;
+		const ProjectContext* m_ProjectContext = nullptr;
         EditorInteractionHost* m_InteractionHost = nullptr;
         std::function<void(EditorInspectableComponent)> m_AddComponentCallback;
         std::function<void(EditorInspectableComponent)> m_RemoveComponentCallback;

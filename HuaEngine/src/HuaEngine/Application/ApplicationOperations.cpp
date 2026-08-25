@@ -587,6 +587,10 @@ namespace HE {
 		return m_Services->Assets().InspectAsset(guid, outSnapshot);
 	}
 
+	ResultEnvelope ApplicationOperations::ApplyAssetEdit(const ProjectContext& context, const AssetEditCommit& commit, AssetApplyState& outState, AssetReimportReport* outReport) const {
+		return m_Services->AssetAuthoring().Apply(context, commit, outState, outReport);
+	}
+
 	ResultEnvelope ApplicationOperations::GetMaterialDefinition(const AssetGuid& materialGuid, Rendering::MaterialDefinition& outDefinition, AssetImportHealth* outHealth) const {
 		return m_Services->Assets().GetMaterialDefinition(materialGuid, outDefinition, outHealth);
 	}

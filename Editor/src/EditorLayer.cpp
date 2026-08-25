@@ -178,6 +178,7 @@ namespace HE {
         SyncSceneDocumentState();
         RefreshInteractionHost();
         m_ProjectSession.Context = context;
+		m_Inspector->SetProjectContext(&m_ProjectSession.Context);
         m_ProjectSession.LastStatus = status;
         m_ProjectSession.Loaded = true;
 
@@ -315,6 +316,7 @@ namespace HE {
     }
 
     void EditorLayer::CloseProjectSession(bool preserveResumeState, std::string_view summary) {
+		m_Inspector->SetProjectContext(nullptr);
         if (preserveResumeState && m_ProjectSession.IsLoaded()) {
             PersistCurrentProjectSession();
         } else if (!preserveResumeState) {

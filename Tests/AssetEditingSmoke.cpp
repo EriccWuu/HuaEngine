@@ -8,6 +8,7 @@
 #include "Assets/AssetEditorRegistry.h"
 #include "Assets/AssetInspectorHost.h"
 #include "Assets/Editors/GenericAssetInspector.h"
+#include "Assets/Editors/MaterialAssetEditor.h"
 #include "HuaEngine/Asset/Import/AssetSourceHash.h"
 #include "HuaEngine/Asset/Metadata/AssetMeta.h"
 
@@ -73,6 +74,17 @@ int main() {
 	Require(!session.IsDirty(), "Expected session clean state");
 	session.Close();
 	Require(!session.IsOpen(), "Expected closed asset edit session");
+	HE::Rendering::MaterialSourceData materialSource{ .Name = "Editable", .Type = HE::Rendering::MaterialType::Custom, .ShaderGuid = "shader-guid" };
+	materialSource.Parameters.emplace("u_Value", HE::Rendering::MaterialSourceParameter{ "u_Value", HE::Rendering::MaterialParameterType::Float, 0.5f });
+	Require(HE::Rendering::SaveMaterialSourceData(sourcePath, materialSource).Succeeded(), "Expected editable material fixture");
+	Require(HE::ComputeAssetSourceHash(sourcePath, snapshot.SourceContentHash).Succeeded(), "Expected editable source hash");
+	HE::Editor::MaterialAssetEditor materialEditor;
+	Require(materialEditor.Open({ snapshot }).Succeeded() && !materialEditor.IsDirty(), "Expected clean material editor working copy");
+	materialEditor.GetWorkingCopy().Parameters.at("u_Value").Value = 0.75f;
+	Require(materialEditor.IsDirty() && materialEditor.Validate().Succeeded(), "Expected valid dirty material working copy");
+	Require(!materialEditor.BuildCommit().SerializedContent.empty(), "Expected serialized material edit commit");
+	materialEditor.Revert();
+	Require(!materialEditor.IsDirty(), "Expected material editor revert");
 
 	HE::Editor::AssetInspectorHost host;
 	Require(host.GetRegistry().Register({ HE::AssetKind::Material, "material.native" }, [] { return std::make_unique<TestAssetEditor>(); }).Succeeded(), "Expected host editor registration");
