@@ -204,7 +204,15 @@ namespace HE {
 				Editor::AssetEditorDrawContext context{
 					.ShaderAssets = m_ShaderAssetOptions,
 					.TextureAssets = m_TextureAssetOptions,
-					.GetShaderAuthoringMetadata = [](const AssetGuid& shaderGuid, Rendering::ShaderAuthoringMetadata& metadata) { return Application::GetInstance().GetOperations().GetShaderAuthoringMetadata(shaderGuid, metadata); }
+					.GetShaderAuthoringMetadata = [](const AssetGuid& shaderGuid, Rendering::ShaderAuthoringMetadata& metadata) { return Application::GetInstance().GetOperations().GetShaderAuthoringMetadata(shaderGuid, metadata); },
+					.ReimportAsset = [this](const std::filesystem::path& path) {
+						AssetReimportReport report;
+						auto result = m_ProjectContext
+							? Application::GetInstance().GetOperations().ReimportAssets(*m_ProjectContext, path, &report)
+							: ResultEnvelope::Failure("asset.reimport", path.generic_string(), "Project context is unavailable");
+						if (m_WorkbenchState) m_WorkbenchState->RecordEvent(result, "Inspector");
+						return result;
+					}
 				};
 				editor->Draw(context);
 			}

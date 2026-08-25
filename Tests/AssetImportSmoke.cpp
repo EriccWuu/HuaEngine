@@ -871,6 +871,8 @@ namespace {
 		Require(
 			assetService.GetAssetImportHealth(shaderRecord.Guid, currentShaderHealth).Succeeded() && currentShaderHealth.State == HE::AssetImportHealthState::Current,
 			"Expected successful shader reimport to clear previous failure health");
+		HE::AssetInspectionSnapshot shaderInspection;
+		Require(assetService.InspectAsset(shaderRecord.Guid, shaderInspection).Succeeded() && shaderInspection.ShaderData.has_value(), "Expected shader artifact inspection data");
 		HE::AssetImportHealth missingHealth;
 		Require(
 			assetService.GetAssetImportHealth("missing-asset-guid", missingHealth).Failed() && missingHealth.State == HE::AssetImportHealthState::Missing,

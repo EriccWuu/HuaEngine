@@ -95,13 +95,14 @@ namespace HE
 	}
 
 	void Application::OnEvent(Event& e) {
-		auto dispatcher = EventDispatcher(e);
-		dispatcher.Dispatch<WindowCloseEvent>(BIND_EVENT_FUNC(Application::OnWindowClose));
-
 		for (auto it = m_LayerStack.End(); it != m_LayerStack.Begin();) {
 			(*--it)->OnEvent(e);
 			if (e.Handled)
 				break;
+		}
+		if (!e.Handled) {
+			auto dispatcher = EventDispatcher(e);
+			dispatcher.Dispatch<WindowCloseEvent>(BIND_EVENT_FUNC(Application::OnWindowClose));
 		}
 	}
 

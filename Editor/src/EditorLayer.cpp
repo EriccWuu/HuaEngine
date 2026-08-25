@@ -784,6 +784,7 @@ namespace HE {
                 case WorkbenchActionType::CloseProject:
                 case WorkbenchActionType::NewScene:
                 case WorkbenchActionType::OpenScene:
+				case WorkbenchActionType::Exit:
                     m_PendingAction = action;
                     m_OpenUnsavedChangesPopup = true;
                     return;
@@ -806,6 +807,9 @@ namespace HE {
                 return CreateNewSceneDocument(action.Name.empty() ? m_Specification.InitialSceneName : action.Name);
             case WorkbenchActionType::OpenScene:
                 return OpenSceneDocument(action.Path);
+			case WorkbenchActionType::Exit:
+				Application::GetInstance().RequestShutdown();
+				return true;
             default:
                 return true;
         }
@@ -835,6 +839,11 @@ namespace HE {
     }
 
 	void EditorLayer::OnEvent(Event& event) {
+		if (event.GetEventType() == EventType::WindowClose && (m_SceneDocument.Dirty || (m_Inspector && m_Inspector->HasDirtyAsset()))) {
+			event.Handled = true;
+			RequestWorkbenchAction({ WorkbenchActionType::Exit });
+			return;
+		}
 		if (m_EditorCameraController && m_IsSceneViewportHovered) {
 			m_SceneCameraPoseDirty = m_EditorCameraController->OnEvent(event) || m_SceneCameraPoseDirty;
 		}

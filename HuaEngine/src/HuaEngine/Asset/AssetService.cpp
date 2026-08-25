@@ -347,6 +347,10 @@ namespace HE {
 					outSnapshot.TextureStatistics = statistics;
 				}
 			}
+			if (m_Library.ReadArtifact(guid, artifact).Succeeded() && asset->Kind == AssetKind::Shader) {
+				ShaderArtifactDataV2 shader;
+				if (DecodeShaderArtifactV2(artifact, shader).Succeeded()) outSnapshot.ShaderData = std::move(shader);
+			}
 		}
 		else if (m_ProjectContext) {
 			std::filesystem::path sourcePath;

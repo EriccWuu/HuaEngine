@@ -17,6 +17,7 @@ namespace HE::Editor {
 		std::span<const AssetPickerOption> ShaderAssets;
 		std::span<const AssetPickerOption> TextureAssets;
 		std::function<ResultEnvelope(const AssetGuid&, Rendering::ShaderAuthoringMetadata&)> GetShaderAuthoringMetadata;
+		std::function<ResultEnvelope(const std::filesystem::path&)> ReimportAsset;
 	};
 
 	class IAssetEditor {

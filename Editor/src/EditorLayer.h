@@ -39,7 +39,8 @@ namespace HE {
         OpenProject,
         CloseProject,
         NewScene,
-        OpenScene
+        OpenScene,
+		Exit
     };
 
     struct WorkbenchActionRequest {

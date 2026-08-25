@@ -7,6 +7,7 @@
 #include <vector>
 
 #include "AssetRegistry.h"
+#include "HuaEngine/Asset/Artifact/ShaderArtifact.h"
 #include "HuaEngine/Core/ResultEnvelope.h"
 
 namespace HE {
@@ -57,5 +58,6 @@ namespace HE {
 		std::vector<DiagnosticEntry> Diagnostics;
 		std::optional<MeshArtifactStatistics> MeshStatistics;
 		std::optional<TextureArtifactStatistics> TextureStatistics;
+		std::optional<ShaderArtifactDataV2> ShaderData;
 	};
 }
