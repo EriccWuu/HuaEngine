@@ -34,6 +34,7 @@ HuaEngine 当前已经具备以下资产基础能力：
 
 1. 按资产类别区分编辑语义：
    - Native Material 编辑源资产内容。
+   - Native Scene 单击时作为资产进入 Inspector，首期展示只读源文件摘要；只有双击才打开场景文档。
    - OBJ/PNG 编辑 Import Settings，不编辑 Mesh 顶点或 PNG 像素。
    - Shader 首期只读展示编译状态、接口和 diagnostics，源码交给外部编辑器。
 2. 所有编辑都使用显式 `Apply / Revert`，拖动字段时不写磁盘、不触发重复导入。
@@ -43,12 +44,16 @@ HuaEngine 当前已经具备以下资产基础能力：
 6. 资产编辑会话使用 working copy、dirty 状态和 optimistic concurrency hash。
 7. 作者文件保存成功但导入失败时，保留作者修改和 last-good Artifact，并显示结构化失败状态。
 8. 首期资产 Apply 不进入场景 Undo 栈。
+9. Project Panel 中所有已注册文件的单击语义统一为资产选择，包括 `.scene`；打开场景是 `.scene` 独有的双击语义。
+10. Editor 与资产核心层之间使用稳定的只读 `AssetInspectionSnapshot`，Editor 不直接拼接 Manifest、Library 和 ImporterRegistry 数据。
+11. 导入失败 diagnostics 需要持久化，重启 Editor 后仍能正确表达 `LastGoodWithFailure`。
 
 ## 3. 目标与非目标
 
 ### 3.1 必须完成
 
 - Project Panel 点击已注册资产时建立 AssetSelection，并让 Inspector 切换到资产模式。
+- `.scene` 必须注册为 `AssetKind::Scene`，使用稳定 ImporterId `scene.native`；单击只选择，双击才打开。
 - EntitySelection 与 AssetSelection 具有唯一权威状态且互斥。
 - Inspector 通过 Registry 分发到对应的类型化资产编辑器。
 - AssetEditSession 支持 working copy、dirty、Apply、Revert、外部修改冲突和 diagnostics。
@@ -58,6 +63,7 @@ HuaEngine 当前已经具备以下资产基础能力：
 - Material Inspector 能编辑 Shader、参数默认值和 Texture 引用。
 - OBJ/PNG Inspector 能编辑首期 Import Settings 并展示 Artifact 统计。
 - Shader Inspector 能展示编译健康、stages、反射资源和 diagnostics。
+- Scene Inspector 首期能展示 GUID、路径、源文件状态和可安全读取的场景摘要，不因单击而替换当前活动场景。
 - Apply 后按依赖 DAG 重导入，并在成功发布新 Artifact 后使相关 RuntimeCache 失效。
 - 导入失败时继续提供 last-good Artifact。
 - 未保存资产切换、场景切换、工程关闭时提供 `Apply / Discard / Cancel`。
@@ -139,7 +145,8 @@ using EditorSelection = std::variant<
 - 点击 Hierarchy 或 Scene 物体会清除 AssetSelection。
 - SceneViewport picking 只产生 EntitySelection。
 - 首期 AssetSelection 只允许单选。
-- 现有静态 `Selection` 在迁移期只能作为 EntitySelection 的兼容 facade，不得与 `EditorSelectionService` 分别持有两份实体选择权威状态。
+- 现有静态 `Selection` 在迁移期只能作为 EntitySelection 的兼容 facade，其全部读写必须委托给同一个 `EditorSelectionService`；原有 `m_SelectedEntityUuids` 等独立容器必须移除，不得保留双权威状态。
+- 兼容 facade 在 Editor 外的 smoke 中必须有明确可用的默认 service 或显式绑定机制，不能因未初始化而静默丢失选择操作。
 - 最终 Inspector、Hierarchy、SceneViewport、命令路由和快捷键都从统一服务读取选择。
 
 ### 4.2 InspectorPanel
@@ -220,6 +227,38 @@ public:
 - `Revert()` 恢复 session 打开或最近 Apply 后的基准快照。
 - IAssetEditor 位于 Editor 模块；Asset/RHI/Rendering 核心模块不得依赖 ImGui。
 
+### 4.6 AssetInspectionSnapshot
+
+Editor 不直接读取或组合 `AssetManifest`、`AssetLibrary`、`AssetImporterRegistry` 和 RuntimeCache 内部状态。资产核心层提供稳定的只读查询模型：
+
+```cpp
+struct AssetInspectionSnapshot {
+    AssetRecord Asset;
+    std::string ImporterId;
+    uint32_t ImporterVersion = 0;
+    uint32_t SettingsVersion = 0;
+    AssetImportHealth Health;
+    std::string ImportFingerprint;
+    std::filesystem::path ArtifactRelativePath;
+    std::vector<AssetGuid> Dependencies;
+    std::vector<AssetGuid> Dependents;
+    std::vector<DiagnosticEntry> Diagnostics;
+};
+```
+
+由 `AssetService::InspectAsset()` 聚合并通过 `ApplicationOperations::InspectAsset()` 暴露。不存在可导入 Artifact 的 Native Scene 使用明确的 `NotApplicable` Artifact 状态，不能伪装成 `Missing` 或导入失败。
+
+P1 即需要让 `.scene` 拥有 GUID 才能建立 `AssetSelection`。在 P2 sidecar 迁移落地前，Native Scene 先通过专用 source registration 能力进入现有 manifest；已有 manifest GUID 必须复用，新场景只生成一次 GUID。P2 创建 `.scene.meta` 时沿用该 GUID，不得二次生成。Native Scene registration 与 Artifact importer 分离，不能为了复用 Reimport 执行流而生成无意义的 Scene Artifact。
+
+### 4.7 Project Panel 资产目录索引
+
+Project Panel 从 EditorLayer 提供的 `AssetRecord` catalog 建立 normalized relative path 到 GUID 的索引。文件点击只查该内存索引，不临时扫描磁盘、不直接读取 manifest，也不调用 AssetService。
+
+- 已注册文件单击产生 `AssetSelection(Guid)`。
+- `.scene` 单击与其他资产一致，只产生 AssetSelection；双击产生独立的 `OpenScene` action。
+- 未注册文件不进入 Asset Inspector，显示稳定的未注册状态。
+- `.meta` 是 source 的附属文件，不作为独立条目选择。
+
 ## 5. 数据权威与目录契约
 
 ### 5.1 权威关系
@@ -236,6 +275,7 @@ RuntimeCache           可再生运行时对象
 
 - 文件资产的 GUID 以 `.meta` 为权威。
 - Native Material 的实际参数仍以 `.material` 为权威；`.material.meta` 只保存身份和 importer metadata。
+- Native Scene 的实体和组件内容仍以 `.scene` 为权威；`.scene.meta` 保存 GUID、`scene.native` importer 身份和空 settings。Scene 首期不生成 Library Artifact。
 - OBJ/PNG 的 DCC/图片内容以源文件为权威，导入策略以 `.meta.settings` 为权威。
 - `.huaengine/assets.json` 可用于快速启动和诊断，但必须能由 Assets 扫描与 `.meta` 重建。
 - Library 可以完整删除，重新启动或 Reimport All 后必须恢复等价 Artifact。
@@ -405,6 +445,8 @@ Apply 不是跨作者文件与 Artifact 的单一原子事务，而是两个明�
 5. 内容写入同目录临时文件，flush 后原子替换目标源文件或 `.meta`。
 6. 写入成功后更新 session 基准 hash。
 
+原子替换必须封装为跨平台文件写服务。Windows 实现不能假设普通 `std::filesystem::rename(temp, target)` 能覆盖已有目标，必须使用平台支持的替换语义并测试替换失败不破坏旧文件。
+
 #### 阶段 B：导入与发布
 
 1. 以 GUID 强制导入目标资产。
@@ -535,7 +577,18 @@ Preview 使用 working source 和当前 settings 的轻量结果，但首期允�
 
 ShaderAssetEditor 不直接修改 HLSL 或 `.shader`。
 
-### 9.6 GenericAssetInspector
+### 9.6 SceneAssetEditor
+
+首期只读展示：
+
+- scene GUID、source relative path 和文件状态。
+- 场景名称、序列化格式版本和可安全读取的实体数量摘要。
+- 当前是否为活动场景、活动场景是否 dirty。
+- 外部文件诊断。
+
+单击 `.scene` 只打开 SceneAssetEditor，不加载或替换当前 SceneDocument。`Open Scene` 作为显式按钮提供，与 Project Panel 双击使用同一高层 action。SceneAssetEditor 首期没有 Apply/Revert/Reimport，也不生成 Library Artifact；未来增加 Native Scene authoring 字段时仍通过 AssetEditSession 和 AssetAuthoringService 接入。
+
+### 9.7 GenericAssetInspector
 
 未注册专用 Editor、Builtin 或不支持编辑的资产使用只读 fallback，显示通用头部和 diagnostics。Builtin 首期只读，禁止通过 Project Inspector 修改引擎安装目录。
 
@@ -550,12 +603,14 @@ ShaderAssetEditor 不直接修改 HLSL 或 `.shader`。
 5. Mesh/Texture 变化失效对应 runtime resource。
 6. RenderResourceResolver 不长期持有越过 cache generation 的裸引用；若存在跨帧缓存，需要增加 generation/version 校验。
 7. Runtime refresh 失败必须输出 diagnostic，不能让作者 Apply 结果显示为完全成功。
+8. 最近一次导入失败 diagnostics 与失败对应的 source/settings fingerprint 必须持久化到 Library catalog 或等价可再生状态；重启 Editor 后仍能展示 `LastGoodWithFailure`，成功导入后再清除。
 
 ## 11. UI 行为
 
-- Project Panel 单击已注册资产即选择；Scene 文件继续维持现有打开语义，不伪装为当前 AssetKind。
+- Project Panel 单击任意已注册文件都只建立 AssetSelection，`.scene` 与 Material/OBJ/PNG/Shader 行为一致。
+- Project Panel 双击 `.scene` 才打开场景；Scene Inspector 的 `Open Scene` 按钮走同一 action。单击 `.scene` 绝不替换当前 SceneDocument。
 - 当前选择使用稳定高亮，不能只根据 `m_CurrentScenePath` 判断。
-- 双击 Material/OBJ/PNG 首期仍只选择；Shader 可双击 Open Source，但单击只选择。
+- 双击 Material/OBJ/PNG 首期仍只选择；Shader 可双击 Open Source，但单击只选择；只有 `.scene` 双击具有打开场景的强制语义。
 - Inspector 资产字段采用与组件 Inspector 一致的 label/value 两列布局。
 - Apply/Revert 固定在资产 Inspector 头部，布局稳定，不因 diagnostics 数量移动到不可预测位置。
 - Import Health、外部冲突和 last-good 状态使用清晰文本和颜色，但不能只依赖颜色表达。
@@ -581,6 +636,7 @@ Editor/src/Assets/
     ObjMeshImportEditor.h/.cpp
     PngTextureImportEditor.h/.cpp
     ShaderAssetEditor.h/.cpp
+    SceneAssetEditor.h/.cpp
 
 HuaEngine/src/HuaEngine/Asset/Metadata/
   AssetMeta.h/.cpp
@@ -596,22 +652,23 @@ HuaEngine/src/HuaEngine/Asset/Authoring/
 
 ## 13. 分阶段实施
 
-每完成一个 P 必须独立提交，并保持可构建、可测试。
+每完成一个 P 必须保持可构建、可测试。P1、P2 进一步拆成下面列出的独立小提交，避免把选择迁移、UI 路由和资产身份迁移耦合在一个超大提交中。
 
 ### P1：统一选择与只读资产 Inspector
 
 内容：
 
-- EditorSelectionService 和 EditorSelection variant。
-- Project Panel 资产选择 action。
-- Inspector Entity/Asset 路由。
-- AssetInspectorHost、Registry、Session 骨架。
-- GenericAssetInspector。
-- Shader/Material/Mesh/Texture 通用只读信息和 Import Health。
+- P1.1：EditorSelectionService、EditorSelection variant、Selection compatibility facade 和纯模型测试。
+- P1.2：`AssetInspectionSnapshot`、AssetService/ApplicationOperations 查询边界和查询测试。
+- P1.3：AssetInspectorHost、Registry、Session 骨架和 GenericAssetInspector。
+- P1.4：Project Panel catalog 索引与资产选择 action、Inspector Entity/Asset 路由。
+- P1.5：Scene/Shader/Material/Mesh/Texture 通用只读信息和 Import Health。
+- 增加 `AssetKind::Scene` 和 `scene.native` 身份；Scene Artifact 状态为 `NotApplicable`。
 
 验收：
 
 - 点击资产后 Inspector 不再显示 `No entity selected`。
+- 单击 `.scene` 只显示 Scene Asset Inspector，双击才打开场景。
 - 点击 Entity 后资产 Inspector 关闭，Gizmo 恢复。
 - Scene picking、Hierarchy 和 Project selection 互斥且无双权威。
 - 未注册专用 Editor 时稳定 fallback。
@@ -620,13 +677,10 @@ HuaEngine/src/HuaEngine/Asset/Authoring/
 
 内容：
 
-- AssetMeta envelope、codec、校验和原子写。
-- 所有文件资产 sidecar 扫描。
-- 旧 manifest GUID 安全迁移。
-- assets.json 派生重建。
-- Importer settings create/decode/encode/validate。
-- settings digest 进入 fingerprint。
-- optimistic concurrency hash。
+- P2.1：AssetMeta envelope、canonical codec、校验和原子文件写工具。
+- P2.2：所有文件资产 sidecar 扫描、旧 manifest GUID 安全迁移和 assets.json 派生重建。
+- P2.3：Importer settings create/decode/encode/validate 与类型身份校验。
+- P2.4：settings digest 进入 fingerprint、optimistic concurrency hash 和冲突测试。
 
 验收：
 
@@ -730,6 +784,7 @@ HuaEngine/src/HuaEngine/Asset/Authoring/
 ### 14.5 Editor smoke
 
 - Project click -> AssetSelection -> 正确 Inspector。
+- Scene 单击 -> Scene Asset Inspector，且当前 SceneDocument 不变；Scene 双击 -> 打开目标场景。
 - Asset click -> Entity click -> Gizmo 与 Inspector 切换。
 - dirty session 切换弹窗。
 - Apply/Revert/Reimport 命令路由。
@@ -785,7 +840,7 @@ HuaEngine/src/HuaEngine/Asset/Authoring/
 
 完成 P1-P5 后必须满足：
 
-1. Project Panel 中点击 Material、OBJ、PNG、Shader 均能在 Inspector 获得正确体验。
+1. Project Panel 中单击 Scene、Material、OBJ、PNG、Shader 均能在 Inspector 获得正确体验；仅双击 Scene 才打开场景。
 2. Entity 与 Asset selection 互斥，Scene picking、Hierarchy、Gizmo 无回归。
 3. 所有文件资产拥有可版本控制的稳定 `.meta`，现有 GUID 引用迁移后不变。
 4. Material 可在 Inspector 编辑并通过显式 Apply/Revert 管理。
