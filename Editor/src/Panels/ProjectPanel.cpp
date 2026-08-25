@@ -29,6 +29,12 @@ namespace HE {
 		};
 	}
 
+	bool IsProjectPanelVisibleFile(const std::filesystem::path& path) {
+		auto extension = path.extension().string();
+		std::transform(extension.begin(), extension.end(), extension.begin(), [](unsigned char value) { return static_cast<char>(std::tolower(value)); });
+		return extension != ".meta";
+	}
+
 	void ProjectPanel::SetAssetRecords(std::span<const AssetRecord> records) {
 		m_AssetsByPath.clear();
 		for (const auto& record : records) {
@@ -109,6 +115,7 @@ namespace HE {
 		ImGui::BeginChild("AssetsBrowser", ImVec2(0.0f, 0.0f), ImGuiChildFlags_None);
 		std::vector<std::filesystem::directory_entry> entries;
 		for (const auto& entry : std::filesystem::directory_iterator(rootPath)) {
+			if (!entry.is_directory() && !IsProjectPanelVisibleFile(entry.path())) continue;
 			entries.push_back(entry);
 		}
 
@@ -150,6 +157,7 @@ namespace HE {
 			if (open) {
 				std::vector<std::filesystem::directory_entry> children;
 				for (const auto& child : std::filesystem::directory_iterator(entry.path())) {
+					if (!child.is_directory() && !IsProjectPanelVisibleFile(child.path())) continue;
 					children.push_back(child);
 				}
 

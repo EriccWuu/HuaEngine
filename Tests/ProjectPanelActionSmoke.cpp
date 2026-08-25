@@ -26,6 +26,9 @@ int main() {
 	const auto allAction = HE::MakeProjectReimportAction({}, true);
 	Require(allAction.Type == HE::ProjectPanelActionType::ReimportAll, "Expected reimport all action");
 	Require(allAction.Path.empty(), "Expected reimport all to defer asset root resolution to the editor");
+	Require(HE::IsProjectPanelVisibleFile("Assets/Meshes/Quad.obj"), "Expected source assets to remain visible");
+	Require(!HE::IsProjectPanelVisibleFile("Assets/Meshes/Quad.obj.meta"), "Expected metadata sidecars to remain hidden");
+	Require(!HE::IsProjectPanelVisibleFile("Assets/Meshes/Quad.obj.META"), "Expected metadata sidecar matching to ignore case");
 
 	std::cout << "ProjectPanelActionSmoke passed" << std::endl;
 	return 0;

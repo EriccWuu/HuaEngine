@@ -29,6 +29,7 @@ namespace HE {
 	[[nodiscard]] ProjectPanelAction MakeProjectReimportAction(
 		const std::filesystem::path& targetPath,
 		bool reimportAll);
+	[[nodiscard]] bool IsProjectPanelVisibleFile(const std::filesystem::path& path);
 
 	class ProjectPanel {
 	public:
