@@ -182,6 +182,11 @@ namespace HE {
 			const ProjectContext& context,
 			const std::filesystem::path& sourcePath,
 			AssetGuid* outGuid = nullptr) const;
+		[[nodiscard]] ResultEnvelope RenameAsset(
+			const ProjectContext& context,
+			const AssetGuid& guid,
+			std::string_view newBaseName,
+			AssetRecord* outRecord = nullptr) const;
 		[[nodiscard]] ResultEnvelope ListAssets(
 			const ProjectContext& context,
 			std::vector<AssetRecord>& outRecords) const;

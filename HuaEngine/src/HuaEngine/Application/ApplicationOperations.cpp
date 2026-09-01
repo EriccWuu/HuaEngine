@@ -583,6 +583,15 @@ namespace HE {
 		return m_Services->Assets().RegisterSceneAsset(context, sourcePath, outGuid);
 	}
 
+	ResultEnvelope ApplicationOperations::RenameAsset(
+		const ProjectContext& context,
+		const AssetGuid& guid,
+		std::string_view newBaseName,
+		AssetRecord* outRecord) const
+	{
+		return m_Services->Assets().RenameAsset(context, guid, newBaseName, outRecord);
+	}
+
 	ResultEnvelope ApplicationOperations::InspectAsset(const AssetGuid& guid, AssetInspectionSnapshot& outSnapshot) const {
 		return m_Services->Assets().InspectAsset(guid, outSnapshot);
 	}

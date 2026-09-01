@@ -569,6 +569,28 @@ namespace HE {
 		return true;
 	}
 
+	bool AssetManifest::ReplaceByGuid(AssetManifestRecord record) {
+		if (record.Guid.empty() || record.AssetId.empty()) {
+			return false;
+		}
+
+		const auto guidIt = m_GuidIndex.find(record.Guid);
+		if (guidIt == m_GuidIndex.end()) {
+			return false;
+		}
+
+		const size_t index = guidIt->second;
+		const auto assetIt = m_AssetIdIndex.find(record.AssetId);
+		if (assetIt != m_AssetIdIndex.end() && assetIt->second != index) {
+			return false;
+		}
+
+		m_AssetIdIndex.erase(m_Records[index].AssetId);
+		m_Records[index] = std::move(record);
+		m_AssetIdIndex[m_Records[index].AssetId] = index;
+		return true;
+	}
+
 	std::filesystem::path GetAssetManifestPath(const ProjectContext& context) {
 		return context.RootPath / ".huaengine" / "assets.json";
 	}

@@ -82,6 +82,34 @@ namespace HE {
 			return handle;
 		}
 
+		[[nodiscard]] bool ReplaceByGuid(AssetRecord record) {
+			if (record.Guid.empty() || record.AssetId.empty()) {
+				return false;
+			}
+
+			const auto guidIt = m_Guids.find(record.Guid);
+			if (guidIt == m_Guids.end()) {
+				return false;
+			}
+
+			const AssetHandle handle = guidIt->second;
+			const auto assetIdIt = m_AssetIds.find(record.AssetId);
+			if (assetIdIt != m_AssetIds.end() && assetIdIt->second != handle) {
+				return false;
+			}
+
+			auto existingIt = m_Assets.find(handle);
+			if (existingIt == m_Assets.end()) {
+				return false;
+			}
+
+			m_AssetIds.erase(existingIt->second.AssetId);
+			record.Handle = handle;
+			existingIt->second = std::move(record);
+			m_AssetIds[existingIt->second.AssetId] = handle;
+			return true;
+		}
+
 		[[nodiscard]] bool Contains(AssetHandle handle) const {
 			return m_Assets.find(handle) != m_Assets.end();
 		}
