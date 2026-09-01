@@ -94,6 +94,21 @@ int main() {
 	Require(renameAction.Type == HE::ProjectPanelActionType::RenameAsset, "Expected rename asset action");
 	Require(renameAction.Guid == "created-guid" && renameAction.Name == "Renamed", "Expected rename action parameters");
 
+	HE::ProjectPanel projectPanel;
+	HE::AssetRecord renameRecord;
+	renameRecord.Guid = "created-guid";
+	renameRecord.Source = HE::AssetSource::File;
+	renameRecord.AbsolutePath = assetDirectory / "New Scene 1.scene";
+	const std::array renameRecords{ renameRecord };
+	projectPanel.SetAssetRecords(renameRecords);
+	projectPanel.BeginRename(renameRecord.Guid);
+	Require(projectPanel.IsRenaming(), "Expected inline rename to start");
+	projectPanel.RetryRename(renameRecord.Guid, "Attempted Name");
+	Require(projectPanel.IsRenaming(), "Expected failed rename to keep inline editing active");
+	Require(projectPanel.GetRenameDraft() == "Attempted Name", "Expected failed rename to preserve the submitted draft");
+	projectPanel.CompleteRename(renameRecord.Guid);
+	Require(!projectPanel.IsRenaming(), "Expected successful rename confirmation to end inline editing");
+
 	std::filesystem::remove_all(smokeRoot, errorCode);
 
 	std::cout << "ProjectPanelActionSmoke passed" << std::endl;

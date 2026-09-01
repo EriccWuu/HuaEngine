@@ -71,12 +71,25 @@ namespace HE {
 			break;
 		}
 		m_RequestRenameFocus = true;
+		m_RenameSubmissionPending = false;
+	}
+
+	void ProjectPanel::RetryRename(const AssetGuid& guid, std::string_view draft) {
+		m_RenamingAssetGuid = guid;
+		m_RenameBuffer = draft;
+		m_RequestRenameFocus = true;
+		m_RenameSubmissionPending = false;
+	}
+
+	void ProjectPanel::CompleteRename(const AssetGuid& guid) {
+		if (m_RenamingAssetGuid == guid) CancelRename();
 	}
 
 	void ProjectPanel::CancelRename() {
 		m_RenamingAssetGuid.clear();
 		m_RenameBuffer.clear();
 		m_RequestRenameFocus = false;
+		m_RenameSubmissionPending = false;
 	}
 
 	std::optional<ProjectPanelAction> ProjectPanel::ConsumePendingAction() {
@@ -244,20 +257,18 @@ namespace HE {
 			}
 
 			m_RenameBuffer.resize(256, '\0');
+			ImGui::BeginDisabled(m_RenameSubmissionPending);
 			const bool submitted = ImGui::InputText(
 				"##Rename",
 				m_RenameBuffer.data(),
 				m_RenameBuffer.size(),
 				ImGuiInputTextFlags_EnterReturnsTrue | ImGuiInputTextFlags_AutoSelectAll);
 			const bool commitAfterFocusLoss = ImGui::IsItemDeactivatedAfterEdit();
-			const bool cancelAfterFocusLoss = ImGui::IsItemDeactivated() && !commitAfterFocusLoss && !submitted;
+			ImGui::EndDisabled();
 			m_RenameBuffer.resize(std::char_traits<char>::length(m_RenameBuffer.c_str()));
-			if (submitted || commitAfterFocusLoss) {
+			if (!m_RenameSubmissionPending && (submitted || commitAfterFocusLoss)) {
 				m_PendingAction = MakeProjectRenameAssetAction(asset->Guid, m_RenameBuffer);
-				CancelRename();
-			}
-			else if (cancelAfterFocusLoss) {
-				CancelRename();
+				m_RenameSubmissionPending = true;
 			}
 		}
 		else {

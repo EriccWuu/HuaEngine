@@ -22,8 +22,10 @@ namespace HE::Editor {
 		void DrawModals();
 
 		[[nodiscard]] bool HasDirtyEdit() const;
+		[[nodiscard]] const AssetGuid& GetEditingAssetGuid() const;
 		[[nodiscard]] ResultEnvelope Apply(AssetApplyState* outState = nullptr);
 		void Revert();
+		void Reload(const AssetGuid& guid);
 		bool RequestDirtyResolution(std::function<void()> continuation);
 		void CheckExternalModification();
 

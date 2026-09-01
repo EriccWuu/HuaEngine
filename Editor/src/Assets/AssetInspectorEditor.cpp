@@ -58,6 +58,14 @@ namespace HE::Editor {
 		return editor != nullptr && editor->IsDirty();
 	}
 
+	const AssetGuid& AssetInspectorEditor::GetEditingAssetGuid() const {
+		return m_Host.GetSession().GetGuid();
+	}
+
+	void AssetInspectorEditor::Reload(const AssetGuid& guid) {
+		QueueReload(guid);
+	}
+
 	void AssetInspectorEditor::QueueReload(const AssetGuid& guid) {
 		m_PendingReloadGuid = guid;
 	}

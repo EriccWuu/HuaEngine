@@ -11,7 +11,9 @@
 #include "Interaction/EditorSceneCommands.h"
 #include "HuaEngine/Project/ProjectContext.h"
 #include "Assets/AssetInspectorEditor.h"
+#include "Assets/AssetCreationRegistry.h"
 #include "Assets/AssetPickerCatalog.h"
+#include "Assets/AssetWorkspaceController.h"
 #include "Panels/HierarchyPanel.h"
 #include "Panels/InspectorPanel.h"
 #include "Panels/ConsolePanel.h"
@@ -41,7 +43,6 @@ namespace HE {
         None,
         OpenProject,
         CloseProject,
-        NewScene,
         OpenScene,
 		Exit
     };
@@ -72,12 +73,15 @@ namespace HE {
         bool InitializeWorkbenchShell();
         bool BindSceneDocumentToShell();
         bool RestoreLastSceneForSession();
-        bool CreateNewSceneDocument(std::string_view sceneName);
+		bool CreateInitialSceneAsset();
         bool OpenSceneDocument(const std::filesystem::path& scenePath);
         bool SaveActiveSceneDocument();
-        bool SaveActiveSceneDocumentAs(const std::filesystem::path& scenePath);
+		bool SaveAllDocuments();
+		void CreateProjectAsset(std::string_view typeId, const std::filesystem::path& targetDirectory);
+		void RenameProjectAsset(const AssetGuid& guid, std::string_view newBaseName);
+		void SynchronizeRenamedScenePath(const std::filesystem::path& oldPath, const std::filesystem::path& newPath);
         void SetSceneContext(const Ref<Scene>& scene);
-        void SetSceneDocument(const Ref<Scene>& scene, const std::filesystem::path& scenePath, SceneDocumentSource source);
+		void SetSceneDocument(const Ref<Scene>& scene, const std::filesystem::path& scenePath);
 		void RestoreSceneCameraPose(const std::filesystem::path& scenePath);
         void EnterProjectHub();
         void EnterWorkbenchShell();
@@ -85,7 +89,6 @@ namespace HE {
         void SyncWorkbenchSessionState();
         void SyncSceneDocumentState();
         void RefreshInteractionHost();
-        void RefreshCommandInputs();
 		bool RefreshAssetPickerCatalog();
 		void ReimportProjectAssets(const std::filesystem::path& targetPath);
         std::filesystem::path ResolveScenePathInput(const std::filesystem::path& scenePath) const;
@@ -129,6 +132,8 @@ namespace HE {
         Ref<ProjectPanel> m_ProjectPanel;
         Ref<HierarchyPanel> m_HierarchyPanel;
 		Editor::AssetPickerCatalog m_AssetPickerCatalog;
+		Editor::AssetCreationRegistry m_AssetCreationRegistry;
+		Editor::AssetWorkspaceController m_AssetWorkspaceController;
 		Ref<Editor::AssetInspectorEditor> m_AssetInspectorEditor;
 		Ref<Editor::SceneEntityInspectorEditor> m_SceneEntityInspectorEditor;
         Ref<InspectorPanel> m_Inspector;
@@ -141,15 +146,9 @@ namespace HE {
 		std::chrono::steady_clock::time_point m_LastSceneCameraPoseSave = std::chrono::steady_clock::now();
         WorkbenchActionRequest m_PendingAction;
         bool m_OpenUnsavedChangesPopup = false;
-		bool m_RequestNewScenePopup = false;
-		bool m_RequestOpenScenePopup = false;
-		bool m_RequestSaveSceneAsPopup = false;
 		bool m_IsModalOpen = false;
         std::array<char, 512> m_ProjectHubPathInput{};
         std::array<char, 128> m_ProjectHubNameInput{};
-        std::array<char, 128> m_NewSceneNameInput{};
-        std::array<char, 512> m_SceneOpenPathInput{};
-        std::array<char, 512> m_SceneSaveAsPathInput{};
         bool m_ShowProjectPanel = true;
         bool m_ShowHierarchyPanel = true;
         bool m_ShowInspectorPanel = true;

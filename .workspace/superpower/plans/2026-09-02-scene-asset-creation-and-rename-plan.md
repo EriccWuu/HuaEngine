@@ -41,7 +41,7 @@
 - Produces: `AssetService::RenameAsset(const ProjectContext&, const AssetGuid&, std::string_view, AssetRecord*)`。
 - Produces: 同签名的 `ApplicationOperations::RenameAsset` facade。
 
-- [ ] **Step 1: 在 AssetServiceSmoke 写 Rename RED 测试**
+- [x] **Step 1: 在 AssetServiceSmoke 写 Rename RED 测试**
 
 创建并注册一个 `Assets/Scenes/Original.scene`，随后验证期望接口：
 
@@ -62,7 +62,7 @@ Require(std::filesystem::exists(HE::GetAssetMetaPath(renamed.AbsolutePath)), "Ex
 
 同一测试覆盖空名称、`..`、路径分隔符、同目录重名、Builtin GUID 和缺失源文件均失败，且失败后旧记录仍可解析。
 
-- [ ] **Step 2: 构建并确认 RED**
+- [x] **Step 2: 构建并确认 RED**
 
 ```powershell
 cmake --build build --config Debug --target AssetServiceSmoke --parallel 8
@@ -70,7 +70,7 @@ cmake --build build --config Debug --target AssetServiceSmoke --parallel 8
 
 预期：因 `RenameAsset` 和 identity replacement 接口不存在而编译失败。
 
-- [ ] **Step 3: 实现 Manifest 与 Registry 的 identity replacement**
+- [x] **Step 3: 实现 Manifest 与 Registry 的 identity replacement**
 
 `ReplaceByGuid` 只允许已有 GUID；先检查新 AssetId 未被其他 GUID 占用，再移除旧 AssetId 索引、写入记录并建立新索引。Registry 复用原 Handle，规则与 Manifest 一致。
 
@@ -79,7 +79,7 @@ cmake --build build --config Debug --target AssetServiceSmoke --parallel 8
 [[nodiscard]] bool ReplaceByGuid(AssetRecord record);
 ```
 
-- [ ] **Step 4: 实现 AssetService::RenameAsset**
+- [x] **Step 4: 实现 AssetService::RenameAsset**
 
 按以下顺序执行：
 
@@ -92,7 +92,7 @@ cmake --build build --config Debug --target AssetServiceSmoke --parallel 8
 7. 任一步失败时恢复快照并将已经移动的文件移回旧路径。
 8. 成功结果 payload 写入 `asset_guid`、`old_asset_id`、`asset_id`、`old_asset_path`、`asset_path`。
 
-- [ ] **Step 5: 接入 ApplicationOperations 并验证 GREEN**
+- [x] **Step 5: 接入 ApplicationOperations 并验证 GREEN**
 
 ```powershell
 cmake --build build --config Debug --target AssetServiceSmoke ApplicationOperationsSmoke --parallel 8
@@ -100,7 +100,7 @@ cmake --build build --config Debug --target AssetServiceSmoke ApplicationOperati
 & .\build\bin\Debug-Windows-x64\smoke\ApplicationOperationsSmoke.exe
 ```
 
-- [ ] **Step 6: 提交 P1**
+- [x] **Step 6: 提交 P1**
 
 ```powershell
 git add HuaEngine/src/HuaEngine/Asset/AssetManifest.* HuaEngine/src/HuaEngine/Asset/AssetRegistry.h HuaEngine/src/HuaEngine/Asset/AssetService.* HuaEngine/src/HuaEngine/Application/ApplicationOperations.* Tests/AssetServiceSmoke.cpp
@@ -120,7 +120,7 @@ git commit -m "feat(asset): add identity-preserving asset rename"
 - Consumes: `SceneService::CreateScene`、`SceneService::SaveScene`、`AssetService::RegisterSceneAsset`。
 - Produces: `ApplicationOperations::CreateSceneAsset(const ProjectContext&, const std::filesystem::path&, AssetGuid*)`。
 
-- [ ] **Step 1: 写 CreateSceneAsset RED 测试**
+- [x] **Step 1: 写 CreateSceneAsset RED 测试**
 
 ```cpp
 const auto scenePath = projectContext.GetAssetRootPath() / "Scenes" / "Created.scene";
@@ -140,17 +140,17 @@ Require(record.Kind == HE::AssetKind::Scene, "Expected scene kind");
 Require(!operations.CreateSceneAsset(projectContext, scenePath).Succeeded(), "Expected no overwrite");
 ```
 
-- [ ] **Step 2: 构建并确认 RED**
+- [x] **Step 2: 构建并确认 RED**
 
 ```powershell
 cmake --build build --config Debug --target ApplicationOperationsSmoke --parallel 8
 ```
 
-- [ ] **Step 3: 实现 CreateSceneAsset**
+- [x] **Step 3: 实现 CreateSceneAsset**
 
 预检要求目标位于 Assets 下、扩展名为 `.scene` 且源文件/meta 均不存在。Scene 名使用 `assetPath.stem().string()`。Save 成功而 Register 失败时，仅删除本操作新建的 Scene 与 meta；成功结果透传 GUID、AssetId 和绝对路径。
 
-- [ ] **Step 4: 验证 GREEN**
+- [x] **Step 4: 验证 GREEN**
 
 ```powershell
 cmake --build build --config Debug --target ApplicationOperationsSmoke AssetServiceSmoke --parallel 8
@@ -158,7 +158,7 @@ cmake --build build --config Debug --target ApplicationOperationsSmoke AssetServ
 & .\build\bin\Debug-Windows-x64\smoke\AssetServiceSmoke.exe
 ```
 
-- [ ] **Step 5: 提交 P2**
+- [x] **Step 5: 提交 P2**
 
 ```powershell
 git add HuaEngine/src/HuaEngine/Application/ApplicationOperations.* Tests/ApplicationOperationsSmoke.cpp
@@ -188,7 +188,7 @@ git commit -m "feat(asset): create persisted scene assets"
 - Produces: `ProjectPanel::SetCreationRegistry`、`BeginRename`、`CancelRename`。
 - Produces: `AssetWorkspaceController::RegisterCreator/CreateAsset/SetRenameHandler/RenameAsset`。
 
-- [ ] **Step 1: 扩展 ProjectPanelActionSmoke 为 RED**
+- [x] **Step 1: 扩展 ProjectPanelActionSmoke 为 RED**
 
 ```cpp
 HE::Editor::AssetCreationRegistry registry;
@@ -206,13 +206,13 @@ Require(HE::Editor::ValidateAssetBaseName("../Renamed").Failed(), "Expected sepa
 
 同时验证 `MakeProjectCreateAssetAction(typeId, directory)` 和 `MakeProjectRenameAssetAction(guid, baseName)` 保留完整参数。
 
-- [ ] **Step 2: 构建并确认 RED**
+- [x] **Step 2: 构建并确认 RED**
 
 ```powershell
 cmake --build build --config Debug --target ProjectPanelActionSmoke --parallel 8
 ```
 
-- [ ] **Step 3: 实现 Registry、Naming 与 Controller**
+- [x] **Step 3: 实现 Registry、Naming 与 Controller**
 
 Controller 不依赖 Application 单例，通过以下 handler 注入真实操作，因此新增资产类型时不修改 Controller 分支：
 
@@ -228,7 +228,7 @@ AssetWorkspaceMutation RenameAsset(const AssetGuid&, std::string_view newBaseNam
 
 `ProjectPanelActionSmoke` 使用计数 lambda 验证 Controller 将唯一默认路径传给创建 handler，并将 GUID、OldPath、NewPath 和 `BeginRename` 放入返回结果。EditorLayer 在 P4 捕获当前 `ProjectContext` 注入 `CreateSceneAsset` 和 `RenameAsset` handler。
 
-- [ ] **Step 4: 实现 ProjectPanel UI**
+- [x] **Step 4: 实现 ProjectPanel UI**
 
 - 目录节点与 Assets 空白区域右键显示 Registry 中的 `Create` 子菜单。
 - 文件右键增加 `Rename`，Builtin 或无记录文件禁用。
@@ -236,14 +236,14 @@ AssetWorkspaceMutation RenameAsset(const AssetGuid&, std::string_view newBaseNam
 - Enter 和失焦产生 RenameAsset action；Esc 取消。
 - 新建成功后外部调用 `BeginRename(guid)`，Panel 在下一帧聚焦输入框并全选名称主体。
 
-- [ ] **Step 5: 验证 P3**
+- [x] **Step 5: 验证 P3**
 
 ```powershell
 cmake --build build --config Debug --target ProjectPanelActionSmoke Editor --parallel 8
 & .\build\bin\Debug-Windows-x64\smoke\ProjectPanelActionSmoke.exe
 ```
 
-- [ ] **Step 6: 提交 P3**
+- [x] **Step 6: 提交 P3**
 
 ```powershell
 git add CMakeLists.txt Editor/src/Assets/AssetCreationRegistry.* Editor/src/Assets/AssetWorkspaceController.* Editor/src/Panels/ProjectAssetNaming.* Editor/src/Panels/ProjectPanel.* Tests/ProjectPanelActionSmoke.cpp
@@ -269,7 +269,7 @@ git commit -m "feat(editor): add project asset creation and rename"
 - Produces: `editor.document.save_all` Command 和 Ctrl+S binding。
 - Removes: 无路径 SceneDocument、Scene 顶部菜单和三个 Scene Modal。
 
-- [ ] **Step 1: 写工作台状态 RED 测试**
+- [x] **Step 1: 写工作台状态 RED 测试**
 
 在 `ProjectWorkbenchSmoke` 验证路径迁移：
 
@@ -284,19 +284,19 @@ Require(persisted.FindSceneCameraPose(oldPath.generic_string()) == nullptr, "Exp
 
 在 `EditorInputSmoke` 将保存命令与 binding 改为 `editor.document.save_all` 并断言 Ctrl+S 只执行一次。
 
-- [ ] **Step 2: 构建并确认 RED**
+- [x] **Step 2: 构建并确认 RED**
 
 ```powershell
 cmake --build build --config Debug --target ProjectWorkbenchSmoke EditorInputSmoke --parallel 8
 ```
 
-- [ ] **Step 3: 集成 ProjectPanel actions**
+- [x] **Step 3: 集成 ProjectPanel actions**
 
 EditorLayer 初始化 Scene creation descriptor，将 Registry 与 InputService 注入 ProjectPanel。处理 CreateAsset 时调用 Controller，成功后刷新 catalog、选择 GUID 并 `BeginRename`；处理 RenameAsset 前检查同 GUID 的 Asset Inspector dirty 状态，成功后刷新并恢复 GUID 选择。
 
 当 Rename 返回旧/新路径且旧路径等于当前 SceneDocument 路径时，更新 SceneDocument DisplayName/ScenePath、ProjectSession、PersistedEditorSession 和相机 pose，保持 dirty 状态。
 
-- [ ] **Step 4: 将新项目 bootstrap 改为真实 Scene 资产**
+- [x] **Step 4: 将新项目 bootstrap 改为真实 Scene 资产**
 
 用以下流程替代 `CreateNewSceneDocument`：
 
@@ -308,7 +308,7 @@ OpenSceneDocument(createdPath)
 
 普通 ProjectPanel 创建不调用 OpenSceneDocument。
 
-- [ ] **Step 5: 实现 Save All 并删除 Scene 菜单**
+- [x] **Step 5: 实现 Save All 并删除 Scene 菜单**
 
 注册：
 
@@ -324,7 +324,7 @@ registerCommand({
 
 `SceneDocument` 删除 `NewScene` source；`SetSceneDocument` 对空路径返回失败或断言，所有调用点只传现有资产路径。
 
-- [ ] **Step 6: 验证 P4 定向测试与结构扫描**
+- [x] **Step 6: 验证 P4 定向测试与结构扫描**
 
 ```powershell
 cmake --build build --config Debug --target ProjectWorkbenchSmoke EditorInputSmoke ProjectPanelActionSmoke Editor --parallel 8
@@ -336,7 +336,7 @@ rg -n 'editor\.scene\.(new|open|save_as)|BeginMenu\("Scene"|New Scene"|Open Scen
 
 预期：结构扫描无旧顶层 Scene 生命周期入口匹配；允许 Scene Asset Inspector 的 `Open Scene` 按钮存在，因此扫描限定 EditorLayer 和命令 ID 时应无匹配。
 
-- [ ] **Step 7: 完整验证**
+- [x] **Step 7: 完整验证**
 
 ```powershell
 cmake --build build --config Debug --parallel 8
@@ -344,7 +344,7 @@ cmake --build build --config Debug --parallel 8
 
 从根 `CMakeLists.txt` 当前 `add_executable(...Smoke)` 提取正式 smoke 目标，并从仓库根目录逐个执行，要求全部退出码为 0。
 
-- [ ] **Step 8: 提交 P4**
+- [x] **Step 8: 提交 P4**
 
 ```powershell
 git diff --check
@@ -356,13 +356,13 @@ git commit -m "refactor(editor): make scene lifecycle asset-centric"
 
 ## 完成检查
 
-- [ ] P1-P4 各有独立提交。
-- [ ] Scene 创建后立即存在 `.scene`、`.meta`、Manifest 和 Registry 记录。
-- [ ] ProjectPanel 创建 Scene 后选中并 Rename，但不自动打开。
-- [ ] Rename 保持 GUID 与 Handle，不移动 Library artifact。
-- [ ] 打开 Scene Rename 后文档、项目会话和相机 pose 路径同步。
-- [ ] 不再存在无路径 SceneDocument。
-- [ ] 顶部 Scene 菜单和三个 Scene Modal 已删除。
-- [ ] Ctrl+S 唯一映射到 Save All。
-- [ ] Debug 全量构建通过。
-- [ ] 当前正式 smoke 全部通过。
+- [x] P1-P4 各有独立提交。
+- [x] Scene 创建后立即存在 `.scene`、`.meta`、Manifest 和 Registry 记录。
+- [x] ProjectPanel 创建 Scene 后选中并 Rename，但不自动打开。
+- [x] Rename 保持 GUID 与 Handle，不移动 Library artifact。
+- [x] 打开 Scene Rename 后文档、项目会话和相机 pose 路径同步。
+- [x] 不再存在无路径 SceneDocument。
+- [x] 顶部 Scene 菜单和三个 Scene Modal 已删除。
+- [x] Ctrl+S 唯一映射到 Save All。
+- [x] Debug 全量构建通过。
+- [x] 当前正式 smoke 全部通过。

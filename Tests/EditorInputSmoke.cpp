@@ -100,14 +100,14 @@ int main() {
 	HE::Editor::EditorInputService consumedService;
 	int saveCount = 0;
 	Require(consumedService.Commands().Register({
-		.Id = "editor.scene.save",
-		.DisplayName = "Save",
-		.Category = "Scene",
+		.Id = "editor.document.save_all",
+		.DisplayName = "Save All",
+		.Category = "File",
 		.CanExecute = [] { return true; },
 		.Execute = [&] { ++saveCount; }
 	}).Succeeded(), "Expected save command registration");
 	Require(consumedService.Bindings().RegisterDefaultCommand({
-		"scene.save", "editor.scene.save", "Global",
+		"document.save_all", "editor.document.save_all", "Global",
 		{ HE::KeyboardControl(HE::Key::S), HE::InputModifiers::Control, HE::InputTrigger::Pressed, true }, 0, true
 	}).Succeeded(), "Expected Ctrl+S command binding");
 	Require(consumedService.Bindings().RegisterDefaultAction({

@@ -52,7 +52,11 @@ namespace HE {
 		void SetCreationRegistry(const Editor::AssetCreationRegistry* registry) { m_CreationRegistry = registry; }
 		void SetSelectedAssetGuid(AssetGuid guid) { m_SelectedAssetGuid = std::move(guid); }
 		void BeginRename(const AssetGuid& guid);
+		void RetryRename(const AssetGuid& guid, std::string_view draft);
+		void CompleteRename(const AssetGuid& guid);
 		void CancelRename();
+		[[nodiscard]] bool IsRenaming() const { return !m_RenamingAssetGuid.empty(); }
+		[[nodiscard]] std::string_view GetRenameDraft() const { return m_RenameBuffer; }
 		void SetCanReimportCallback(std::function<bool(const std::filesystem::path&)> callback) { m_CanReimport = std::move(callback); }
 		void SetInputService(Editor::EditorInputService* input) { m_Input = input; }
 		[[nodiscard]] bool IsFocused() const { return m_IsFocused; }
@@ -76,6 +80,7 @@ namespace HE {
 		AssetGuid m_RenamingAssetGuid;
 		std::string m_RenameBuffer;
 		bool m_RequestRenameFocus = false;
+		bool m_RenameSubmissionPending = false;
 		const Editor::AssetCreationRegistry* m_CreationRegistry = nullptr;
 		Editor::EditorInputService* m_Input = nullptr;
 		bool m_IsFocused = false;
