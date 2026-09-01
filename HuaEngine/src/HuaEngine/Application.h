@@ -8,6 +8,7 @@
 #include "HuaEngine/Core/LayerStack.h"
 #include "HuaEngine/Events/Event.h"
 #include "HuaEngine/GUI/ImguiLayer.h"
+#include "HuaEngine/Input/InputSystem.h"
 
 namespace HE
 {
@@ -49,6 +50,8 @@ namespace HE
 			return *m_Window;
 		}
 		const ApplicationSpecification& GetSpecification() const { return m_Specification; }
+		[[nodiscard]] InputSystem& GetInputSystem() { return m_InputSystem; }
+		[[nodiscard]] const InputSnapshot& GetInputSnapshot() const { return m_InputSystem.GetSnapshot(); }
 		bool IsRuntimeInitialized() const { return m_RuntimeInitialized; }
 		ApplicationOperations& GetOperations();
 		const ApplicationOperations& GetOperations() const;
@@ -81,6 +84,7 @@ namespace HE
 		Scope<ApplicationServices> m_Services;
 		Scope<ApplicationOperations> m_Operations;
 		LayerStack m_LayerStack;
+		InputSystem m_InputSystem;
 		static Application* ms_Instance;
 	};
 

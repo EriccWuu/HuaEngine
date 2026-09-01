@@ -6,6 +6,7 @@
 #include "HuaEngine/Events/ApplicationEvent.h"
 #include "HuaEngine/Events/MouseEvent.h"
 #include "HuaEngine/Events/KeyEvent.h"
+#include "Platform/Windows/GlfwInputTranslator.h"
 
 namespace HE {
 	unsigned int shaderProgram;
@@ -81,6 +82,7 @@ namespace HE {
 					break;
 				}
 				case GLFW_FALSE: {
+					if (data.FocusLostCallback) data.FocusLostCallback();
 					auto event = WindowLostFocusEvent();
 					data.EventCallback(event);
 					break;
@@ -91,6 +93,7 @@ namespace HE {
 		// Mouse Events
 		glfwSetMouseButtonCallback(m_Window, [](GLFWwindow *window, int button, int action, int mods) {
 			WindowData& data = *(WindowData*)glfwGetWindowUserPointer(window);
+			if (data.InputCallback) data.InputCallback(TranslateGlfwMouseButtonEvent(button, action, mods, glfwGetTime()));
 			switch (action) {
 				case GLFW_PRESS: {
 					auto event = MouseButtonPressedEvent(button);
@@ -107,12 +110,14 @@ namespace HE {
 
 		glfwSetCursorPosCallback(m_Window, [](GLFWwindow* window, double xpos, double ypos) {
 			WindowData& data = *(WindowData*)glfwGetWindowUserPointer(window);
+			if (data.InputCallback) data.InputCallback(RawInputEvent::Pointer({ static_cast<float>(xpos), static_cast<float>(ypos) }, glfwGetTime()));
 			auto event = MouseMovedEvent((float)xpos, (float)ypos);
 			data.EventCallback(event);
 		});
 
 		glfwSetScrollCallback(m_Window, [](GLFWwindow* window, double xoffset, double yoffset) {
 			WindowData& data = *(WindowData*)glfwGetWindowUserPointer(window);
+			if (data.InputCallback) data.InputCallback(RawInputEvent::Scroll({ static_cast<float>(xoffset), static_cast<float>(yoffset) }, glfwGetTime()));
 			auto event = MouseScrolledEvent((float)xoffset, (float)yoffset);
 			data.EventCallback(event);
 		});
@@ -120,6 +125,7 @@ namespace HE {
 		// Keyboard Events
 		glfwSetKeyCallback(m_Window, [](GLFWwindow* window, int key, int scancode, int action, int mods) {
 			WindowData& data = *(WindowData*)glfwGetWindowUserPointer(window);
+			if (data.InputCallback) data.InputCallback(TranslateGlfwKeyEvent(key, action, mods, glfwGetTime()));
 			switch (action) {
 				case GLFW_PRESS: {
 					auto event = KeyPressedEvent(key, false);
@@ -141,6 +147,7 @@ namespace HE {
 
 		glfwSetCharCallback(m_Window, [](GLFWwindow* window, unsigned int codepoint) {
 			WindowData& data = *(WindowData*)glfwGetWindowUserPointer(window);
+			if (data.InputCallback) data.InputCallback(RawInputEvent::Text(static_cast<char32_t>(codepoint), glfwGetTime()));
 			auto event = KeyTypedEvent(codepoint);
 			data.EventCallback(event);
 		});
@@ -157,9 +164,13 @@ namespace HE {
 		}
 	}
 
-	void WindowsWindow::OnUpdate()
+	void WindowsWindow::PollEvents()
 	{
 		glfwPollEvents();
+	}
+
+	void WindowsWindow::Present()
+	{
 		m_Context->SwapBuffers();
 	}
 

@@ -12,6 +12,9 @@ namespace HE {
 		void HandleFocusLost();
 		[[nodiscard]] const InputSnapshot& FinalizeFrame();
 		[[nodiscard]] const InputSnapshot& GetSnapshot() const { return m_Snapshot; }
+		[[nodiscard]] bool IsWorkingDown(InputControl control) const { return m_Down.contains(control); }
+		[[nodiscard]] glm::vec2 GetWorkingPointerPosition() const { return m_PointerPosition; }
+		[[nodiscard]] glm::vec2 GetWorkingScrollDelta() const { return m_ScrollDelta; }
 
 	private:
 		struct PressRecord {
@@ -20,7 +23,7 @@ namespace HE {
 			bool Valid = false;
 		};
 
-		void RecordControlEvent(const RawInputEvent& event);
+		[[nodiscard]] bool RecordControlEvent(const RawInputEvent& event);
 		void DetectDoublePress(const RawInputEvent& event);
 
 		InputSnapshot m_Snapshot;

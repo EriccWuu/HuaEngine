@@ -6,6 +6,7 @@
 #include "backends/imgui_impl_opengl3.h"
 
 #include "HuaEngine/Application.h"
+#include "HuaEngine/GUI/ImguiInputBridge.h"
 #include "GLFW/glfw3.h"
 #include "glad/glad.h"
 
@@ -179,13 +180,14 @@ namespace HE {
 
     }
 
-    void ImguiLayer::Begin()
-    {
+	void ImguiLayer::Begin(InputSystem* inputSystem)
+	{
         // Start the Dear ImGui frame
         ImGui_ImplOpenGL3_NewFrame();
         ImGui_ImplGlfw_NewFrame();
-        ImGui::NewFrame();
-    }
+		ImGui::NewFrame();
+		if (inputSystem) SynchronizeImguiInput(*inputSystem);
+	}
 
     void ImguiLayer::End()
     {

@@ -1,11 +1,16 @@
 #include <cstdlib>
+#include <filesystem>
+#include <fstream>
 #include <iostream>
+#include <sstream>
 #include <string>
 
 #include "HuaEngine/Core/KeyCodes.h"
 #include "HuaEngine/Core/MouseCodes.h"
 #include "HuaEngine/ECS/FrameContext.h"
 #include "HuaEngine/Input/InputSystem.h"
+#include "Platform/Windows/GlfwInputTranslator.h"
+#include "GLFW/glfw3.h"
 
 namespace {
 	void Require(bool condition, const std::string& message) {
@@ -64,6 +69,36 @@ int main() {
 	const auto& focusLost = input.FinalizeFrame();
 	Require(focusLost.WasReleased(w) && !focusLost.IsDown(w), "Expected focus loss to release held controls");
 	Require(!focusLost.GetEvents().empty(), "Expected ordered focus-loss release events");
+
+	const auto translated = HE::TranslateGlfwKeyEvent(
+		GLFW_KEY_S,
+		GLFW_PRESS,
+		GLFW_MOD_CONTROL | GLFW_MOD_SHIFT,
+		2.0);
+	Require(translated.Control == HE::KeyboardControl(HE::Key::S), "Expected platform key translation");
+	Require(
+		translated.Phase == HE::InputPhase::Pressed &&
+			HE::HasModifier(translated.Modifiers, HE::InputModifiers::Control) &&
+			HE::HasModifier(translated.Modifiers, HE::InputModifiers::Shift),
+		"Expected platform phase and modifier translation");
+
+	std::filesystem::path repositoryRoot = std::filesystem::current_path();
+	while (!repositoryRoot.empty() && !std::filesystem::exists(repositoryRoot / "CMakeLists.txt")) {
+		repositoryRoot = repositoryRoot.parent_path();
+	}
+	Require(!repositoryRoot.empty(), "Expected to locate repository root");
+	std::ifstream applicationStream(repositoryRoot / "HuaEngine" / "src" / "HuaEngine" / "Application.cpp");
+	Require(applicationStream.good(), "Expected Application.cpp to be readable");
+	std::stringstream applicationBuffer;
+	applicationBuffer << applicationStream.rdbuf();
+	const std::string applicationSource = applicationBuffer.str();
+	const size_t pollPosition = applicationSource.find("m_Window->PollEvents()");
+	const size_t updatePosition = applicationSource.find("layer->OnUpdate()");
+	const size_t presentPosition = applicationSource.find("m_Window->Present()");
+	Require(
+		pollPosition != std::string::npos && updatePosition != std::string::npos && presentPosition != std::string::npos &&
+			pollPosition < updatePosition && updatePosition < presentPosition,
+		"Expected input polling before layer update and presentation after update");
 
 	std::cout << "InputSystemSmoke passed" << std::endl;
 	return 0;

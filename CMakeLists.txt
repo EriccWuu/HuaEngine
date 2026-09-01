@@ -732,6 +732,7 @@ add_executable(InputSystemSmoke Tests/InputSystemSmoke.cpp)
 target_include_directories(InputSystemSmoke PRIVATE
     ${CMAKE_SOURCE_DIR}/HuaEngine/src
     ${SPDLOG_INCLUDE_DIR}
+    ${GLFW_INCLUDE_DIR}
     ${GLM_INCLUDE_DIR}
 )
 target_link_libraries(InputSystemSmoke PRIVATE HuaEngine)

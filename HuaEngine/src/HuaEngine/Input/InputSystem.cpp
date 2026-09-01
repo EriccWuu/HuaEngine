@@ -25,46 +25,55 @@ namespace HE {
 		}
 
 		m_Modifiers = event.Modifiers;
+		bool accepted = true;
 		switch (event.Phase) {
 		case InputPhase::Pressed:
 		case InputPhase::Released:
 		case InputPhase::Repeated:
-			RecordControlEvent(event);
+			accepted = RecordControlEvent(event);
 			break;
 		case InputPhase::Moved:
+			if (event.Value == m_PointerPosition) {
+				accepted = false;
+				break;
+			}
 			m_PointerDelta += event.Value - m_PointerPosition;
 			m_PointerPosition = event.Value;
 			break;
 		case InputPhase::Scrolled:
+			if (event.Value == glm::vec2(0.0f)) {
+				accepted = false;
+				break;
+			}
 			m_ScrollDelta += event.Value;
 			break;
 		case InputPhase::Text:
 			break;
 		}
 
-		m_Events.push_back(std::move(event));
+		if (accepted) {
+			m_Events.push_back(std::move(event));
+		}
 	}
 
-	void InputSystem::RecordControlEvent(const RawInputEvent& event) {
+	bool InputSystem::RecordControlEvent(const RawInputEvent& event) {
 		switch (event.Phase) {
 		case InputPhase::Pressed:
-			if (!m_Down.contains(event.Control)) {
-				m_Pressed.insert(event.Control);
-			}
+			if (m_Down.contains(event.Control)) return false;
+			m_Pressed.insert(event.Control);
 			m_Down.insert(event.Control);
 			DetectDoublePress(event);
-			break;
+			return true;
 		case InputPhase::Released:
-			if (m_Down.erase(event.Control) > 0) {
-				m_Released.insert(event.Control);
-			}
-			break;
+			if (m_Down.erase(event.Control) == 0) return false;
+			m_Released.insert(event.Control);
+			return true;
 		case InputPhase::Repeated:
 			m_Down.insert(event.Control);
 			m_Repeated.insert(event.Control);
-			break;
+			return true;
 		default:
-			break;
+			return false;
 		}
 	}
 

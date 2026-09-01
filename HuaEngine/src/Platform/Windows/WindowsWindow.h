@@ -12,13 +12,16 @@ namespace HE {
 		WindowsWindow(const WindowProps& props);
 		virtual ~WindowsWindow();
 
-		void OnUpdate() override;
+		void PollEvents() override;
+		void Present() override;
 
 		unsigned int GetWidth() const override { return m_Data.Width; }
 		unsigned int GetHeight() const override { return m_Data.Height; }
 
 		// Window attributes
 		void SetEventCallback(const EventCallbackFunc& callback) override { m_Data.EventCallback = callback; }
+		void SetInputCallback(InputCallbackFunc callback) override { m_Data.InputCallback = std::move(callback); }
+		void SetFocusLostCallback(FocusLostCallbackFunc callback) override { m_Data.FocusLostCallback = std::move(callback); }
 		void SetVSync(bool enabled) override;
 		bool IsVSync() const override;
 
@@ -40,6 +43,8 @@ namespace HE {
 			bool VSync;
 
 			EventCallbackFunc EventCallback;
+			InputCallbackFunc InputCallback;
+			FocusLostCallbackFunc FocusLostCallback;
 		};
 
 		WindowData m_Data;

@@ -66,6 +66,8 @@ namespace HE
 				m_Specification.WindowWidth,
 				m_Specification.WindowHeight)));
 			m_Window->SetEventCallback(BIND_EVENT_FUNC(Application::OnEvent));
+			m_Window->SetInputCallback([this](RawInputEvent event) { m_InputSystem.Submit(std::move(event)); });
+			m_Window->SetFocusLostCallback([this]() { m_InputSystem.HandleFocusLost(); });
 		}
 
 		m_Services = CreateScope<ApplicationServices>();
@@ -113,19 +115,25 @@ namespace HE
 
 		while (m_Running)
 		{
+			m_InputSystem.BeginFrame();
+			m_Window->PollEvents();
+			if (m_GuiLayer) {
+				m_GuiLayer->Begin(&m_InputSystem);
+			}
+			(void)m_InputSystem.FinalizeFrame();
+
 			for (auto layer : m_LayerStack) {
 				layer->OnUpdate();
 			}
 
 			if (m_GuiLayer) {
-				m_GuiLayer->Begin();
 				for (auto layer : m_LayerStack) {
 					layer->OnGuiRender();
 				}
 				m_GuiLayer->End();
 			}
 
-			m_Window->OnUpdate();
+			m_Window->Present();
 		}
 	}
 

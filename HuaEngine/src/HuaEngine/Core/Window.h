@@ -2,6 +2,7 @@
 
 #include "HuaEngine/Core/Core.h"
 #include "HuaEngine/Events/Event.h"
+#include "HuaEngine/Input/InputTypes.h"
 
 #include <sstream>
 
@@ -26,16 +27,21 @@ namespace HE {
 	{
 	public:
 		using EventCallbackFunc = std::function<void(Event&)>;
+		using InputCallbackFunc = std::function<void(RawInputEvent)>;
+		using FocusLostCallbackFunc = std::function<void()>;
 
 		virtual ~Window() = default;
 
-		virtual void OnUpdate() = 0;
+		virtual void PollEvents() = 0;
+		virtual void Present() = 0;
 
 		virtual uint32_t GetWidth() const = 0;
 		virtual uint32_t GetHeight() const = 0;
 
 		// Window attributes
 		virtual void SetEventCallback(const EventCallbackFunc& callback) = 0;
+		virtual void SetInputCallback(InputCallbackFunc callback) = 0;
+		virtual void SetFocusLostCallback(FocusLostCallbackFunc callback) = 0;
 		virtual void SetVSync(bool enabled) = 0;
 		virtual bool IsVSync() const = 0;
 
