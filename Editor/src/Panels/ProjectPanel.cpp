@@ -30,6 +30,24 @@ namespace HE {
 		};
 	}
 
+	ProjectPanelAction MakeProjectCreateAssetAction(
+		std::string typeId,
+		const std::filesystem::path& targetDirectory) {
+		return {
+			.Type = ProjectPanelActionType::CreateAsset,
+			.Path = targetDirectory,
+			.TypeId = std::move(typeId)
+		};
+	}
+
+	ProjectPanelAction MakeProjectRenameAssetAction(AssetGuid guid, std::string newBaseName) {
+		return {
+			.Type = ProjectPanelActionType::RenameAsset,
+			.Guid = std::move(guid),
+			.Name = std::move(newBaseName)
+		};
+	}
+
 	bool IsProjectPanelVisibleFile(const std::filesystem::path& path) {
 		auto extension = path.extension().string();
 		std::transform(extension.begin(), extension.end(), extension.begin(), [](unsigned char value) { return static_cast<char>(std::tolower(value)); });
@@ -42,6 +60,23 @@ namespace HE {
 			if (record.Source != AssetSource::File || record.AbsolutePath.empty()) continue;
 			m_AssetsByPath[record.AbsolutePath.lexically_normal().generic_string()] = record;
 		}
+	}
+
+	void ProjectPanel::BeginRename(const AssetGuid& guid) {
+		m_RenamingAssetGuid = guid;
+		m_RenameBuffer.clear();
+		for (const auto& [path, record] : m_AssetsByPath) {
+			if (record.Guid != guid) continue;
+			m_RenameBuffer = std::filesystem::path(path).stem().string();
+			break;
+		}
+		m_RequestRenameFocus = true;
+	}
+
+	void ProjectPanel::CancelRename() {
+		m_RenamingAssetGuid.clear();
+		m_RenameBuffer.clear();
+		m_RequestRenameFocus = false;
 	}
 
 	std::optional<ProjectPanelAction> ProjectPanel::ConsumePendingAction() {
@@ -100,6 +135,7 @@ namespace HE {
 		ImGui::PushID(rootId.c_str());
 		const bool open = ImGui::CollapsingHeader(label, ImGuiTreeNodeFlags_DefaultOpen);
 		if (ImGui::BeginPopupContextItem("AssetsHeaderContext")) {
+			DrawCreateMenu(rootPath);
 			if (ImGui::MenuItem("Reimport All")) {
 				m_PendingAction = MakeProjectReimportAction({}, true);
 			}
@@ -137,12 +173,23 @@ namespace HE {
 		if (ImGui::BeginPopupContextWindow(
 			"AssetsBrowserContext",
 			ImGuiPopupFlags_MouseButtonRight | ImGuiPopupFlags_NoOpenOverItems)) {
+			DrawCreateMenu(rootPath);
 			if (ImGui::MenuItem("Reimport All")) {
 				m_PendingAction = MakeProjectReimportAction({}, true);
 			}
 			ImGui::EndPopup();
 		}
 		ImGui::EndChild();
+	}
+
+	void ProjectPanel::DrawCreateMenu(const std::filesystem::path& targetDirectory) {
+		if (!m_CreationRegistry || !ImGui::BeginMenu("Create")) return;
+		for (const auto& descriptor : m_CreationRegistry->GetAll()) {
+			if (ImGui::MenuItem(descriptor.MenuLabel.c_str())) {
+				m_PendingAction = MakeProjectCreateAssetAction(descriptor.TypeId, targetDirectory);
+			}
+		}
+		ImGui::EndMenu();
 	}
 
 	void ProjectPanel::DrawEntry(const std::filesystem::directory_entry& entry) {
@@ -152,6 +199,7 @@ namespace HE {
 		if (entry.is_directory()) {
 			const bool open = ImGui::TreeNode(fileName.c_str());
 			if (ImGui::BeginPopupContextItem("DirectoryContext")) {
+				DrawCreateMenu(entry.path());
 				if (ImGui::MenuItem("Reimport")) {
 					m_PendingAction = MakeProjectReimportAction(entry.path(), false);
 				}
@@ -182,9 +230,41 @@ namespace HE {
 		}
 
 		const auto asset = m_AssetsByPath.find(entry.path().lexically_normal().generic_string());
-		const bool selected = asset != m_AssetsByPath.end() && asset->second.Guid == m_SelectedAssetGuid;
-		if (ImGui::Selectable(fileName.c_str(), selected) && asset != m_AssetsByPath.end()) {
-			m_PendingAction = ProjectPanelAction{ .Type = ProjectPanelActionType::SelectAsset, .Path = entry.path(), .Guid = asset->second.Guid };
+		DrawFileEntry(entry, asset != m_AssetsByPath.end() ? &asset->second : nullptr);
+		ImGui::PopID();
+	}
+
+	void ProjectPanel::DrawFileEntry(const std::filesystem::directory_entry& entry, const AssetRecord* asset) {
+		const auto fileName = entry.path().filename().string();
+		const bool renaming = asset && asset->Guid == m_RenamingAssetGuid;
+		if (renaming) {
+			if (m_RequestRenameFocus) {
+				ImGui::SetKeyboardFocusHere();
+				m_RequestRenameFocus = false;
+			}
+
+			m_RenameBuffer.resize(256, '\0');
+			const bool submitted = ImGui::InputText(
+				"##Rename",
+				m_RenameBuffer.data(),
+				m_RenameBuffer.size(),
+				ImGuiInputTextFlags_EnterReturnsTrue | ImGuiInputTextFlags_AutoSelectAll);
+			const bool commitAfterFocusLoss = ImGui::IsItemDeactivatedAfterEdit();
+			const bool cancelAfterFocusLoss = ImGui::IsItemDeactivated() && !commitAfterFocusLoss && !submitted;
+			m_RenameBuffer.resize(std::char_traits<char>::length(m_RenameBuffer.c_str()));
+			if (submitted || commitAfterFocusLoss) {
+				m_PendingAction = MakeProjectRenameAssetAction(asset->Guid, m_RenameBuffer);
+				CancelRename();
+			}
+			else if (cancelAfterFocusLoss) {
+				CancelRename();
+			}
+		}
+		else {
+			const bool selected = asset && asset->Guid == m_SelectedAssetGuid;
+			if (ImGui::Selectable(fileName.c_str(), selected) && asset) {
+				m_PendingAction = ProjectPanelAction{ .Type = ProjectPanelActionType::SelectAsset, .Path = entry.path(), .Guid = asset->Guid };
+			}
 		}
 
 		if (ImGui::IsItemHovered() && m_Input && m_Input->WasActionTriggered("editor.project.open_item") && IsSceneFile(entry.path())) {
@@ -195,6 +275,11 @@ namespace HE {
 		}
 
 		if (ImGui::BeginPopupContextItem("FileContext")) {
+			ImGui::BeginDisabled(!asset);
+			if (ImGui::MenuItem("Rename") && asset) {
+				BeginRename(asset->Guid);
+			}
+			ImGui::EndDisabled();
 			const bool canReimport = m_CanReimport && m_CanReimport(entry.path());
 			ImGui::BeginDisabled(!canReimport);
 			if (ImGui::MenuItem("Reimport")) {
@@ -206,6 +291,5 @@ namespace HE {
 			}
 			ImGui::EndPopup();
 		}
-		ImGui::PopID();
 	}
 }
