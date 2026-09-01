@@ -647,9 +647,31 @@ namespace HE {
 		if (existing && (existing->Kind != AssetKind::Scene || existing->Source != AssetSource::File)) {
 			return ResultEnvelope::Failure("asset.scene.register", normalizedPath.AssetId, "Existing asset metadata conflicts with the scene source");
 		}
+		const AssetManifest previousManifest = m_Manifest;
+		const AssetRegistry previousRegistry = m_Registry;
+		const auto metaPath = GetAssetMetaPath(normalizedPath.AbsolutePath);
+		bool createdMeta = false;
+		auto rollback = [&](ResultEnvelope failure) {
+			m_Manifest = previousManifest;
+			m_Registry = previousRegistry;
+			if (!createdMeta) return failure;
+
+			std::error_code cleanupError;
+			std::filesystem::remove(metaPath, cleanupError);
+			if (!cleanupError) return failure;
+
+			auto result = ResultEnvelope::ManualIntervention(
+				"asset.scene.register",
+				normalizedPath.AssetId,
+				"Scene registration failed and newly created metadata could not be removed");
+			result.Details = std::move(failure.Details);
+			result.AddDetail({ DiagnosticSeverity::Error, "asset.scene.register.rollback_failed", cleanupError.message(), metaPath.generic_string() });
+			return result;
+		};
+
 		AssetMeta meta;
 		std::error_code metaError;
-		if (std::filesystem::is_regular_file(GetAssetMetaPath(normalizedPath.AbsolutePath), metaError) && !metaError) {
+		if (std::filesystem::is_regular_file(metaPath, metaError) && !metaError) {
 			auto loadMetaResult = LoadAssetMeta(normalizedPath.AbsolutePath, meta);
 			if (!loadMetaResult.Succeeded()) return loadMetaResult;
 			if (meta.ImporterId != "scene.native" || (existing && existing->Guid != meta.Guid)) return ResultEnvelope::Failure("asset.meta.guid_conflict", normalizedPath.AssetId, "Scene metadata conflicts with the existing identity");
@@ -658,6 +680,7 @@ namespace HE {
 			meta.Guid = existing ? existing->Guid : GetExistingGuidOrGenerate(m_Registry, m_Manifest, normalizedPath.AssetId);
 			meta.ImporterId = "scene.native";
 			if (auto saveMetaResult = SaveAssetMeta(normalizedPath.AbsolutePath, meta); !saveMetaResult.Succeeded()) return saveMetaResult;
+			createdMeta = true;
 		}
 		AssetManifestRecord manifestRecord{
 			.Guid = meta.Guid,
@@ -667,12 +690,16 @@ namespace HE {
 			.RelativePath = normalizedPath.RelativePath,
 			.ImportState = AssetImportState::Registered
 		};
-		if (!m_Manifest.Upsert(manifestRecord)) return ResultEnvelope::Failure("asset.scene.register", normalizedPath.AssetId, "Asset manifest rejected the scene source");
+		if (!m_Manifest.Upsert(manifestRecord)) {
+			return rollback(ResultEnvelope::Failure("asset.scene.register", normalizedPath.AssetId, "Asset manifest rejected the scene source"));
+		}
 		auto record = MakeRegistryRecord(context, manifestRecord);
 		record.Handle = m_Registry.Upsert(record);
-		if (record.Handle == 0) return ResultEnvelope::Failure("asset.scene.register", normalizedPath.AssetId, "Asset registry rejected the scene source");
+		if (record.Handle == 0) {
+			return rollback(ResultEnvelope::Failure("asset.scene.register", normalizedPath.AssetId, "Asset registry rejected the scene source"));
+		}
 		auto saveResult = SaveAssetManifest(context, m_Manifest);
-		if (!saveResult.Succeeded()) return saveResult;
+		if (!saveResult.Succeeded()) return rollback(std::move(saveResult));
 		if (outGuid) *outGuid = record.Guid;
 		return MakeRegistrationResult("asset.scene.register", record, "Scene asset registered");
 	}

@@ -271,9 +271,38 @@ int main() {
 	Require(HE::LoadOrCreateAssetManifest(projectContext, badManifest).Failed(), "Expected catalog merge to reject undeclared builtin metadata");
 	WriteFileText(manifestPath, originalManifestText);
 
+	const auto manifestStagingPath = std::filesystem::path(manifestPath.string() + ".tmp");
+	std::filesystem::create_directory(manifestStagingPath, errorCode);
+	Require(!errorCode, "Expected manifest staging obstruction creation");
+	WriteFileText(manifestStagingPath / "blocked", "blocked");
+	auto obstructedManifestSave = HE::SaveAssetManifest(projectContext, manifest);
+	Require(obstructedManifestSave.Failed(), "Expected unavailable manifest staging path to reject the save");
+	Require(ReadFileText(manifestPath) == originalManifestText, "Expected failed manifest save to preserve the official file");
+	std::filesystem::remove_all(manifestStagingPath, errorCode);
+	Require(!errorCode, "Expected manifest staging obstruction cleanup");
+
 	HE::AssetService assetService;
 	auto serviceManifestResult = assetService.InitializeProjectAssets(projectContext);
 	Require(serviceManifestResult.Succeeded(), "Expected asset service project assets to initialize");
+
+	const auto failedScenePath = projectContext.GetAssetRootPath() / "Scenes" / "FailedRegistration.scene";
+	WriteFileText(failedScenePath, "scene:\n  name: FailedRegistration\n");
+	const auto initializedManifestText = ReadFileText(manifestPath);
+	std::filesystem::remove(manifestPath, errorCode);
+	Require(!errorCode, "Expected manifest removal for registration failure injection");
+	std::filesystem::create_directory(manifestPath, errorCode);
+	Require(!errorCode, "Expected manifest replacement directory for registration failure injection");
+	HE::AssetGuid failedSceneGuid;
+	auto failedSceneRegistration = assetService.RegisterSceneAsset(projectContext, failedScenePath, &failedSceneGuid);
+	Require(failedSceneRegistration.Failed(), "Expected scene registration to fail when the manifest cannot be committed");
+	HE::AssetRecord failedSceneRecord;
+	Require(assetService.ResolveAsset("Scenes/FailedRegistration.scene", failedSceneRecord).Failed(), "Expected failed scene registration not to leak into the runtime registry");
+	Require(!std::filesystem::exists(HE::GetAssetMetaPath(failedScenePath)), "Expected failed scene registration to remove newly created metadata");
+	std::filesystem::remove_all(manifestPath, errorCode);
+	Require(!errorCode, "Expected manifest replacement directory cleanup");
+	WriteFileText(manifestPath, initializedManifestText);
+	std::filesystem::remove(failedScenePath, errorCode);
+	Require(!errorCode, "Expected failed scene fixture cleanup");
 
 	const auto originalScenePath = projectContext.GetAssetRootPath() / "Scenes" / "Original.scene";
 	WriteFileText(originalScenePath, "scene:\n  name: Original\n");
