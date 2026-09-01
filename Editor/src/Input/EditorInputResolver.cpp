@@ -33,6 +33,9 @@ namespace HE::Editor {
 		const EditorInputBindingRegistry& bindings,
 		const EditorInputContextService& contexts) {
 		m_ActionValues.clear();
+		std::erase_if(m_SuppressedControls, [&](const InputControl& control) {
+			return !snapshot.IsDown(control);
+		});
 		const auto effectiveBindings = bindings.GetEffectiveCommandBindings();
 		std::vector<CommandCandidate> candidates;
 		for (const auto& binding : effectiveBindings) {
@@ -62,8 +65,12 @@ namespace HE::Editor {
 			if (conflictCount > 1) {
 				return ResultEnvelope::Failure("editor.input.resolve", matching.front().Binding->ContextId, "Multiple enabled commands use the same highest-priority gesture");
 			}
-			commands.Execute(matching.front().Binding->CommandId);
-			if (matching.front().Binding->Consume) {
+			const auto& resolvedBinding = *matching.front().Binding;
+			const auto commandResult = commands.Execute(resolvedBinding.CommandId);
+			if (commandResult.Succeeded() && resolvedBinding.Consume && snapshot.IsDown(resolvedBinding.Gesture.Primary)) {
+				m_SuppressedControls.insert(resolvedBinding.Gesture.Primary);
+			}
+			if (resolvedBinding.Consume) {
 				std::erase_if(candidates, [&](const auto& candidate) { return candidate.Binding->Gesture == gesture; });
 			} else {
 				candidates.erase(candidates.begin());
@@ -71,6 +78,7 @@ namespace HE::Editor {
 		}
 
 		for (const auto& binding : bindings.GetActionBindings()) {
+			if (m_SuppressedControls.contains(binding.Gesture.Primary)) continue;
 			if (!Matches(binding.Gesture, snapshot)) continue;
 			const auto contextPriority = contexts.GetPriority(binding.ContextId, binding.Gesture.Primary.Device);
 			if (!contextPriority || contexts.IsBlocked(*contextPriority, binding.Gesture.Primary.Device)) continue;
@@ -94,5 +102,10 @@ namespace HE::Editor {
 
 	bool EditorInputResolver::WasActionTriggered(std::string_view actionId) const {
 		return GetActionValue(actionId) != 0.0f;
+	}
+
+	void EditorInputResolver::Reset() {
+		m_ActionValues.clear();
+		m_SuppressedControls.clear();
 	}
 }

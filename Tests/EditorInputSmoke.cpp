@@ -97,6 +97,48 @@ int main() {
 	Require(actionService.Resolve(pointerInput.FinalizeFrame()).Succeeded(), "Expected pointer action resolution");
 	Require(actionService.GetActionValue("editor.camera.look_x") == 12.0f, "Expected pointer delta to drive analog action value");
 
+	HE::Editor::EditorInputService consumedService;
+	int saveCount = 0;
+	Require(consumedService.Commands().Register({
+		.Id = "editor.scene.save",
+		.DisplayName = "Save",
+		.Category = "Scene",
+		.CanExecute = [] { return true; },
+		.Execute = [&] { ++saveCount; }
+	}).Succeeded(), "Expected save command registration");
+	Require(consumedService.Bindings().RegisterDefaultCommand({
+		"scene.save", "editor.scene.save", "Global",
+		{ HE::KeyboardControl(HE::Key::S), HE::InputModifiers::Control, HE::InputTrigger::Pressed, true }, 0, true
+	}).Succeeded(), "Expected Ctrl+S command binding");
+	Require(consumedService.Bindings().RegisterDefaultAction({
+		"camera.backward", "editor.camera.forward", "SceneViewport",
+		{ HE::KeyboardControl(HE::Key::S), HE::InputModifiers::None, HE::InputTrigger::Held, true }, -1.0f
+	}).Succeeded(), "Expected held S camera action binding");
+	auto resolveConsumedFrame = [&](const HE::InputSnapshot& snapshot) {
+		consumedService.Contexts().BeginFrame();
+		consumedService.Contexts().Activate("SceneViewport", 500, true, true, false);
+		return consumedService.Resolve(snapshot);
+	};
+	HE::InputSystem consumedInput;
+	consumedInput.BeginFrame();
+	consumedInput.Submit(HE::RawInputEvent::Key(HE::Key::LeftControl, HE::InputPhase::Pressed, HE::InputModifiers::Control));
+	consumedInput.Submit(HE::RawInputEvent::Key(HE::Key::S, HE::InputPhase::Pressed, HE::InputModifiers::Control));
+	Require(resolveConsumedFrame(consumedInput.FinalizeFrame()).Succeeded(), "Expected Ctrl+S frame resolution");
+	Require(saveCount == 1 && consumedService.GetActionValue("editor.camera.forward") == 0.0f, "Expected Ctrl+S to save without moving the camera");
+
+	consumedInput.BeginFrame();
+	consumedInput.Submit(HE::RawInputEvent::Key(HE::Key::LeftControl, HE::InputPhase::Released, HE::InputModifiers::None));
+	Require(resolveConsumedFrame(consumedInput.FinalizeFrame()).Succeeded(), "Expected modifier release frame resolution");
+	Require(consumedService.GetActionValue("editor.camera.forward") == 0.0f, "Expected consumed S to remain suppressed after Ctrl release");
+
+	consumedInput.BeginFrame();
+	consumedInput.Submit(HE::RawInputEvent::Key(HE::Key::S, HE::InputPhase::Released, HE::InputModifiers::None));
+	Require(resolveConsumedFrame(consumedInput.FinalizeFrame()).Succeeded(), "Expected S release frame resolution");
+	consumedInput.BeginFrame();
+	consumedInput.Submit(HE::RawInputEvent::Key(HE::Key::S, HE::InputPhase::Pressed, HE::InputModifiers::None));
+	Require(resolveConsumedFrame(consumedInput.FinalizeFrame()).Succeeded(), "Expected fresh S press frame resolution");
+	Require(consumedService.GetActionValue("editor.camera.forward") == -1.0f, "Expected S action to resume after a physical release and new press");
+
 	service.Contexts().BeginFrame();
 	service.Contexts().Activate("TextInput", 1000, true, false, true);
 	Require(service.Resolve(PressKey(HE::Key::W)).Succeeded(), "Expected captured text input resolution");

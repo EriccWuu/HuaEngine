@@ -5,5 +5,6 @@ namespace HE::Editor {
 		m_Commands.Clear();
 		m_Bindings.Clear();
 		m_Contexts.BeginFrame();
+		m_Resolver.Reset();
 	}
 }
