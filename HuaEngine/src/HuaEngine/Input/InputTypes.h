@@ -31,6 +31,14 @@ namespace HE {
 		Super = 1 << 3
 	};
 
+	enum class InputTrigger : uint8_t {
+		Pressed,
+		Released,
+		Repeated,
+		Held,
+		DoublePressed
+	};
+
 	constexpr InputModifiers operator|(InputModifiers lhs, InputModifiers rhs) {
 		return static_cast<InputModifiers>(static_cast<uint8_t>(lhs) | static_cast<uint8_t>(rhs));
 	}
@@ -54,6 +62,15 @@ namespace HE {
 		[[nodiscard]] size_t operator()(const InputControl& control) const noexcept {
 			return (static_cast<size_t>(control.Device) << 16) | control.Code;
 		}
+	};
+
+	struct InputGesture {
+		InputControl Primary;
+		InputModifiers Modifiers = InputModifiers::None;
+		InputTrigger Trigger = InputTrigger::Pressed;
+		bool ExactModifiers = true;
+
+		[[nodiscard]] bool operator==(const InputGesture&) const = default;
 	};
 
 	[[nodiscard]] constexpr InputControl KeyboardControl(KeyCode key) {

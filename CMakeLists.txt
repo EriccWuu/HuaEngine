@@ -738,6 +738,24 @@ target_include_directories(InputSystemSmoke PRIVATE
 target_link_libraries(InputSystemSmoke PRIVATE HuaEngine)
 configure_smoke_target(InputSystemSmoke)
 
+add_executable(EditorInputSmoke
+    Tests/EditorInputSmoke.cpp
+    Editor/src/Input/EditorCommandRegistry.cpp
+    Editor/src/Input/EditorInputBindingRegistry.cpp
+    Editor/src/Input/EditorInputContextService.cpp
+    Editor/src/Input/EditorInputResolver.cpp
+    Editor/src/Input/EditorInputService.cpp
+    Editor/src/Input/EditorInputBindingStorage.cpp
+)
+target_include_directories(EditorInputSmoke PRIVATE
+    ${CMAKE_SOURCE_DIR}/Editor/src
+    ${CMAKE_SOURCE_DIR}/HuaEngine/src
+    ${SPDLOG_INCLUDE_DIR}
+    ${GLM_INCLUDE_DIR}
+)
+target_link_libraries(EditorInputSmoke PRIVATE HuaEngine yaml-cpp::yaml-cpp)
+configure_smoke_target(EditorInputSmoke)
+
 add_executable(RHIResourceCreationSmoke Tests/RHIResourceCreationSmoke.cpp)
 target_include_directories(RHIResourceCreationSmoke PRIVATE
     ${CMAKE_SOURCE_DIR}/HuaEngine/src
