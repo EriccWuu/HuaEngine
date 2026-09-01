@@ -240,7 +240,7 @@
 - `EditorInteractionHost`
 - `EditorCommandStack`
 - `ContextMenuRegistry`
-- `ShortcutRegistry`
+- `EditorInputService`（统一管理 Command、Action、Binding、Context 与 Resolver）
 - `DragDropIntentRegistry`
 
 要求：

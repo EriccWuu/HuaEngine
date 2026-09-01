@@ -52,6 +52,13 @@ int main() {
 	Require(pointer.GetPointerDelta() == glm::vec2(14.0f, 27.0f), "Expected accumulated pointer delta");
 	Require(pointer.GetScrollDelta() == glm::vec2(1.0f, -2.0f), "Expected accumulated scroll delta");
 
+	HE::InputSystem modifierInput;
+	modifierInput.BeginFrame();
+	modifierInput.Submit(HE::RawInputEvent::Key(HE::Key::S, HE::InputPhase::Pressed, HE::InputModifiers::Control));
+	modifierInput.Submit(HE::RawInputEvent::Pointer({ 4.0f, 8.0f }));
+	const auto& modifierSnapshot = modifierInput.FinalizeFrame();
+	Require(modifierSnapshot.GetModifiers() == HE::InputModifiers::Control, "Expected pointer motion to preserve keyboard modifiers");
+
 	input.BeginFrame();
 	const auto& clearedDelta = input.FinalizeFrame();
 	Require(clearedDelta.GetPointerDelta() == glm::vec2(0.0f) && clearedDelta.GetScrollDelta() == glm::vec2(0.0f), "Expected transient pointer values cleared each frame");

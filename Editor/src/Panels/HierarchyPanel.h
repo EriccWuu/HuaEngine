@@ -36,6 +36,7 @@ namespace HE {
 		void SetContext(const Ref<Scene>& scene);
 		void SetWorkbenchState(const EditorWorkbenchState* state) { m_WorkbenchState = state; }
         void SetInteractionHost(EditorInteractionHost* host) { m_InteractionHost = host; }
+		void RequestFilterFocus() { m_RequestFilterFocus = true; }
 		[[nodiscard]] bool IsFocused() const { return m_IsFocused; }
 		[[nodiscard]] bool IsHovered() const { return m_IsHovered; }
 
@@ -52,6 +53,7 @@ namespace HE {
         EditorInteractionHost* m_InteractionHost = nullptr;
 		bool m_IsFocused = false;
 		bool m_IsHovered = false;
+		bool m_RequestFilterFocus = false;
 
 		ImGuiTextFilter m_Filter;
 		TreeNode* m_RootNode = NULL;

@@ -25,12 +25,12 @@ namespace HE {
 			m_NextSequence = (std::max)(m_NextSequence, event.Sequence + 1);
 		}
 
-		m_Modifiers = event.Modifiers;
 		bool accepted = true;
 		switch (event.Phase) {
 		case InputPhase::Pressed:
 		case InputPhase::Released:
 		case InputPhase::Repeated:
+			m_Modifiers = event.Modifiers;
 			accepted = RecordControlEvent(event);
 			break;
 		case InputPhase::Moved:

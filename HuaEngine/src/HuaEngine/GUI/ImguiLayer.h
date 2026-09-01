@@ -2,8 +2,6 @@
 
 #include "HuaEngine/Core/Layer.h"
 #include "HuaEngine/Events/ApplicationEvent.h"
-#include "HuaEngine/Events/KeyEvent.h"
-#include "HuaEngine/Events/MouseEvent.h"
 
 namespace HE {
 	class InputSystem;

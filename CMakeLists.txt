@@ -991,6 +991,11 @@ configure_smoke_target(AssetEditingSmoke)
 add_executable(ProjectPanelActionSmoke
     Tests/ProjectPanelActionSmoke.cpp
     Editor/src/Panels/ProjectPanel.cpp
+	Editor/src/Input/EditorCommandRegistry.cpp
+	Editor/src/Input/EditorInputBindingRegistry.cpp
+	Editor/src/Input/EditorInputContextService.cpp
+	Editor/src/Input/EditorInputResolver.cpp
+	Editor/src/Input/EditorInputService.cpp
 )
 target_include_directories(ProjectPanelActionSmoke PRIVATE
     ${CMAKE_SOURCE_DIR}/Editor/src

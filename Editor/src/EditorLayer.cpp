@@ -442,6 +442,7 @@ namespace HE {
 		registerCommand({ "editor.gizmo.translate", "Translate Tool", "Scene", []() { return true; }, [this]() { m_GizmoOperation = ImGuizmo::TRANSLATE; } });
 		registerCommand({ "editor.gizmo.rotate", "Rotate Tool", "Scene", []() { return true; }, [this]() { m_GizmoOperation = ImGuizmo::ROTATE; } });
 		registerCommand({ "editor.gizmo.scale", "Scale Tool", "Scene", []() { return true; }, [this]() { m_GizmoOperation = ImGuizmo::SCALE; } });
+		registerCommand({ "editor.hierarchy.focus_filter", "Focus Hierarchy Filter", "Hierarchy", [this]() { return m_HierarchyPanel != nullptr; }, [this]() { m_HierarchyPanel->RequestFilterFocus(); } });
 
 		const auto ctrl = InputModifiers::Control;
 		const auto ctrlShift = InputModifiers::Control | InputModifiers::Shift;
@@ -453,6 +454,7 @@ namespace HE {
 		(void)input.Bindings().RegisterDefaultCommand({ "gizmo.translate", "editor.gizmo.translate", "SceneViewport", { KeyboardControl(Key::W), InputModifiers::None, InputTrigger::Pressed, true }, 0, true });
 		(void)input.Bindings().RegisterDefaultCommand({ "gizmo.rotate", "editor.gizmo.rotate", "SceneViewport", { KeyboardControl(Key::E), InputModifiers::None, InputTrigger::Pressed, true }, 0, true });
 		(void)input.Bindings().RegisterDefaultCommand({ "gizmo.scale", "editor.gizmo.scale", "SceneViewport", { KeyboardControl(Key::R), InputModifiers::None, InputTrigger::Pressed, true }, 0, true });
+		(void)input.Bindings().RegisterDefaultCommand({ "hierarchy.focus_filter", "editor.hierarchy.focus_filter", "Hierarchy", { KeyboardControl(Key::F), ctrl, InputTrigger::Pressed, true }, 0, true });
 		auto registerAction = [&](Editor::EditorActionBinding binding) { (void)input.Bindings().RegisterDefaultAction(std::move(binding)); };
 		registerAction({ .Id = "camera.forward", .ActionId = "editor.camera.forward", .ContextId = "SceneViewport", .Gesture = { KeyboardControl(Key::W), InputModifiers::None, InputTrigger::Held, true }, .Scale = 1.0f });
 		registerAction({ .Id = "camera.backward", .ActionId = "editor.camera.forward", .ContextId = "SceneViewport", .Gesture = { KeyboardControl(Key::S), InputModifiers::None, InputTrigger::Held, true }, .Scale = -1.0f });
@@ -1008,10 +1010,14 @@ namespace HE {
 		auto& input = m_InteractionHost.Input();
 		input.Contexts().BeginFrame();
 		const auto& snapshot = Application::GetInstance().GetInputSnapshot();
+		const bool cameraPointerHeld = snapshot.IsDown(MouseControl(Mouse::ButtonRight)) || snapshot.IsDown(MouseControl(Mouse::ButtonMiddle));
+		if (m_IsSceneViewportCaptured && !cameraPointerHeld) m_IsSceneViewportCaptured = false;
+		if (!m_IsSceneViewportCaptured && m_IsSceneViewportHovered && cameraPointerHeld) m_IsSceneViewportCaptured = true;
 		if (snapshot.GetCaptureState().TextInput) input.Contexts().Activate("TextInput", 1000, true, false, true);
 		if (m_IsModalOpen) input.Contexts().Activate("Modal", 900, true, true, true);
-		if (m_IsSceneViewportFocused || m_IsSceneViewportHovered) input.Contexts().Activate("SceneViewport", 500, true, false, false);
-		if (m_IsSceneViewportHovered) input.Contexts().Activate("SceneViewport", 500, false, true, false);
+		if (m_IsSceneViewportCaptured) input.Contexts().Activate("SceneViewportCapture", 700, true, true, false);
+		if (m_IsSceneViewportFocused || m_IsSceneViewportHovered || m_IsSceneViewportCaptured) input.Contexts().Activate("SceneViewport", 500, true, false, false);
+		if (m_IsSceneViewportHovered || m_IsSceneViewportCaptured) input.Contexts().Activate("SceneViewport", 500, false, true, false);
 		if (m_ProjectPanel && (m_ProjectPanel->IsFocused() || m_ProjectPanel->IsHovered())) {
 			input.Contexts().Activate("Project", 400, m_ProjectPanel->IsFocused(), m_ProjectPanel->IsHovered(), false);
 		}

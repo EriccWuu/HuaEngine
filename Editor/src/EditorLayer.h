@@ -159,6 +159,7 @@ namespace HE {
         glm::vec2 m_SceneViewportSize = { 0, 0 };
 		bool m_IsSceneViewportHovered = false;
 		bool m_IsSceneViewportFocused = false;
+		bool m_IsSceneViewportCaptured = false;
         int m_GizmoOperation = 7;
         bool m_GizmoWasUsing = false;
         EntityUuid m_GizmoEntityUuid;

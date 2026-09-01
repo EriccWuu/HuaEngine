@@ -48,12 +48,15 @@ namespace HE::Editor {
 		ResultEnvelope RegisterDefaultCommand(EditorCommandBinding binding);
 		ResultEnvelope RegisterDefaultAction(EditorActionBinding binding);
 		ResultEnvelope SetOverrides(std::vector<EditorInputBindingOverride> overrides);
+		ResultEnvelope SetOverride(EditorInputBindingOverride overrideBinding);
+		void ResetOverride(std::string_view commandId);
 		void Clear();
 
 		[[nodiscard]] std::vector<EditorCommandBinding> GetEffectiveCommandBindings() const;
 		[[nodiscard]] const std::vector<EditorActionBinding>& GetActionBindings() const { return m_Actions; }
 		[[nodiscard]] const std::vector<EditorInputBindingOverride>& GetOverrides() const { return m_Overrides; }
 		[[nodiscard]] std::string GetDisplayText(std::string_view commandId) const;
+		[[nodiscard]] std::vector<std::string> FindConflicts(std::string_view contextId, const InputGesture& gesture) const;
 
 	private:
 		std::vector<EditorCommandBinding> m_Commands;

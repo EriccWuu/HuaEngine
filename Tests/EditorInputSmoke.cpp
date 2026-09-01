@@ -61,6 +61,7 @@ int main() {
 	int conflictCount = 0;
 	Require(service.Commands().Register({ "editor.scene.conflict", "Conflict", "Test", [] { return true; }, [&] { ++conflictCount; } }).Succeeded(), "Expected conflict command registration");
 	Require(service.Bindings().RegisterDefaultCommand({ "scene.conflict", "editor.scene.conflict", "SceneViewport", wPressed, 0, true }).Succeeded(), "Expected conflicting binding registration");
+	Require(service.Bindings().FindConflicts("SceneViewport", wPressed).size() == 2, "Expected binding conflict query");
 	sceneEnabled = true;
 	service.Contexts().BeginFrame();
 	service.Contexts().Activate("SceneViewport", 500, true, true, false);
@@ -114,6 +115,14 @@ int main() {
 	std::vector<HE::Editor::EditorInputBindingOverride> loadedOverrides;
 	Require(HE::Editor::EditorInputBindingStorage::Load(storagePath, loadedOverrides).Succeeded(), "Expected binding override load");
 	Require(loadedOverrides.size() == 1 && loadedOverrides.front() == overrideBinding, "Expected binding override round trip");
+	const HE::Editor::EditorInputBindingOverride invalidOverride{
+		.CommandId = "editor.global.w",
+		.ContextId = "Global",
+		.Gesture = { { static_cast<HE::InputDeviceType>(99), 999 }, HE::InputModifiers::None, HE::InputTrigger::Pressed, true }
+	};
+	const auto invalidResult = service.Bindings().SetOverrides({ invalidOverride });
+	Require(invalidResult.Succeeded() && !invalidResult.Details.empty(), "Expected invalid override diagnostic without blocking startup");
+	Require(service.Bindings().GetDisplayText("editor.global.w") == "W", "Expected invalid override to fall back to the default binding");
 	std::filesystem::remove_all(storageRoot, errorCode);
 
 	std::cout << "EditorInputSmoke passed" << std::endl;

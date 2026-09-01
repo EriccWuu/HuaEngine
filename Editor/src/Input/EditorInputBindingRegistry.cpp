@@ -28,6 +28,18 @@ namespace HE::Editor {
 			result += FormatKey(gesture.Primary);
 			return result;
 		}
+
+		bool IsValidGesture(const InputGesture& gesture) {
+			const auto modifierBits = static_cast<uint8_t>(gesture.Modifiers);
+			constexpr auto validModifierBits = static_cast<uint8_t>(InputModifiers::Shift) |
+				static_cast<uint8_t>(InputModifiers::Control) |
+				static_cast<uint8_t>(InputModifiers::Alt) |
+				static_cast<uint8_t>(InputModifiers::Super);
+			if ((modifierBits & ~validModifierBits) != 0 || gesture.Trigger > InputTrigger::Scrolled) return false;
+			if (gesture.Primary.Device == InputDeviceType::Keyboard) return gesture.Primary.Code <= Key::Menu;
+			if (gesture.Primary.Device == InputDeviceType::Mouse) return gesture.Primary.Code <= Mouse::ButtonLast;
+			return false;
+		}
 	}
 
 	ResultEnvelope EditorInputBindingRegistry::RegisterDefaultCommand(EditorCommandBinding binding) {
@@ -55,8 +67,30 @@ namespace HE::Editor {
 	}
 
 	ResultEnvelope EditorInputBindingRegistry::SetOverrides(std::vector<EditorInputBindingOverride> overrides) {
-		m_Overrides = std::move(overrides);
-		return ResultEnvelope::Success("editor.input.binding.override", "user", "Binding overrides applied");
+		m_Overrides.clear();
+		auto result = ResultEnvelope::Success("editor.input.binding.override", "user", "Binding overrides applied");
+		for (auto& overrideBinding : overrides) {
+			const bool knownCommand = std::ranges::any_of(m_Commands, [&](const auto& binding) { return binding.CommandId == overrideBinding.CommandId; });
+			if (!knownCommand || overrideBinding.ContextId.empty() || !IsValidGesture(overrideBinding.Gesture)) {
+				result.AddDetail({ DiagnosticSeverity::Warning, "editor.input.binding.override_invalid", "Invalid binding override was ignored", overrideBinding.CommandId });
+				continue;
+			}
+			ResetOverride(overrideBinding.CommandId);
+			m_Overrides.emplace_back(std::move(overrideBinding));
+		}
+		return result;
+	}
+
+	ResultEnvelope EditorInputBindingRegistry::SetOverride(EditorInputBindingOverride overrideBinding) {
+		return SetOverrides([&]() {
+			auto overrides = m_Overrides;
+			overrides.emplace_back(std::move(overrideBinding));
+			return overrides;
+		}());
+	}
+
+	void EditorInputBindingRegistry::ResetOverride(std::string_view commandId) {
+		std::erase_if(m_Overrides, [&](const auto& binding) { return binding.CommandId == commandId; });
 	}
 
 	void EditorInputBindingRegistry::Clear() {
@@ -82,5 +116,13 @@ namespace HE::Editor {
 		const auto effective = GetEffectiveCommandBindings();
 		const auto iterator = std::ranges::find_if(effective, [&](const auto& binding) { return binding.CommandId == commandId; });
 		return iterator == effective.end() ? std::string{} : FormatGesture(iterator->Gesture);
+	}
+
+	std::vector<std::string> EditorInputBindingRegistry::FindConflicts(std::string_view contextId, const InputGesture& gesture) const {
+		std::vector<std::string> conflicts;
+		for (const auto& binding : GetEffectiveCommandBindings()) {
+			if (binding.ContextId == contextId && binding.Gesture == gesture) conflicts.emplace_back(binding.CommandId);
+		}
+		return conflicts;
 	}
 }

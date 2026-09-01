@@ -80,7 +80,10 @@ namespace HE {
 		}
 
 		ImGui::SetNextItemWidth(-FLT_MIN);
-		ImGui::SetNextItemShortcut(ImGuiMod_Ctrl | ImGuiKey_F, ImGuiInputFlags_Tooltip);
+		if (m_RequestFilterFocus) {
+			ImGui::SetKeyboardFocusHere();
+			m_RequestFilterFocus = false;
+		}
 		ImGui::PushItemFlag(ImGuiItemFlags_NoNavDefaultFocus, true);
 		if (ImGui::InputTextWithHint("##Filter", "", m_Filter.InputBuf, IM_ARRAYSIZE(m_Filter.InputBuf), ImGuiInputTextFlags_EscapeClearsAll))
 			m_Filter.Build();
