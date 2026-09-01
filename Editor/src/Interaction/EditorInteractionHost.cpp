@@ -13,7 +13,7 @@ namespace HE {
         m_SceneDocument = nullptr;
         m_CommandRouter.Reset();
         m_ContextMenus.Clear();
-        m_Shortcuts.Clear();
+        m_Input.Reset();
         m_DragDrop.Clear();
         m_CommandStack.Clear();
     }

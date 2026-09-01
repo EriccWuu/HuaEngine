@@ -1,6 +1,5 @@
 #pragma once
 
-#include <functional>
 #include <string>
 #include <string_view>
 #include <unordered_map>
@@ -8,13 +7,10 @@
 
 namespace HE {
     struct ContextMenuActionDescriptor {
-        std::string Id;
+        std::string CommandId;
         std::string Label;
-        std::string Shortcut;
         std::string Tooltip;
         bool Enabled = true;
-        std::function<bool()> IsEnabled;
-        std::function<void()> Trigger;
     };
 
     class ContextMenuRegistry {

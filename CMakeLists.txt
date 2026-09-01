@@ -875,7 +875,11 @@ add_executable(EditorInteractionSmoke
     Editor/src/Interaction/EditorCommandStack.cpp
     Editor/src/Interaction/EditorInteractionHost.cpp
     Editor/src/Interaction/EditorSceneCommands.cpp
-    Editor/src/Interaction/ShortcutRegistry.cpp
+	Editor/src/Input/EditorCommandRegistry.cpp
+	Editor/src/Input/EditorInputBindingRegistry.cpp
+	Editor/src/Input/EditorInputContextService.cpp
+	Editor/src/Input/EditorInputResolver.cpp
+	Editor/src/Input/EditorInputService.cpp
 	Editor/src/Panels/RuntimeInspector.cpp
 	Editor/src/Scene/SceneEntityInspectorEditor.cpp
     Editor/src/Viewport/EditorCameraController.cpp
@@ -889,7 +893,7 @@ target_include_directories(EditorInteractionSmoke PRIVATE
     ${IMGUI_INCLUDE_DIR}
     ${STB_IMAGE_INCLUDE_DIR}
 )
-target_link_libraries(EditorInteractionSmoke PRIVATE HuaEngine ImGui)
+target_link_libraries(EditorInteractionSmoke PRIVATE HuaEngine ImGui yaml-cpp::yaml-cpp)
 if(WIN32)
     target_compile_definitions(EditorInteractionSmoke PRIVATE GLFW_INCLUDE_NONE)
     if(MSVC)

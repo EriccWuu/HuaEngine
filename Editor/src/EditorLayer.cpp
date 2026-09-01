@@ -12,6 +12,7 @@
 #include "HuaEngine/Core/HostLaunch.h"
 #include "HuaEngine/Asset/Import/ShaderDescriptor.h"
 #include "HuaEngine/Rendering/RHI/RenderHardwareInterface.h"
+#include "Input/EditorInputBindingStorage.h"
 #include "Interaction/EditorSceneCommands.h"
 #include "ImGuizmo.h"
 #include "imgui.h"
@@ -391,57 +392,107 @@ namespace HE {
     void EditorLayer::RefreshInteractionHost() {
         m_InteractionHost.Bind(&m_WorkbenchState, &m_ProjectSession, &m_SceneDocument);
         m_InteractionHost.ContextMenus().Clear();
-        m_InteractionHost.Shortcuts().Clear();
+        m_InteractionHost.Input().Reset();
         m_InteractionHost.DragDrop().Clear();
+
+		auto& input = m_InteractionHost.Input();
+		auto registerCommand = [&](Editor::EditorCommandDescriptor descriptor) {
+			(void)input.Commands().Register(std::move(descriptor));
+		};
+		registerCommand({ "editor.undo", "Undo", "Edit", [this]() { return m_InteractionHost.CanUndo(); }, [this]() { ExecuteUndo(); } });
+		registerCommand({ "editor.redo", "Redo", "Edit", [this]() { return m_InteractionHost.CanRedo(); }, [this]() { ExecuteRedo(); } });
+		registerCommand({ "editor.entity.create", "New Entity", "Scene", [this]() { return m_InteractionHost.HasActiveScene(); }, [this]() { CreateEntityFromHierarchy(); } });
+		registerCommand({ "editor.entity.delete", "Delete Selected", "Scene", []() { return Selection::HasSelection(); }, [this]() { DeleteSelectedEntities(); } });
+		registerCommand({
+			"editor.scene.save", "Save", "Scene",
+			[this]() { return m_SceneDocument.IsLoaded() || (Selection::HasAssetSelection() && m_AssetInspectorEditor->HasDirtyEdit()); },
+			[this]() {
+				if (Selection::HasAssetSelection() && m_AssetInspectorEditor->HasDirtyEdit()) {
+					(void)m_AssetInspectorEditor->Apply();
+					return;
+				}
+				SaveActiveSceneDocument();
+			}
+		});
+		registerCommand({ "editor.project.resume", "Resume Last Project", "Project", [this]() { return m_HasPersistedSession && !m_ProjectSession.IsLoaded(); }, [this]() { ResumePersistedProjectSession(); } });
+		registerCommand({ "editor.project.close", "Close Project", "Project", [this]() { return m_ProjectSession.IsLoaded(); }, [this]() { RequestWorkbenchAction({ WorkbenchActionType::CloseProject }); } });
+		registerCommand({ "editor.project.reset_session", "Reset Saved Session", "Project", [this]() { return m_HasPersistedSession; }, [this]() { ClearPersistedProjectSession(); } });
+		registerCommand({
+			"editor.project.refresh", "Refresh Project Status", "Project", [this]() { return m_ProjectSession.IsLoaded(); },
+			[this]() {
+				ProjectStatusReport status;
+				CaptureOperationResult(Application::GetInstance().GetOperations().CheckProjectStatus(m_ProjectSession.Context, &status));
+				if (m_LastOperationResult.Succeeded()) {
+					m_ProjectSession.LastStatus = status;
+					SyncWorkbenchSessionState();
+					RefreshWorkbenchValidation();
+				}
+			}
+		});
+		registerCommand({ "editor.scene.new", "New Scene...", "Scene", [this]() { return m_ProjectSession.IsLoaded(); }, [this]() { CopyToBuffer(m_Specification.InitialSceneName, m_NewSceneNameInput.data(), m_NewSceneNameInput.size()); m_RequestNewScenePopup = true; } });
+		registerCommand({ "editor.scene.open", "Open Scene...", "Scene", [this]() { return m_ProjectSession.IsLoaded(); }, [this]() { m_RequestOpenScenePopup = true; } });
+		registerCommand({ "editor.scene.save_as", "Save Scene As...", "Scene", [this]() { return m_SceneDocument.IsLoaded(); }, [this]() { m_RequestSaveSceneAsPopup = true; } });
+		registerCommand({
+			"editor.scene.validate", "Validate Scene", "Scene", [this]() { return m_SceneDocument.IsLoaded(); },
+			[this]() {
+				CaptureOperationResult(Application::GetInstance().GetOperations().ValidateScene(*m_SceneDocument.SceneRef));
+				RefreshWorkbenchValidation();
+			}
+		});
+
+		const auto ctrl = InputModifiers::Control;
+		const auto ctrlShift = InputModifiers::Control | InputModifiers::Shift;
+		(void)input.Bindings().RegisterDefaultCommand({ "undo", "editor.undo", "Global", { KeyboardControl(Key::Z), ctrl, InputTrigger::Pressed, true }, 0, true });
+		(void)input.Bindings().RegisterDefaultCommand({ "redo", "editor.redo", "Global", { KeyboardControl(Key::Y), ctrl, InputTrigger::Pressed, true }, 0, true });
+		(void)input.Bindings().RegisterDefaultCommand({ "entity.create", "editor.entity.create", "Global", { KeyboardControl(Key::N), ctrlShift, InputTrigger::Pressed, true }, 0, true });
+		(void)input.Bindings().RegisterDefaultCommand({ "entity.delete", "editor.entity.delete", "Global", { KeyboardControl(Key::Delete), InputModifiers::None, InputTrigger::Pressed, true }, 0, true });
+		(void)input.Bindings().RegisterDefaultCommand({ "scene.save", "editor.scene.save", "Global", { KeyboardControl(Key::S), ctrl, InputTrigger::Pressed, true }, 0, true });
+		std::vector<Editor::EditorInputBindingOverride> userOverrides;
+		if (Editor::EditorInputBindingStorage::Load(Editor::EditorInputBindingStorage::GetDefaultPath(), userOverrides).Succeeded()) {
+			(void)input.Bindings().SetOverrides(std::move(userOverrides));
+		}
 
         m_InteractionHost.ContextMenus().Replace("hierarchy.window", {
             {
-                .Id = "entity.create",
+                .CommandId = "editor.entity.create",
                 .Label = "New Entity",
-                .Shortcut = "Ctrl+Shift+N",
                 .Tooltip = "Create a new entity in the active scene",
-                .Enabled = true,
-                .IsEnabled = [this]() { return m_InteractionHost.HasActiveScene(); },
-                .Trigger = [this]() { CreateEntityFromHierarchy(); }
+				.Enabled = true
             }
         });
         m_InteractionHost.ContextMenus().Replace("hierarchy.entity", {
             {
-                .Id = "entity.create",
+                .CommandId = "editor.entity.create",
                 .Label = "New Entity",
-                .Shortcut = "Ctrl+Shift+N",
                 .Tooltip = "Create a new entity in the active scene",
-                .Enabled = true,
-                .IsEnabled = [this]() { return m_InteractionHost.HasActiveScene(); },
-                .Trigger = [this]() { CreateEntityFromHierarchy(); }
+				.Enabled = true
             },
             {
-                .Id = "entity.delete",
+                .CommandId = "editor.entity.delete",
                 .Label = "Delete Selected",
-                .Shortcut = "Del",
                 .Tooltip = "Delete the current selection and support undo/redo",
-                .Enabled = true,
-                .IsEnabled = []() { return Selection::HasSelection(); },
-                .Trigger = [this]() { DeleteSelectedEntities(); }
+				.Enabled = true
             }
         });
 
         std::vector<ContextMenuActionDescriptor> inspectorActions;
         for (const auto& descriptor : GetEditorInspectableComponents()) {
+			const auto commandId = "editor.component.remove." + descriptor.Id;
+			registerCommand({
+				commandId,
+				"Remove " + descriptor.DisplayName + " Component",
+				"Inspector",
+				[this, type = descriptor.Type]() {
+					if (!m_SceneDocument.SceneRef || !Selection::HasSingleSelection()) return false;
+					return CanRemoveInspectableComponent(type, Selection::ResolvePrimarySelection(m_SceneDocument.SceneRef->GetWorld()));
+				},
+				[this, type = descriptor.Type]() { RemoveComponentFromPrimarySelection(type); }
+			});
             inspectorActions.push_back({
-                .Id = descriptor.Id + ".remove",
+                .CommandId = commandId,
                 .Label = "Remove " + descriptor.DisplayName + " Component",
-                .Shortcut = "",
                 .Tooltip = "Remove a component from the selected entity",
-                .Enabled = true,
-                .IsEnabled = [this, type = descriptor.Type]() {
-                    if (!m_SceneDocument.SceneRef || !Selection::HasSingleSelection()) {
-                        return false;
-                    }
-
-                    return CanRemoveInspectableComponent(type, Selection::ResolvePrimarySelection(m_SceneDocument.SceneRef->GetWorld()));
-                },
-                .Trigger = [this, type = descriptor.Type]() { RemoveComponentFromPrimarySelection(type); }
+				.Enabled = true
             });
         }
         m_InteractionHost.ContextMenus().Replace("inspector.window", {});
@@ -454,53 +505,6 @@ namespace HE {
             .Source = "hierarchy.entity",
             .Target = "hierarchy.entity",
             .Enabled = true
-        });
-
-        m_InteractionHost.Shortcuts().Register({
-            .CommandId = "editor.undo",
-            .DisplayName = "Undo",
-            .Chord = ImGuiMod_Ctrl | ImGuiKey_Z,
-            .Shortcut = "Ctrl+Z",
-            .IsEnabled = [this]() { return m_InteractionHost.CanUndo(); },
-            .Trigger = [this]() { ExecuteUndo(); }
-        });
-        m_InteractionHost.Shortcuts().Register({
-            .CommandId = "editor.redo",
-            .DisplayName = "Redo",
-            .Chord = ImGuiMod_Ctrl | ImGuiKey_Y,
-            .Shortcut = "Ctrl+Y",
-            .IsEnabled = [this]() { return m_InteractionHost.CanRedo(); },
-            .Trigger = [this]() { ExecuteRedo(); }
-        });
-        m_InteractionHost.Shortcuts().Register({
-            .CommandId = "editor.entity.create",
-            .DisplayName = "Create Entity",
-            .Chord = ImGuiMod_Ctrl | ImGuiMod_Shift | ImGuiKey_N,
-            .Shortcut = "Ctrl+Shift+N",
-            .IsEnabled = [this]() { return m_InteractionHost.HasActiveScene(); },
-            .Trigger = [this]() { CreateEntityFromHierarchy(); }
-        });
-        m_InteractionHost.Shortcuts().Register({
-            .CommandId = "editor.entity.delete",
-            .DisplayName = "Delete Selected",
-            .Chord = ImGuiKey_Delete,
-            .Shortcut = "Del",
-            .IsEnabled = []() { return Selection::HasSelection(); },
-            .Trigger = [this]() { DeleteSelectedEntities(); }
-        });
-        m_InteractionHost.Shortcuts().Register({
-            .CommandId = "editor.scene.save",
-            .DisplayName = "Save",
-            .Chord = ImGuiMod_Ctrl | ImGuiKey_S,
-            .Shortcut = "Ctrl+S",
-            .IsEnabled = [this]() { return m_SceneDocument.IsLoaded() || (Selection::HasAssetSelection() && m_AssetInspectorEditor->HasDirtyEdit()); },
-            .Trigger = [this]() {
-				if (Selection::HasAssetSelection() && m_AssetInspectorEditor->HasDirtyEdit()) {
-					(void)m_AssetInspectorEditor->Apply();
-					return;
-				}
-				SaveActiveSceneDocument();
-			}
         });
 
 		m_SceneEntityInspectorEditor->BindInteractionHost(&m_InteractionHost);
@@ -970,8 +974,21 @@ namespace HE {
         ExecuteEditorCommand(CreateRemoveComponentCommand(type, Selection::ResolvePrimarySelection(m_SceneDocument.SceneRef->GetWorld())));
     }
 
-    void EditorLayer::HandleGlobalShortcuts() {
-        m_InteractionHost.Shortcuts().DispatchTriggered();
+    void EditorLayer::ResolveEditorInput() {
+		auto& input = m_InteractionHost.Input();
+		input.Contexts().BeginFrame();
+		(void)input.Resolve(Application::GetInstance().GetInputSnapshot());
+	}
+
+	bool EditorLayer::DrawCommandMenuItem(std::string_view commandId, std::string_view label) {
+		auto& input = m_InteractionHost.Input();
+		const auto* command = input.Commands().Find(commandId);
+		if (!command) return false;
+		const auto shortcut = input.Bindings().GetDisplayText(commandId);
+		const auto displayName = label.empty() ? command->DisplayName : std::string(label);
+		if (!ImGui::MenuItem(displayName.c_str(), shortcut.empty() ? nullptr : shortcut.c_str(), false, input.Commands().CanExecute(commandId))) return false;
+		(void)input.Commands().Execute(commandId);
+		return true;
     }
 
     void EditorLayer::OnUnsavedChangesPopup() {
@@ -1030,7 +1047,7 @@ namespace HE {
         }
 
         OnDockingPanel();
-        HandleGlobalShortcuts();
+        ResolveEditorInput();
 
         if (!m_WorkbenchReady) {
             ImGui::Begin("Workbench Status");
@@ -1208,9 +1225,6 @@ namespace HE {
 
     void EditorLayer::OnDockingPanel() {
         static bool enable_docking = true;
-		bool openNewScenePopup = false;
-		bool openOpenScenePopup = false;
-		bool openSaveSceneAsPopup = false;
 
         static bool opt_fullscreen = true;
         static bool opt_padding = false;
@@ -1260,45 +1274,19 @@ namespace HE {
         if (ImGui::BeginMenuBar())
         {
             if (ImGui::BeginMenu("Project")) {
-                if (ImGui::MenuItem("Resume Last Project", nullptr, false, m_HasPersistedSession && !m_ProjectSession.IsLoaded())) {
-                    ResumePersistedProjectSession();
-                }
-                if (ImGui::MenuItem("Close Project", nullptr, false, m_ProjectSession.IsLoaded())) {
-                    RequestWorkbenchAction({ WorkbenchActionType::CloseProject });
-                }
-                if (ImGui::MenuItem("Reset Saved Session", nullptr, false, m_HasPersistedSession)) {
-                    ClearPersistedProjectSession();
-                }
-                if (ImGui::MenuItem("Refresh Project Status", nullptr, false, m_ProjectSession.IsLoaded())) {
-                    ProjectStatusReport status;
-                    CaptureOperationResult(Application::GetInstance().GetOperations().CheckProjectStatus(m_ProjectSession.Context, &status));
-                    if (m_LastOperationResult.Succeeded()) {
-                        m_ProjectSession.LastStatus = status;
-                        SyncWorkbenchSessionState();
-                        RefreshWorkbenchValidation();
-                    }
-                }
+				DrawCommandMenuItem("editor.project.resume");
+				DrawCommandMenuItem("editor.project.close");
+				DrawCommandMenuItem("editor.project.reset_session");
+				DrawCommandMenuItem("editor.project.refresh");
                 ImGui::EndMenu();
             }
 
             if (ImGui::BeginMenu("Scene")) {
-                if (ImGui::MenuItem("New Scene...", nullptr, false, m_ProjectSession.IsLoaded())) {
-                    CopyToBuffer(m_Specification.InitialSceneName, m_NewSceneNameInput.data(), m_NewSceneNameInput.size());
-					openNewScenePopup = true;
-                }
-                if (ImGui::MenuItem("Open Scene...", nullptr, false, m_ProjectSession.IsLoaded())) {
-					openOpenScenePopup = true;
-                }
-                if (ImGui::MenuItem("Save Scene", "Ctrl+S", false, m_SceneDocument.IsLoaded())) {
-                    SaveActiveSceneDocument();
-                }
-                if (ImGui::MenuItem("Save Scene As...", nullptr, false, m_SceneDocument.IsLoaded())) {
-					openSaveSceneAsPopup = true;
-                }
-                if (ImGui::MenuItem("Validate Scene", nullptr, false, m_SceneDocument.IsLoaded())) {
-                    CaptureOperationResult(Application::GetInstance().GetOperations().ValidateScene(*m_SceneDocument.SceneRef));
-                    RefreshWorkbenchValidation();
-                }
+				DrawCommandMenuItem("editor.scene.new");
+				DrawCommandMenuItem("editor.scene.open");
+				DrawCommandMenuItem("editor.scene.save", "Save Scene");
+				DrawCommandMenuItem("editor.scene.save_as");
+				DrawCommandMenuItem("editor.scene.validate");
                 ImGui::EndMenu();
             }
 
@@ -1308,13 +1296,8 @@ namespace HE {
                 std::string undoTitle = undoLabel.empty() ? "Undo" : ("Undo " + undoLabel);
                 std::string redoTitle = redoLabel.empty() ? "Redo" : ("Redo " + redoLabel);
 
-                if (ImGui::MenuItem(undoTitle.c_str(), "Ctrl+Z", false, m_InteractionHost.CanUndo())) {
-                    ExecuteUndo();
-                }
-
-                if (ImGui::MenuItem(redoTitle.c_str(), "Ctrl+Y", false, m_InteractionHost.CanRedo())) {
-                    ExecuteRedo();
-                }
+				DrawCommandMenuItem("editor.undo", undoTitle);
+				DrawCommandMenuItem("editor.redo", redoTitle);
 
                 ImGui::EndMenu();
             }
@@ -1350,9 +1333,18 @@ namespace HE {
             ImGui::EndMenuBar();
         }
 
-		if (openNewScenePopup) ImGui::OpenPopup("New Scene");
-		if (openOpenScenePopup) ImGui::OpenPopup("Open Scene");
-		if (openSaveSceneAsPopup) ImGui::OpenPopup("Save Scene As");
+		if (m_RequestNewScenePopup) {
+			ImGui::OpenPopup("New Scene");
+			m_RequestNewScenePopup = false;
+		}
+		if (m_RequestOpenScenePopup) {
+			ImGui::OpenPopup("Open Scene");
+			m_RequestOpenScenePopup = false;
+		}
+		if (m_RequestSaveSceneAsPopup) {
+			ImGui::OpenPopup("Save Scene As");
+			m_RequestSaveSceneAsPopup = false;
+		}
 
         if (ImGui::BeginPopupModal("New Scene", nullptr, ImGuiWindowFlags_AlwaysAutoResize)) {
             ImGui::InputText("Scene Name", m_NewSceneNameInput.data(), static_cast<int>(m_NewSceneNameInput.size()));

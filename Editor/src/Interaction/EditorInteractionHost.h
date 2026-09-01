@@ -8,7 +8,7 @@
 #include "Interaction/DragDropIntentRegistry.h"
 #include "Interaction/EditorCommandRouter.h"
 #include "Interaction/EditorCommandStack.h"
-#include "Interaction/ShortcutRegistry.h"
+#include "Input/EditorInputService.h"
 
 namespace HE {
     class EditorWorkbenchState;
@@ -41,12 +41,12 @@ namespace HE {
 
         [[nodiscard]] EditorCommandRouter& Commands() { return m_CommandRouter; }
         [[nodiscard]] ContextMenuRegistry& ContextMenus() { return m_ContextMenus; }
-        [[nodiscard]] ShortcutRegistry& Shortcuts() { return m_Shortcuts; }
+        [[nodiscard]] Editor::EditorInputService& Input() { return m_Input; }
         [[nodiscard]] DragDropIntentRegistry& DragDrop() { return m_DragDrop; }
 
         [[nodiscard]] const EditorCommandRouter& Commands() const { return m_CommandRouter; }
         [[nodiscard]] const ContextMenuRegistry& ContextMenus() const { return m_ContextMenus; }
-        [[nodiscard]] const ShortcutRegistry& Shortcuts() const { return m_Shortcuts; }
+        [[nodiscard]] const Editor::EditorInputService& Input() const { return m_Input; }
         [[nodiscard]] const DragDropIntentRegistry& DragDrop() const { return m_DragDrop; }
 
     private:
@@ -55,7 +55,7 @@ namespace HE {
         SceneDocument* m_SceneDocument = nullptr;
         EditorCommandRouter m_CommandRouter;
         ContextMenuRegistry m_ContextMenus;
-        ShortcutRegistry m_Shortcuts;
+        Editor::EditorInputService m_Input;
         DragDropIntentRegistry m_DragDrop;
         EditorCommandStack m_CommandStack;
         std::function<void()> m_StateChangedCallback;

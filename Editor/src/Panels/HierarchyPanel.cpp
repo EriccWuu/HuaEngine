@@ -23,12 +23,11 @@ namespace HE {
             }
 
             for (const auto& action : *actions) {
-                const bool enabled = action.IsEnabled ? action.IsEnabled() : action.Enabled;
-                if (ImGui::MenuItem(action.Label.c_str(), action.Shortcut.empty() ? nullptr : action.Shortcut.c_str(), false, enabled)) {
-                    host->Commands().SetLastRoute(std::string("context.") + std::string(contextId) + "." + action.Id);
-                    if (action.Trigger) {
-                        action.Trigger();
-                    }
+                const bool enabled = action.Enabled && host->Input().Commands().CanExecute(action.CommandId);
+                const auto shortcut = host->Input().Bindings().GetDisplayText(action.CommandId);
+                if (ImGui::MenuItem(action.Label.c_str(), shortcut.empty() ? nullptr : shortcut.c_str(), false, enabled)) {
+                    host->Commands().SetLastRoute(std::string("context.") + std::string(contextId) + "." + action.CommandId);
+                    (void)host->Input().Commands().Execute(action.CommandId);
                 }
 
                 if (!action.Tooltip.empty() && ImGui::IsItemHovered(ImGuiHoveredFlags_AllowWhenDisabled)) {

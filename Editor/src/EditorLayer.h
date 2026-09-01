@@ -104,7 +104,8 @@ namespace HE {
         void DeleteSelectedEntities();
         void AddComponentToPrimarySelection(EditorInspectableComponent type);
         void RemoveComponentFromPrimarySelection(EditorInspectableComponent type);
-        void HandleGlobalShortcuts();
+        void ResolveEditorInput();
+		bool DrawCommandMenuItem(std::string_view commandId, std::string_view label = {});
         std::string MakeDefaultEntityName() const;
         void OnUnsavedChangesPopup();
         void OnDockingPanel();
@@ -140,6 +141,9 @@ namespace HE {
 		std::chrono::steady_clock::time_point m_LastSceneCameraPoseSave = std::chrono::steady_clock::now();
         WorkbenchActionRequest m_PendingAction;
         bool m_OpenUnsavedChangesPopup = false;
+		bool m_RequestNewScenePopup = false;
+		bool m_RequestOpenScenePopup = false;
+		bool m_RequestSaveSceneAsPopup = false;
         std::array<char, 512> m_ProjectHubPathInput{};
         std::array<char, 128> m_ProjectHubNameInput{};
         std::array<char, 128> m_NewSceneNameInput{};

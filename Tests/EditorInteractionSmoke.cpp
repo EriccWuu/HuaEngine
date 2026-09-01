@@ -12,7 +12,7 @@
 #include "Interaction/DragDropIntentRegistry.h"
 #include "Interaction/EditorInteractionHost.h"
 #include "Interaction/EditorSceneCommands.h"
-#include "Interaction/ShortcutRegistry.h"
+#include "Input/EditorInputService.h"
 #include "Scene/SceneEntityInspectorEditor.h"
 #include "Workbench/EditorWorkbenchState.h"
 #include "Workbench/ProjectSession.h"
@@ -140,34 +140,36 @@ int main() {
     interactionHost.ResetCommandHistory(true);
     HE::Selection::ClearSelection();
 
-    bool shortcutTriggered = false;
-    interactionHost.Shortcuts().Register({
-        .CommandId = "editor.test.undo",
+    bool commandTriggered = false;
+    Require(interactionHost.Input().Commands().Register({
+        .Id = "editor.test.undo",
         .DisplayName = "Undo",
-        .Chord = ImGuiMod_Ctrl | ImGuiKey_Z,
-        .Shortcut = "Ctrl+Z",
-        .IsEnabled = []() { return true; },
-        .Trigger = [&shortcutTriggered]() { shortcutTriggered = true; }
-    });
-    const auto* shortcutBinding = interactionHost.Shortcuts().Find("editor.test.undo");
-    Require(shortcutBinding != nullptr, "Expected shortcut registry to return the registered binding");
+        .Category = "Test",
+        .CanExecute = []() { return true; },
+        .Execute = [&commandTriggered]() { commandTriggered = true; }
+    }).Succeeded(), "Expected editor command registration");
+    Require(interactionHost.Input().Bindings().RegisterDefaultCommand({
+        "test.undo",
+        "editor.test.undo",
+        "Global",
+        { HE::KeyboardControl(HE::Key::Z), HE::InputModifiers::Control, HE::InputTrigger::Pressed, true },
+        0,
+        true
+    }).Succeeded(), "Expected editor command binding registration");
+    Require(interactionHost.Input().Commands().Find("editor.test.undo") != nullptr, "Expected command registry lookup");
+    Require(interactionHost.Input().Bindings().GetDisplayText("editor.test.undo") == "Ctrl+Z", "Expected shortcut display from binding metadata");
 
-    bool contextTriggered = false;
     interactionHost.ContextMenus().Replace("hierarchy.entity", {
         {
-            .Id = "entity.create",
+            .CommandId = "editor.test.undo",
             .Label = "Create Entity",
-            .Shortcut = "Ctrl+Shift+N",
             .Tooltip = "Create a test entity",
-            .Enabled = true,
-            .IsEnabled = []() { return true; },
-            .Trigger = [&contextTriggered]() { contextTriggered = true; }
+            .Enabled = true
         }
     });
     const auto* contextActions = interactionHost.ContextMenus().Find("hierarchy.entity");
     Require(contextActions != nullptr && contextActions->size() == 1, "Expected context menu registry to expose the registered action");
-    (*contextActions)[0].Trigger();
-    Require(contextTriggered, "Expected context menu trigger to invoke the registered callback");
+    Require((*contextActions)[0].CommandId == "editor.test.undo", "Expected context menu to reference the shared command");
 
     interactionHost.DragDrop().Register({
         .Id = "hierarchy.entity.reorder",
@@ -179,22 +181,12 @@ int main() {
     });
     Require(interactionHost.DragDrop().Find("hierarchy.entity", "hierarchy.entity") != nullptr, "Expected drag-drop registry to resolve the registered intent");
 
-    ImGui::CreateContext();
-    ImGuiIO& io = ImGui::GetIO();
-    io.DisplaySize = ImVec2(1280.0f, 720.0f);
-    io.Fonts->AddFontDefault();
-    unsigned char* fontPixels = nullptr;
-    int fontWidth = 0;
-    int fontHeight = 0;
-    io.Fonts->GetTexDataAsRGBA32(&fontPixels, &fontWidth, &fontHeight);
-    io.AddKeyEvent(ImGuiMod_Ctrl, true);
-    io.AddKeyEvent(ImGuiKey_LeftCtrl, true);
-    io.AddKeyEvent(ImGuiKey_Z, true);
-    ImGui::NewFrame();
-    interactionHost.Shortcuts().DispatchTriggered();
-    ImGui::EndFrame();
-    Require(shortcutTriggered, "Expected shortcut dispatch to trigger the registered Ctrl+Z callback");
-    ImGui::DestroyContext();
+    HE::InputSystem commandInput;
+    commandInput.BeginFrame();
+    commandInput.Submit(HE::RawInputEvent::Key(HE::Key::Z, HE::InputPhase::Pressed, HE::InputModifiers::Control));
+    interactionHost.Input().Contexts().BeginFrame();
+    Require(interactionHost.Input().Resolve(commandInput.FinalizeFrame()).Succeeded(), "Expected contextual command resolution");
+    Require(commandTriggered, "Expected Ctrl+Z to execute the shared command");
 
     auto createEntityResult = interactionHost.ExecuteCommand(HE::CreateCreateEntityCommand("Smoke Entity 1"));
     Require(createEntityResult.Succeeded(), "Expected create-entity command to succeed");
