@@ -8,9 +8,11 @@
 #include "HuaEngine/Core/KeyCodes.h"
 #include "HuaEngine/Core/MouseCodes.h"
 #include "HuaEngine/ECS/FrameContext.h"
+#include "HuaEngine/GUI/ImguiInputBridge.h"
 #include "HuaEngine/Input/InputSystem.h"
 #include "Platform/Windows/GlfwInputTranslator.h"
 #include "GLFW/glfw3.h"
+#include "imgui.h"
 
 namespace {
 	void Require(bool condition, const std::string& message) {
@@ -58,6 +60,13 @@ int main() {
 	modifierInput.Submit(HE::RawInputEvent::Pointer({ 4.0f, 8.0f }));
 	const auto& modifierSnapshot = modifierInput.FinalizeFrame();
 	Require(modifierSnapshot.GetModifiers() == HE::InputModifiers::Control, "Expected pointer motion to preserve keyboard modifiers");
+
+	ImGui::CreateContext();
+	HE::InputSystem bridgeInput;
+	bridgeInput.BeginFrame();
+	HE::SynchronizeImguiInput(bridgeInput);
+	(void)bridgeInput.FinalizeFrame();
+	ImGui::DestroyContext();
 
 	input.BeginFrame();
 	const auto& clearedDelta = input.FinalizeFrame();

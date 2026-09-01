@@ -734,8 +734,9 @@ target_include_directories(InputSystemSmoke PRIVATE
     ${SPDLOG_INCLUDE_DIR}
     ${GLFW_INCLUDE_DIR}
     ${GLM_INCLUDE_DIR}
+	${IMGUI_INCLUDE_DIR}
 )
-target_link_libraries(InputSystemSmoke PRIVATE HuaEngine)
+target_link_libraries(InputSystemSmoke PRIVATE HuaEngine ImGui)
 configure_smoke_target(InputSystemSmoke)
 
 add_executable(EditorInputSmoke

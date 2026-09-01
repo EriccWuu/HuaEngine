@@ -36,7 +36,7 @@ namespace HE {
 			}
 		}
 
-		for (int button = 0; button <= static_cast<int>(Mouse::ButtonLast); ++button) {
+		for (int button = 0; button <= static_cast<int>(Mouse::ButtonLast) && button < ImGuiMouseButton_COUNT; ++button) {
 			const InputControl control = MouseControl(static_cast<MouseCode>(button));
 			const bool down = ImGui::IsMouseDown(button);
 			if (down != inputSystem.IsWorkingDown(control)) {
