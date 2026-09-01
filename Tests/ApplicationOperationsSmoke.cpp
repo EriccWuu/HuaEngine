@@ -10,6 +10,7 @@
 #include "HuaEngine.h"
 #include "HuaEngine/Asset/AssetInspection.h"
 #include "HuaEngine/Application/ApplicationServices.h"
+#include "HuaEngine/Application/SceneAssetCreationCleanup.h"
 #include "HuaEngine/Asset/Import/AssetImportService.h"
 #include "Support/TestTextureFixture.h"
 
@@ -103,6 +104,18 @@ int main() {
 	Require(!operations.CreateSceneAsset(projectContext, projectContext.RootPath / "Outside.scene").Succeeded(), "Expected scene creation to reject paths outside Assets");
 	Require(!std::filesystem::exists(projectContext.GetAssetRootPath() / "Scenes" / "Wrong.txt"), "Expected rejected extension to leave no source");
 	Require(!std::filesystem::exists(projectContext.RootPath / "Outside.scene"), "Expected rejected outside path to leave no source");
+
+	const auto blockedCleanupPath = smokeRoot / "BlockedSceneCleanup";
+	std::filesystem::create_directories(blockedCleanupPath, errorCode);
+	Require(!errorCode, "Expected blocked cleanup fixture directory");
+	std::ofstream(blockedCleanupPath / "keep").put('\n');
+	auto cleanupFailure = HE::ResultEnvelope::Failure("scene.save", blockedCleanupPath.generic_string(), "Scene save failed");
+	const std::array cleanupPaths{ blockedCleanupPath };
+	auto cleanupResult = HE::CleanupSceneAssetCreationFailure(std::move(cleanupFailure), cleanupPaths);
+	Require(cleanupResult.RequiresManualIntervention(), "Expected incomplete scene asset cleanup to require manual intervention");
+	Require(!cleanupResult.Details.empty() && cleanupResult.Details.back().Context == blockedCleanupPath.generic_string(), "Expected cleanup diagnostics to identify the residual path");
+	std::filesystem::remove_all(blockedCleanupPath, errorCode);
+	Require(!errorCode, "Expected blocked cleanup fixture removal");
 
 	HE::Ref<HE::Scene> scene;
 	auto createScene = operations.CreateScene("OperationsScene", scene);

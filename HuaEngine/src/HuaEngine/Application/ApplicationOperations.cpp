@@ -2,6 +2,7 @@
 #include "ApplicationOperations.h"
 
 #include "ApplicationServices.h"
+#include "SceneAssetCreationCleanup.h"
 #include "HuaEngine/ECS/Components.h"
 #include "HuaEngine/Project/ProjectContext.h"
 #include "HuaEngine/Project/ProjectService.h"
@@ -654,21 +655,15 @@ namespace HE {
 
 		auto saveResult = m_Services->Scenes().SaveScene(*scene, resolvedPath);
 		if (!saveResult.Succeeded()) {
-			std::error_code cleanupError;
-			std::filesystem::remove(resolvedPath, cleanupError);
-			saveResult.Operation = "asset.scene.create";
-			return saveResult;
+			const std::array createdPaths{ resolvedPath };
+			return CleanupSceneAssetCreationFailure(std::move(saveResult), createdPaths);
 		}
 
 		AssetGuid guid;
 		auto registerResult = m_Services->Assets().RegisterSceneAsset(context, resolvedPath, &guid);
 		if (!registerResult.Succeeded()) {
-			std::error_code cleanupError;
-			std::filesystem::remove(GetAssetMetaPath(resolvedPath), cleanupError);
-			cleanupError.clear();
-			std::filesystem::remove(resolvedPath, cleanupError);
-			registerResult.Operation = "asset.scene.create";
-			return registerResult;
+			const std::array createdPaths{ resolvedPath };
+			return CleanupSceneAssetCreationFailure(std::move(registerResult), createdPaths);
 		}
 
 		if (outGuid) {
