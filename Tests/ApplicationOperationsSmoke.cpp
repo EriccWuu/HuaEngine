@@ -1,3 +1,4 @@
+#include <algorithm>
 #include <cstdlib>
 #include <array>
 #include <filesystem>
@@ -52,6 +53,7 @@ int main() {
 	Require(operations.Supports("asset.import"), "Expected asset.import to be published");
 	Require(operations.Supports("asset.reimport"), "Expected asset.reimport to be published");
 	Require(operations.Supports("asset.list"), "Expected asset.list to be published");
+	Require(operations.Supports("asset.scene.create"), "Expected asset.scene.create to be published");
 	Require(operations.Supports("asset.register_mesh"), "Expected asset.register_mesh to be published through the operation registry");
 	Require(operations.Supports("validation.validate"), "Expected validation.validate to be published through the operation registry");
 	Require(!operations.Supports("project.missing"), "Expected unsupported operations to stay absent from the registry");
@@ -79,6 +81,28 @@ int main() {
 	Require(initializeAssets.Operation == "asset.initialize", "Expected stable asset.initialize operation id");
 	Require(emptyImportReport.TotalFileAssets == 0, "Expected empty project asset initialization report");
 	Require(std::filesystem::is_directory(projectContext.RootPath / "Library" / "Artifacts"), "Expected project Library creation");
+
+	const auto createdScenePath = projectContext.GetAssetRootPath() / "Scenes" / "Created.scene";
+	HE::AssetGuid createdSceneGuid;
+	auto createSceneAsset = operations.CreateSceneAsset(projectContext, createdScenePath, &createdSceneGuid);
+	Require(createSceneAsset.Succeeded() && !createdSceneGuid.empty(), "Expected persisted scene asset creation");
+	Require(std::filesystem::is_regular_file(createdScenePath), "Expected created scene source");
+	Require(std::filesystem::is_regular_file(HE::GetAssetMetaPath(createdScenePath)), "Expected created scene metadata");
+	Require(createSceneAsset.Payload.at("asset_guid") == createdSceneGuid, "Expected created scene guid payload");
+	Require(createSceneAsset.Payload.at("asset_id") == "Scenes/Created.scene", "Expected created scene asset id payload");
+
+	std::vector<HE::AssetRecord> createdSceneRecords;
+	Require(operations.ListAssets(projectContext, createdSceneRecords).Succeeded(), "Expected asset listing after scene creation");
+	const auto createdSceneRecord = std::find_if(createdSceneRecords.begin(), createdSceneRecords.end(), [&](const HE::AssetRecord& candidate) {
+		return candidate.Guid == createdSceneGuid;
+	});
+	Require(createdSceneRecord != createdSceneRecords.end(), "Expected created scene registry record");
+	Require(createdSceneRecord->Kind == HE::AssetKind::Scene, "Expected created scene asset kind");
+	Require(!operations.CreateSceneAsset(projectContext, createdScenePath).Succeeded(), "Expected scene creation to reject overwrite");
+	Require(!operations.CreateSceneAsset(projectContext, projectContext.GetAssetRootPath() / "Scenes" / "Wrong.txt").Succeeded(), "Expected scene creation to reject wrong extension");
+	Require(!operations.CreateSceneAsset(projectContext, projectContext.RootPath / "Outside.scene").Succeeded(), "Expected scene creation to reject paths outside Assets");
+	Require(!std::filesystem::exists(projectContext.GetAssetRootPath() / "Scenes" / "Wrong.txt"), "Expected rejected extension to leave no source");
+	Require(!std::filesystem::exists(projectContext.RootPath / "Outside.scene"), "Expected rejected outside path to leave no source");
 
 	HE::Ref<HE::Scene> scene;
 	auto createScene = operations.CreateScene("OperationsScene", scene);

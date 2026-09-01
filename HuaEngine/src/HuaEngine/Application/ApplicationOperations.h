@@ -182,6 +182,10 @@ namespace HE {
 			const ProjectContext& context,
 			const std::filesystem::path& sourcePath,
 			AssetGuid* outGuid = nullptr) const;
+		[[nodiscard]] ResultEnvelope CreateSceneAsset(
+			const ProjectContext& context,
+			const std::filesystem::path& assetPath,
+			AssetGuid* outGuid = nullptr) const;
 		[[nodiscard]] ResultEnvelope RenameAsset(
 			const ProjectContext& context,
 			const AssetGuid& guid,
