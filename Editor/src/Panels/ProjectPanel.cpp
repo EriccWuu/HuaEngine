@@ -6,6 +6,7 @@
 #include <vector>
 
 #include "imgui.h"
+#include "Input/EditorInputService.h"
 
 namespace {
 	bool IsSceneFile(const std::filesystem::path& path) {
@@ -51,6 +52,8 @@ namespace HE {
 
 	void ProjectPanel::OnGuiRender() {
 		ImGui::Begin("Project");
+		m_IsFocused = ImGui::IsWindowFocused(ImGuiFocusedFlags_RootAndChildWindows);
+		m_IsHovered = ImGui::IsWindowHovered(ImGuiHoveredFlags_RootAndChildWindows);
 
 		if (m_WorkbenchState) {
 			if (const auto* session = m_WorkbenchState->GetProjectSessionSummary()) {
@@ -184,10 +187,10 @@ namespace HE {
 			m_PendingAction = ProjectPanelAction{ .Type = ProjectPanelActionType::SelectAsset, .Path = entry.path(), .Guid = asset->second.Guid };
 		}
 
-		if (ImGui::IsItemHovered() && IsSceneFile(entry.path()) && ImGui::IsMouseDoubleClicked(ImGuiMouseButton_Left)) {
+		if (ImGui::IsItemHovered() && m_Input && m_Input->WasActionTriggered("editor.project.open_item") && IsSceneFile(entry.path())) {
 			m_PendingAction = ProjectPanelAction{ ProjectPanelActionType::OpenScene, entry.path() };
 		}
-		if (ImGui::IsItemHovered() && IsShaderFile(entry.path()) && ImGui::IsMouseDoubleClicked(ImGuiMouseButton_Left)) {
+		if (ImGui::IsItemHovered() && m_Input && m_Input->WasActionTriggered("editor.project.open_item") && IsShaderFile(entry.path())) {
 			m_PendingAction = ProjectPanelAction{ ProjectPanelActionType::OpenSource, entry.path() };
 		}
 

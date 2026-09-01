@@ -439,6 +439,9 @@ namespace HE {
 				RefreshWorkbenchValidation();
 			}
 		});
+		registerCommand({ "editor.gizmo.translate", "Translate Tool", "Scene", []() { return true; }, [this]() { m_GizmoOperation = ImGuizmo::TRANSLATE; } });
+		registerCommand({ "editor.gizmo.rotate", "Rotate Tool", "Scene", []() { return true; }, [this]() { m_GizmoOperation = ImGuizmo::ROTATE; } });
+		registerCommand({ "editor.gizmo.scale", "Scale Tool", "Scene", []() { return true; }, [this]() { m_GizmoOperation = ImGuizmo::SCALE; } });
 
 		const auto ctrl = InputModifiers::Control;
 		const auto ctrlShift = InputModifiers::Control | InputModifiers::Shift;
@@ -447,6 +450,24 @@ namespace HE {
 		(void)input.Bindings().RegisterDefaultCommand({ "entity.create", "editor.entity.create", "Global", { KeyboardControl(Key::N), ctrlShift, InputTrigger::Pressed, true }, 0, true });
 		(void)input.Bindings().RegisterDefaultCommand({ "entity.delete", "editor.entity.delete", "Global", { KeyboardControl(Key::Delete), InputModifiers::None, InputTrigger::Pressed, true }, 0, true });
 		(void)input.Bindings().RegisterDefaultCommand({ "scene.save", "editor.scene.save", "Global", { KeyboardControl(Key::S), ctrl, InputTrigger::Pressed, true }, 0, true });
+		(void)input.Bindings().RegisterDefaultCommand({ "gizmo.translate", "editor.gizmo.translate", "SceneViewport", { KeyboardControl(Key::W), InputModifiers::None, InputTrigger::Pressed, true }, 0, true });
+		(void)input.Bindings().RegisterDefaultCommand({ "gizmo.rotate", "editor.gizmo.rotate", "SceneViewport", { KeyboardControl(Key::E), InputModifiers::None, InputTrigger::Pressed, true }, 0, true });
+		(void)input.Bindings().RegisterDefaultCommand({ "gizmo.scale", "editor.gizmo.scale", "SceneViewport", { KeyboardControl(Key::R), InputModifiers::None, InputTrigger::Pressed, true }, 0, true });
+		auto registerAction = [&](Editor::EditorActionBinding binding) { (void)input.Bindings().RegisterDefaultAction(std::move(binding)); };
+		registerAction({ .Id = "camera.forward", .ActionId = "editor.camera.forward", .ContextId = "SceneViewport", .Gesture = { KeyboardControl(Key::W), InputModifiers::None, InputTrigger::Held, true }, .Scale = 1.0f });
+		registerAction({ .Id = "camera.backward", .ActionId = "editor.camera.forward", .ContextId = "SceneViewport", .Gesture = { KeyboardControl(Key::S), InputModifiers::None, InputTrigger::Held, true }, .Scale = -1.0f });
+		registerAction({ .Id = "camera.right", .ActionId = "editor.camera.right", .ContextId = "SceneViewport", .Gesture = { KeyboardControl(Key::D), InputModifiers::None, InputTrigger::Held, true }, .Scale = 1.0f });
+		registerAction({ .Id = "camera.left", .ActionId = "editor.camera.right", .ContextId = "SceneViewport", .Gesture = { KeyboardControl(Key::A), InputModifiers::None, InputTrigger::Held, true }, .Scale = -1.0f });
+		registerAction({ .Id = "camera.look_x", .ActionId = "editor.camera.look_x", .ContextId = "SceneViewport", .Gesture = { MouseControl(Mouse::ButtonRight), InputModifiers::None, InputTrigger::Held, true }, .Scale = 1.0f, .ValueSource = Editor::EditorActionValueSource::PointerDeltaX });
+		registerAction({ .Id = "camera.look_y", .ActionId = "editor.camera.look_y", .ContextId = "SceneViewport", .Gesture = { MouseControl(Mouse::ButtonRight), InputModifiers::None, InputTrigger::Held, true }, .Scale = 1.0f, .ValueSource = Editor::EditorActionValueSource::PointerDeltaY });
+		registerAction({ .Id = "camera.pan_x", .ActionId = "editor.camera.pan_x", .ContextId = "SceneViewport", .Gesture = { MouseControl(Mouse::ButtonMiddle), InputModifiers::None, InputTrigger::Held, true }, .Scale = 1.0f, .ValueSource = Editor::EditorActionValueSource::PointerDeltaX });
+		registerAction({ .Id = "camera.pan_y", .ActionId = "editor.camera.pan_y", .ContextId = "SceneViewport", .Gesture = { MouseControl(Mouse::ButtonMiddle), InputModifiers::None, InputTrigger::Held, true }, .Scale = 1.0f, .ValueSource = Editor::EditorActionValueSource::PointerDeltaY });
+		registerAction({ .Id = "camera.zoom", .ActionId = "editor.camera.zoom", .ContextId = "SceneViewport", .Gesture = { MouseControl(Mouse::ButtonLast), InputModifiers::None, InputTrigger::Scrolled, true }, .Scale = 1.0f, .ValueSource = Editor::EditorActionValueSource::ScrollY });
+		registerAction({ .Id = "scene.pick", .ActionId = "editor.scene.pick", .ContextId = "SceneViewport", .Gesture = { MouseControl(Mouse::ButtonLeft), InputModifiers::None, InputTrigger::Pressed, true } });
+		registerAction({ .Id = "project.open", .ActionId = "editor.project.open_item", .ContextId = "Project", .Gesture = { MouseControl(Mouse::ButtonLeft), InputModifiers::None, InputTrigger::DoublePressed, true } });
+		registerAction({ .Id = "hierarchy.select", .ActionId = "editor.hierarchy.select", .ContextId = "Hierarchy", .Gesture = { MouseControl(Mouse::ButtonLeft), InputModifiers::None, InputTrigger::Pressed, true } });
+		registerAction({ .Id = "hierarchy.toggle", .ActionId = "editor.hierarchy.toggle", .ContextId = "Hierarchy", .Gesture = { MouseControl(Mouse::ButtonLeft), InputModifiers::Control, InputTrigger::Pressed, true } });
+		registerAction({ .Id = "hierarchy.context", .ActionId = "editor.hierarchy.context_select", .ContextId = "Hierarchy", .Gesture = { MouseControl(Mouse::ButtonRight), InputModifiers::None, InputTrigger::Pressed, true } });
 		std::vector<Editor::EditorInputBindingOverride> userOverrides;
 		if (Editor::EditorInputBindingStorage::Load(Editor::EditorInputBindingStorage::GetDefaultPath(), userOverrides).Succeeded()) {
 			(void)input.Bindings().SetOverrides(std::move(userOverrides));
@@ -517,6 +538,7 @@ namespace HE {
         if (m_HierarchyPanel) {
             m_HierarchyPanel->SetInteractionHost(&m_InteractionHost);
         }
+		m_ProjectPanel->SetInputService(&input);
     }
 
 
@@ -820,11 +842,22 @@ namespace HE {
     }
 
     void EditorLayer::OnUpdate() {
+		ResolveEditorInput();
         if (m_Mode != EditorWorkbenchMode::WorkbenchShell || !m_WorkbenchReady || !m_SceneDocument.SceneRef) {
             return;
         }
 
-		if (m_EditorCameraController->Update(m_IsSceneViewportHovered)) {
+		const auto& input = m_InteractionHost.Input();
+		const Editor::EditorCameraInputState cameraInput{
+			.MoveForward = input.GetActionValue("editor.camera.forward"),
+			.MoveRight = input.GetActionValue("editor.camera.right"),
+			.LookX = input.GetActionValue("editor.camera.look_x"),
+			.LookY = input.GetActionValue("editor.camera.look_y"),
+			.PanX = input.GetActionValue("editor.camera.pan_x"),
+			.PanY = input.GetActionValue("editor.camera.pan_y"),
+			.Zoom = input.GetActionValue("editor.camera.zoom")
+		};
+		if (m_EditorCameraController->Update(cameraInput)) {
 			m_SceneCameraPoseDirty = true;
 		}
 		if (m_SceneCameraPoseDirty && std::chrono::steady_clock::now() - m_LastSceneCameraPoseSave >= std::chrono::seconds(1)) {
@@ -847,9 +880,6 @@ namespace HE {
 			event.Handled = true;
 			RequestWorkbenchAction({ WorkbenchActionType::Exit });
 			return;
-		}
-		if (m_EditorCameraController && m_IsSceneViewportHovered) {
-			m_SceneCameraPoseDirty = m_EditorCameraController->OnEvent(event) || m_SceneCameraPoseDirty;
 		}
 	}
 
@@ -977,7 +1007,24 @@ namespace HE {
     void EditorLayer::ResolveEditorInput() {
 		auto& input = m_InteractionHost.Input();
 		input.Contexts().BeginFrame();
-		(void)input.Resolve(Application::GetInstance().GetInputSnapshot());
+		const auto& snapshot = Application::GetInstance().GetInputSnapshot();
+		if (snapshot.GetCaptureState().TextInput) input.Contexts().Activate("TextInput", 1000, true, false, true);
+		if (m_IsModalOpen) input.Contexts().Activate("Modal", 900, true, true, true);
+		if (m_IsSceneViewportFocused || m_IsSceneViewportHovered) input.Contexts().Activate("SceneViewport", 500, true, false, false);
+		if (m_IsSceneViewportHovered) input.Contexts().Activate("SceneViewport", 500, false, true, false);
+		if (m_ProjectPanel && (m_ProjectPanel->IsFocused() || m_ProjectPanel->IsHovered())) {
+			input.Contexts().Activate("Project", 400, m_ProjectPanel->IsFocused(), m_ProjectPanel->IsHovered(), false);
+		}
+		if (m_HierarchyPanel && (m_HierarchyPanel->IsFocused() || m_HierarchyPanel->IsHovered())) {
+			input.Contexts().Activate("Hierarchy", 400, m_HierarchyPanel->IsFocused(), m_HierarchyPanel->IsHovered(), false);
+		}
+		if (m_Inspector && (m_Inspector->IsFocused() || m_Inspector->IsHovered())) {
+			input.Contexts().Activate("Inspector", 400, m_Inspector->IsFocused(), m_Inspector->IsHovered(), false);
+		}
+		if (m_Concole && (m_Concole->IsFocused() || m_Concole->IsHovered())) {
+			input.Contexts().Activate("Console", 400, m_Concole->IsFocused(), m_Concole->IsHovered(), false);
+		}
+		(void)input.Resolve(snapshot);
 	}
 
 	bool EditorLayer::DrawCommandMenuItem(std::string_view commandId, std::string_view label) {
@@ -1047,7 +1094,6 @@ namespace HE {
         }
 
         OnDockingPanel();
-        ResolveEditorInput();
 
         if (!m_WorkbenchReady) {
             ImGui::Begin("Workbench Status");
@@ -1345,6 +1391,8 @@ namespace HE {
 			ImGui::OpenPopup("Save Scene As");
 			m_RequestSaveSceneAsPopup = false;
 		}
+		m_IsModalOpen = ImGui::IsPopupOpen("New Scene") || ImGui::IsPopupOpen("Open Scene") ||
+			ImGui::IsPopupOpen("Save Scene As") || ImGui::IsPopupOpen("Unsaved Changes");
 
         if (ImGui::BeginPopupModal("New Scene", nullptr, ImGuiWindowFlags_AlwaysAutoResize)) {
             ImGui::InputText("Scene Name", m_NewSceneNameInput.data(), static_cast<int>(m_NewSceneNameInput.size()));
@@ -1456,13 +1504,8 @@ namespace HE {
             { m_SceneViewportSize.x , m_SceneViewportSize.y },
             { 0, 1 }, { 1, 0 });
 		m_IsSceneViewportHovered = ImGui::IsItemHovered();
+		m_IsSceneViewportFocused = ImGui::IsWindowFocused(ImGuiFocusedFlags_RootAndChildWindows);
         m_EditorCameraController->SetViewport(m_SceneViewportSize.x, m_SceneViewportSize.y);
-
-        if (ImGui::IsWindowHovered()) {
-            if (ImGui::IsKeyPressed(ImGuiKey_W)) m_GizmoOperation = ImGuizmo::TRANSLATE;
-            if (ImGui::IsKeyPressed(ImGuiKey_E)) m_GizmoOperation = ImGuizmo::ROTATE;
-            if (ImGui::IsKeyPressed(ImGuiKey_R)) m_GizmoOperation = ImGuizmo::SCALE;
-        }
 
         ImGuizmo::SetDrawlist();
         ImGuizmo::SetRect(viewportOrigin.x, viewportOrigin.y, m_SceneViewportSize.x, m_SceneViewportSize.y);
@@ -1507,10 +1550,10 @@ namespace HE {
             m_GizmoEntityUuid = {};
         }
 
-        if (m_IsSceneViewportHovered && ImGui::IsMouseClicked(ImGuiMouseButton_Left) && !ImGuizmo::IsOver()) {
-            const ImVec2 mousePosition = ImGui::GetMousePos();
-            const float localX = mousePosition.x - viewportOrigin.x;
-            const float localY = mousePosition.y - viewportOrigin.y;
+        if (m_IsSceneViewportHovered && m_InteractionHost.Input().WasActionTriggered("editor.scene.pick") && !ImGuizmo::IsOver()) {
+			const auto pointerPosition = Application::GetInstance().GetInputSnapshot().GetPointerPosition();
+			const float localX = pointerPosition.x - viewportOrigin.x;
+			const float localY = pointerPosition.y - viewportOrigin.y;
             const auto objectIdTexture = m_ObjectIdRenderTarget->GetColorAttachmentTexture();
             if (objectIdTexture) {
                 const int maxX = static_cast<int>(objectIdTexture->GetWidth()) - 1;

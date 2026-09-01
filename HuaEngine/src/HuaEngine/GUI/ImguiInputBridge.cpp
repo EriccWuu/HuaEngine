@@ -20,6 +20,7 @@ namespace HE {
 
 	void SynchronizeImguiInput(InputSystem& inputSystem) {
 		const ImGuiIO& io = ImGui::GetIO();
+		inputSystem.SetCaptureState({ io.WantCaptureKeyboard, io.WantCaptureMouse, io.WantTextInput });
 		const InputModifiers modifiers = GetImguiModifiers(io);
 		for (int keyCode = 0; keyCode <= static_cast<int>(Key::Menu); ++keyCode) {
 			const ImGuiKey imguiKey = KeyToImGuiKey(keyCode);

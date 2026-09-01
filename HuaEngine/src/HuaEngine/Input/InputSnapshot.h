@@ -21,6 +21,7 @@ namespace HE {
 		[[nodiscard]] glm::vec2 GetPointerDelta() const { return m_PointerDelta; }
 		[[nodiscard]] glm::vec2 GetScrollDelta() const { return m_ScrollDelta; }
 		[[nodiscard]] InputModifiers GetModifiers() const { return m_Modifiers; }
+		[[nodiscard]] const InputCaptureState& GetCaptureState() const { return m_CaptureState; }
 		[[nodiscard]] std::span<const RawInputEvent> GetEvents() const { return m_Events; }
 
 	private:
@@ -36,6 +37,7 @@ namespace HE {
 		glm::vec2 m_PointerDelta = {};
 		glm::vec2 m_ScrollDelta = {};
 		InputModifiers m_Modifiers = InputModifiers::None;
+		InputCaptureState m_CaptureState;
 	};
 
 	struct InputFrameState {

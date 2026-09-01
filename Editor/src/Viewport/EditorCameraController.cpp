@@ -3,65 +3,27 @@
 
 #define GLM_ENABLE_EXPERIMENTAL
 #include "glm/gtx/quaternion.hpp"
-#include "HuaEngine/Core/Input.h"
-#include "HuaEngine/Core/KeyCodes.h"
-#include "HuaEngine/Core/MouseCodes.h"
-#include "HuaEngine/Events/MouseEvent.h"
 
 namespace HE::Editor {
 	EditorCameraController::EditorCameraController(float fov, float aspectRatio, float nearClip, float farClip)
 		:m_Fov(fov), m_AspectRatio(aspectRatio), m_Near(nearClip), m_Far(farClip) {}
 
-	bool EditorCameraController::OnEvent(Event& event) {
-		bool changed = false;
-		EventDispatcher dispatcher(event);
-		dispatcher.Dispatch<MouseScrolledEvent>([this, &changed](MouseScrolledEvent& mouseEvent) {
-			m_Position += GetForwardDirection() * mouseEvent.GetYOffset() * m_ScrollSpeed;
-			changed = mouseEvent.GetYOffset() != 0.0f;
-			return false;
-		});
-		return changed;
-	}
-
-	bool EditorCameraController::Update(bool isActive) {
+	bool EditorCameraController::Update(const EditorCameraInputState& input) {
 		const auto now = std::chrono::steady_clock::now();
 		const float deltaTime = std::chrono::duration<float>(now - m_LastUpdateTime).count();
 		m_LastUpdateTime = now;
 
-		const glm::vec2 mousePosition = { Input::GetMouseX(), Input::GetMouseY() };
-		bool changed = false;
-		const bool hasShortcutModifier =
-			Input::IsKeyPressed(Key::LeftControl) || Input::IsKeyPressed(Key::RightControl) ||
-			Input::IsKeyPressed(Key::LeftAlt) || Input::IsKeyPressed(Key::RightAlt) ||
-			Input::IsKeyPressed(Key::LeftSuper) || Input::IsKeyPressed(Key::RightSuper);
-		if (isActive && !hasShortcutModifier) {
-			const float moveDistance = m_MoveSpeed * deltaTime;
-			if (Input::IsKeyPressed(Key::W)) { m_Position += GetForwardDirection() * moveDistance; changed = true; }
-			if (Input::IsKeyPressed(Key::S)) { m_Position -= GetForwardDirection() * moveDistance; changed = true; }
-			if (Input::IsKeyPressed(Key::D)) { m_Position += GetRightDirection() * moveDistance; changed = true; }
-			if (Input::IsKeyPressed(Key::A)) { m_Position -= GetRightDirection() * moveDistance; changed = true; }
-		}
-
-		if (isActive && Input::IsMousePressed(Mouse::ButtonRight)) {
-			if (m_HasMousePosition) {
-				const glm::vec2 delta = mousePosition - m_LastMousePosition;
-				m_Yaw += delta.x * m_MouseSensitivity;
-				m_Pitch = glm::clamp(m_Pitch + delta.y * m_MouseSensitivity, -1.55f, 1.55f);
-				changed = delta.x != 0.0f || delta.y != 0.0f;
-			}
-			m_HasMousePosition = true;
-		} else if (isActive && Input::IsMousePressed(Mouse::ButtonMiddle)) {
-			if (m_HasMousePosition) {
-				const glm::vec2 delta = mousePosition - m_LastMousePosition;
-				m_Position -= GetRightDirection() * delta.x * m_PanSpeed;
-				m_Position += GetUpDirection() * delta.y * m_PanSpeed;
-				changed = delta.x != 0.0f || delta.y != 0.0f;
-			}
-			m_HasMousePosition = true;
-		} else {
-			m_HasMousePosition = false;
-		}
-		m_LastMousePosition = mousePosition;
+		const float moveDistance = m_MoveSpeed * deltaTime;
+		m_Position += GetForwardDirection() * input.MoveForward * moveDistance;
+		m_Position += GetRightDirection() * input.MoveRight * moveDistance;
+		m_Yaw += input.LookX * m_MouseSensitivity;
+		m_Pitch = glm::clamp(m_Pitch + input.LookY * m_MouseSensitivity, -1.55f, 1.55f);
+		m_Position -= GetRightDirection() * input.PanX * m_PanSpeed;
+		m_Position += GetUpDirection() * input.PanY * m_PanSpeed;
+		m_Position += GetForwardDirection() * input.Zoom * m_ScrollSpeed;
+		const bool changed = input.MoveForward != 0.0f || input.MoveRight != 0.0f ||
+			input.LookX != 0.0f || input.LookY != 0.0f || input.PanX != 0.0f ||
+			input.PanY != 0.0f || input.Zoom != 0.0f;
 		return changed;
 	}
 

@@ -10,6 +10,7 @@
 #include "Workbench/EditorWorkbenchState.h"
 
 namespace HE {
+	namespace Editor { class EditorInputService; }
 	enum class ProjectPanelActionType {
 		None,
 		OpenScene,
@@ -40,6 +41,9 @@ namespace HE {
 		void SetAssetRecords(std::span<const AssetRecord> records);
 		void SetSelectedAssetGuid(AssetGuid guid) { m_SelectedAssetGuid = std::move(guid); }
 		void SetCanReimportCallback(std::function<bool(const std::filesystem::path&)> callback) { m_CanReimport = std::move(callback); }
+		void SetInputService(Editor::EditorInputService* input) { m_Input = input; }
+		[[nodiscard]] bool IsFocused() const { return m_IsFocused; }
+		[[nodiscard]] bool IsHovered() const { return m_IsHovered; }
 		[[nodiscard]] std::optional<ProjectPanelAction> ConsumePendingAction();
 
 	private:
@@ -54,5 +58,8 @@ namespace HE {
 		std::optional<ProjectPanelAction> m_PendingAction;
 		std::unordered_map<std::string, AssetRecord> m_AssetsByPath;
 		AssetGuid m_SelectedAssetGuid;
+		Editor::EditorInputService* m_Input = nullptr;
+		bool m_IsFocused = false;
+		bool m_IsHovered = false;
 	};
 }

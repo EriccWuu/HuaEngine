@@ -79,6 +79,28 @@ int main() {
 	Require(actionService.Resolve(heldSnapshot).Succeeded(), "Expected held action resolution");
 	Require(actionService.GetActionValue("editor.camera.forward") == 1.0f, "Expected held W action value");
 
+	Require(actionService.Bindings().RegisterDefaultAction({
+		.Id = "camera.look_x",
+		.ActionId = "editor.camera.look_x",
+		.ContextId = "SceneViewport",
+		.Gesture = { HE::MouseControl(HE::Mouse::ButtonRight), HE::InputModifiers::None, HE::InputTrigger::Held, true },
+		.Scale = 1.0f,
+		.ValueSource = HE::Editor::EditorActionValueSource::PointerDeltaX
+	}).Succeeded(), "Expected pointer delta action binding");
+	HE::InputSystem pointerInput;
+	pointerInput.BeginFrame();
+	pointerInput.Submit(HE::RawInputEvent::MouseButton(HE::Mouse::ButtonRight, HE::InputPhase::Pressed));
+	pointerInput.Submit(HE::RawInputEvent::Pointer({ 12.0f, 4.0f }));
+	actionService.Contexts().BeginFrame();
+	actionService.Contexts().Activate("SceneViewport", 500, true, true, false);
+	Require(actionService.Resolve(pointerInput.FinalizeFrame()).Succeeded(), "Expected pointer action resolution");
+	Require(actionService.GetActionValue("editor.camera.look_x") == 12.0f, "Expected pointer delta to drive analog action value");
+
+	service.Contexts().BeginFrame();
+	service.Contexts().Activate("TextInput", 1000, true, false, true);
+	Require(service.Resolve(PressKey(HE::Key::W)).Succeeded(), "Expected captured text input resolution");
+	Require(sceneCount == 1 && globalCount == 1, "Expected text input context to block lower keyboard commands");
+
 	const auto storageRoot = std::filesystem::temp_directory_path() / "HuaEngineEditorInputSmoke";
 	std::error_code errorCode;
 	std::filesystem::remove_all(storageRoot, errorCode);

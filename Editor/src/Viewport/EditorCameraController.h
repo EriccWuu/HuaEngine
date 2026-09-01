@@ -2,17 +2,25 @@
 
 #include <chrono>
 
-#include "HuaEngine/Events/Event.h"
 #include "HuaEngine/Rendering/RenderCamera.h"
 
 namespace HE::Editor {
+	struct EditorCameraInputState {
+		float MoveForward = 0.0f;
+		float MoveRight = 0.0f;
+		float LookX = 0.0f;
+		float LookY = 0.0f;
+		float PanX = 0.0f;
+		float PanY = 0.0f;
+		float Zoom = 0.0f;
+	};
+
 	class EditorCameraController {
 	public:
 		EditorCameraController() = default;
 		EditorCameraController(float fov, float aspectRatio, float nearClip, float farClip);
 
-		[[nodiscard]] bool OnEvent(Event& event);
-		[[nodiscard]] bool Update(bool isActive);
+		[[nodiscard]] bool Update(const EditorCameraInputState& input);
 		[[nodiscard]] Rendering::RenderCamera BuildRenderCamera() const;
 
 		inline void SetViewport(float width, float height) { m_Viewport = { width, height }; }
@@ -34,9 +42,7 @@ namespace HE::Editor {
 
 		glm::vec3 m_Position = { 0, 0, 0 };
 		glm::vec2 m_Viewport = { 1280, 720 };
-		glm::vec2 m_LastMousePosition = { 0, 0 };
 		std::chrono::steady_clock::time_point m_LastUpdateTime = std::chrono::steady_clock::now();
-		bool m_HasMousePosition = false;
 		float m_MoveSpeed = 4.0f;
 		float m_MouseSensitivity = 0.003f;
 		float m_ScrollSpeed = 1.5f;

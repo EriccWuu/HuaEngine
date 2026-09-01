@@ -16,6 +16,7 @@ namespace HE::Editor {
 			case InputTrigger::Repeated: return snapshot.WasRepeated(gesture.Primary);
 			case InputTrigger::Held: return snapshot.IsDown(gesture.Primary);
 			case InputTrigger::DoublePressed: return snapshot.WasDoublePressed(gesture.Primary);
+			case InputTrigger::Scrolled: return snapshot.GetScrollDelta() != glm::vec2(0.0f);
 			}
 			return false;
 		}
@@ -73,7 +74,15 @@ namespace HE::Editor {
 			if (!Matches(binding.Gesture, snapshot)) continue;
 			const auto contextPriority = contexts.GetPriority(binding.ContextId, binding.Gesture.Primary.Device);
 			if (!contextPriority || contexts.IsBlocked(*contextPriority, binding.Gesture.Primary.Device)) continue;
-			m_ActionValues[binding.ActionId] += binding.Scale;
+			float value = 1.0f;
+			switch (binding.ValueSource) {
+			case EditorActionValueSource::Digital: break;
+			case EditorActionValueSource::PointerDeltaX: value = snapshot.GetPointerDelta().x; break;
+			case EditorActionValueSource::PointerDeltaY: value = snapshot.GetPointerDelta().y; break;
+			case EditorActionValueSource::ScrollX: value = snapshot.GetScrollDelta().x; break;
+			case EditorActionValueSource::ScrollY: value = snapshot.GetScrollDelta().y; break;
+			}
+			m_ActionValues[binding.ActionId] += value * binding.Scale;
 		}
 		return ResultEnvelope::Success("editor.input.resolve", "frame", "Input frame resolved");
 	}

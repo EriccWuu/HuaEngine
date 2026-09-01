@@ -144,6 +144,7 @@ namespace HE {
 		bool m_RequestNewScenePopup = false;
 		bool m_RequestOpenScenePopup = false;
 		bool m_RequestSaveSceneAsPopup = false;
+		bool m_IsModalOpen = false;
         std::array<char, 512> m_ProjectHubPathInput{};
         std::array<char, 128> m_ProjectHubNameInput{};
         std::array<char, 128> m_NewSceneNameInput{};
@@ -157,6 +158,7 @@ namespace HE {
 
         glm::vec2 m_SceneViewportSize = { 0, 0 };
 		bool m_IsSceneViewportHovered = false;
+		bool m_IsSceneViewportFocused = false;
         int m_GizmoOperation = 7;
         bool m_GizmoWasUsing = false;
         EntityUuid m_GizmoEntityUuid;

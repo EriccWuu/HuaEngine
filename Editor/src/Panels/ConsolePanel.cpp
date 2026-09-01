@@ -4,6 +4,8 @@
 namespace HE {
     void ConcolePanel::OnGuiRender() {
         ImGui::Begin("Console");
+		m_IsFocused = ImGui::IsWindowFocused(ImGuiFocusedFlags_RootAndChildWindows);
+		m_IsHovered = ImGui::IsWindowHovered(ImGuiHoveredFlags_RootAndChildWindows);
 
         if (ImGui::Button("Clear Logs")) {
             Log::GetLogSink()->Clear();

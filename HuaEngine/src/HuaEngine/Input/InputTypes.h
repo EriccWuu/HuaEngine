@@ -36,7 +36,14 @@ namespace HE {
 		Released,
 		Repeated,
 		Held,
-		DoublePressed
+		DoublePressed,
+		Scrolled
+	};
+
+	struct InputCaptureState {
+		bool Keyboard = false;
+		bool Pointer = false;
+		bool TextInput = false;
 	};
 
 	constexpr InputModifiers operator|(InputModifiers lhs, InputModifiers rhs) {

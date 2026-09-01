@@ -36,6 +36,8 @@ namespace HE {
 		void SetContext(const Ref<Scene>& scene);
 		void SetWorkbenchState(const EditorWorkbenchState* state) { m_WorkbenchState = state; }
         void SetInteractionHost(EditorInteractionHost* host) { m_InteractionHost = host; }
+		[[nodiscard]] bool IsFocused() const { return m_IsFocused; }
+		[[nodiscard]] bool IsHovered() const { return m_IsHovered; }
 
 	private:
 		void DrawEntityNode(Entity& eneity);
@@ -48,6 +50,8 @@ namespace HE {
 		Ref<Scene> m_Context;
         const EditorWorkbenchState* m_WorkbenchState = nullptr;
         EditorInteractionHost* m_InteractionHost = nullptr;
+		bool m_IsFocused = false;
+		bool m_IsHovered = false;
 
 		ImGuiTextFilter m_Filter;
 		TreeNode* m_RootNode = NULL;

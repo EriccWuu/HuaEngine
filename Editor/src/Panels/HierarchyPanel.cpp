@@ -43,6 +43,8 @@ namespace HE {
 
 	void HierarchyPanel::OnGuiRender() {
 		ImGui::Begin("Hierarchy");
+		m_IsFocused = ImGui::IsWindowFocused(ImGuiFocusedFlags_RootAndChildWindows);
+		m_IsHovered = ImGui::IsWindowHovered(ImGuiHoveredFlags_RootAndChildWindows);
         if (m_InteractionHost && m_InteractionHost->HasActiveScene()) {
             m_InteractionHost->Commands().SetLastRoute("panel.hierarchy");
         }
@@ -118,11 +120,13 @@ namespace HE {
 			
 		bool node_open = ImGui::TreeNodeEx(entityUuid.c_str(), tree_flags, "%s", entity.GetName().c_str());
 
-		if (ImGui::IsItemClicked()) {
+		if (ImGui::IsItemHovered() && m_InteractionHost &&
+			(m_InteractionHost->Input().WasActionTriggered("editor.hierarchy.select") ||
+			 m_InteractionHost->Input().WasActionTriggered("editor.hierarchy.toggle"))) {
 			HandleEntitySelection(entity);
 		}
 
-        if (ImGui::IsItemClicked(ImGuiMouseButton_Right) && !Selection::IsSelected(entity)) {
+        if (ImGui::IsItemHovered() && m_InteractionHost && m_InteractionHost->Input().WasActionTriggered("editor.hierarchy.context_select") && !Selection::IsSelected(entity)) {
             Selection::SetSelection(entity);
 		}
 
@@ -173,8 +177,7 @@ namespace HE {
     }
 
     void HierarchyPanel::HandleEntitySelection(const Entity& entity) {
-        ImGuiIO& io = ImGui::GetIO();
-        if (io.KeyCtrl) {
+		if (m_InteractionHost && m_InteractionHost->Input().WasActionTriggered("editor.hierarchy.toggle")) {
             Selection::ToggleSelection(entity);
             return;
         }
@@ -187,7 +190,8 @@ namespace HE {
             return;
         }
 
-        if (!ImGui::IsMouseClicked(ImGuiMouseButton_Left)) {
+		if (!m_InteractionHost || (!m_InteractionHost->Input().WasActionTriggered("editor.hierarchy.select") &&
+			!m_InteractionHost->Input().WasActionTriggered("editor.hierarchy.toggle"))) {
             return;
         }
 

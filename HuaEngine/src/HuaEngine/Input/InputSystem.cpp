@@ -15,6 +15,7 @@ namespace HE {
 		m_Events.clear();
 		m_PointerDelta = {};
 		m_ScrollDelta = {};
+		m_CaptureState = {};
 	}
 
 	void InputSystem::Submit(RawInputEvent event) {
@@ -120,6 +121,7 @@ namespace HE {
 		m_Snapshot.m_PointerDelta = m_PointerDelta;
 		m_Snapshot.m_ScrollDelta = m_ScrollDelta;
 		m_Snapshot.m_Modifiers = m_Modifiers;
+		m_Snapshot.m_CaptureState = m_CaptureState;
 		return m_Snapshot;
 	}
 }

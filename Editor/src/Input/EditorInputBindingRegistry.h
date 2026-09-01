@@ -8,6 +8,14 @@
 #include "HuaEngine/Input/InputTypes.h"
 
 namespace HE::Editor {
+	enum class EditorActionValueSource : uint8_t {
+		Digital,
+		PointerDeltaX,
+		PointerDeltaY,
+		ScrollX,
+		ScrollY
+	};
+
 	struct EditorCommandBinding {
 		std::string Id;
 		std::string CommandId;
@@ -24,6 +32,7 @@ namespace HE::Editor {
 		InputGesture Gesture;
 		float Scale = 1.0f;
 		int Priority = 0;
+		EditorActionValueSource ValueSource = EditorActionValueSource::Digital;
 	};
 
 	struct EditorInputBindingOverride {

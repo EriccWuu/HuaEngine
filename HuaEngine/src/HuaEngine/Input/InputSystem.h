@@ -10,6 +10,7 @@ namespace HE {
 		void BeginFrame();
 		void Submit(RawInputEvent event);
 		void HandleFocusLost();
+		void SetCaptureState(InputCaptureState captureState) { m_CaptureState = captureState; }
 		[[nodiscard]] const InputSnapshot& FinalizeFrame();
 		[[nodiscard]] const InputSnapshot& GetSnapshot() const { return m_Snapshot; }
 		[[nodiscard]] bool IsWorkingDown(InputControl control) const { return m_Down.contains(control); }
@@ -38,6 +39,7 @@ namespace HE {
 		glm::vec2 m_PointerDelta = {};
 		glm::vec2 m_ScrollDelta = {};
 		InputModifiers m_Modifiers = InputModifiers::None;
+		InputCaptureState m_CaptureState;
 		uint64_t m_NextSequence = 1;
 	};
 }
