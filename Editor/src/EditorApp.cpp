@@ -1,59 +1,21 @@
 #include "enginepch.h"
 #include "EditorLayer.h"
+#include "Launch/EditorLaunch.h"
 
-#include <filesystem>
-#include <string_view>
+#include "HuaEngine/Core/HostLaunch.h"
 
 // Entry Point - Must be included in main application file only
 #include "HuaEngine/EntryPoint.h"
 
 namespace HE {
-	namespace {
-		struct EditorLaunchOptions {
-			std::filesystem::path ProjectPath;
-			std::filesystem::path ScenePath;
-		};
-
-		EditorLaunchOptions ParseEditorLaunchOptions(CommandLineArguments args) {
-			EditorLaunchOptions options;
-
-			for (int index = 1; index < args.Count; ++index) {
-				const char* token = args[index];
-				if (token == nullptr) {
-					continue;
-				}
-
-				const std::string_view argument(token);
-				auto tryConsumeValue = [&](std::filesystem::path& outPath) {
-					if (index + 1 >= args.Count || args[index + 1] == nullptr) {
-						return false;
-					}
-
-					outPath = args[++index];
-					return true;
-				};
-
-				if (argument == "--project") {
-					tryConsumeValue(options.ProjectPath);
-				}
-				else if (argument == "--scene") {
-					tryConsumeValue(options.ScenePath);
-				}
-			}
-
-			return options;
-		}
-	}
-
 	class EditorApp : public Application {
 	public:
-		explicit EditorApp(CommandLineArguments args)
+		EditorApp(CommandLineArguments args, const Editor::EditorLaunchOptions& launchOptions)
 			: Application(ApplicationSpecification{
 				.Name = "HuaEditor",
 				.EnableGuiLayer = true,
 				.CommandLineArgs = args
 			}) {
-			const auto launchOptions = ParseEditorLaunchOptions(args);
 			EditorLayerSpecification layerSpecification;
 			layerSpecification.StartupProjectPath = launchOptions.ProjectPath;
 			layerSpecification.StartupScenePath = launchOptions.ScenePath;
@@ -66,6 +28,18 @@ namespace HE {
 	};
 
 	HE::Application* HE::CreateApplication(CommandLineArguments args) {
-		return new EditorApp(args);
+		const auto launchOptions = Editor::ParseEditorLaunchOptions(args);
+		if (launchOptions.Target == Editor::EditorLaunchTarget::ProjectHub) {
+			if (HostLaunch::LaunchSibling("ProjectHub.exe")) {
+				HE_CORE_INFO("[Editor] Delegated no-project startup to ProjectHub.exe");
+				return nullptr;
+			}
+
+			HE_CORE_ERROR(
+				"[Editor] Failed to launch standalone ProjectHub from '{}'",
+				HostLaunch::ResolveSiblingExecutable("ProjectHub.exe").generic_string());
+		}
+
+		return new EditorApp(args, launchOptions);
 	}
 }

@@ -9,6 +9,10 @@ extern HE::Application* HE::CreateApplication(HE::CommandLineArguments args);
 int main(int argn, char** args) {
 	HE::Log::Init();
 	auto app = HE::CreateApplication({ argn, args });
+	if (app == nullptr) {
+		return 0;
+	}
+
 	app->Start();
 	app->Run();
 	delete app;

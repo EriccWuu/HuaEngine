@@ -88,5 +88,6 @@ namespace HE
 		static Application* ms_Instance;
 	};
 
+	// A host may return null after delegating startup to another process.
 	Application* CreateApplication(CommandLineArguments args = {});
 }
