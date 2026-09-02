@@ -48,6 +48,13 @@ namespace HE {
 		};
 	}
 
+	ProjectPanelAction MakeProjectDeleteAssetAction(AssetGuid guid) {
+		return {
+			.Type = ProjectPanelActionType::DeleteAsset,
+			.Guid = std::move(guid)
+		};
+	}
+
 	bool IsProjectPanelVisibleFile(const std::filesystem::path& path) {
 		auto extension = path.extension().string();
 		std::transform(extension.begin(), extension.end(), extension.begin(), [](unsigned char value) { return static_cast<char>(std::tolower(value)); });
@@ -139,8 +146,34 @@ namespace HE {
 		}
 
 		DrawDirectorySection("Assets", m_ProjectRoot / "Assets");
+		DrawDeleteConfirmation();
 
 		ImGui::End();
+	}
+
+	void ProjectPanel::DrawDeleteConfirmation() {
+		if (m_OpenDeleteConfirmation) {
+			ImGui::OpenPopup("Delete Asset");
+			m_OpenDeleteConfirmation = false;
+		}
+		if (!ImGui::BeginPopupModal("Delete Asset", nullptr, ImGuiWindowFlags_AlwaysAutoResize)) return;
+
+		ImGui::TextWrapped("Delete '%s' from the project?", m_DeleteConfirmationName.c_str());
+		ImGui::TextDisabled("The source file, metadata, and imported artifacts will be removed.");
+		ImGui::Spacing();
+		if (ImGui::Button("Delete")) {
+			m_PendingAction = MakeProjectDeleteAssetAction(m_DeleteConfirmationGuid);
+			m_DeleteConfirmationGuid.clear();
+			m_DeleteConfirmationName.clear();
+			ImGui::CloseCurrentPopup();
+		}
+		ImGui::SameLine();
+		if (ImGui::Button("Cancel")) {
+			m_DeleteConfirmationGuid.clear();
+			m_DeleteConfirmationName.clear();
+			ImGui::CloseCurrentPopup();
+		}
+		ImGui::EndPopup();
 	}
 
 	void ProjectPanel::DrawDirectorySection(const char* label, const std::filesystem::path& rootPath) {
@@ -289,6 +322,11 @@ namespace HE {
 			ImGui::BeginDisabled(!asset);
 			if (ImGui::MenuItem("Rename") && asset) {
 				BeginRename(asset->Guid);
+			}
+			if (ImGui::MenuItem("Delete") && asset) {
+				m_DeleteConfirmationGuid = asset->Guid;
+				m_DeleteConfirmationName = fileName;
+				m_OpenDeleteConfirmation = true;
 			}
 			ImGui::EndDisabled();
 			const bool canReimport = m_CanReimport && m_CanReimport(entry.path());

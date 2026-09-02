@@ -22,7 +22,8 @@ namespace HE {
 		ReimportAll,
 		SelectAsset,
 		CreateAsset,
-		RenameAsset
+		RenameAsset,
+		DeleteAsset
 	};
 
 	struct ProjectPanelAction {
@@ -40,6 +41,7 @@ namespace HE {
 		std::string typeId,
 		const std::filesystem::path& targetDirectory);
 	[[nodiscard]] ProjectPanelAction MakeProjectRenameAssetAction(AssetGuid guid, std::string newBaseName);
+	[[nodiscard]] ProjectPanelAction MakeProjectDeleteAssetAction(AssetGuid guid);
 	[[nodiscard]] bool IsProjectPanelVisibleFile(const std::filesystem::path& path);
 
 	class ProjectPanel {
@@ -68,6 +70,7 @@ namespace HE {
 		void DrawEntry(const std::filesystem::directory_entry& entry);
 		void DrawCreateMenu(const std::filesystem::path& targetDirectory);
 		void DrawFileEntry(const std::filesystem::directory_entry& entry, const AssetRecord* asset);
+		void DrawDeleteConfirmation();
 
 	private:
 		const EditorWorkbenchState* m_WorkbenchState = nullptr;
@@ -81,6 +84,9 @@ namespace HE {
 		std::string m_RenameBuffer;
 		bool m_RequestRenameFocus = false;
 		bool m_RenameSubmissionPending = false;
+		AssetGuid m_DeleteConfirmationGuid;
+		std::string m_DeleteConfirmationName;
+		bool m_OpenDeleteConfirmation = false;
 		const Editor::AssetCreationRegistry* m_CreationRegistry = nullptr;
 		Editor::EditorInputService* m_Input = nullptr;
 		bool m_IsFocused = false;

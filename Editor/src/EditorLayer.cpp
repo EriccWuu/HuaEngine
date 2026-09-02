@@ -89,6 +89,12 @@ namespace HE {
 			}
 			return Application::GetInstance().GetOperations().RenameAsset(m_ProjectSession.Context, guid, newBaseName, outRecord);
 		});
+		m_AssetWorkspaceController.SetDeleteHandler([this](const AssetGuid& guid) {
+			if (!m_ProjectSession.IsLoaded()) {
+				return ResultEnvelope::Failure("asset.delete", guid, "A loaded project is required");
+			}
+			return Application::GetInstance().GetOperations().DeleteAsset(m_ProjectSession.Context, guid);
+		});
 		m_SceneEntityInspectorEditor = CreateRef<Editor::SceneEntityInspectorEditor>(m_AssetPickerCatalog);
 		m_SceneEntityInspectorEditor->SetWorkbenchState(&m_WorkbenchState);
         m_Inspector.reset(new InspectorPanel(*m_AssetInspectorEditor, *m_SceneEntityInspectorEditor));
@@ -774,6 +780,42 @@ namespace HE {
 		RefreshWorkbenchValidation();
 	}
 
+	void EditorLayer::DeleteProjectAsset(const AssetGuid& guid) {
+		if (!m_ProjectSession.IsLoaded()) {
+			CaptureOperationResult(ResultEnvelope::Failure("editor.asset.delete", guid, "A loaded project is required"));
+			return;
+		}
+
+		std::vector<AssetRecord> records;
+		auto listResult = Application::GetInstance().GetOperations().ListAssets(m_ProjectSession.Context, records);
+		if (!listResult.Succeeded()) {
+			CaptureOperationResult(listResult);
+			return;
+		}
+		const auto target = std::find_if(records.begin(), records.end(), [&guid](const AssetRecord& record) { return record.Guid == guid; });
+		if (target == records.end() || target->Source != AssetSource::File) {
+			CaptureOperationResult(ResultEnvelope::Failure("editor.asset.delete", guid, "Only project file assets can be deleted"));
+			return;
+		}
+		if (m_SceneDocument.IsLoaded() && NormalizePath(target->AbsolutePath) == NormalizePath(m_SceneDocument.ScenePath)) {
+			auto result = ResultEnvelope::Failure("editor.asset.delete", guid, "The active scene cannot be deleted");
+			result.AddDetail({ DiagnosticSeverity::Error, "editor.asset.delete.active_scene", "Open another scene before deleting this asset", target->AbsolutePath.generic_string() });
+			CaptureOperationResult(result);
+			return;
+		}
+		if (m_AssetInspectorEditor->HasDirtyEdit() && m_AssetInspectorEditor->GetEditingAssetGuid() == guid) {
+			if (m_AssetInspectorEditor->RequestDirtyResolution([this, guid]() { DeleteProjectAsset(guid); })) return;
+		}
+
+		auto mutation = m_AssetWorkspaceController.DeleteAsset(guid);
+		CaptureOperationResult(mutation.Result);
+		if (!mutation.Result.Succeeded()) return;
+		if (Selection::HasAssetSelection() && Selection::GetSelectedAssetGuid() == guid) Selection::SelectAsset({});
+		m_ProjectPanel->SetSelectedAssetGuid({});
+		(void)RefreshAssetPickerCatalog();
+		RefreshWorkbenchValidation();
+	}
+
 	void EditorLayer::SynchronizeRenamedScenePath(
 		const std::filesystem::path& oldPath,
 		const std::filesystem::path& newPath) {
@@ -1147,6 +1189,9 @@ namespace HE {
 						break;
 					case ProjectPanelActionType::RenameAsset:
 						RenameProjectAsset(action->Guid, action->Name);
+						break;
+					case ProjectPanelActionType::DeleteAsset:
+						DeleteProjectAsset(action->Guid);
 						break;
                     default:
                         break;

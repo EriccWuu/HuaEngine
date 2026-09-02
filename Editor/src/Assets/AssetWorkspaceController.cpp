@@ -74,4 +74,18 @@ namespace HE::Editor {
 			.NewPath = newPath
 		};
 	}
+
+	AssetWorkspaceMutation AssetWorkspaceController::DeleteAsset(const AssetGuid& guid) const {
+		if (guid.empty()) {
+			return { .Result = ResultEnvelope::Failure("asset.workspace.delete", guid, "Asset identity is required") };
+		}
+		if (!m_DeleteHandler) {
+			return { .Result = ResultEnvelope::Failure("asset.workspace.delete", guid, "Asset delete handler is unavailable"), .Guid = guid };
+		}
+
+		return {
+			.Result = m_DeleteHandler(guid),
+			.Guid = guid
+		};
+	}
 }

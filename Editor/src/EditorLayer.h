@@ -79,6 +79,7 @@ namespace HE {
 		bool SaveAllDocuments();
 		void CreateProjectAsset(std::string_view typeId, const std::filesystem::path& targetDirectory);
 		void RenameProjectAsset(const AssetGuid& guid, std::string_view newBaseName);
+		void DeleteProjectAsset(const AssetGuid& guid);
 		void SynchronizeRenamedScenePath(const std::filesystem::path& oldPath, const std::filesystem::path& newPath);
         void SetSceneContext(const Ref<Scene>& scene);
 		void SetSceneDocument(const Ref<Scene>& scene, const std::filesystem::path& scenePath);

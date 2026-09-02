@@ -72,6 +72,16 @@ int main() {
 	Require(renameMutation.OldPath == "Assets/Scenes/New Scene 1.scene", "Expected rename old path");
 	Require(renameMutation.NewPath == "Assets/Scenes/Renamed.scene", "Expected rename new path");
 
+	bool deleteHandled = false;
+	workspaceController.SetDeleteHandler([&](const HE::AssetGuid& guid) {
+		Require(guid == "created-guid", "Expected delete handler guid");
+		deleteHandled = true;
+		return HE::ResultEnvelope::Success("asset.delete", guid, "Deleted");
+	});
+	const auto deleteMutation = workspaceController.DeleteAsset("created-guid");
+	Require(deleteMutation.Result.Succeeded() && deleteHandled, "Expected workspace asset deletion");
+	Require(deleteMutation.Guid == "created-guid", "Expected deleted asset identity");
+
 	const std::filesystem::path filePath = "Assets/Meshes/Quad.mesh";
 	const auto fileAction = HE::MakeProjectReimportAction(filePath, false);
 	Require(fileAction.Type == HE::ProjectPanelActionType::ReimportPath, "Expected file reimport action");
@@ -93,6 +103,9 @@ int main() {
 	const auto renameAction = HE::MakeProjectRenameAssetAction("created-guid", "Renamed");
 	Require(renameAction.Type == HE::ProjectPanelActionType::RenameAsset, "Expected rename asset action");
 	Require(renameAction.Guid == "created-guid" && renameAction.Name == "Renamed", "Expected rename action parameters");
+	const auto deleteAction = HE::MakeProjectDeleteAssetAction("created-guid");
+	Require(deleteAction.Type == HE::ProjectPanelActionType::DeleteAsset, "Expected delete asset action");
+	Require(deleteAction.Guid == "created-guid", "Expected delete action identity");
 
 	HE::ProjectPanel projectPanel;
 	HE::AssetRecord renameRecord;
