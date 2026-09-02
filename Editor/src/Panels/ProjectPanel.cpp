@@ -89,7 +89,15 @@ namespace HE {
 	}
 
 	void ProjectPanel::CompleteRename(const AssetGuid& guid) {
-		if (m_RenamingAssetGuid == guid) CancelRename();
+		if (m_RenamingAssetGuid != guid) return;
+		m_RenamingAssetGuid.clear();
+		m_RenameBuffer.clear();
+		m_RequestRenameFocus = false;
+		m_RenameSubmissionPending = false;
+		if (m_DeferredSelectionAction) {
+			m_PendingAction = std::move(m_DeferredSelectionAction);
+			m_DeferredSelectionAction.reset();
+		}
 	}
 
 	void ProjectPanel::CancelRename() {
@@ -97,6 +105,20 @@ namespace HE {
 		m_RenameBuffer.clear();
 		m_RequestRenameFocus = false;
 		m_RenameSubmissionPending = false;
+		m_DeferredSelectionAction.reset();
+	}
+
+	void ProjectPanel::QueueAssetSelection(AssetGuid guid, std::filesystem::path path) {
+		ProjectPanelAction action{
+			.Type = ProjectPanelActionType::SelectAsset,
+			.Path = std::move(path),
+			.Guid = std::move(guid)
+		};
+		if (IsRenaming()) {
+			m_DeferredSelectionAction = std::move(action);
+			return;
+		}
+		m_PendingAction = std::move(action);
 	}
 
 	std::optional<ProjectPanelAction> ProjectPanel::ConsumePendingAction() {
@@ -296,7 +318,7 @@ namespace HE {
 				m_RenameBuffer.data(),
 				m_RenameBuffer.size(),
 				ImGuiInputTextFlags_EnterReturnsTrue | ImGuiInputTextFlags_AutoSelectAll);
-			const bool commitAfterFocusLoss = ImGui::IsItemDeactivatedAfterEdit();
+			const bool commitAfterFocusLoss = ImGui::IsItemDeactivated();
 			ImGui::EndDisabled();
 			m_RenameBuffer.resize(std::char_traits<char>::length(m_RenameBuffer.c_str()));
 			if (!m_RenameSubmissionPending && (submitted || commitAfterFocusLoss)) {
@@ -307,7 +329,7 @@ namespace HE {
 		else {
 			const bool selected = asset && asset->Guid == m_SelectedAssetGuid;
 			if (ImGui::Selectable(fileName.c_str(), selected) && asset) {
-				m_PendingAction = ProjectPanelAction{ .Type = ProjectPanelActionType::SelectAsset, .Path = entry.path(), .Guid = asset->Guid };
+				QueueAssetSelection(asset->Guid, entry.path());
 			}
 		}
 

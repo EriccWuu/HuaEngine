@@ -759,8 +759,9 @@ namespace HE {
 		if (m_AssetInspectorEditor->HasDirtyEdit() && m_AssetInspectorEditor->GetEditingAssetGuid() == guid) {
 			if (m_AssetInspectorEditor->RequestDirtyResolution([this, guid, name = std::string(newBaseName)]() {
 				RenameProjectAsset(guid, name);
+			}, [this, guid, name = std::string(newBaseName)]() {
+				m_ProjectPanel->RetryRename(guid, name);
 			})) {
-				m_ProjectPanel->RetryRename(guid, newBaseName);
 				return;
 			}
 		}

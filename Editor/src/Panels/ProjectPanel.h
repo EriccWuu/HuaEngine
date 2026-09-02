@@ -57,6 +57,7 @@ namespace HE {
 		void RetryRename(const AssetGuid& guid, std::string_view draft);
 		void CompleteRename(const AssetGuid& guid);
 		void CancelRename();
+		void QueueAssetSelection(AssetGuid guid, std::filesystem::path path);
 		[[nodiscard]] bool IsRenaming() const { return !m_RenamingAssetGuid.empty(); }
 		[[nodiscard]] std::string_view GetRenameDraft() const { return m_RenameBuffer; }
 		void SetCanReimportCallback(std::function<bool(const std::filesystem::path&)> callback) { m_CanReimport = std::move(callback); }
@@ -78,6 +79,7 @@ namespace HE {
 		std::filesystem::path m_CurrentScenePath;
 		std::function<bool(const std::filesystem::path&)> m_CanReimport;
 		std::optional<ProjectPanelAction> m_PendingAction;
+		std::optional<ProjectPanelAction> m_DeferredSelectionAction;
 		std::unordered_map<std::string, AssetRecord> m_AssetsByPath;
 		AssetGuid m_SelectedAssetGuid;
 		AssetGuid m_RenamingAssetGuid;

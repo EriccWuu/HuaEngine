@@ -119,8 +119,13 @@ int main() {
 	projectPanel.RetryRename(renameRecord.Guid, "Attempted Name");
 	Require(projectPanel.IsRenaming(), "Expected failed rename to keep inline editing active");
 	Require(projectPanel.GetRenameDraft() == "Attempted Name", "Expected failed rename to preserve the submitted draft");
+	projectPanel.QueueAssetSelection("other-guid", assetDirectory / "Other.scene");
+	Require(!projectPanel.ConsumePendingAction().has_value(), "Expected selection to wait while rename is active");
 	projectPanel.CompleteRename(renameRecord.Guid);
 	Require(!projectPanel.IsRenaming(), "Expected successful rename confirmation to end inline editing");
+	const auto deferredSelection = projectPanel.ConsumePendingAction();
+	Require(deferredSelection && deferredSelection->Type == HE::ProjectPanelActionType::SelectAsset, "Expected deferred selection after rename completion");
+	Require(deferredSelection->Guid == "other-guid", "Expected deferred selection identity");
 
 	std::filesystem::remove_all(smokeRoot, errorCode);
 
