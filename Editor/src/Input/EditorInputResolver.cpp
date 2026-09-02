@@ -42,6 +42,10 @@ namespace HE::Editor {
 			if (!Matches(binding.Gesture, snapshot)) continue;
 			const auto contextPriority = contexts.GetPriority(binding.ContextId, binding.Gesture.Primary.Device);
 			if (!contextPriority || contexts.IsBlocked(*contextPriority, binding.Gesture.Primary.Device)) continue;
+			if (!commands.Find(binding.CommandId)) continue;
+			if (binding.Consume && snapshot.IsDown(binding.Gesture.Primary)) {
+				m_SuppressedControls.insert(binding.Gesture.Primary);
+			}
 			if (!commands.CanExecute(binding.CommandId)) continue;
 			candidates.push_back({ &binding, *contextPriority });
 		}
@@ -66,10 +70,7 @@ namespace HE::Editor {
 				return ResultEnvelope::Failure("editor.input.resolve", matching.front().Binding->ContextId, "Multiple enabled commands use the same highest-priority gesture");
 			}
 			const auto& resolvedBinding = *matching.front().Binding;
-			const auto commandResult = commands.Execute(resolvedBinding.CommandId);
-			if (commandResult.Succeeded() && resolvedBinding.Consume && snapshot.IsDown(resolvedBinding.Gesture.Primary)) {
-				m_SuppressedControls.insert(resolvedBinding.Gesture.Primary);
-			}
+			(void)commands.Execute(resolvedBinding.CommandId);
 			if (resolvedBinding.Consume) {
 				std::erase_if(candidates, [&](const auto& candidate) { return candidate.Binding->Gesture == gesture; });
 			} else {

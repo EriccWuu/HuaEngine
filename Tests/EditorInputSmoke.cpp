@@ -99,11 +99,12 @@ int main() {
 
 	HE::Editor::EditorInputService consumedService;
 	int saveCount = 0;
+	bool canSave = true;
 	Require(consumedService.Commands().Register({
 		.Id = "editor.document.save_all",
 		.DisplayName = "Save All",
 		.Category = "File",
-		.CanExecute = [] { return true; },
+		.CanExecute = [&] { return canSave; },
 		.Execute = [&] { ++saveCount; }
 	}).Succeeded(), "Expected save command registration");
 	Require(consumedService.Bindings().RegisterDefaultCommand({
@@ -138,6 +139,20 @@ int main() {
 	consumedInput.Submit(HE::RawInputEvent::Key(HE::Key::S, HE::InputPhase::Pressed, HE::InputModifiers::None));
 	Require(resolveConsumedFrame(consumedInput.FinalizeFrame()).Succeeded(), "Expected fresh S press frame resolution");
 	Require(consumedService.GetActionValue("editor.camera.forward") == -1.0f, "Expected S action to resume after a physical release and new press");
+
+	consumedInput.BeginFrame();
+	consumedInput.Submit(HE::RawInputEvent::Key(HE::Key::S, HE::InputPhase::Released, HE::InputModifiers::None));
+	Require(resolveConsumedFrame(consumedInput.FinalizeFrame()).Succeeded(), "Expected fresh S release before disabled save command test");
+	canSave = false;
+	consumedInput.BeginFrame();
+	consumedInput.Submit(HE::RawInputEvent::Key(HE::Key::LeftControl, HE::InputPhase::Pressed, HE::InputModifiers::Control));
+	consumedInput.Submit(HE::RawInputEvent::Key(HE::Key::S, HE::InputPhase::Pressed, HE::InputModifiers::Control));
+	Require(resolveConsumedFrame(consumedInput.FinalizeFrame()).Succeeded(), "Expected disabled Ctrl+S frame resolution");
+	Require(saveCount == 1 && consumedService.GetActionValue("editor.camera.forward") == 0.0f, "Expected disabled Ctrl+S to reserve S without executing save");
+	consumedInput.BeginFrame();
+	consumedInput.Submit(HE::RawInputEvent::Key(HE::Key::LeftControl, HE::InputPhase::Released, HE::InputModifiers::None));
+	Require(resolveConsumedFrame(consumedInput.FinalizeFrame()).Succeeded(), "Expected modifier release after disabled Ctrl+S");
+	Require(consumedService.GetActionValue("editor.camera.forward") == 0.0f, "Expected disabled Ctrl+S to suppress S until physical release");
 
 	service.Contexts().BeginFrame();
 	service.Contexts().Activate("TextInput", 1000, true, false, true);
