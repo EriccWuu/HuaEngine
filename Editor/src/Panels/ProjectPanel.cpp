@@ -9,6 +9,10 @@
 #include "Input/EditorInputService.h"
 
 namespace {
+	bool IsAsciiDigit(char value) {
+		return value >= '0' && value <= '9';
+	}
+
 	bool IsSceneFile(const std::filesystem::path& path) {
 		return path.extension() == ".scene";
 	}
@@ -17,6 +21,13 @@ namespace {
 		auto extension = path.extension().string();
 		std::transform(extension.begin(), extension.end(), extension.begin(), [](unsigned char value) { return static_cast<char>(std::tolower(value)); });
 		return extension == ".shader";
+	}
+
+	bool ProjectAssetEntryLess(
+		const std::filesystem::directory_entry& lhs,
+		const std::filesystem::directory_entry& rhs) {
+		if (lhs.is_directory() != rhs.is_directory()) return lhs.is_directory();
+		return HE::ProjectAssetNameLess(lhs.path().filename().string(), rhs.path().filename().string());
 	}
 }
 
@@ -59,6 +70,49 @@ namespace HE {
 		auto extension = path.extension().string();
 		std::transform(extension.begin(), extension.end(), extension.begin(), [](unsigned char value) { return static_cast<char>(std::tolower(value)); });
 		return extension != ".meta";
+	}
+
+	bool ProjectAssetNameLess(std::string_view lhs, std::string_view rhs) {
+		size_t lhsIndex = 0;
+		size_t rhsIndex = 0;
+		int numericWidthTieBreak = 0;
+		while (lhsIndex < lhs.size() && rhsIndex < rhs.size()) {
+			if (IsAsciiDigit(lhs[lhsIndex]) && IsAsciiDigit(rhs[rhsIndex])) {
+				const auto lhsRunStart = lhsIndex;
+				const auto rhsRunStart = rhsIndex;
+				while (lhsIndex < lhs.size() && lhs[lhsIndex] == '0') ++lhsIndex;
+				while (rhsIndex < rhs.size() && rhs[rhsIndex] == '0') ++rhsIndex;
+				const auto lhsSignificantStart = lhsIndex;
+				const auto rhsSignificantStart = rhsIndex;
+				while (lhsIndex < lhs.size() && IsAsciiDigit(lhs[lhsIndex])) ++lhsIndex;
+				while (rhsIndex < rhs.size() && IsAsciiDigit(rhs[rhsIndex])) ++rhsIndex;
+
+				const auto lhsSignificantLength = lhsIndex - lhsSignificantStart;
+				const auto rhsSignificantLength = rhsIndex - rhsSignificantStart;
+				if (lhsSignificantLength != rhsSignificantLength) return lhsSignificantLength < rhsSignificantLength;
+				for (size_t offset = 0; offset < lhsSignificantLength; ++offset) {
+					if (lhs[lhsSignificantStart + offset] != rhs[rhsSignificantStart + offset]) {
+						return lhs[lhsSignificantStart + offset] < rhs[rhsSignificantStart + offset];
+					}
+				}
+
+				const auto lhsRunLength = lhsIndex - lhsRunStart;
+				const auto rhsRunLength = rhsIndex - rhsRunStart;
+				if (numericWidthTieBreak == 0 && lhsRunLength != rhsRunLength) {
+					numericWidthTieBreak = lhsRunLength < rhsRunLength ? -1 : 1;
+				}
+				continue;
+			}
+
+			const auto lhsCharacter = static_cast<unsigned char>(std::tolower(static_cast<unsigned char>(lhs[lhsIndex])));
+			const auto rhsCharacter = static_cast<unsigned char>(std::tolower(static_cast<unsigned char>(rhs[rhsIndex])));
+			if (lhsCharacter != rhsCharacter) return lhsCharacter < rhsCharacter;
+			++lhsIndex;
+			++rhsIndex;
+		}
+		if (lhsIndex != lhs.size() || rhsIndex != rhs.size()) return lhsIndex == lhs.size();
+		if (numericWidthTieBreak != 0) return numericWidthTieBreak < 0;
+		return lhs < rhs;
 	}
 
 	void ProjectPanel::SetAssetRecords(std::span<const AssetRecord> records) {
@@ -226,13 +280,7 @@ namespace HE {
 			entries.push_back(entry);
 		}
 
-		std::sort(entries.begin(), entries.end(), [](const auto& lhs, const auto& rhs) {
-			if (lhs.is_directory() != rhs.is_directory()) {
-				return lhs.is_directory() > rhs.is_directory();
-			}
-
-			return lhs.path().filename().string() < rhs.path().filename().string();
-		});
+		std::sort(entries.begin(), entries.end(), ProjectAssetEntryLess);
 
 		for (const auto& entry : entries) {
 			DrawEntry(entry);
@@ -280,13 +328,7 @@ namespace HE {
 					children.push_back(child);
 				}
 
-				std::sort(children.begin(), children.end(), [](const auto& lhs, const auto& rhs) {
-					if (lhs.is_directory() != rhs.is_directory()) {
-						return lhs.is_directory() > rhs.is_directory();
-					}
-
-					return lhs.path().filename().string() < rhs.path().filename().string();
-				});
+				std::sort(children.begin(), children.end(), ProjectAssetEntryLess);
 
 				for (const auto& child : children) {
 					DrawEntry(child);

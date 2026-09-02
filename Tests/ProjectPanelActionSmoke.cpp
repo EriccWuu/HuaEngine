@@ -1,8 +1,10 @@
+#include <algorithm>
 #include <cstdlib>
 #include <filesystem>
 #include <fstream>
 #include <iostream>
 #include <string>
+#include <vector>
 
 #include "Assets/AssetCreationRegistry.h"
 #include "Assets/AssetWorkspaceController.h"
@@ -96,6 +98,11 @@ int main() {
 	Require(HE::IsProjectPanelVisibleFile("Assets/Meshes/Quad.obj"), "Expected source assets to remain visible");
 	Require(!HE::IsProjectPanelVisibleFile("Assets/Meshes/Quad.obj.meta"), "Expected metadata sidecars to remain hidden");
 	Require(!HE::IsProjectPanelVisibleFile("Assets/Meshes/Quad.obj.META"), "Expected metadata sidecar matching to ignore case");
+	std::vector<std::string> assetNames{ "Asset10.scene", "beta.scene", "asset2.scene", "Alpha.scene", "asset01.scene", "asset1.scene" };
+	std::sort(assetNames.begin(), assetNames.end(), HE::ProjectAssetNameLess);
+	const std::vector<std::string> expectedAssetNames{ "Alpha.scene", "asset1.scene", "asset01.scene", "asset2.scene", "Asset10.scene", "beta.scene" };
+	Require(assetNames == expectedAssetNames, "Expected case-insensitive natural asset ordering");
+	Require(HE::ProjectAssetNameLess("asset01a.scene", "asset1z.scene"), "Expected suffix ordering before numeric width tie-breaks");
 
 	const auto createAction = HE::MakeProjectCreateAssetAction("scene", assetDirectory);
 	Require(createAction.Type == HE::ProjectPanelActionType::CreateAsset, "Expected create asset action");

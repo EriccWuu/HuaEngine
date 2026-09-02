@@ -5,6 +5,7 @@
 #include <optional>
 #include <span>
 #include <string>
+#include <string_view>
 #include <unordered_map>
 
 #include "Assets/AssetCreationRegistry.h"
@@ -43,6 +44,7 @@ namespace HE {
 	[[nodiscard]] ProjectPanelAction MakeProjectRenameAssetAction(AssetGuid guid, std::string newBaseName);
 	[[nodiscard]] ProjectPanelAction MakeProjectDeleteAssetAction(AssetGuid guid);
 	[[nodiscard]] bool IsProjectPanelVisibleFile(const std::filesystem::path& path);
+	[[nodiscard]] bool ProjectAssetNameLess(std::string_view lhs, std::string_view rhs);
 
 	class ProjectPanel {
 	public:
