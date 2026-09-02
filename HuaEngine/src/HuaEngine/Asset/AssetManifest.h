@@ -30,6 +30,7 @@ namespace HE {
 		[[nodiscard]] const AssetManifestRecord* FindByAssetId(std::string_view assetId) const;
 		[[nodiscard]] bool Upsert(AssetManifestRecord record);
 		[[nodiscard]] bool ReplaceByGuid(AssetManifestRecord record);
+		[[nodiscard]] bool EraseByGuid(const AssetGuid& guid);
 
 		template<typename Callback>
 		void ForEachRecord(Callback&& callback) const {

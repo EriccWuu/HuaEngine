@@ -98,6 +98,9 @@ namespace HE {
 			const AssetGuid& guid,
 			std::string_view newBaseName,
 			AssetRecord* outRecord = nullptr);
+		[[nodiscard]] ResultEnvelope DeleteAsset(
+			const ProjectContext& context,
+			const AssetGuid& guid);
 
 		[[nodiscard]] ResultEnvelope CreateBuiltinMeshAsset(
 			const ProjectContext& context,

@@ -683,6 +683,10 @@ namespace HE {
 		return m_Services->Assets().RenameAsset(context, guid, newBaseName, outRecord);
 	}
 
+	ResultEnvelope ApplicationOperations::DeleteAsset(const ProjectContext& context, const AssetGuid& guid) const {
+		return m_Services->Assets().DeleteAsset(context, guid);
+	}
+
 	ResultEnvelope ApplicationOperations::InspectAsset(const AssetGuid& guid, AssetInspectionSnapshot& outSnapshot) const {
 		return m_Services->Assets().InspectAsset(guid, outSnapshot);
 	}
@@ -909,6 +913,7 @@ namespace HE {
 		m_Registry.Register({ "asset.import", OperationDomain::Asset, "Import a single project asset into the manifest" });
 		m_Registry.Register({ "asset.reimport", OperationDomain::Asset, "Reimport project asset files into the Library" });
 		m_Registry.Register({ "asset.scene.create", OperationDomain::Asset, "Create and register a persisted scene asset" });
+		m_Registry.Register({ "asset.delete", OperationDomain::Asset, "Delete a project asset and generated artifacts" });
 		m_Registry.Register({ "asset.list", OperationDomain::Asset, "List project manifest assets" });
 		m_Registry.Register({ "asset.resolve", OperationDomain::Asset, "Resolve an asset record by GUID, handle, or asset id" });
 		m_Registry.Register({ "asset.validate", OperationDomain::Asset, "Validate project asset registry health" });

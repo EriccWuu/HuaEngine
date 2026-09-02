@@ -191,6 +191,9 @@ namespace HE {
 			const AssetGuid& guid,
 			std::string_view newBaseName,
 			AssetRecord* outRecord = nullptr) const;
+		[[nodiscard]] ResultEnvelope DeleteAsset(
+			const ProjectContext& context,
+			const AssetGuid& guid) const;
 		[[nodiscard]] ResultEnvelope ListAssets(
 			const ProjectContext& context,
 			std::vector<AssetRecord>& outRecords) const;

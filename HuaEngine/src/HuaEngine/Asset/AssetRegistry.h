@@ -110,6 +110,18 @@ namespace HE {
 			return true;
 		}
 
+		[[nodiscard]] bool EraseByGuid(const AssetGuid& guid) {
+			const auto guidIt = m_Guids.find(guid);
+			if (guidIt == m_Guids.end()) return false;
+			const auto assetIt = m_Assets.find(guidIt->second);
+			if (assetIt == m_Assets.end()) return false;
+
+			m_AssetIds.erase(assetIt->second.AssetId);
+			m_Guids.erase(guidIt);
+			m_Assets.erase(assetIt);
+			return true;
+		}
+
 		[[nodiscard]] bool Contains(AssetHandle handle) const {
 			return m_Assets.find(handle) != m_Assets.end();
 		}

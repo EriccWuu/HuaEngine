@@ -614,6 +614,20 @@ namespace HE {
 		return true;
 	}
 
+	bool AssetManifest::EraseByGuid(const AssetGuid& guid) {
+		const auto guidIt = m_GuidIndex.find(guid);
+		if (guidIt == m_GuidIndex.end()) return false;
+
+		m_Records.erase(m_Records.begin() + static_cast<std::ptrdiff_t>(guidIt->second));
+		m_GuidIndex.clear();
+		m_AssetIdIndex.clear();
+		for (size_t index = 0; index < m_Records.size(); ++index) {
+			m_GuidIndex[m_Records[index].Guid] = index;
+			m_AssetIdIndex[m_Records[index].AssetId] = index;
+		}
+		return true;
+	}
+
 	std::filesystem::path GetAssetManifestPath(const ProjectContext& context) {
 		return context.RootPath / ".huaengine" / "assets.json";
 	}

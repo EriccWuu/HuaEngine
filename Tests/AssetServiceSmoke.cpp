@@ -183,6 +183,9 @@ int main() {
 	Require(upsertManifest.ReplaceByGuid(renamedManifestRecord), "Expected manifest identity-preserving replacement");
 	Require(upsertManifest.FindByAssetId("Meshes/A.mesh") == nullptr, "Expected old manifest asset id removal");
 	Require(upsertManifest.FindByAssetId("Meshes/RenamedA.mesh")->Guid == "guid-a", "Expected renamed manifest asset id lookup");
+	Require(upsertManifest.EraseByGuid("guid-a"), "Expected manifest erase by guid");
+	Require(upsertManifest.FindByGuid("guid-a") == nullptr && upsertManifest.FindByAssetId("Meshes/RenamedA.mesh") == nullptr, "Expected erased manifest indexes to stay consistent");
+	Require(!upsertManifest.EraseByGuid("missing-guid"), "Expected missing manifest erase rejection");
 
 	HE::AssetRegistry upsertRegistry;
 	const auto registryHandleA = upsertRegistry.Upsert(MakeRegistryRecord("reg-guid-a", "Meshes/A.mesh"));
@@ -202,6 +205,9 @@ int main() {
 	Require(upsertRegistry.ReplaceByGuid(renamedRegistryRecord), "Expected registry identity-preserving replacement");
 	Require(upsertRegistry.Find("Meshes/A.mesh") == nullptr, "Expected old registry asset id removal");
 	Require(upsertRegistry.Find("Meshes/RenamedA.mesh")->Handle == registryHandleA, "Expected renamed registry handle stability");
+	Require(upsertRegistry.EraseByGuid("reg-guid-a"), "Expected registry erase by guid");
+	Require(upsertRegistry.FindByGuid("reg-guid-a") == nullptr && upsertRegistry.Find("Meshes/RenamedA.mesh") == nullptr, "Expected erased registry indexes to stay consistent");
+	Require(!upsertRegistry.EraseByGuid("missing-guid"), "Expected missing registry erase rejection");
 
 	const auto originalManifestText = ReadFileText(manifestPath);
 	WriteFileText(manifestPath, "{ \"version\": 1, \"assets\": [ { \"guid\": \"bad-guid\" } ] }");
@@ -352,6 +358,33 @@ int main() {
 	Require(assetService.RenameAsset(projectContext, originalSceneGuid, "MissingSource", &rejectedRenameRecord).Failed(), "Expected missing source rename rejection");
 	Require(assetService.ResolveAsset("Scenes/Renamed.scene", resolvedRenamedScene).Succeeded(), "Expected missing source rejection to preserve registry identity");
 	WriteFileText(renamedSceneRecord.AbsolutePath, "scene:\n  name: Renamed\n");
+
+	Require(assetService.DeleteAsset(projectContext, HE::BuiltinAssetGuids::QuadMesh).Failed(), "Expected builtin asset deletion rejection");
+	Require(assetService.DeleteAsset(projectContext, "missing-delete-guid").Failed(), "Expected missing asset deletion rejection");
+	const auto deleteScenePath = projectContext.GetAssetRootPath() / "Scenes" / "Delete.scene";
+	WriteFileText(deleteScenePath, "scene:\n  name: Delete\n");
+	HE::AssetGuid deleteSceneGuid;
+	Require(assetService.RegisterSceneAsset(projectContext, deleteScenePath, &deleteSceneGuid).Succeeded(), "Expected delete fixture registration");
+	const auto manifestBeforeFailedDelete = ReadFileText(manifestPath);
+	std::filesystem::remove(manifestPath, errorCode);
+	Require(!errorCode, "Expected manifest removal for delete rollback injection");
+	std::filesystem::create_directory(manifestPath, errorCode);
+	Require(!errorCode, "Expected manifest replacement directory for delete rollback injection");
+	Require(assetService.DeleteAsset(projectContext, deleteSceneGuid).Failed(), "Expected delete failure when manifest cannot be committed");
+	HE::AssetRecord restoredDeleteRecord;
+	Require(assetService.ResolveAsset("Scenes/Delete.scene", restoredDeleteRecord).Succeeded(), "Expected failed delete to restore registry identity");
+	Require(std::filesystem::is_regular_file(deleteScenePath), "Expected failed delete to restore source");
+	Require(std::filesystem::is_regular_file(HE::GetAssetMetaPath(deleteScenePath)), "Expected failed delete to restore metadata");
+	std::filesystem::remove_all(manifestPath, errorCode);
+	Require(!errorCode, "Expected delete rollback manifest obstruction cleanup");
+	WriteFileText(manifestPath, manifestBeforeFailedDelete);
+	auto deleteSceneResult = assetService.DeleteAsset(projectContext, deleteSceneGuid);
+	Require(deleteSceneResult.Succeeded(), "Expected project scene asset deletion");
+	Require(!std::filesystem::exists(deleteScenePath) && !std::filesystem::exists(HE::GetAssetMetaPath(deleteScenePath)), "Expected deleted scene source and metadata removal");
+	Require(assetService.ResolveAsset("Scenes/Delete.scene", restoredDeleteRecord).Failed(), "Expected deleted scene registry removal");
+	HE::AssetManifest manifestAfterDelete;
+	Require(HE::LoadAssetManifest(projectContext, manifestAfterDelete).Succeeded(), "Expected manifest reload after delete");
+	Require(manifestAfterDelete.FindByGuid(deleteSceneGuid) == nullptr, "Expected deleted scene manifest removal");
 
 	HE::AssetResolver resolver(assetService);
 	HE::Ref<HE::Rendering::Mesh> builtinQuad;

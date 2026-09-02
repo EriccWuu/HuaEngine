@@ -355,6 +355,42 @@ namespace HE {
 		return ResultEnvelope::Success("asset.library.record_import_failure", guid, "Import failure persisted with the last-good artifact");
 	}
 
+	ResultEnvelope AssetLibrary::RemoveAsset(const AssetGuid& guid) {
+		if (!m_IsOpen) {
+			return MakeLibraryFailure("asset.library.remove", m_RootPath, "asset.library.not_open", "Asset library is not open");
+		}
+		const auto existing = m_Records.find(guid);
+		if (existing == m_Records.end()) {
+			return ResultEnvelope::Success("asset.library.remove", guid, "Asset has no generated library record");
+		}
+
+		auto candidateRecords = m_Records;
+		candidateRecords.erase(guid);
+		auto saveResult = SaveRecords(candidateRecords);
+		if (!saveResult.Succeeded()) {
+			saveResult.Operation = "asset.library.remove";
+			return saveResult;
+		}
+		m_Records = std::move(candidateRecords);
+
+		auto result = ResultEnvelope::Success("asset.library.remove", guid, "Asset library record removed");
+		std::error_code errorCode;
+		const auto artifactPrefix = guid + "-";
+		for (std::filesystem::directory_iterator iterator(m_ArtifactRootPath, errorCode), end; !errorCode && iterator != end; iterator.increment(errorCode)) {
+			const auto& entry = *iterator;
+			if (!entry.is_regular_file() || entry.path().filename().string().rfind(artifactPrefix, 0) != 0) continue;
+			std::error_code removeError;
+			std::filesystem::remove(entry.path(), removeError);
+			if (removeError) {
+				result.AddDetail({ DiagnosticSeverity::Warning, "asset.library.artifact_cleanup_failed", removeError.message(), entry.path().generic_string() });
+			}
+		}
+		if (errorCode) {
+			result.AddDetail({ DiagnosticSeverity::Warning, "asset.library.artifact_scan_failed", errorCode.message(), m_ArtifactRootPath.generic_string() });
+		}
+		return result;
+	}
+
 	ResultEnvelope AssetLibrary::ReadArtifact(
 		const AssetGuid& guid,
 		AssetArtifact& outArtifact) const {

@@ -160,6 +160,18 @@ namespace {
 		corruptStream.write(&badMagic, 1);
 		corruptStream.close();
 		Require(!reopened.IsArtifactAvailable("mesh-guid", HE::AssetKind::Mesh, "hua.mesh-yaml", 2, HE::MeshArtifactVersion), "Expected corrupt artifact rejection");
+		HE::AssetArtifact replacementArtifact;
+		Require(HE::EncodeMeshArtifact(*HE::Rendering::Mesh::CreateCube("Replacement"), replacementArtifact).Succeeded(), "Expected replacement artifact encoding");
+		Require(reopened.CommitArtifact("mesh-guid", "hua.mesh-yaml", 2, SourceHash, replacementArtifact).Succeeded(), "Expected replacement artifact commit before removal");
+		const auto replacementArtifactPath = root / "Library" / reopened.Find("mesh-guid")->ArtifactRelativePath;
+		Require(replacementArtifactPath != artifactPath && std::filesystem::is_regular_file(artifactPath), "Expected content-addressed history before removal");
+
+		Require(reopened.RemoveAsset("mesh-guid").Succeeded(), "Expected library asset removal");
+		Require(reopened.Find("mesh-guid") == nullptr, "Expected removed library record to disappear");
+		Require(!std::filesystem::exists(artifactPath) && !std::filesystem::exists(replacementArtifactPath), "Expected all removed asset artifact candidates to be cleaned");
+		HE::AssetLibrary removedReopen;
+		Require(removedReopen.Open(context).Succeeded(), "Expected library reopen after asset removal");
+		Require(removedReopen.Find("mesh-guid") == nullptr, "Expected removed library record to stay absent after reopen");
 	}
 
 	void TestTransactionalCommitRollback(const std::filesystem::path& root) {
