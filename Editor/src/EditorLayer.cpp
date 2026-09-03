@@ -416,6 +416,7 @@ namespace HE {
 		registerCommand({ "editor.gizmo.scale", "Scale Tool", "Scene", []() { return true; }, [this]() { m_GizmoOperation = ImGuizmo::SCALE; } });
 		registerCommand({ "editor.hierarchy.focus_filter", "Focus Hierarchy Filter", "Hierarchy", [this]() { return m_HierarchyPanel != nullptr; }, [this]() { m_HierarchyPanel->RequestFilterFocus(); } });
 		registerCommand({ "editor.project.cancel_rename", "Cancel Rename", "Project", [this]() { return m_ProjectPanel && m_ProjectPanel->IsRenaming(); }, [this]() { m_ProjectPanel->CancelRename(); } });
+		registerCommand({ "editor.console.copy", "Copy", "Edit", [this]() { return m_Concole && m_Concole->HasSelectedLog(); }, [this]() { m_Concole->CopySelectedLog(); } });
 
 		const auto ctrl = InputModifiers::Control;
 		const auto ctrlShift = InputModifiers::Control | InputModifiers::Shift;
@@ -429,6 +430,7 @@ namespace HE {
 		(void)input.Bindings().RegisterDefaultCommand({ "gizmo.scale", "editor.gizmo.scale", "SceneViewport", { KeyboardControl(Key::R), InputModifiers::None, InputTrigger::Pressed, true }, 0, true });
 		(void)input.Bindings().RegisterDefaultCommand({ "hierarchy.focus_filter", "editor.hierarchy.focus_filter", "Hierarchy", { KeyboardControl(Key::F), ctrl, InputTrigger::Pressed, true }, 0, true });
 		(void)input.Bindings().RegisterDefaultCommand({ "project.cancel_rename", "editor.project.cancel_rename", "TextInput", { KeyboardControl(Key::Escape), InputModifiers::None, InputTrigger::Pressed, true }, 0, true });
+		(void)input.Bindings().RegisterDefaultCommand({ "console.copy", "editor.console.copy", "Console", { KeyboardControl(Key::C), ctrl, InputTrigger::Pressed, true }, 0, true });
 		auto registerAction = [&](Editor::EditorActionBinding binding) { (void)input.Bindings().RegisterDefaultAction(std::move(binding)); };
 		registerAction({ .Id = "camera.forward", .ActionId = "editor.camera.forward", .ContextId = "SceneViewport", .Gesture = { KeyboardControl(Key::W), InputModifiers::None, InputTrigger::Held, true }, .Scale = 1.0f });
 		registerAction({ .Id = "camera.backward", .ActionId = "editor.camera.forward", .ContextId = "SceneViewport", .Gesture = { KeyboardControl(Key::S), InputModifiers::None, InputTrigger::Held, true }, .Scale = -1.0f });

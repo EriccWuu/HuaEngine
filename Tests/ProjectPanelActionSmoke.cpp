@@ -8,6 +8,7 @@
 
 #include "Assets/AssetCreationRegistry.h"
 #include "Assets/AssetWorkspaceController.h"
+#include "Panels/ConsolePanel.h"
 #include "Panels/ProjectPanel.h"
 #include "Panels/ProjectAssetNaming.h"
 
@@ -21,6 +22,12 @@ namespace {
 }
 
 int main() {
+	const std::vector<HE::LogSink::LogLine> logLines{
+		{ spdlog::level::info, "First log line" },
+		{ spdlog::level::err, "Second log line" }
+	};
+	Require(HE::BuildConsoleLogText(logLines) == "First log line\nSecond log line", "Expected console copy text to preserve complete log lines");
+
 	const auto smokeRoot = std::filesystem::temp_directory_path() / "HuaEngineProjectPanelActionSmoke";
 	std::error_code errorCode;
 	std::filesystem::remove_all(smokeRoot, errorCode);

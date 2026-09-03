@@ -2,6 +2,32 @@
 #include "ConsolePanel.h"
 
 namespace HE {
+	std::string BuildConsoleLogText(std::span<const LogSink::LogLine> lines) {
+		std::string text;
+		for (size_t index = 0; index < lines.size(); ++index) {
+			if (index != 0) text.push_back('\n');
+			text += lines[index].message;
+		}
+		return text;
+	}
+
+	bool ConcolePanel::HasSelectedLog() const {
+		const auto& sink = Log::GetLogSink();
+		return sink && m_SelectedLogIndex && *m_SelectedLogIndex < sink->GetBuffer().size();
+	}
+
+	void ConcolePanel::CopySelectedLog() const {
+		if (!HasSelectedLog()) return;
+		ImGui::SetClipboardText(Log::GetLogSink()->GetBuffer()[*m_SelectedLogIndex].message.c_str());
+	}
+
+	void ConcolePanel::CopyAllLogs() const {
+		const auto& sink = Log::GetLogSink();
+		if (!sink) return;
+		const auto text = BuildConsoleLogText(sink->GetBuffer());
+		ImGui::SetClipboardText(text.c_str());
+	}
+
     void ConcolePanel::OnGuiRender() {
         ImGui::Begin("Console");
 		m_IsFocused = ImGui::IsWindowFocused(ImGuiFocusedFlags_RootAndChildWindows);
@@ -9,21 +35,45 @@ namespace HE {
 
         if (ImGui::Button("Clear Logs")) {
             Log::GetLogSink()->Clear();
+			m_SelectedLogIndex.reset();
         }
+		ImGui::SameLine();
+		ImGui::BeginDisabled(!HasSelectedLog());
+		if (ImGui::Button("Copy")) CopySelectedLog();
+		ImGui::EndDisabled();
+		ImGui::SameLine();
+		const auto& logSink = Log::GetLogSink();
+		ImGui::BeginDisabled(!logSink || logSink->GetBuffer().empty());
+		if (ImGui::Button("Copy All")) CopyAllLogs();
+		ImGui::EndDisabled();
 
         ImGui::Separator();
 
         if (ImGui::BeginTabBar("ConsoleTabs")) {
             if (ImGui::BeginTabItem("Logs")) {
-                const auto& buffer = Log::GetLogSink()->GetBuffer();
+				const auto& buffer = logSink->GetBuffer();
+				if (m_SelectedLogIndex && *m_SelectedLogIndex >= buffer.size()) m_SelectedLogIndex.reset();
                 ImGui::BeginChild("LogScroll", ImVec2(0, 0), false, ImGuiWindowFlags_HorizontalScrollbar);
                 const bool wasAtBottom = IsScrollNearBottom();
 
-                for (const auto& line : buffer) {
+				for (size_t index = 0; index < buffer.size(); ++index) {
+					const auto& line = buffer[index];
+					ImGui::PushID(static_cast<int>(index));
                     ImVec4 color = LevelToColor(line.level);
                     ImGui::PushStyleColor(ImGuiCol_Text, color);
-                    ImGui::TextUnformatted(line.message.c_str());
+					if (ImGui::Selectable(line.message.c_str(), m_SelectedLogIndex == index)) {
+						m_SelectedLogIndex = index;
+					}
                     ImGui::PopStyleColor();
+					if (ImGui::BeginPopupContextItem("LogContext")) {
+						if (ImGui::MenuItem("Copy")) {
+							m_SelectedLogIndex = index;
+							CopySelectedLog();
+						}
+						if (ImGui::MenuItem("Copy All")) CopyAllLogs();
+						ImGui::EndPopup();
+					}
+					ImGui::PopID();
                 }
 
                 if (m_AutoScroll && wasAtBottom) {

@@ -1017,6 +1017,7 @@ add_executable(ProjectPanelActionSmoke
     Tests/ProjectPanelActionSmoke.cpp
 	Editor/src/Assets/AssetCreationRegistry.cpp
 	Editor/src/Assets/AssetWorkspaceController.cpp
+	Editor/src/Panels/ConsolePanel.cpp
 	Editor/src/Panels/ProjectAssetNaming.cpp
     Editor/src/Panels/ProjectPanel.cpp
 	Editor/src/Input/EditorCommandRegistry.cpp
