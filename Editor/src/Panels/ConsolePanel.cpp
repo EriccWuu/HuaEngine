@@ -50,15 +50,7 @@ namespace HE {
             Log::GetLogSink()->Clear();
 			m_SelectedLogIndex.reset();
         }
-		ImGui::SameLine();
-		ImGui::BeginDisabled(!HasSelectedLog());
-		if (ImGui::Button("Copy")) CopySelectedLog();
-		ImGui::EndDisabled();
-		ImGui::SameLine();
 		const auto& logSink = Log::GetLogSink();
-		ImGui::BeginDisabled(!logSink || logSink->GetBuffer().empty());
-		if (ImGui::Button("Copy All")) CopyAllLogs();
-		ImGui::EndDisabled();
 		if (logSink) {
 			size_t infoCount = 0;
 			size_t warningCount = 0;
