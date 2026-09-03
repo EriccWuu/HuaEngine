@@ -24,9 +24,15 @@ namespace {
 int main() {
 	const std::vector<HE::LogSink::LogLine> logLines{
 		{ spdlog::level::info, "First log line" },
-		{ spdlog::level::err, "Second log line" }
+		{ spdlog::level::warn, "Warning log line" },
+		{ spdlog::level::err, "Second log line" },
+		{ spdlog::level::critical, "Critical log line" }
 	};
-	Require(HE::BuildConsoleLogText(logLines) == "First log line\nSecond log line", "Expected console copy text to preserve complete log lines");
+	Require(HE::BuildConsoleLogText(logLines) == "First log line\nWarning log line\nSecond log line\nCritical log line", "Expected console copy text to preserve complete log lines");
+	const HE::ConsoleLogFilter warningOnly{ .Info = false, .Warning = true, .Error = false };
+	Require(HE::BuildConsoleLogText(logLines, warningOnly) == "Warning log line", "Expected console copy text to honor warning-only filtering");
+	const HE::ConsoleLogFilter errorOnly{ .Info = false, .Warning = false, .Error = true };
+	Require(HE::BuildConsoleLogText(logLines, errorOnly) == "Second log line\nCritical log line", "Expected error filtering to include error and critical logs");
 
 	const auto smokeRoot = std::filesystem::temp_directory_path() / "HuaEngineProjectPanelActionSmoke";
 	std::error_code errorCode;

@@ -2,18 +2,31 @@
 #include "ConsolePanel.h"
 
 namespace HE {
-	std::string BuildConsoleLogText(std::span<const LogSink::LogLine> lines) {
+	bool ConsoleLogFilter::Allows(spdlog::level::level_enum level) const {
+		switch (level) {
+		case spdlog::level::warn: return Warning;
+		case spdlog::level::err:
+		case spdlog::level::critical: return Error;
+		default: return Info;
+		}
+	}
+
+	std::string BuildConsoleLogText(
+		std::span<const LogSink::LogLine> lines,
+		const ConsoleLogFilter& filter) {
 		std::string text;
-		for (size_t index = 0; index < lines.size(); ++index) {
-			if (index != 0) text.push_back('\n');
-			text += lines[index].message;
+		for (const auto& line : lines) {
+			if (!filter.Allows(line.level)) continue;
+			if (!text.empty()) text.push_back('\n');
+			text += line.message;
 		}
 		return text;
 	}
 
 	bool ConcolePanel::HasSelectedLog() const {
 		const auto& sink = Log::GetLogSink();
-		return sink && m_SelectedLogIndex && *m_SelectedLogIndex < sink->GetBuffer().size();
+		return sink && m_SelectedLogIndex && *m_SelectedLogIndex < sink->GetBuffer().size()
+			&& m_LogFilter.Allows(sink->GetBuffer()[*m_SelectedLogIndex].level);
 	}
 
 	void ConcolePanel::CopySelectedLog() const {
@@ -24,7 +37,7 @@ namespace HE {
 	void ConcolePanel::CopyAllLogs() const {
 		const auto& sink = Log::GetLogSink();
 		if (!sink) return;
-		const auto text = BuildConsoleLogText(sink->GetBuffer());
+		const auto text = BuildConsoleLogText(sink->GetBuffer(), m_LogFilter);
 		ImGui::SetClipboardText(text.c_str());
 	}
 
@@ -46,6 +59,32 @@ namespace HE {
 		ImGui::BeginDisabled(!logSink || logSink->GetBuffer().empty());
 		if (ImGui::Button("Copy All")) CopyAllLogs();
 		ImGui::EndDisabled();
+		if (logSink) {
+			size_t infoCount = 0;
+			size_t warningCount = 0;
+			size_t errorCount = 0;
+			for (const auto& line : logSink->GetBuffer()) {
+				if (line.level == spdlog::level::warn) ++warningCount;
+				else if (line.level == spdlog::level::err || line.level == spdlog::level::critical) ++errorCount;
+				else ++infoCount;
+			}
+
+			const auto infoLabel = "Info (" + std::to_string(infoCount) + ")##ConsoleInfoFilter";
+			const auto warningLabel = "Warning (" + std::to_string(warningCount) + ")##ConsoleWarningFilter";
+			const auto errorLabel = "Error (" + std::to_string(errorCount) + ")##ConsoleErrorFilter";
+			ImGui::SameLine();
+			ImGui::PushStyleColor(ImGuiCol_Text, LevelToColor(spdlog::level::info));
+			ImGui::Checkbox(infoLabel.c_str(), &m_LogFilter.Info);
+			ImGui::PopStyleColor();
+			ImGui::SameLine();
+			ImGui::PushStyleColor(ImGuiCol_Text, LevelToColor(spdlog::level::warn));
+			ImGui::Checkbox(warningLabel.c_str(), &m_LogFilter.Warning);
+			ImGui::PopStyleColor();
+			ImGui::SameLine();
+			ImGui::PushStyleColor(ImGuiCol_Text, LevelToColor(spdlog::level::err));
+			ImGui::Checkbox(errorLabel.c_str(), &m_LogFilter.Error);
+			ImGui::PopStyleColor();
+		}
 
         ImGui::Separator();
 
@@ -58,13 +97,22 @@ namespace HE {
 
 				for (size_t index = 0; index < buffer.size(); ++index) {
 					const auto& line = buffer[index];
+					if (!m_LogFilter.Allows(line.level)) continue;
 					ImGui::PushID(static_cast<int>(index));
-                    ImVec4 color = LevelToColor(line.level);
-                    ImGui::PushStyleColor(ImGuiCol_Text, color);
-					if (ImGui::Selectable(line.message.c_str(), m_SelectedLogIndex == index)) {
+					const auto color = LevelToColor(line.level);
+					const float rowHeight = ImGui::GetTextLineHeightWithSpacing();
+					const float rowWidth = std::max(
+						ImGui::GetContentRegionAvail().x,
+						ImGui::CalcTextSize(line.message.c_str()).x + ImGui::GetStyle().FramePadding.x * 2.0f);
+					if (ImGui::Selectable("##LogLine", m_SelectedLogIndex == index, ImGuiSelectableFlags_None, { rowWidth, rowHeight })) {
 						m_SelectedLogIndex = index;
 					}
-                    ImGui::PopStyleColor();
+					const auto rowMin = ImGui::GetItemRectMin();
+					const float textOffsetY = (rowHeight - ImGui::GetTextLineHeight()) * 0.5f;
+					ImGui::GetWindowDrawList()->AddText(
+						{ rowMin.x + ImGui::GetStyle().FramePadding.x, rowMin.y + textOffsetY },
+						ImGui::ColorConvertFloat4ToU32(color),
+						line.message.c_str());
 					if (ImGui::BeginPopupContextItem("LogContext")) {
 						if (ImGui::MenuItem("Copy")) {
 							m_SelectedLogIndex = index;

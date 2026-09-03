@@ -9,7 +9,17 @@
 #include "imgui.h"
 
 namespace HE {
-	[[nodiscard]] std::string BuildConsoleLogText(std::span<const LogSink::LogLine> lines);
+	struct ConsoleLogFilter {
+		bool Info = true;
+		bool Warning = true;
+		bool Error = true;
+
+		[[nodiscard]] bool Allows(spdlog::level::level_enum level) const;
+	};
+
+	[[nodiscard]] std::string BuildConsoleLogText(
+		std::span<const LogSink::LogLine> lines,
+		const ConsoleLogFilter& filter = {});
 
 	class ConcolePanel {
     public:
@@ -31,6 +41,7 @@ namespace HE {
 		bool m_IsFocused = false;
 		bool m_IsHovered = false;
 		std::optional<size_t> m_SelectedLogIndex;
+		ConsoleLogFilter m_LogFilter;
 
         ImVec4 LevelToColor(spdlog::level::level_enum level);
         ImVec4 SeverityToColor(DiagnosticSeverity severity);
