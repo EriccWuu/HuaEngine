@@ -1,13 +1,14 @@
-cmake_minimum_required(VERSION 3.16)
+cmake_minimum_required(VERSION 3.24)
 
 # Enable compile commands export for IntelliSense
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
-# Include custom configuration
-include(${CMAKE_SOURCE_DIR}/cmake/Config.cmake)
-
 # Set the project name and version
 project(HuaEngine VERSION 1.0.0 LANGUAGES C CXX)
+
+# Configure build types after the compiler and generator are known.
+include(${CMAKE_SOURCE_DIR}/cmake/Config.cmake)
+include(CTest)
 
 # Set C++ standard
 set(CMAKE_CXX_STANDARD 20)
@@ -68,7 +69,6 @@ set(GLAD_INCLUDE_DIR "${CMAKE_SOURCE_DIR}/Dependencies/glad/include")
 set(IMGUI_INCLUDE_DIR "${CMAKE_SOURCE_DIR}/Dependencies/imgui")
 set(GLM_INCLUDE_DIR "${CMAKE_SOURCE_DIR}/Dependencies/glm")
 set(STB_IMAGE_INCLUDE_DIR "${CMAKE_SOURCE_DIR}/Dependencies/stb_image")
-set(ENTT_INCLUDE_DIR "${CMAKE_SOURCE_DIR}/Dependencies/entt")
 set(TINYOBJLOADER_INCLUDE_DIR "${CMAKE_SOURCE_DIR}/Dependencies/tinyobjloader")
 
 # Compiler specific settings
@@ -86,14 +86,13 @@ if(WIN32)
     add_compile_definitions(HE_PLATFORM_WINDOWS)
 endif()
 
-# Configuration specific defines
-if(CMAKE_BUILD_TYPE STREQUAL "Debug")
-    add_compile_definitions(HE_DEBUG HE_ENABLE_ASSERTS)
-elseif(CMAKE_BUILD_TYPE STREQUAL "Release")
-    add_compile_definitions(HE_RELEASE)
-elseif(CMAKE_BUILD_TYPE STREQUAL "Dist")
-    add_compile_definitions(HE_DIST)
-endif()
+# Generator expressions also select the correct defines for Visual Studio.
+add_compile_definitions(
+    $<$<CONFIG:Debug>:HE_DEBUG>
+    $<$<CONFIG:Debug>:HE_ENABLE_ASSERTS>
+    $<$<CONFIG:Release>:HE_RELEASE>
+    $<$<CONFIG:Dist>:HE_DIST>
+)
 
 # Add subdirectories for dependencies
 # GLFW configuration
@@ -124,15 +123,21 @@ set(SPIRV_CROSS_ENABLE_REFLECT OFF CACHE BOOL "" FORCE)
 set(SPIRV_CROSS_ENABLE_UTIL OFF CACHE BOOL "" FORCE)
 add_subdirectory(Dependencies/SPIRV-Cross)
 
-set(BUILD_TESTING OFF CACHE BOOL "" FORCE)
+set(HUAENGINE_BUILD_TESTING_SAVED ${BUILD_TESTING})
+set(BUILD_TESTING OFF)
 set(ENABLE_GLSLANG_BINARIES OFF CACHE BOOL "" FORCE)
 set(ENABLE_HLSL OFF CACHE BOOL "" FORCE)
 set(ENABLE_OPT OFF CACHE BOOL "" FORCE)
 set(ENABLE_SPVREMAPPER OFF CACHE BOOL "" FORCE)
 set(GLSLANG_TESTS OFF CACHE BOOL "" FORCE)
 add_subdirectory(Dependencies/glslang)
+set(BUILD_TESTING ${HUAENGINE_BUILD_TESTING_SAVED})
 
 # Add subdirectories for main projects
+set(HUAENGINE_SOURCE_ROOT "${CMAKE_SOURCE_DIR}" CACHE INTERNAL "Engine repository root")
+include(${CMAKE_SOURCE_DIR}/cmake/HuaMeta.cmake)
+hua_meta_initialize()
+include_directories(BEFORE "${CMAKE_BINARY_DIR}/generated/$<CONFIG>")
 add_subdirectory(HuaEngine)
 add_subdirectory(Editor)
 add_subdirectory(ProjectHub)
@@ -151,6 +156,8 @@ set(SMOKE_RUNTIME_OUTPUT_DIRECTORY
     "${CMAKE_BINARY_DIR}/bin/$<CONFIG>-${CMAKE_SYSTEM_NAME}-${ARCHITECTURE}/smoke")
 
 function(configure_smoke_target target_name)
+    target_compile_definitions(${target_name} PRIVATE
+        HUAENGINE_TEST_SOURCE_ROOT="${CMAKE_SOURCE_DIR}")
     set_target_properties(${target_name} PROPERTIES
         RUNTIME_OUTPUT_DIRECTORY "${SMOKE_RUNTIME_OUTPUT_DIRECTORY}"
         VS_DEBUGGER_WORKING_DIRECTORY "$<TARGET_FILE_DIR:${target_name}>"
@@ -279,6 +286,43 @@ if(WIN32)
 endif()
 configure_smoke_target(ECSBackendSmoke)
 
+foreach(ecs_smoke ECSLifecycleSmoke ECSContextSmoke ECSStorageSmoke ECSStorageIntegrationSmoke ECSQueryRuntimeSmoke ECSTimelineSmoke ECSParallelSmoke ECSCompactionSmoke SceneRuntimeMigrationSmoke RenderExtractionSmoke)
+    add_executable(${ecs_smoke} Tests/${ecs_smoke}.cpp)
+    target_include_directories(${ecs_smoke} PRIVATE
+        ${CMAKE_SOURCE_DIR}/HuaEngine/src
+        ${SPDLOG_INCLUDE_DIR}
+        ${GLM_INCLUDE_DIR}
+        ${IMGUI_INCLUDE_DIR}
+        ${STB_IMAGE_INCLUDE_DIR}
+    )
+    target_link_libraries(${ecs_smoke} PRIVATE HuaEngine)
+    if(WIN32)
+        target_compile_definitions(${ecs_smoke} PRIVATE GLFW_INCLUDE_NONE)
+    endif()
+    if(MSVC)
+        set_target_properties(${ecs_smoke} PROPERTIES
+            MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>")
+        target_compile_options(${ecs_smoke} PRIVATE /utf-8)
+    endif()
+    configure_smoke_target(${ecs_smoke})
+    set_property(TARGET ${ecs_smoke} PROPERTY FOLDER "Tests")
+endforeach()
+
+add_executable(ECSBenchmark Tests/ECSBenchmark.cpp)
+target_include_directories(ECSBenchmark PRIVATE
+    ${CMAKE_SOURCE_DIR}/HuaEngine/src
+    ${SPDLOG_INCLUDE_DIR}
+    ${GLM_INCLUDE_DIR}
+    ${IMGUI_INCLUDE_DIR}
+    ${STB_IMAGE_INCLUDE_DIR}
+)
+target_link_libraries(ECSBenchmark PRIVATE HuaEngine)
+if(WIN32)
+    target_compile_definitions(ECSBenchmark PRIVATE GLFW_INCLUDE_NONE)
+endif()
+configure_smoke_target(ECSBenchmark)
+set_property(TARGET ECSBenchmark PROPERTY FOLDER "Tests")
+
 add_executable(ReflectionSmoke Tests/ReflectionSmoke.cpp)
 target_include_directories(ReflectionSmoke PRIVATE
     ${CMAKE_SOURCE_DIR}/HuaEngine/src
@@ -349,6 +393,10 @@ if(WIN32)
     endif()
 endif()
 configure_smoke_target(ReflectionToolSmoke)
+target_compile_definitions(ReflectionToolSmoke PRIVATE
+    HUAENGINE_TEST_META_CORE_CONFIG="${CMAKE_BINARY_DIR}/meta/$<CONFIG>/Core/meta-config.json"
+    HUAENGINE_TEST_META_RENDERING_CONFIG="${CMAKE_BINARY_DIR}/meta/$<CONFIG>/Rendering/meta-config.json")
+add_dependencies(ReflectionToolSmoke HuaEngineMetaValidation)
 
 add_executable(SerializationSmoke Tests/SerializationSmoke.cpp)
 target_include_directories(SerializationSmoke PRIVATE
@@ -797,8 +845,11 @@ if(WIN32)
 endif()
 configure_smoke_target(RHICommandListBindingSmoke)
 
-add_executable(RenderingOperationsSmoke Tests/RenderingOperationsSmoke.cpp)
+add_executable(RenderingOperationsSmoke Tests/RenderingOperationsSmoke.cpp
+    Editor/src/Viewport/EditorSceneRenderExtension.cpp
+    Editor/src/Viewport/EditorGrid.cpp)
 target_include_directories(RenderingOperationsSmoke PRIVATE
+    ${CMAKE_SOURCE_DIR}/Editor/src
     ${CMAKE_SOURCE_DIR}/HuaEngine/src
     ${SPDLOG_INCLUDE_DIR}
     ${GLM_INCLUDE_DIR}
@@ -1019,6 +1070,10 @@ endif()
 configure_smoke_target(ProjectPanelActionSmoke)
 
 # Set ProjectHub as the startup project for Visual Studio
+if(BUILD_TESTING)
+    add_subdirectory(Tests/Meta)
+endif()
+
 set_property(DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR} PROPERTY VS_STARTUP_PROJECT ProjectHub)
 
 # Organize projects in Visual Studio solution folders
@@ -1064,3 +1119,5 @@ set_property(TARGET EditorInspectorRuntimeSmoke PROPERTY FOLDER "Tests")
 set_property(TARGET EditorAssetPickerSmoke PROPERTY FOLDER "Tests")
 set_property(TARGET AssetEditingSmoke PROPERTY FOLDER "Tests")
 set_property(TARGET ProjectPanelActionSmoke PROPERTY FOLDER "Tests")
+
+include(${CMAKE_SOURCE_DIR}/cmake/SmokeTests.cmake)

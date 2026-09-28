@@ -19,7 +19,8 @@ CMakeFiles/
 cmake_install.cmake
 Makefile
 *.cmake
-!cmake/Config.cmake
+!cmake/*.cmake
+!Tools/Meta/*.cmake
 !CMakeLists.txt
 !**/CMakeLists.txt
 
@@ -102,6 +103,7 @@ Tests/*/Library/
 .worktrees/
 
 # AI workspace artifacts
+_agent-workspace/
 .workspace/
 .workflow/
 .tasks/

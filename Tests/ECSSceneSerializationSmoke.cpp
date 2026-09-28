@@ -1,3 +1,4 @@
+#include "ECSTestSupport.h"
 #include "HuaEngine/ECS/Components.h"
 #include "HuaEngine/Asset/AssetTypes.h"
 #include "HuaEngine/Scene/Scene.h"
@@ -25,19 +26,19 @@ int main() {
 	std::error_code removeError;
 
 	HE::Scene scene("Serialized ECS Scene");
-	auto entity = scene.GetWorld().CreateEntity("Camera");
-	auto& transform = entity.AddComponent<HE::TransformComponent>();
+	auto entity = ECSTestSupport::Take(scene.CreateEntity("Camera"));
+	auto& transform = ECSTestSupport::Add<HE::TransformComponent>(scene.GetWorld(), entity);
 	transform.Position.x = 3.0f;
 	transform.Position.y = 4.0f;
 	transform.Rotation = { 10.0f, 20.0f, 30.0f };
 	transform.Scale = { 2.0f, 3.0f, 4.0f };
-	auto& mesh = entity.AddComponent<HE::Rendering::MeshComponent>();
+	auto& mesh = ECSTestSupport::Add<HE::Rendering::MeshComponent>(scene.GetWorld(), entity);
 	mesh.Mesh.Reference.Guid = HE::BuiltinAssetGuids::QuadMesh;
-	auto& material = entity.AddComponent<HE::Rendering::MaterialComponent>();
+	auto& material = ECSTestSupport::Add<HE::Rendering::MaterialComponent>(scene.GetWorld(), entity);
 	material.Material.Reference.Guid = HE::BuiltinAssetGuids::DefaultMaterial;
 	material.Overrides.SetVec4("u_BaseColor", glm::vec4(1.0f, 0.0f, 1.0f, 1.0f));
 
-	const auto uuid = entity.GetUuid();
+	const auto uuid = scene.GetWorld().Uuid(entity);
 	const std::filesystem::path path = std::filesystem::temp_directory_path() / "HuaEngineECSSceneSerializationSmoke.scene";
 	const bool saved = HE::Serialization::SaveScene(scene, path.string());
 	Require(saved, "Expected scene save to succeed");
@@ -59,22 +60,22 @@ int main() {
 	const bool loadedOk = HE::Serialization::LoadScene(path.string(), loaded);
 	Require(loadedOk, "Expected scene load to succeed");
 	Require(loaded.GetName() == "Serialized ECS Scene", "Expected scene name to round-trip");
-	Require(loaded.GetWorld().GetEntityCount() == 1, "Expected one scene entity to round-trip");
+	Require(loaded.GetWorld().EntityCount() == 1, "Expected one scene entity to round-trip");
 
-	auto loadedEntity = loaded.GetWorld().GetEntity(uuid);
-	Require(loadedEntity.IsValid(), "Expected scene entity uuid to round-trip");
-	Require(loadedEntity.GetName() == "Camera", "Expected scene entity name to round-trip");
-	Require(loadedEntity.HasComponent<HE::TransformComponent>(), "Expected scene entity transform to round-trip");
-	Require(loadedEntity.HasComponent<HE::Rendering::MeshComponent>(), "Expected scene entity mesh to round-trip");
-	Require(loadedEntity.HasComponent<HE::Rendering::MaterialComponent>(), "Expected scene entity material to round-trip");
-	const auto& loadedTransform = loadedEntity.GetComponent<HE::TransformComponent>();
+	auto loadedEntity = loaded.GetWorld().Find(uuid);
+	Require(loaded.GetWorld().IsAlive(loadedEntity), "Expected scene entity uuid to round-trip");
+	Require(loaded.GetWorld().Name(loadedEntity) == "Camera", "Expected scene entity name to round-trip");
+	Require(loaded.GetWorld().Has<HE::TransformComponent>(loadedEntity), "Expected scene entity transform to round-trip");
+	Require(loaded.GetWorld().Has<HE::Rendering::MeshComponent>(loadedEntity), "Expected scene entity mesh to round-trip");
+	Require(loaded.GetWorld().Has<HE::Rendering::MaterialComponent>(loadedEntity), "Expected scene entity material to round-trip");
+	const auto& loadedTransform = ECSTestSupport::Get<HE::TransformComponent>(loaded.GetWorld(), loadedEntity);
 	Require(loadedTransform.Position.x == 3.0f, "Expected Position.x to round-trip");
 	Require(loadedTransform.Position.y == 4.0f, "Expected Position.y to round-trip");
 	Require(loadedTransform.Rotation == glm::vec3(10.0f, 20.0f, 30.0f), "Expected Rotation to round-trip");
 	Require(loadedTransform.Scale == glm::vec3(2.0f, 3.0f, 4.0f), "Expected Scale to round-trip");
-	const auto& loadedMesh = loadedEntity.GetComponent<HE::Rendering::MeshComponent>();
+	const auto& loadedMesh = ECSTestSupport::Get<HE::Rendering::MeshComponent>(loaded.GetWorld(), loadedEntity);
 	Require(loadedMesh.Mesh.Reference.Guid == HE::BuiltinAssetGuids::QuadMesh, "Expected Mesh GUID to round-trip");
-	const auto& loadedMaterial = loadedEntity.GetComponent<HE::Rendering::MaterialComponent>();
+	const auto& loadedMaterial = ECSTestSupport::Get<HE::Rendering::MaterialComponent>(loaded.GetWorld(), loadedEntity);
 	Require(loadedMaterial.Material.Reference.Guid == HE::BuiltinAssetGuids::DefaultMaterial, "Expected Material GUID to round-trip");
 	const auto overrideIt = loadedMaterial.Overrides.Parameters.find("u_BaseColor");
 	Require(overrideIt != loadedMaterial.Overrides.Parameters.end(), "Expected vec4 material override to round-trip");

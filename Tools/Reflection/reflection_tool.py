@@ -1,964 +1,217 @@
 #!/usr/bin/env python3
-"""MVP source scanner and generator for HuaEngine reflection metadata."""
+"""Generate ordinary C++ from the configured HuaMeta Clang manifest."""
 
 from __future__ import annotations
 
 import argparse
+import copy
+import hashlib
 import json
 import os
+from pathlib import Path
 import re
+import subprocess
 import sys
 import tempfile
-from pathlib import Path
-from typing import Any, Dict, Iterable, List, Optional, Sequence, Tuple
-
-
-SCHEMA_VERSION = 1
-SOURCE_EXTENSIONS = {".h", ".hpp", ".hh", ".hxx", ".cpp", ".cc", ".cxx"}
-SKIPPED_DIRS = {
-    ".git",
-    ".vs",
-    ".workspace",
-    "Dependencies",
-    "build",
-    "out",
-    "bin",
-    "obj",
-    "__pycache__",
-}
-
-
-def make_diagnostic(
-    severity: str,
-    code: str,
-    message: str,
-    source: Optional[str] = None,
-    line: Optional[int] = None,
-) -> Dict[str, Any]:
-    diagnostic: Dict[str, Any] = {
-        "severity": severity,
-        "code": code,
-        "message": message,
-    }
-    if source is not None:
-        diagnostic["source"] = source
-    if line is not None:
-        diagnostic["line"] = line
-    return diagnostic
-
-
-def normalize_path(path: Path) -> str:
-    return path.as_posix()
-
-
-def read_text(path: Path) -> str:
-    for encoding in ("utf-8-sig", "utf-8", "cp936"):
-        try:
-            return path.read_text(encoding=encoding)
-        except UnicodeDecodeError:
-            continue
-    return path.read_text(encoding="utf-8", errors="replace")
-
-
-def strip_comments_preserve_lines(text: str) -> str:
-    result: List[str] = []
-    index = 0
-    in_line_comment = False
-    in_block_comment = False
-    in_string: Optional[str] = None
-    escaped = False
-
-    while index < len(text):
-        char = text[index]
-        next_char = text[index + 1] if index + 1 < len(text) else ""
-
-        if in_line_comment:
-            if char == "\n":
-                in_line_comment = False
-                result.append(char)
-            else:
-                result.append(" ")
-            index += 1
-            continue
-
-        if in_block_comment:
-            if char == "*" and next_char == "/":
-                result.extend("  ")
-                in_block_comment = False
-                index += 2
-            else:
-                result.append("\n" if char == "\n" else " ")
-                index += 1
-            continue
-
-        if in_string is not None:
-            result.append(char)
-            if escaped:
-                escaped = False
-            elif char == "\\":
-                escaped = True
-            elif char == in_string:
-                in_string = None
-            index += 1
-            continue
-
-        if char in ("'", '"'):
-            in_string = char
-            result.append(char)
-            index += 1
-            continue
-
-        if char == "/" and next_char == "/":
-            in_line_comment = True
-            result.extend("  ")
-            index += 2
-            continue
-
-        if char == "/" and next_char == "*":
-            in_block_comment = True
-            result.extend("  ")
-            index += 2
-            continue
-
-        result.append(char)
-        index += 1
-
-    return "".join(result)
-
-
-def line_for_offset(text: str, offset: int) -> int:
-    return text.count("\n", 0, offset) + 1
-
-
-def split_top_level_arguments(text: str) -> List[str]:
-    args: List[str] = []
-    start = 0
-    depth = 0
-    in_string: Optional[str] = None
-    escaped = False
-
-    for index, char in enumerate(text):
-        if in_string is not None:
-            if escaped:
-                escaped = False
-            elif char == "\\":
-                escaped = True
-            elif char == in_string:
-                in_string = None
-            continue
-
-        if char in ("'", '"'):
-            in_string = char
-            continue
-        if char in "([{<":
-            depth += 1
-            continue
-        if char in ")]}>":
-            depth = max(0, depth - 1)
-            continue
-        if char == "," and depth == 0:
-            args.append(text[start:index].strip())
-            start = index + 1
-
-    tail = text[start:].strip()
-    if tail:
-        args.append(tail)
-    return args
-
-
-def parse_metadata(args: Sequence[str]) -> Dict[str, str]:
-    metadata: Dict[str, str] = {}
-    for arg in args:
-        match = re.fullmatch(r'(DisplayName|Category)\s*=\s*"((?:\\.|[^"\\])*)"', arg)
-        if match:
-            metadata[snake_case(match.group(1))] = bytes(
-                match.group(2), "utf-8"
-            ).decode("unicode_escape")
-    return metadata
-
-
-def snake_case(name: str) -> str:
-    chars: List[str] = []
-    for index, char in enumerate(name):
-        if char.isupper() and index > 0:
-            chars.append("_")
-        chars.append(char.lower())
-    return "".join(chars)
-
-
-def find_macro_calls(text: str, macro_name: str) -> Iterable[Tuple[int, int, str]]:
-    token = macro_name + "("
-    search_from = 0
-    while True:
-        start = text.find(token, search_from)
-        if start == -1:
-            return
-        line_start = text.rfind("\n", 0, start) + 1
-        if text[line_start:start].lstrip().startswith("#"):
-            search_from = start + len(token)
-            continue
-
-        open_paren = start + len(macro_name)
-        index = open_paren + 1
-        depth = 1
-        in_string: Optional[str] = None
-        escaped = False
-
-        while index < len(text):
-            char = text[index]
-            if in_string is not None:
-                if escaped:
-                    escaped = False
-                elif char == "\\":
-                    escaped = True
-                elif char == in_string:
-                    in_string = None
-                index += 1
-                continue
-
-            if char in ("'", '"'):
-                in_string = char
-            elif char == "(":
-                depth += 1
-            elif char == ")":
-                depth -= 1
-                if depth == 0:
-                    yield start, index + 1, text[open_paren + 1 : index]
-                    search_from = index + 1
-                    break
-            index += 1
-        else:
-            yield start, len(text), text[open_paren + 1 :]
-            return
-
-
-def find_type_declaration(
-    text: str, offset: int, expected_name: Optional[str] = None
-) -> Optional[Dict[str, Any]]:
-    window = text[offset : offset + 4096]
-    pattern = re.compile(
-        r"\b(?P<kind>class|struct)\s+(?:[A-Za-z_]\w*::)*(?P<name>[A-Za-z_]\w*)\b[^;{]*\{",
-        re.MULTILINE,
-    )
-    for match in pattern.finditer(window):
-        declared_name = match.group("name")
-        if expected_name and declared_name != expected_name.split("::")[-1]:
-            continue
-        brace_offset = offset + match.end() - 1
-        end_brace = find_matching_brace(text, brace_offset)
-        if end_brace is None:
-            return None
-        return {
-            "kind": match.group("kind"),
-            "name": declared_name,
-            "declaration_start": offset + match.start(),
-            "body_start": brace_offset + 1,
-            "body_end": end_brace,
-        }
-    return None
-
-
-def find_enum_declaration(text: str, offset: int) -> Optional[Dict[str, Any]]:
-    window = text[offset : offset + 4096]
-    pattern = re.compile(
-        r"\benum\s+(?:class\s+)?(?P<name>[A-Za-z_]\w*)\b(?:\s*:\s*(?P<underlying>[A-Za-z_:]\w*(?:\s+[A-Za-z_:]\w*)?))?\s*\{",
-        re.MULTILINE,
-    )
-    match = pattern.search(window)
-    if not match:
-        return None
-    brace_offset = offset + match.end() - 1
-    end_brace = find_matching_brace(text, brace_offset)
-    if end_brace is None:
-        return None
-    return {
-        "name": match.group("name"),
-        "underlying_type": (match.group("underlying") or "int").strip(),
-        "declaration_start": offset + match.start(),
-        "body_start": brace_offset + 1,
-        "body_end": end_brace,
-    }
-
-
-def infer_namespace(text: str, offset: int) -> str:
-    pattern = re.compile(
-        r"\bnamespace\s+(?P<name>[A-Za-z_]\w*(?:::[A-Za-z_]\w*)*)?\s*\{",
-        re.MULTILINE,
-    )
-    active_namespaces: List[str] = []
-    for match in pattern.finditer(text, 0, offset):
-        namespace_name = match.group("name")
-        if not namespace_name:
-            continue
-        open_brace = match.end() - 1
-        close_brace = find_matching_brace(text, open_brace)
-        if close_brace is not None and close_brace > offset:
-            active_namespaces.extend(namespace_name.split("::"))
-    return "::".join(active_namespaces)
-
-
-def infer_qualified_name(text: str, declaration: Dict[str, Any]) -> str:
-    namespace_name = infer_namespace(text, declaration["declaration_start"])
-    if namespace_name:
-        return f"{namespace_name}::{declaration['name']}"
-    return f"HE::{declaration['name']}"
-
-
-def find_matching_brace(text: str, open_brace: int) -> Optional[int]:
-    depth = 0
-    in_string: Optional[str] = None
-    escaped = False
-    for index in range(open_brace, len(text)):
-        char = text[index]
-        if in_string is not None:
-            if escaped:
-                escaped = False
-            elif char == "\\":
-                escaped = True
-            elif char == in_string:
-                in_string = None
-            continue
-
-        if char in ("'", '"'):
-            in_string = char
-        elif char == "{":
-            depth += 1
-        elif char == "}":
-            depth -= 1
-            if depth == 0:
-                return index
-    return None
-
-
-def parse_field_statement(statement: str) -> Optional[Tuple[str, str]]:
-    clean = " ".join(statement.strip().split())
-    if not clean or "(" in clean or clean.startswith(("using ", "typedef ")):
-        return None
-    clean = clean.split("=", 1)[0].strip()
-    clean = clean.split("{", 1)[0].strip()
-    clean = clean.rstrip(";").strip()
-    clean = re.sub(r"\b(static|mutable|constexpr|inline|volatile)\b", " ", clean)
-    clean = " ".join(clean.split())
-    match = re.fullmatch(r"(?P<type>.+?[\s*&])(?P<name>[A-Za-z_]\w*)", clean)
-    if not match:
-        return None
-    field_type = match.group("type").strip()
-    field_name = match.group("name").strip()
-    if not field_type or field_name in {"public", "private", "protected"}:
-        return None
-    return field_type, field_name
-
-
-def collect_fields(
-    text: str,
-    body_start: int,
-    body_end: int,
-    source: str,
-    diagnostics: List[Dict[str, Any]],
-) -> List[Dict[str, Any]]:
-    fields: List[Dict[str, Any]] = []
-    body = text[body_start:body_end]
-    for macro_start, macro_end, macro_args in find_macro_calls(body, "HE_REFLECT_FIELD"):
-        absolute_macro_start = body_start + macro_start
-        args = split_top_level_arguments(macro_args)
-        metadata = parse_metadata(args)
-        statement_start = body_start + macro_end
-        statement_end = text.find(";", statement_start, body_end)
-        if statement_end == -1:
-            diagnostics.append(
-                make_diagnostic(
-                    "error",
-                    "field.missing_semicolon",
-                    "HE_REFLECT_FIELD is not followed by a field declaration ending in ';'.",
-                    source,
-                    line_for_offset(text, absolute_macro_start),
-                )
-            )
-            continue
-
-        statement = text[statement_start : statement_end + 1]
-        parsed = parse_field_statement(statement)
-        if parsed is None:
-            diagnostics.append(
-                make_diagnostic(
-                    "error",
-                    "field.unparsed_declaration",
-                    "HE_REFLECT_FIELD is not followed by a simple field declaration.",
-                    source,
-                    line_for_offset(text, absolute_macro_start),
-                )
-            )
-            continue
-
-        field_type, field_name = parsed
-        field: Dict[str, Any] = {
-            "name": field_name,
-            "type": field_type,
-            "source": source,
-            "line": line_for_offset(text, statement_start),
-        }
-        field.update(metadata)
-        fields.append(field)
-    return fields
-
-
-def parse_enum_value_expression(expression: str) -> Optional[int]:
-    value = expression.strip()
-    if re.fullmatch(r"-?\d+", value):
-        return int(value, 10)
-    if re.fullmatch(r"0[xX][0-9A-Fa-f]+", value):
-        return int(value, 16)
-    return None
-
-
-def collect_enum_values(
-    text: str,
-    enum_decl: Dict[str, Any],
-    source: str,
-    diagnostics: List[Dict[str, Any]],
-) -> List[Dict[str, Any]]:
-    body = text[enum_decl["body_start"] : enum_decl["body_end"]]
-    values: List[Dict[str, Any]] = []
-    next_value = 0
-    for raw_entry in split_top_level_arguments(body):
-        entry = raw_entry.strip()
-        if not entry:
-            continue
-        if "=" in entry:
-            name, expression = entry.split("=", 1)
-            parsed_value = parse_enum_value_expression(expression)
-            if parsed_value is None:
-                diagnostics.append(
-                    make_diagnostic(
-                        "error",
-                        "enum.value_unsupported_expression",
-                        "HE_REFLECT_ENUM only supports implicit, decimal, hex, and negative integer values.",
-                        source,
-                        line_for_offset(text, enum_decl["body_start"] + body.find(raw_entry)),
-                    )
-                )
-                continue
-            next_value = parsed_value
-        else:
-            name = entry
-
-        enum_name = name.strip()
-        if not re.fullmatch(r"[A-Za-z_]\w*", enum_name):
-            diagnostics.append(
-                make_diagnostic(
-                    "error",
-                    "enum.value_unparsed",
-                    "Could not parse enum value name.",
-                    source,
-                    line_for_offset(text, enum_decl["body_start"] + body.find(raw_entry)),
-                )
-            )
-            continue
-
-        values.append({"name": enum_name, "value": next_value, "display_name": ""})
-        next_value += 1
-    return values
-
-
-def iter_source_files(root: Path) -> Iterable[Path]:
-    for current_root, dirnames, filenames in os.walk(root):
-        dirnames[:] = [name for name in dirnames if name not in SKIPPED_DIRS]
-        current_path = Path(current_root)
-        for filename in filenames:
-            path = current_path / filename
-            if path.suffix.lower() in SOURCE_EXTENSIONS:
-                yield path
-
-
-def scan_file(root: Path, path: Path, diagnostics: List[Dict[str, Any]]) -> Dict[str, List[Dict[str, Any]]]:
-    source = normalize_path(path.relative_to(root))
-    raw_text = read_text(path)
-    text = strip_comments_preserve_lines(raw_text)
-    types: List[Dict[str, Any]] = []
-    enums: List[Dict[str, Any]] = []
-
-    for macro_start, macro_end, macro_args in find_macro_calls(text, "HE_REFLECT_ENUM"):
-        line = line_for_offset(text, macro_start)
-        args = split_top_level_arguments(macro_args)
-        metadata = parse_metadata(args)
-        declaration = find_enum_declaration(text, macro_end)
-        if declaration is None:
-            diagnostics.append(
-                make_diagnostic(
-                    "error",
-                    "enum.declaration_not_found",
-                    "Could not find an enum declaration after HE_REFLECT_ENUM.",
-                    source,
-                    line,
-                )
-            )
-            continue
-
-        qualified_name = infer_qualified_name(text, declaration)
-        reflected_enum: Dict[str, Any] = {
-            "name": declaration["name"],
-            "qualified_name": qualified_name,
-            "underlying_type": declaration["underlying_type"],
-            "source": source,
-            "line": line,
-            "values": collect_enum_values(text, declaration, source, diagnostics),
-        }
-        reflected_enum.update(metadata)
-        enums.append(reflected_enum)
-
-    for macro_start, macro_end, macro_args in find_macro_calls(text, "HE_REFLECT_COMPONENT"):
-        line = line_for_offset(text, macro_start)
-        args = split_top_level_arguments(macro_args)
-        metadata = parse_metadata(args)
-        declaration = find_type_declaration(text, macro_end)
-        if declaration is None:
-            diagnostics.append(
-                make_diagnostic(
-                    "error",
-                    "component.declaration_not_found",
-                    "Could not find a class or struct declaration after HE_REFLECT_COMPONENT.",
-                    source,
-                    line,
-                )
-            )
-            continue
-
-        qualified_name = infer_qualified_name(text, declaration)
-        reflected_type: Dict[str, Any] = {
-            "name": declaration["name"],
-            "qualified_name": qualified_name,
-            "kind": "component",
-            "declaration_kind": declaration["kind"],
-            "source": source,
-            "line": line,
-            "fields": collect_fields(
-                text,
-                declaration["body_start"],
-                declaration["body_end"],
-                source,
-                diagnostics,
-            ),
-        }
-        reflected_type.update(metadata)
-        types.append(reflected_type)
-
-    return {"types": types, "enums": enums}
-
-
-def validate_reflected_types(manifest: Dict[str, Any]) -> None:
-    diagnostics = manifest.setdefault("diagnostics", [])
-    seen_qualified_names: Dict[str, Dict[str, Any]] = {}
-    seen_enum_names: Dict[str, Dict[str, Any]] = {}
-
-    for reflected_type in manifest.get("types", []):
-        source = reflected_type.get("source")
-        line = reflected_type.get("line")
-        qualified_name = reflected_type.get("qualified_name", "")
-
-        if reflected_type.get("kind") == "component":
-            if not reflected_type.get("display_name"):
-                diagnostics.append(
-                    make_diagnostic(
-                        "error",
-                        "component.missing_display_name",
-                        "HE_REFLECT_COMPONENT is missing required DisplayName metadata.",
-                        source,
-                        line,
-                    )
-                )
-            if not reflected_type.get("category"):
-                diagnostics.append(
-                    make_diagnostic(
-                        "error",
-                        "component.missing_category",
-                        "HE_REFLECT_COMPONENT is missing required Category metadata.",
-                        source,
-                        line,
-                    )
-                )
-            if not reflected_type.get("fields"):
-                diagnostics.append(
-                    make_diagnostic(
-                        "error",
-                        "component.no_reflected_fields",
-                        "HE_REFLECT_COMPONENT types must declare at least one HE_REFLECT_FIELD.",
-                        source,
-                        line,
-                    )
-                )
-
-        if qualified_name:
-            previous = seen_qualified_names.get(qualified_name)
-            if previous is not None:
-                diagnostics.append(
-                    make_diagnostic(
-                        "error",
-                        "component.duplicate_qualified_name",
-                        f"Duplicate reflected type qualified_name: {qualified_name}",
-                        source,
-                        line,
-                    )
-                )
-                diagnostics.append(
-                    make_diagnostic(
-                        "error",
-                        "component.duplicate_qualified_name",
-                        f"Duplicate reflected type qualified_name first seen here: {qualified_name}",
-                        previous.get("source"),
-                        previous.get("line"),
-                    )
-                )
-            else:
-                seen_qualified_names[qualified_name] = reflected_type
-
-    for reflected_enum in manifest.get("enums", []):
-        source = reflected_enum.get("source")
-        line = reflected_enum.get("line")
-        qualified_name = reflected_enum.get("qualified_name", "")
-
-        if not reflected_enum.get("values"):
-            diagnostics.append(
-                make_diagnostic(
-                    "error",
-                    "enum.no_values",
-                    "HE_REFLECT_ENUM enum must declare at least one value.",
-                    source,
-                    line,
-                )
-            )
-
-        if qualified_name:
-            previous = seen_enum_names.get(qualified_name)
-            if previous is not None:
-                diagnostics.append(
-                    make_diagnostic(
-                        "error",
-                        "enum.duplicate_qualified_name",
-                        f"Duplicate reflected enum qualified_name: {qualified_name}",
-                        source,
-                        line,
-                    )
-                )
-                diagnostics.append(
-                    make_diagnostic(
-                        "error",
-                        "enum.duplicate_qualified_name",
-                        f"Duplicate reflected enum qualified_name first seen here: {qualified_name}",
-                        previous.get("source"),
-                        previous.get("line"),
-                    )
-                )
-            else:
-                seen_enum_names[qualified_name] = reflected_enum
-
-
-def scan_root(root: Path) -> Dict[str, Any]:
-    diagnostics: List[Dict[str, Any]] = []
-    types: List[Dict[str, Any]] = []
-    enums: List[Dict[str, Any]] = []
-    resolved_root = root.resolve()
-
-    if not resolved_root.exists():
-        diagnostics.append(
-            make_diagnostic(
-                "error",
-                "root.not_found",
-                f"Root path does not exist: {resolved_root}",
-            )
-        )
-    elif not resolved_root.is_dir():
-        diagnostics.append(
-            make_diagnostic(
-                "error",
-                "root.not_directory",
-                f"Root path is not a directory: {resolved_root}",
-            )
-        )
-    else:
-        for path in sorted(iter_source_files(resolved_root)):
-            scanned = scan_file(resolved_root, path, diagnostics)
-            types.extend(scanned["types"])
-            enums.extend(scanned["enums"])
-
-    types.sort(key=lambda item: (item["qualified_name"], item["source"], item["line"]))
-    enums.sort(key=lambda item: (item["qualified_name"], item["source"], item["line"]))
-    manifest = {
-        "schema_version": SCHEMA_VERSION,
-        "types": types,
-        "enums": enums,
-        "diagnostics": diagnostics,
-    }
-    validate_reflected_types(manifest)
-    return manifest
-
-
-def add_generated_drift_diagnostics(root: Path, manifest: Dict[str, Any]) -> None:
-    generated_dir = root.resolve() / "HuaEngine" / "src" / "HuaEngine" / "Generated"
-    generated_reflection_dir = generated_dir / "Reflection"
-    baseline_generated_files = [
-        generated_dir / "GeneratedReflection.h",
-        generated_dir / "GeneratedReflection.cpp",
-    ]
-    if (
-        not generated_dir.exists()
-        and not generated_reflection_dir.exists()
-        and not any(path.exists() for path in baseline_generated_files)
-    ):
-        return
-
-    diagnostics = manifest.setdefault("diagnostics", [])
-    with tempfile.TemporaryDirectory(prefix="hua_reflection_validate_") as temp_dir:
-        expected_dir = Path(temp_dir)
-        expected_files = write_generated_files(manifest, expected_dir)
-        expected_relative_files = {
-            expected_file.relative_to(expected_dir) for expected_file in expected_files
-        }
-        actual_relative_files = {
-            Path("GeneratedReflection.h"),
-            Path("GeneratedReflection.cpp"),
-        }
-        if generated_reflection_dir.exists():
-            actual_relative_files.update(
-                Path("Reflection") / path.name
-                for path in generated_reflection_dir.glob("*.generated.h")
-            )
-
-        for relative_file in sorted(expected_relative_files | actual_relative_files):
-            generated_file = generated_dir / relative_file
-            expected_file = expected_dir / relative_file
-            if not generated_file.exists():
-                diagnostics.append(
-                    make_diagnostic(
-                        "error",
-                        "generated.drift",
-                        f"Generated reflection file is missing: {normalize_path(generated_file)}",
-                    )
-                )
-                continue
-
-            if relative_file not in expected_relative_files:
-                diagnostics.append(
-                    make_diagnostic(
-                        "error",
-                        "generated.drift",
-                        f"Generated reflection file is obsolete: {normalize_path(generated_file)}",
-                    )
-                )
-                continue
-
-            if read_text(generated_file) != read_text(expected_file):
-                diagnostics.append(
-                    make_diagnostic(
-                        "error",
-                        "generated.drift",
-                        f"Generated reflection file is out of date: {normalize_path(generated_file)}",
-                    )
-                )
-
-
-def has_error_diagnostic(manifest: Dict[str, Any]) -> bool:
-    return any(
-        diagnostic.get("severity") == "error"
-        for diagnostic in manifest.get("diagnostics", [])
-    )
-
-
-def write_json(path: Path, data: Dict[str, Any]) -> None:
-    path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(json.dumps(data, indent=2) + "\n", encoding="utf-8")
-
-
-def load_manifest(path: Path) -> Dict[str, Any]:
-    with path.open("r", encoding="utf-8") as handle:
-        manifest = json.load(handle)
-    if manifest.get("schema_version") != SCHEMA_VERSION:
-        raise ValueError(
-            f"Unsupported manifest schema_version: {manifest.get('schema_version')!r}"
-        )
-    return manifest
+from typing import Any, Dict, List, Optional
+
+SCHEMA_VERSION = 2
+CONFIG_VERSION = 1
+OUTPUT_NAMES = ("GeneratedReflection.h", "GeneratedReflection.cpp", "GeneratedQueries.h", "GeneratedQueries.cpp")
+PARAMETER_CATEGORIES = {"required_read", "required_write", "optional_read", "optional_write", "value", "random_read", "random_write", "resource_read", "resource_write", "commands", "entity", "output"}
 
 
 def cpp_string(value: str) -> str:
-    return json.dumps(value)
+    return json.dumps(value, ensure_ascii=True)
 
 
-def macro_identifier(value: str) -> str:
-    return re.sub(r"[^A-Za-z0-9]", "_", value).upper()
+def cpp_bool(value: bool) -> str:
+    return "true" if value else "false"
 
 
 def cpp_identifier(value: str) -> str:
-    identifier = re.sub(r"[^A-Za-z0-9_]", "_", value)
-    if not identifier or identifier[0].isdigit():
-        identifier = "_" + identifier
-    return identifier
+    value = re.sub(r"[^A-Za-z0-9_]", "_", value)
+    return "_" + value if not value or value[0].isdigit() else value
+
+
+def sha256(path: Path) -> str:
+    with path.open("rb") as stream:
+        return hashlib.file_digest(stream, "sha256").hexdigest()
+
+
+def write_if_changed(path: Path, text: str) -> bool:
+    data = text.encode("utf-8")
+    if path.is_file() and path.read_bytes() == data:
+        return False
+    path.parent.mkdir(parents=True, exist_ok=True)
+    descriptor, temporary = tempfile.mkstemp(prefix=path.name + ".", suffix=".tmp", dir=path.parent)
+    try:
+        with os.fdopen(descriptor, "wb") as stream:
+            stream.write(data)
+        os.replace(temporary, path)
+    finally:
+        if os.path.exists(temporary):
+            os.unlink(temporary)
+    return True
+
+
+def write_json(path: Path, value: Any) -> bool:
+    return write_if_changed(path, json.dumps(value, indent=2, ensure_ascii=False) + "\n")
+
+
+def manifest_fingerprint(manifest: Dict[str, Any]) -> str:
+    return hashlib.sha256(json.dumps(manifest, sort_keys=True).encode("utf-8")).hexdigest()
+
+
+def read_json(path: Path) -> Dict[str, Any]:
+    value = json.loads(path.read_text(encoding="utf-8-sig"))
+    if not isinstance(value, dict):
+        raise ValueError(f"Expected a JSON object: {path}")
+    return value
+
+
+def load_config(path: Optional[str]) -> Dict[str, Any]:
+    if not path:
+        raise ValueError("Missing --meta-config. Run CMake configure first and pass the selected module/configuration meta-config.json.")
+    config_path = Path(path).resolve()
+    if not config_path.is_file():
+        raise ValueError(f"Meta configuration does not exist: {config_path}. Run CMake configure first.")
+    config = read_json(config_path)
+    if config.get("config_version") != CONFIG_VERSION:
+        raise ValueError(f"Unsupported config_version: {config.get('config_version')!r}; run CMake configure again.")
+    for name in ("module", "configuration"):
+        if not isinstance(config.get(name), str) or not config[name]:
+            raise ValueError(f"Meta configuration requires {name}")
+    if not re.fullmatch(r"[A-Za-z_][A-Za-z0-9_]*", config["module"]):
+        raise ValueError("The module name must be a C++ namespace identifier")
+    for name in ("repository_root", "compile_database", "translation_unit", "entry_header", "hua_meta", "resource_dir", "python", "generator", "manifest", "output_dir"):
+        value = config.get(name)
+        if not isinstance(value, str) or not Path(value).is_absolute():
+            raise ValueError(f"Meta configuration requires an absolute {name} path")
+        config[name] = str(Path(value).resolve())
+    config["_path"] = str(config_path)
+    if not (Path(config["compile_database"]) / "compile_commands.json").is_file():
+        raise ValueError("Missing compile_commands.json; run CMake configure for the selected meta configuration first.")
+    return config
+
+
+def verify_manifest(manifest: Dict[str, Any], config: Optional[Dict[str, Any]] = None, verify_dependencies: bool = True) -> None:
+    if manifest.get("schema_version") != SCHEMA_VERSION:
+        raise ValueError(f"Unsupported manifest schema_version: {manifest.get('schema_version')!r}; Clang manifest v2 is required.")
+    producer = manifest.get("producer", {})
+    if producer.get("name") != "HuaMeta" or producer.get("version") != "23.1.2-p6":
+        raise ValueError("Manifest producer must be HuaMeta 23.1.2-p6")
+    for name in ("module", "configuration", "translation_unit", "compile_fingerprint"):
+        if not isinstance(manifest.get(name), str) or not manifest[name]:
+            raise ValueError(f"Manifest requires {name}")
+    for name in ("types", "enums", "queries", "dependencies", "diagnostics"):
+        if not isinstance(manifest.get(name), list):
+            raise ValueError(f"Manifest requires the {name} array")
+    errors = [item for item in manifest["diagnostics"] if item.get("severity") == "error"]
+    if errors:
+        raise ValueError("Manifest contains error diagnostics; generation refused: " + json.dumps(errors, ensure_ascii=False))
+    if config:
+        for name in ("module", "configuration"):
+            if manifest[name] != config[name]:
+                raise ValueError(f"Manifest {name} does not match the selected meta configuration")
+        root = Path(config["repository_root"])
+        tu = Path(manifest["translation_unit"])
+        if not tu.is_absolute():
+            tu = root / tu
+        if tu.resolve() != Path(config["translation_unit"]):
+            raise ValueError("Manifest translation_unit does not match the selected meta configuration")
+        if verify_dependencies:
+            for dependency in manifest["dependencies"]:
+                path = Path(dependency["path"])
+                if not path.is_absolute():
+                    path = root / path
+                if not path.is_file() or sha256(path) != dependency.get("sha256", "").lower():
+                    raise ValueError(f"Stale manifest dependency: {path}; run reflection scan with this meta configuration again.")
+    seen_names: set[str] = set()
+    seen_guids: set[str] = set()
+    registered_names: set[str] = set()
+    for item in manifest["types"] + manifest["enums"]:
+        name = item.get("qualified_name", "")
+        if not name or name in seen_names:
+            raise ValueError(f"Duplicate or empty reflected qualified name: {name}")
+        seen_names.add(name)
+        if item.get("kind") == "component":
+            guid = item.get("guid", "").replace("-", "").lower()
+            if not re.fullmatch(r"[0-9a-f]{32}", guid) or int(guid, 16) == 0 or guid in seen_guids:
+                raise ValueError(f"Invalid or duplicate component Guid for {name}")
+            seen_guids.add(guid)
+            stable_name = item.get("type_name", item.get("name", ""))
+            if not stable_name or stable_name in registered_names:
+                raise ValueError(f"Invalid or duplicate component TypeName: {stable_name}")
+            registered_names.add(stable_name)
+            if item.get("tag", False) and item.get("fields"):
+                raise ValueError(f"Tag component cannot declare stored fields: {name}")
+    query_names: set[str] = set()
+    for query in manifest["queries"]:
+        name = query.get("qualified_name", "")
+        if not name or name in query_names:
+            raise ValueError(f"Duplicate or empty Query qualified name: {name}")
+        query_names.add(name)
+        if sum(parameter.get("category") == "output" for parameter in query.get("parameters", [])) > 1:
+            raise ValueError(f"A query may declare only one BatchOutput parameter: {name}")
+        for parameter in query.get("parameters", []):
+            category = parameter.get("category")
+            if category not in PARAMETER_CATEGORIES:
+                raise ValueError(f"Unsupported Query parameter category: {category}")
+            if category != "commands" and not parameter.get("component_type"):
+                raise ValueError(f"Query parameter requires canonical component_type: {name}")
+
+
+def load_manifest(path: Path, config: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
+    manifest = read_json(path)
+    verify_manifest(manifest, config)
+    if config and manifest.get("generation_inputs") != generation_inputs(config):
+        raise ValueError("Missing or stale manifest compilation/tool provenance; run reflection scan with this meta configuration again.")
+    return manifest
 
 
 def generated_include_for_source(source: str) -> str:
-    normalized = source.replace("\\", "/")
+    source = source.replace("\\", "/")
     prefix = "HuaEngine/src/"
-    if normalized.startswith(prefix):
-        return normalized[len(prefix) :]
-    return normalized
+    return source[len(prefix):] if source.startswith(prefix) else source
 
 
 def is_editable_runtime_field_type(field_type: str, is_enum: bool) -> bool:
-    if is_enum:
-        return True
-    return field_type in {
-        "bool",
-        "int",
-        "int8_t",
-        "int16_t",
-        "int32_t",
-        "int64_t",
-        "long",
-        "long long",
-        "unsigned int",
-        "uint8_t",
-        "uint16_t",
-        "uint32_t",
-        "uint64_t",
-        "unsigned long",
-        "unsigned long long",
-        "float",
-        "double",
-        "std::string",
-        "glm::vec2",
-        "glm::vec3",
-        "glm::vec4",
-    }
+    return is_enum or field_type in {"bool", "int", "int8_t", "int16_t", "int32_t", "int64_t", "long", "long long", "unsigned int", "uint8_t", "uint16_t", "uint32_t", "uint64_t", "unsigned long", "unsigned long long", "float", "double", "std::string", "glm::vec2", "glm::vec3", "glm::vec4"}
 
 
-def enum_storage_size_expression(field_type: str) -> str:
-    return f"sizeof({field_type})"
+def render_reflection(manifest: Dict[str, Any]) -> Dict[str, str]:
+    module = manifest["module"]
+    manifest_types = manifest["types"]
+    manifest_enums = manifest["enums"]
+    enum_index_by_qualified_name = {item["qualified_name"]: index for index, item in enumerate(manifest_enums)}
 
-
-def cleanup_obsolete_per_source_headers(out_dir: Path) -> None:
-    reflection_dir = out_dir / "Reflection"
-    if not reflection_dir.exists():
-        return
-
-    for path in reflection_dir.glob("*.generated.h"):
-        if path.is_file():
-            path.unlink()
-
-    try:
-        reflection_dir.rmdir()
-    except OSError:
-        pass
-
-
-def write_generated_files(manifest: Dict[str, Any], out_dir: Path) -> List[Path]:
-    out_dir.mkdir(parents=True, exist_ok=True)
-    cleanup_obsolete_per_source_headers(out_dir)
-    header_path = out_dir / "GeneratedReflection.h"
-    source_path = out_dir / "GeneratedReflection.cpp"
-    manifest_types = manifest.get("types", [])
-    manifest_enums = manifest.get("enums", [])
-    enum_by_qualified_name = {enum.get("qualified_name", ""): enum for enum in manifest_enums}
-    enum_by_short_name = {enum.get("name", ""): enum for enum in manifest_enums}
-    enum_index_by_qualified_name = {
-        enum.get("qualified_name", ""): index for index, enum in enumerate(manifest_enums)
-    }
-    written_files = [header_path, source_path]
-
-    def resolve_enum_for_field(field_type: str) -> Optional[Dict[str, Any]]:
-        return enum_by_qualified_name.get(field_type) or enum_by_short_name.get(field_type.split("::")[-1])
-
-    def enum_pointer_for_field(field_type: str) -> str:
-        reflected_enum = resolve_enum_for_field(field_type)
-        if reflected_enum is None:
+    def enum_pointer_for_field(field: Dict[str, Any]) -> str:
+        name = field.get("enum_type", "")
+        if not name:
             return "nullptr"
-        enum_index = enum_index_by_qualified_name[reflected_enum.get("qualified_name", "")]
-        return f"&RuntimeEnums[{enum_index}]"
+        index = enum_index_by_qualified_name.get(name)
+        fallback = f"&ModuleRuntimeEnums[{index}]" if index is not None else "nullptr"
+        return f"ResolveEnum({cpp_string(name)}, {fallback})"
 
-    header_lines = [
-        "#pragma once",
-        "",
-        "#include <cstdint>",
-        "#include <span>",
-        "#include <string_view>",
-        "",
-        "namespace HE {",
-        "class ComponentRegistry;",
-        "} // namespace HE",
-        "",
-        "namespace HE::Generated {",
-        "",
-        "struct ReflectedFieldInfo {",
-        "    std::string_view Name;",
-        "    std::string_view Type;",
-        "};",
-        "",
-        "struct ReflectedTypeInfo {",
-        "    std::string_view Name;",
-        "    std::string_view QualifiedName;",
-        "    std::string_view Kind;",
-        "    std::string_view DisplayName;",
-        "    std::string_view Category;",
-        "    std::span<const ReflectedFieldInfo> Fields;",
-        "};",
-        "",
-        "struct ReflectedEnumValueInfo {",
-        "    std::string_view Name;",
-        "    int64_t Value;",
-        "    std::string_view DisplayName;",
-        "};",
-        "",
-        "struct ReflectedEnumInfo {",
-        "    std::string_view Name;",
-        "    std::string_view QualifiedName;",
-        "    std::string_view UnderlyingType;",
-        "    std::span<const ReflectedEnumValueInfo> Values;",
-        "};",
-        "",
-        "std::span<const ReflectedTypeInfo> GetReflectedTypes();",
-        "const ReflectedTypeInfo* FindReflectedType(std::string_view qualifiedName);",
-        "std::span<const ReflectedEnumInfo> GetReflectedEnums();",
-        "const ReflectedEnumInfo* FindReflectedEnum(std::string_view qualifiedName);",
-        "void RegisterGeneratedComponents(ComponentRegistry& registry);",
-        "",
-        "} // namespace HE::Generated",
-        "",
-    ]
-
-    header = "\n".join(header_lines)
-
-    include_paths = sorted(
-        {
-            generated_include_for_source(reflected_type.get("source", ""))
-            for reflected_type in manifest_types
-            if reflected_type.get("source", "")
-        }
-        | {
-            generated_include_for_source(reflected_enum.get("source", ""))
-            for reflected_enum in manifest_enums
-            if reflected_enum.get("source", "")
-        }
-    )
-
-    lines = [
-        '#include "GeneratedReflection.h"',
-        "",
-        "#include <string>",
-        "#include <string_view>",
-        "#include <vector>",
-        "",
-        '#include "HuaEngine/ECS/ComponentRegistry.h"',
-        '#include "HuaEngine/ECS/ComponentType.h"',
-        '#include "HuaEngine/ECS/World.h"',
-        '#include "HuaEngine/Reflection/Reflection.h"',
-        '#include "HuaEngine/Serialization/Serialization.h"',
-    ]
-    for include_path in include_paths:
-        lines.append(f'#include "{include_path}"')
-    lines.extend(
-        [
-            "",
-            "namespace HE::Generated {",
-            "",
-        ]
-    )
+    header_lines = ["#pragma once", "", '#include "HuaEngine/ECS/Runtime/TypeRegistry.h"', '#include "HuaEngine/Reflection/Reflection.h"', "", "// Include this module before Register<T> for generated types in every translation unit.", ""]
+    for item in manifest_types:
+        qualified = item["qualified_name"]
+        namespace, _, name = qualified.rpartition("::")
+        declaration = f"{item.get('declaration_kind', 'struct')} {name};"
+        header_lines.append(f"namespace {namespace} {{ {declaration} }}" if namespace else declaration)
+    header_lines.extend(["", f"namespace HE::Generated::{module} {{", "std::span<const Refl::RuntimeTypeDescriptor> RuntimeTypes();", "std::span<const ReflectedTypeInfo> ReflectedTypes();", "std::span<const Refl::RuntimeEnumDescriptor> RuntimeEnums();", "std::span<const ReflectedEnumInfo> ReflectedEnums();", "Ecs::Result<void> RegisterComponents(Ecs::TypeRegistry& registry);", "}", "", "namespace HE::Ecs {", ""])
+    for item in manifest_types:
+        if item.get("kind") != "component":
+            continue
+        guid = item["guid"].replace("-", "").lower()
+        header_lines.extend([f"template<> struct ComponentTraits<::{item['qualified_name']}> {{", f"    static constexpr TypeGuid Guid{{0x{guid[:16]}ULL, 0x{guid[16:]}ULL}};", f"    static constexpr std::string_view Name = {cpp_string(item.get('type_name', item['name']))};", f"    static constexpr bool IsTag = {cpp_bool(item.get('tag', False))};", "    static TypeDescriptor Describe();", "};", ""])
+    header_lines.extend(["}", ""])
+    include_paths = sorted({generated_include_for_source(item["source"]) for item in manifest_types + manifest_enums})
+    lines = ['#include "GeneratedReflection.h"', '#include "HuaEngine/Serialization/Serialization.h"', "#include <type_traits>", "#include <utility>"]
+    lines.extend(f'#include "{path}"' for path in include_paths)
+    lines.extend(["", f"namespace HE::Generated::{module} {{", "", "template<class T> static void* MutableField(T& value) {", "    if constexpr (std::is_const_v<T>) return nullptr;", "    else return &value;", "}", "template<class T> static bool DeserializeField(Serialization::SerializationBackend& backend, const std::string& name, T& value) {", "    if constexpr (!std::is_const_v<T> && std::is_copy_constructible_v<T> && std::is_move_assignable_v<T>) {", "        T candidate(value);", "        if (!Serialization::DeserializeValue(backend, name, candidate)) return false;", "        value = std::move(candidate);", "        return true;", "    } else if constexpr (!std::is_const_v<T> && std::is_default_constructible_v<T> && std::is_move_assignable_v<T>) {", "        T candidate{};", "        if (!Serialization::DeserializeValue(backend, name, candidate)) return false;", "        value = std::move(candidate);", "        return true;", "    } else return false;", "}", "static const Refl::RuntimeEnumDescriptor* ResolveEnum(std::string_view name, const Refl::RuntimeEnumDescriptor* local) {", "    const auto* shared = Refl::FindRuntimeEnum(name);", "    return shared ? shared : local;", "}", ""])
+    lines.extend(["template<class T> static void* DefaultValue() {", "    if constexpr (std::is_default_constructible_v<T>) return new T();", "    else return nullptr;", "}", "template<class T> static void* CopyValue(const void* source) {", "    if constexpr (std::is_copy_constructible_v<T>) return new T(*static_cast<const T*>(source));", "    else return nullptr;", "}", "template<class T> static bool AssignEnum(T& target, int64_t value) {", "    if constexpr (std::is_assignable_v<T&, std::remove_const_t<T>>) {", "        target = static_cast<std::remove_const_t<T>>(value);", "        return true;", "    } else return false;", "}", ""])
 
     for enum_index, reflected_enum in enumerate(manifest_enums):
         values = reflected_enum.get("values", [])
@@ -995,7 +248,7 @@ def write_generated_files(manifest: Dict[str, Any], out_dir: Path) -> List[Path]
             lines.append("")
 
     if manifest_enums:
-        lines.append("static constexpr Refl::RuntimeEnumDescriptor RuntimeEnums[] = {")
+        lines.append("static constexpr Refl::RuntimeEnumDescriptor ModuleRuntimeEnums[] = {")
         for enum_index, reflected_enum in enumerate(manifest_enums):
             value_count = len(reflected_enum.get("values", []))
             value_span = (
@@ -1018,7 +271,7 @@ def write_generated_files(manifest: Dict[str, Any], out_dir: Path) -> List[Path]
         lines.append("};")
         lines.append("")
 
-        lines.append("static constexpr ReflectedEnumInfo ReflectedEnums[] = {")
+        lines.append("static constexpr ReflectedEnumInfo ModuleReflectedEnums[] = {")
         for enum_index, reflected_enum in enumerate(manifest_enums):
             value_count = len(reflected_enum.get("values", []))
             value_span = (
@@ -1066,8 +319,9 @@ def write_generated_files(manifest: Dict[str, Any], out_dir: Path) -> List[Path]
         qualified_name = reflected_type.get("qualified_name", "")
         identifier = cpp_identifier(qualified_name)
         fields = reflected_type.get("fields", [])
+        lines.append(f"static Ecs::TypeDescriptor MakeEcsType_{identifier}();")
         lines.append(f"static void* ConstructDefault_{identifier}() {{")
-        lines.append(f"    return new {qualified_name}();")
+        lines.append(f"    return DefaultValue<{qualified_name}>();")
         lines.append("}")
         lines.append("")
         lines.append(f"static void Destroy_{identifier}(void* object) {{")
@@ -1075,24 +329,20 @@ def write_generated_files(manifest: Dict[str, Any], out_dir: Path) -> List[Path]
         lines.append("}")
         lines.append("")
         lines.append(f"static void* Copy_{identifier}(const void* object) {{")
-        lines.append(f"    return new {qualified_name}(*static_cast<const {qualified_name}*>(object));")
-        lines.append("}")
-        lines.append("")
-        lines.append(f"static void AddCopyToWorld_{identifier}(World& world, EntityId entity, const void* object) {{")
-        lines.append(f"    world.AddComponent<{qualified_name}>(entity, *static_cast<const {qualified_name}*>(object));")
+        lines.append(f"    return CopyValue<{qualified_name}>(object);")
         lines.append("}")
         lines.append("")
         for field in fields:
             field_name = field.get("name", "")
             field_type = field.get("type", "")
             field_identifier = f"{identifier}_{cpp_identifier(field_name)}"
-            enum_pointer = enum_pointer_for_field(field_type)
+            enum_pointer = enum_pointer_for_field(field)
             lines.append(f"static const void* GetConst_{field_identifier}(const void* object) {{")
             lines.append(f"    return &static_cast<const {qualified_name}*>(object)->{field_name};")
             lines.append("}")
             lines.append("")
             lines.append(f"static void* GetMutable_{field_identifier}(void* object) {{")
-            lines.append(f"    return &static_cast<{qualified_name}*>(object)->{field_name};")
+            lines.append(f"    return MutableField(static_cast<{qualified_name}*>(object)->{field_name});")
             lines.append("}")
             lines.append("")
             lines.append(f"static void Serialize_{field_identifier}(")
@@ -1102,7 +352,9 @@ def write_generated_files(manifest: Dict[str, Any], out_dir: Path) -> List[Path]
             lines.append(f"    const auto& component = *static_cast<const {qualified_name}*>(object);")
             if enum_pointer != "nullptr":
                 lines.append(f"    const auto enumValue = static_cast<int64_t>(component.{field_name});")
-                lines.append(f"    if (const auto* value = Refl::FindRuntimeEnumValueByValue(*{enum_pointer}, enumValue)) {{")
+                lines.append(f"    const auto* enumType = {enum_pointer};")
+                lines.append('    if (!enumType) throw std::logic_error("Reflected enum metadata is unavailable");')
+                lines.append("    if (const auto* value = Refl::FindRuntimeEnumValueByValue(*enumType, enumValue)) {")
                 lines.append("        backend.Serialize(name, std::string(value->Name));")
                 lines.append("    }")
             else:
@@ -1115,24 +367,19 @@ def write_generated_files(manifest: Dict[str, Any], out_dir: Path) -> List[Path]
             lines.append("    void* object) {")
             lines.append(f"    auto& component = *static_cast<{qualified_name}*>(object);")
             if enum_pointer != "nullptr":
-                enum_type_name = resolve_enum_for_field(field_type).get("qualified_name", field_type)
                 lines.append("    std::string enumName;")
                 lines.append("    if (!backend.Deserialize(name, enumName)) {")
                 lines.append("        return false;")
                 lines.append("    }")
-                lines.append(f"    const auto* value = Refl::FindRuntimeEnumValueByName(*{enum_pointer}, enumName);")
+                lines.append(f"    const auto* enumType = {enum_pointer};")
+                lines.append("    if (!enumType) return false;")
+                lines.append("    const auto* value = Refl::FindRuntimeEnumValueByName(*enumType, enumName);")
                 lines.append("    if (value == nullptr) {")
                 lines.append("        return false;")
                 lines.append("    }")
-                lines.append(f"    component.{field_name} = static_cast<{enum_type_name}>(value->Value);")
-                lines.append("    return true;")
+                lines.append(f"    return AssignEnum(component.{field_name}, value->Value);")
             else:
-                lines.append(f"    auto fieldValue = component.{field_name};")
-                lines.append("    if (!Serialization::DeserializeValue(backend, name, fieldValue)) {")
-                lines.append("        return false;")
-                lines.append("    }")
-                lines.append(f"    component.{field_name} = fieldValue;")
-                lines.append("    return true;")
+                lines.append(f"    return DeserializeField(backend, name, component.{field_name});")
             lines.append("}")
             lines.append("")
     for type_index, reflected_type in enumerate(manifest_types):
@@ -1141,22 +388,27 @@ def write_generated_files(manifest: Dict[str, Any], out_dir: Path) -> List[Path]
             qualified_name = reflected_type.get("qualified_name", "")
             identifier = cpp_identifier(qualified_name)
             is_component = reflected_type.get("kind", "") == "component"
-            lines.append(f"static constexpr Refl::RuntimeFieldDescriptor RuntimeType{type_index}Fields[] = {{")
+            lines.append(f"static const Refl::RuntimeFieldDescriptor RuntimeType{type_index}Fields[] = {{")
             for field in fields:
                 field_name = field.get("name", "")
                 field_type = field.get("type", "")
+                runtime_type = field.get("runtime_type", field_type)
                 field_identifier = f"{identifier}_{cpp_identifier(field_name)}"
-                enum_pointer = enum_pointer_for_field(field_type)
+                enum_pointer = enum_pointer_for_field(field)
                 if is_component:
                     offset = f"offsetof({qualified_name}, {field_name})"
                     size = f"sizeof(static_cast<{qualified_name}*>(nullptr)->{field_name})"
-                    flags = "Refl::RuntimeFieldFlags::Serializable | Refl::RuntimeFieldFlags::ComponentField"
-                    if is_editable_runtime_field_type(field_type, enum_pointer != "nullptr"):
+                    flags = "Refl::RuntimeFieldFlags::ComponentField"
+                    if field.get("serializable", True):
+                        flags += " | Refl::RuntimeFieldFlags::Serializable"
+                    if field.get("read_only", False):
+                        flags += " | Refl::RuntimeFieldFlags::ReadOnly"
+                    if field.get("editable", True) and is_editable_runtime_field_type(runtime_type, enum_pointer != "nullptr"):
                         flags += " | Refl::RuntimeFieldFlags::Editable"
                     get_const = f"&GetConst_{field_identifier}"
-                    get_mutable = f"&GetMutable_{field_identifier}"
-                    serialize_field = f"&Serialize_{field_identifier}"
-                    deserialize_field = f"&Deserialize_{field_identifier}"
+                    get_mutable = "nullptr" if field.get("read_only", False) else f"&GetMutable_{field_identifier}"
+                    serialize_field = f"&Serialize_{field_identifier}" if field.get("serializable", True) else "nullptr"
+                    deserialize_field = f"&Deserialize_{field_identifier}" if field.get("serializable", True) and not field.get("read_only", False) else "nullptr"
                 else:
                     offset = "0"
                     size = "0"
@@ -1171,7 +423,7 @@ def write_generated_files(manifest: Dict[str, Any], out_dir: Path) -> List[Path]
                     + ", ".join(
                         [
                             cpp_string(field_name),
-                            cpp_string(field.get("type", "")),
+                            cpp_string(runtime_type),
                             cpp_string(field.get("display_name", "")),
                             cpp_string(field.get("category", "")),
                             offset,
@@ -1190,7 +442,7 @@ def write_generated_files(manifest: Dict[str, Any], out_dir: Path) -> List[Path]
             lines.append("")
 
     if manifest_types:
-        lines.append("static const Refl::RuntimeTypeDescriptor RuntimeTypes[] = {")
+        lines.append("static const Refl::RuntimeTypeDescriptor ModuleRuntimeTypes[] = {")
         for type_index, reflected_type in enumerate(manifest_types):
             field_count = len(reflected_type.get("fields", []))
             field_span = (
@@ -1201,23 +453,19 @@ def write_generated_files(manifest: Dict[str, Any], out_dir: Path) -> List[Path]
             qualified_name = reflected_type.get("qualified_name", "")
             identifier = cpp_identifier(qualified_name)
             if reflected_type.get("kind", "") == "component":
-                type_id = f"ComponentTypeIdOf<{qualified_name}>()"
                 size = f"sizeof({qualified_name})"
                 construct = f"&ConstructDefault_{identifier}"
                 destroy = f"&Destroy_{identifier}"
                 copy = f"&Copy_{identifier}"
                 serialize = "nullptr"
                 deserialize = "nullptr"
-                add_copy_to_world = f"&AddCopyToWorld_{identifier}"
             else:
-                type_id = "InvalidComponentTypeId"
                 size = "0"
                 construct = "nullptr"
                 destroy = "nullptr"
                 copy = "nullptr"
                 serialize = "nullptr"
                 deserialize = "nullptr"
-                add_copy_to_world = "nullptr"
             lines.append(
                 "    {"
                 + ", ".join(
@@ -1227,7 +475,6 @@ def write_generated_files(manifest: Dict[str, Any], out_dir: Path) -> List[Path]
                         cpp_string(reflected_type.get("kind", "")),
                         cpp_string(reflected_type.get("display_name", "")),
                         cpp_string(reflected_type.get("category", "")),
-                        type_id,
                         size,
                         field_span,
                         construct,
@@ -1235,7 +482,7 @@ def write_generated_files(manifest: Dict[str, Any], out_dir: Path) -> List[Path]
                         copy,
                         serialize,
                         deserialize,
-                        add_copy_to_world,
+                        f"&MakeEcsType_{identifier}" if reflected_type.get("kind") == "component" else "nullptr",
                     ]
                 )
                 + "},"
@@ -1243,8 +490,23 @@ def write_generated_files(manifest: Dict[str, Any], out_dir: Path) -> List[Path]
         lines.append("};")
         lines.append("")
 
+    for type_index, reflected_type in enumerate(manifest_types):
+        if reflected_type.get("kind") != "component":
+            continue
+        qualified_name = reflected_type["qualified_name"]
+        identifier = cpp_identifier(qualified_name)
+        guid = reflected_type["guid"].replace("-", "").lower()
+        lines.append(f"static Ecs::TypeDescriptor MakeEcsType_{identifier}() {{")
+        lines.append(f"    auto descriptor = Ecs::MakeTypeDescriptor<{qualified_name}>(Ecs::TypeGuid{{0x{guid[:16]}ULL, 0x{guid[16:]}ULL}}, {cpp_string(reflected_type.get('type_name', reflected_type['name']))}, {cpp_bool(reflected_type.get('tag', False))});")
+        lines.append(f"    descriptor.QualifiedName = {cpp_string(qualified_name)};")
+        lines.append(f"    descriptor.Reflection = Refl::FindRuntimeType({cpp_string(qualified_name)});")
+        lines.append(f"    if (!descriptor.Reflection) descriptor.Reflection = &ModuleRuntimeTypes[{type_index}];")
+        lines.append("    return descriptor;")
+        lines.append("}")
+        lines.append("")
+
     if manifest_types:
-        lines.append("static constexpr ReflectedTypeInfo Types[] = {")
+        lines.append("static constexpr ReflectedTypeInfo ModuleReflectedTypes[] = {")
         for type_index, reflected_type in enumerate(manifest_types):
             field_count = len(reflected_type.get("fields", []))
             field_span = (
@@ -1268,266 +530,278 @@ def write_generated_files(manifest: Dict[str, Any], out_dir: Path) -> List[Path]
             )
         lines.append("};")
         lines.append("")
-    lines.append("std::span<const ReflectedTypeInfo> GetReflectedTypes() {")
-    if manifest_types:
-        lines.append("    return Types;")
-    else:
-        lines.append("    return {};")
-    lines.append("}")
-    lines.append("")
-    lines.append("const ReflectedTypeInfo* FindReflectedType(std::string_view qualifiedName) {")
-    lines.append("    for (const ReflectedTypeInfo& type : GetReflectedTypes()) {")
-    lines.append("        if (type.QualifiedName == qualifiedName) {")
-    lines.append("            return &type;")
-    lines.append("        }")
-    lines.append("    }")
-    lines.append("")
-    lines.append("    return nullptr;")
-    lines.append("}")
-    lines.append("")
-    lines.append("std::span<const ReflectedEnumInfo> GetReflectedEnums() {")
-    if manifest_enums:
-        lines.append("    return ReflectedEnums;")
-    else:
-        lines.append("    return {};")
-    lines.append("}")
-    lines.append("")
-    lines.append("const ReflectedEnumInfo* FindReflectedEnum(std::string_view qualifiedName) {")
-    lines.append("    for (const ReflectedEnumInfo& enumType : GetReflectedEnums()) {")
-    lines.append("        if (enumType.QualifiedName == qualifiedName) {")
-    lines.append("            return &enumType;")
-    lines.append("        }")
-    lines.append("    }")
-    lines.append("")
-    lines.append("    return nullptr;")
-    lines.append("}")
-    lines.append("")
-    lines.append("void RegisterGeneratedComponents(ComponentRegistry& registry) {")
-    lines.append("    for (const Refl::RuntimeTypeDescriptor& type : Refl::GetRuntimeTypes()) {")
-    lines.append("        if (type.Kind == \"component\") {")
-    lines.append("            registry.Register(type);")
-    lines.append("        }")
-    lines.append("    }")
-    lines.append("}")
-    lines.append("")
-    lines.append("} // namespace HE::Generated")
-    lines.append("")
-    lines.append("namespace HE::Refl {")
-    lines.append("")
-    lines.append("namespace {")
-    lines.append("using RuntimeTypeProvider = std::span<const RuntimeTypeDescriptor> (*)();")
-    lines.append("")
-    lines.append("std::span<const RuntimeTypeDescriptor> GetGeneratedRuntimeTypes() {")
-    if manifest_types:
-        lines.append("    return Generated::RuntimeTypes;")
-    else:
-        lines.append("    return {};")
-    lines.append("}")
-    lines.append("")
-    lines.append("std::span<const RuntimeTypeProvider> GetRuntimeTypeProviders() {")
-    lines.append("    static const RuntimeTypeProvider providers[] = {")
-    lines.append("        &GetGeneratedRuntimeTypes,")
-    lines.append("    };")
-    lines.append("    return providers;")
-    lines.append("}")
-    lines.append("")
-    lines.append("const std::vector<RuntimeTypeDescriptor>& GetRuntimeTypeCache() {")
-    lines.append("    static const std::vector<RuntimeTypeDescriptor> types = [] {")
-    lines.append("        std::vector<RuntimeTypeDescriptor> result;")
-    lines.append("        for (RuntimeTypeProvider provider : GetRuntimeTypeProviders()) {")
-    lines.append("            const std::span<const RuntimeTypeDescriptor> providedTypes = provider();")
-    lines.append("            result.insert(result.end(), providedTypes.begin(), providedTypes.end());")
-    lines.append("        }")
-    lines.append("        return result;")
-    lines.append("    }();")
-    lines.append("    return types;")
-    lines.append("}")
-    lines.append("")
-    lines.append("} // namespace")
-    lines.append("")
-    lines.append("std::span<const RuntimeTypeDescriptor> GetRuntimeTypes() {")
-    lines.append("    const std::vector<RuntimeTypeDescriptor>& types = GetRuntimeTypeCache();")
-    lines.append("    return std::span<const RuntimeTypeDescriptor>{ types.data(), types.size() };")
-    lines.append("}")
-    lines.append("")
-    lines.append("const RuntimeTypeDescriptor* FindRuntimeType(std::string_view qualifiedName) {")
-    lines.append("    for (const RuntimeTypeDescriptor& type : GetRuntimeTypes()) {")
-    lines.append("        if (type.QualifiedName == qualifiedName) {")
-    lines.append("            return &type;")
-    lines.append("        }")
-    lines.append("    }")
-    lines.append("")
-    lines.append("    return nullptr;")
-    lines.append("}")
-    lines.append("")
-    lines.append("const RuntimeTypeDescriptor* FindRuntimeType(ComponentTypeId typeId) {")
-    lines.append("    for (const RuntimeTypeDescriptor& type : GetRuntimeTypes()) {")
-    lines.append("        if (type.TypeId == typeId) {")
-    lines.append("            return &type;")
-    lines.append("        }")
-    lines.append("    }")
-    lines.append("")
-    lines.append("    return nullptr;")
-    lines.append("}")
-    lines.append("")
-    lines.append("std::span<const RuntimeEnumDescriptor> GetRuntimeEnums() {")
-    if manifest_enums:
-        lines.append("    return Generated::RuntimeEnums;")
-    else:
-        lines.append("    return {};")
-    lines.append("}")
-    lines.append("")
-    lines.append("const RuntimeEnumDescriptor* FindRuntimeEnum(std::string_view qualifiedName) {")
-    lines.append("    for (const RuntimeEnumDescriptor& enumType : GetRuntimeEnums()) {")
-    lines.append("        if (enumType.QualifiedName == qualifiedName) {")
-    lines.append("            return &enumType;")
-    lines.append("        }")
-    lines.append("    }")
-    lines.append("")
-    lines.append("    return nullptr;")
-    lines.append("}")
-    lines.append("")
-    lines.append("const RuntimeEnumValueDescriptor* FindRuntimeEnumValueByName(")
-    lines.append("    const RuntimeEnumDescriptor& enumType,")
-    lines.append("    std::string_view name) {")
-    lines.append("    for (const RuntimeEnumValueDescriptor& value : enumType.Values) {")
-    lines.append("        if (value.Name == name) {")
-    lines.append("            return &value;")
-    lines.append("        }")
-    lines.append("    }")
-    lines.append("    return nullptr;")
-    lines.append("}")
-    lines.append("")
-    lines.append("const RuntimeEnumValueDescriptor* FindRuntimeEnumValueByValue(")
-    lines.append("    const RuntimeEnumDescriptor& enumType,")
-    lines.append("    int64_t value) {")
-    lines.append("    for (const RuntimeEnumValueDescriptor& enumValue : enumType.Values) {")
-    lines.append("        if (enumValue.Value == value) {")
-    lines.append("            return &enumValue;")
-    lines.append("        }")
-    lines.append("    }")
-    lines.append("    return nullptr;")
-    lines.append("}")
-    lines.append("")
-    lines.append("void SerializeRuntimeObject(")
-    lines.append("    const RuntimeTypeDescriptor& type,")
-    lines.append("    Serialization::SerializationBackend& backend,")
-    lines.append("    const std::string& name,")
-    lines.append("    const void* object) {")
-    lines.append("    backend.BeginObject(name);")
-    lines.append("    for (const RuntimeFieldDescriptor& field : type.Fields) {")
-    lines.append("        if (!HasRuntimeFieldFlag(field.Flags, RuntimeFieldFlags::Serializable) || field.Serialize == nullptr) {")
-    lines.append("            continue;")
-    lines.append("        }")
-    lines.append("        field.Serialize(backend, std::string(field.Name), object);")
-    lines.append("    }")
-    lines.append("    backend.EndObject();")
-    lines.append("}")
-    lines.append("")
-    lines.append("bool DeserializeRuntimeObject(")
-    lines.append("    const RuntimeTypeDescriptor& type,")
-    lines.append("    Serialization::SerializationBackend& backend,")
-    lines.append("    const std::string& name,")
-    lines.append("    void* object) {")
-    lines.append("    if (!name.empty()) {")
-    lines.append("        if (!backend.HasField(name) || backend.GetFieldType(name) != Serialization::SerializationType::Object) {")
-    lines.append("            return false;")
-    lines.append("        }")
-    lines.append("    }")
-    lines.append("")
-    lines.append("    backend.BeginObject(name);")
-    lines.append("    bool success = true;")
-    lines.append("    for (const RuntimeFieldDescriptor& field : type.Fields) {")
-    lines.append("        if (!HasRuntimeFieldFlag(field.Flags, RuntimeFieldFlags::Serializable) || field.Deserialize == nullptr) {")
-    lines.append("            continue;")
-    lines.append("        }")
-    lines.append("        const std::string fieldName(field.Name);")
-    lines.append("        if (!backend.HasField(fieldName)) {")
-    lines.append("            continue;")
-    lines.append("        }")
-    lines.append("        if (!field.Deserialize(backend, fieldName, object)) {")
-    lines.append("            success = false;")
-    lines.append("        }")
-    lines.append("    }")
-    lines.append("    backend.EndObject();")
-    lines.append("    return success;")
-    lines.append("}")
-    lines.append("")
-    lines.append("} // namespace HE::Refl")
-    lines.append("")
 
-    header_path.write_text(header, encoding="utf-8")
-    source_path.write_text("\n".join(lines), encoding="utf-8")
-    return written_files
+    exports = (("RuntimeTypes", "Refl::RuntimeTypeDescriptor", "ModuleRuntimeTypes", manifest_types), ("ReflectedTypes", "ReflectedTypeInfo", "ModuleReflectedTypes", manifest_types), ("RuntimeEnums", "Refl::RuntimeEnumDescriptor", "ModuleRuntimeEnums", manifest_enums), ("ReflectedEnums", "ReflectedEnumInfo", "ModuleReflectedEnums", manifest_enums))
+    for function, value_type, storage, values in exports:
+        lines.extend([f"std::span<const {value_type}> {function}() {{", f"    return {storage if values else '{}'};", "}", ""])
+    lines.extend(["Ecs::Result<void> RegisterComponents(Ecs::TypeRegistry& registry) {", "    for (const auto& type : RuntimeTypes()) {", "        if (!type.MakeEcsType) continue;", "        auto result = registry.Register(type.MakeEcsType());", "        if (!result) return result.GetError();", "    }", "    return {};", "}", "}", "", "namespace HE::Ecs {"])
+    for item in manifest_types:
+        if item.get("kind") == "component":
+            lines.extend([f"TypeDescriptor ComponentTraits<::{item['qualified_name']}>::Describe() {{", f"    return Generated::{module}::MakeEcsType_{cpp_identifier(item['qualified_name'])}();", "}", ""])
+    lines.extend(["}", ""])
+    return {"GeneratedReflection.h": "\n".join(header_lines), "GeneratedReflection.cpp": "\n".join(lines)}
+
+
+def render_queries(manifest: Dict[str, Any]) -> Dict[str, str]:
+    module = manifest["module"]
+    header = ["#pragma once", "", '#include "GeneratedReflection.h"', '#include "HuaEngine/ECS/Runtime/GeneratedQuery.h"', '#include "HuaEngine/ECS/Runtime/Timeline.h"']
+    header.extend(f'#include "{path}"' for path in sorted({generated_include_for_source(query["source"]) for query in manifest["queries"]}))
+    header.extend(["", f"namespace HE::Generated::{module} {{"])
+    source = ['#include "GeneratedQueries.h"', "#include <utility>", "", f"namespace HE::Generated::{module} {{"]
+    for query in manifest["queries"]:
+        parameters = query["parameters"]
+        outputs = [parameter for parameter in parameters if parameter["category"] == "output"]
+        if len(outputs) > 1:
+            raise ValueError("A query may declare only one BatchOutput parameter")
+        output_type = outputs[0]["component_type"] if outputs else None
+        filters = query.get("filters", {})
+        name = "Submit_" + cpp_identifier(query["qualified_name"])
+        arguments = ["Ecs::Timeline& timeline", "Ecs::World& world"]
+        captures: List[str] = []
+        for index, parameter in enumerate(parameters):
+            category = parameter["category"]
+            value_type = parameter.get("component_type", "")
+            if category == "value":
+                arguments.append(f"{value_type} arg_{index}")
+                captures.append(f"payload_{index} = std::move(arg_{index})")
+            elif category.startswith("random_"):
+                arguments.append(f"Ecs::World& arg_{index}")
+                captures.append(f"world_{index} = arg_{index}.Id()")
+            elif category.startswith("resource_"):
+                arguments.append(f"Ecs::ResourceHandle arg_{index}")
+                captures.append(f"resource_{index} = arg_{index}")
+        for index, _ in enumerate(filters.get("shared", [])):
+            arguments.append(f"Ecs::ResourceHandle shared_{index}")
+        has_changed = bool(filters.get("changed"))
+        if has_changed:
+            arguments.append("Ecs::ChangedState& changed")
+        result_type = f"Ecs::GeneratedOutputTask<{output_type}>" if output_type else "Ecs::TaskHandle"
+        declaration = f"Ecs::Result<{result_type}> {name}({', '.join(arguments)})"
+        header.append("[[nodiscard]] " + declaration + ";")
+        source.extend(["", declaration + " {", "    try {", "    auto& context = world.Context();", "    if (!context.IsMainThread()) return Ecs::Error{Ecs::ErrorCode::WrongThread, \"GeneratedQuery\", \"Submission requires the Context owner thread\"};", "    Ecs::QuerySpec spec;"])
+        component_names = [parameter["component_type"] for parameter in parameters if parameter["category"] not in {"value", "commands", "resource_read", "resource_write", "entity", "output"}]
+        for filter_name in ("without", "required", "tag", "changed", "shared"):
+            component_names.extend(filters.get(filter_name, []))
+        type_variables = {value_type: f"type_{index}" for index, value_type in enumerate(dict.fromkeys(component_names))}
+        for value_type, variable in type_variables.items():
+            source.extend([f"    const auto* {variable} = context.Types().Find<{value_type}>();", f"    if (!{variable}) return Ecs::Error{{Ecs::ErrorCode::InvalidType, \"GeneratedQuery\", {cpp_string('Unregistered Query component: ' + value_type)}}};"])
+        column_arguments: Dict[int, int] = {}
+        for index, parameter in enumerate(parameters):
+            category = parameter["category"]
+            value_type = parameter.get("component_type", "")
+            access = "Write" if category.endswith("write") else "Read"
+            if category.startswith("required_") or category.startswith("optional_"):
+                column_arguments[index] = len(column_arguments)
+                presence = "Optional" if category.startswith("optional_") else "Required"
+                source.append(f"    spec.Columns.push_back({{{type_variables[value_type]}->Id, Ecs::Presence::{presence}, Ecs::AccessMode::{access}}});")
+            elif category.startswith("random_"):
+                source.extend([f"    if (&arg_{index}.Context() != &context) return Ecs::Error{{Ecs::ErrorCode::InvalidArgument, \"GeneratedQuery\", \"Random target belongs to another Context\"}};", f"    spec.RandomAccesses.push_back({{&arg_{index}, {type_variables[value_type]}->Id, Ecs::AccessMode::{access}}});"])
+            elif category.startswith("resource_"):
+                source.extend([f"    const auto* resource_{index} = context.Resources().Find(arg_{index});", f"    if (!resource_{index} || resource_{index}->NativeKey != Ecs::NativeTypeKey<{value_type}>()) return Ecs::Error{{Ecs::ErrorCode::InvalidType, \"GeneratedQuery\", \"Resource binding has the wrong Context or native type\"}};", f"    spec.ResourceAccesses.push_back({{arg_{index}, Ecs::AccessMode::{access}}});"])
+        for field, member in (("without", "Exclude"), ("required", "Required"), ("tag", "Required"), ("changed", "ChangedTypes")):
+            for value_type in filters.get(field, []):
+                source.append(f"    spec.{member}.push_back({type_variables[value_type]}->Id);")
+        for index, value_type in enumerate(filters.get("shared", [])):
+            source.extend([f"    spec.SharedBindings.push_back({{{type_variables[value_type]}->Id, shared_{index}}});", f"    spec.ResourceAccesses.push_back({{shared_{index}, Ecs::AccessMode::Read}});"])
+        source.extend([f"    spec.IncludeDisabledEntities = {cpp_bool(filters.get('include_disabled', False))};", f"    spec.IgnoreComponentEnabled = {cpp_bool(filters.get('ignore_component_enabled', False))};", f"    auto query = context.FindOrCreateGeneratedQuery({cpp_string(module + '::' + query['qualified_name'])}, std::move(spec));", "    if (!query) return query.GetError();"])
+        if output_type:
+            source.append(f"    auto output = std::make_shared<Ecs::Detail::GeneratedOutputState<{output_type}>>();")
+            captures.append("output")
+        submission = "auto submitted = " if output_type else "return "
+        source.extend([f"    {submission}timeline.Submit(*query.Value(), world, [{', '.join(captures)}](Ecs::TaskBatch& task) -> Ecs::Result<void> {{", "        auto& batch = task.View();"])
+        if output_type:
+            source.append(f"        std::vector<{output_type}> batchOutput;")
+        call_arguments: List[str] = []
+        for index, parameter in enumerate(parameters):
+            category = parameter["category"]
+            value_type = parameter.get("component_type", "")
+            const_type = "const " + value_type if category.endswith("read") else value_type
+            if index in column_arguments:
+                source.extend([f"        auto column_{index} = batch.Column<{const_type}>({column_arguments[index]});", f"        if (!column_{index}) return column_{index}.GetError();"])
+                if category.startswith("optional_"):
+                    call_arguments.append(f"column_{index}.Value().TryGet(row)")
+                else:
+                    source.append(f"        auto span_{index} = column_{index}.Value().TryAsSpan();")
+                    call_arguments.append(f"(span_{index} ? (*span_{index})[row] : column_{index}.Value().At(row))")
+            elif category == "value":
+                call_arguments.append(f"Ecs::Value<{value_type}>(payload_{index})")
+            elif category.startswith("random_"):
+                source.extend([f"        auto random_{index} = batch.Random<{const_type}>(world_{index});", f"        if (!random_{index}) return random_{index}.GetError();"])
+                wrapper = "RandomRead" if category.endswith("read") else "RandomWrite"
+                call_arguments.append(f"Ecs::{wrapper}<{value_type}>(random_{index}.Value())")
+            elif category.startswith("resource_"):
+                source.extend([f"        auto resource_view_{index} = batch.Resource<{const_type}>(resource_{index});", f"        if (!resource_view_{index}) return resource_view_{index}.GetError();"])
+                wrapper = "ResourceRead" if category.endswith("read") else "ResourceWrite"
+                call_arguments.append(f"Ecs::{wrapper}<{value_type}>(resource_view_{index}.Value().get())")
+            elif category == "commands":
+                call_arguments.append("task.Commands()")
+            elif category == "entity":
+                call_arguments.append("batch.Entity(row)")
+            elif category == "output":
+                call_arguments.append(f"Ecs::BatchOutput<{value_type}>(batchOutput)")
+        source.extend(["        const size_t batchRows = batch.Size();", "        for (size_t row = 0; row < batchRows; ++row) {", "            if (!batch.Valid()) return Ecs::Error{Ecs::ErrorCode::InvalidState, \"GeneratedQuery\", \"The query batch expired\"};", f"            ::{query['qualified_name']}({', '.join(call_arguments)});", "        }", "        if (!batch.Valid()) return Ecs::Error{Ecs::ErrorCode::InvalidState, \"GeneratedQuery\", \"The query batch expired\"};"])
+        source.append("        return output->Publish(task.BatchIndex(), std::move(batchOutput));" if output_type else "        return {};")
+        source.append("    }, " + ("&changed" if has_changed else "nullptr") + ");")
+        if output_type:
+            source.extend(["    if (!submitted) return submitted.GetError();", f"    return Ecs::GeneratedOutputTask<{output_type}>(std::move(submitted).Value(), std::move(output));"])
+        source.extend(["    } catch (const std::exception& exception) {", "        return Ecs::Error{Ecs::ErrorCode::ConstructionFailed, \"GeneratedQuery\", exception.what()};", "    } catch (...) {", "        return Ecs::Error{Ecs::ErrorCode::ConstructionFailed, \"GeneratedQuery\", \"Query payload construction failed\"};", "    }", "}"])
+    header.extend(["}", ""])
+    source.extend(["}", ""])
+    return {"GeneratedQueries.h": "\n".join(header), "GeneratedQueries.cpp": "\n".join(source)}
+
+
+def render_files(manifest: Dict[str, Any]) -> Dict[str, str]:
+    result = render_reflection(manifest)
+    result.update(render_queries(manifest))
+    return result
+
+
+def write_generated_files(manifest: Dict[str, Any], out_dir: Path) -> List[Path]:
+    result = render_files(manifest)
+    for name, content in result.items():
+        write_if_changed(out_dir / name, content)
+    return [out_dir / name for name in result]
+
+
+def generation_inputs(config: Dict[str, Any]) -> Dict[str, str]:
+    return {"config_sha256": sha256(Path(config["_path"])), "compile_database_sha256": sha256(Path(config["compile_database"]) / "compile_commands.json"), "frontend_sha256": sha256(Path(config["hua_meta"])), "generator_sha256": sha256(Path(config["generator"]))}
+
+
+def run_frontend(config: Dict[str, Any], persist_failure: bool = True) -> Dict[str, Any]:
+    output_parent = Path(config["manifest"] if persist_failure else config.get("_path", config["manifest"])).parent
+    if persist_failure:
+        output_parent.mkdir(parents=True, exist_ok=True)
+    with tempfile.TemporaryDirectory(prefix="hua-meta-", dir=output_parent) as directory:
+        output = Path(directory) / "manifest.json"
+        arguments = [config["hua_meta"], "-p", config["compile_database"], "--output", str(output), "--resource-dir", config["resource_dir"], "--module", config["module"], "--configuration", config["configuration"], "--repository-root", config["repository_root"]]
+        arguments.extend(["--entry-header", config["entry_header"]])
+        arguments.append(config["translation_unit"])
+        result = subprocess.run(arguments, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, encoding="utf-8", errors="replace", check=False)
+        if result.stdout:
+            print(result.stdout, end="", file=sys.stderr)
+        if result.stderr:
+            print(result.stderr, end="", file=sys.stderr)
+        if result.returncode:
+            if persist_failure and output.exists():
+                write_if_changed(Path(config["manifest"]).with_suffix(".failed.json"), output.read_text(encoding="utf-8"))
+            raise ValueError(f"HuaMeta failed with exit code {result.returncode}; generation was blocked.")
+        manifest = read_json(output)
+        verify_manifest(manifest, config)
+        manifest["generation_inputs"] = generation_inputs(config)
+        return manifest
+
+
+def configuration_for(args: argparse.Namespace) -> Dict[str, Any]:
+    config = load_config(args.meta_config)
+    if getattr(args, "entry_header", None):
+        requested = str(Path(args.entry_header).resolve())
+        if requested != str(Path(config.get("entry_header", "")).resolve()):
+            raise ValueError("--entry-header differs from the configured scanning target; run CMake configure with that entry header first.")
+    return config
 
 
 def command_scan(args: argparse.Namespace) -> int:
-    manifest = scan_root(Path(args.root))
-    write_json(Path(args.out), manifest)
-    return 1 if has_error_diagnostic(manifest) else 0
+    config = configuration_for(args)
+    manifest = run_frontend(config)
+    write_json(Path(args.out or config["manifest"]), manifest)
+    return 0
 
 
 def command_generate(args: argparse.Namespace) -> int:
-    try:
-        manifest = load_manifest(Path(args.manifest))
-    except (OSError, json.JSONDecodeError, ValueError) as exc:
-        print(json.dumps({"error": str(exc)}), file=sys.stderr)
-        return 1
-
-    if has_error_diagnostic(manifest):
-        print(
-            json.dumps(
-                {
-                    "error": "Manifest contains error diagnostics; generation refused.",
-                    "diagnostics": manifest.get("diagnostics", []),
-                },
-                indent=2,
-            ),
-            file=sys.stderr,
-        )
-        return 1
-
-    write_generated_files(manifest, Path(args.out_dir))
+    config = configuration_for(args)
+    manifest = load_manifest(Path(args.manifest or config["manifest"]), config)
+    output = Path(args.out_dir or config["output_dir"])
+    write_generated_files(manifest, output)
+    write_json(output / "generation-stamp.json", {"schema_version": SCHEMA_VERSION, "module": config["module"], "configuration": config["configuration"], "manifest_sha256": manifest_fingerprint(manifest), "generation_inputs": generation_inputs(config)})
     return 0
 
 
 def command_validate(args: argparse.Namespace) -> int:
-    root = Path(args.root)
-    manifest = scan_root(root)
-    add_generated_drift_diagnostics(root, manifest)
-    print(json.dumps(manifest, indent=2))
-    return 1 if has_error_diagnostic(manifest) else 0
+    config = configuration_for(args)
+    manifest = run_frontend(config, persist_failure=False)
+    expected = render_files(manifest)
+    diagnostics = []
+    current_fingerprint = manifest_fingerprint(manifest)
+    manifest_path = Path(config["manifest"])
+    try:
+        saved_fingerprint = manifest_fingerprint(read_json(manifest_path))
+    except (OSError, ValueError):
+        saved_fingerprint = None
+    if saved_fingerprint != current_fingerprint:
+        diagnostics.append({"severity": "error", "code": "manifest.drift", "message": "The configured manifest is missing or stale, including its dependency digests; run reflection scan again.", "source": str(manifest_path), "line": 0, "column": 0})
+    for name, text in expected.items():
+        path = Path(config["output_dir"]) / name
+        if not path.is_file() or path.read_bytes() != text.encode("utf-8"):
+            diagnostics.append({"severity": "error", "code": "generated.drift", "message": f"Generated output is missing or out of date: {path}", "source": str(path), "line": 0, "column": 0})
+    stamp_path = Path(config["output_dir"]) / "generation-stamp.json"
+    try:
+        stamp = read_json(stamp_path)
+    except (OSError, ValueError):
+        stamp = {}
+    if stamp.get("generation_inputs") != manifest["generation_inputs"]:
+        diagnostics.append({"severity": "error", "code": "generated.stale_inputs", "message": "Generated compilation/tool inputs changed; run reflection generation again.", "source": str(stamp_path), "line": 0, "column": 0})
+    if stamp.get("manifest_sha256") != current_fingerprint:
+        diagnostics.append({"severity": "error", "code": "generated.stale_manifest", "message": "Generated output was produced from a different manifest or dependency snapshot; run reflection generation again.", "source": str(stamp_path), "line": 0, "column": 0})
+    manifest["diagnostics"].extend(diagnostics)
+    print(json.dumps(manifest, indent=2, ensure_ascii=False))
+    return 1 if diagnostics else 0
+
+
+def validate_module_set(modules: List[Dict[str, Any]]) -> None:
+    identities: Dict[tuple[str, str], str] = {}
+    configurations = {module["configuration"] for module in modules}
+    if len(configurations) > 1:
+        raise ValueError("Module validation cannot mix build configurations")
+    for manifest in modules:
+        module = manifest["module"]
+        keys = [("module", module)]
+        for item in manifest["types"] + manifest["enums"] + manifest["queries"]:
+            keys.append(("qualified_name", item["qualified_name"]))
+            if item.get("kind") == "component":
+                keys.append(("Guid", item["guid"].replace("-", "").lower()))
+                keys.append(("TypeName", item.get("type_name", item["name"])))
+        for key in keys:
+            if key in identities:
+                raise ValueError(f"Cross-module duplicate {key[0]} {key[1]!r}: {identities[key]} and {module}")
+            identities[key] = module
+
+
+def command_validate_modules(args: argparse.Namespace) -> int:
+    modules = []
+    for path in args.meta_config:
+        config = load_config(path)
+        modules.append(load_manifest(Path(config["manifest"]), config))
+    validate_module_set(modules)
+    print(json.dumps({"schema_version": SCHEMA_VERSION, "modules": [item["module"] for item in modules], "diagnostics": []}))
+    return 0
 
 
 def build_parser() -> argparse.ArgumentParser:
-    parser = argparse.ArgumentParser(description="HuaEngine reflection tool MVP")
-    subparsers = parser.add_subparsers(dest="command", required=True)
-
-    scan_parser = subparsers.add_parser("scan", help="scan source files into a manifest")
-    scan_parser.add_argument("--root", required=True, help="repository root to scan")
-    scan_parser.add_argument("--out", required=True, help="manifest output path")
-    scan_parser.set_defaults(func=command_scan)
-
-    generate_parser = subparsers.add_parser(
-        "generate", help="generate C++ reflection files from a manifest"
-    )
-    generate_parser.add_argument("--manifest", required=True, help="manifest input path")
-    generate_parser.add_argument("--out-dir", required=True, help="generated output directory")
-    generate_parser.set_defaults(func=command_generate)
-
-    validate_parser = subparsers.add_parser(
-        "validate", help="scan source files and print validation JSON"
-    )
-    validate_parser.add_argument("--root", required=True, help="repository root to scan")
-    validate_parser.set_defaults(func=command_validate)
-
+    parser = argparse.ArgumentParser(description="HuaEngine Clang manifest v2 reflection generator")
+    commands = parser.add_subparsers(dest="command", required=True)
+    for command, action in (("scan", command_scan), ("generate", command_generate), ("validate", command_validate)):
+        child = commands.add_parser(command)
+        child.add_argument("--meta-config", help="CMake-generated module/configuration meta-config.json; run CMake configure first")
+        child.add_argument("--entry-header", help="Validate the configured entry header")
+        if command == "scan":
+            child.add_argument("--out")
+        if command == "generate":
+            child.add_argument("--manifest")
+            child.add_argument("--out-dir")
+        child.set_defaults(func=action)
+    aggregate = commands.add_parser("validate-modules", help="Validate identity conflicts across explicitly configured modules")
+    aggregate.add_argument("--meta-config", action="append", required=True)
+    aggregate.set_defaults(func=command_validate_modules)
     return parser
 
 
-def main(argv: Optional[Sequence[str]] = None) -> int:
-    parser = build_parser()
-    args = parser.parse_args(argv)
-    return int(args.func(args))
+def main(argv: Optional[List[str]] = None) -> int:
+    args = build_parser().parse_args(argv)
+    try:
+        return args.func(args)
+    except (OSError, ValueError, KeyError, TypeError, json.JSONDecodeError) as error:
+        print(json.dumps({"error": str(error)}, ensure_ascii=False), file=sys.stderr)
+        return 1
 
 
 if __name__ == "__main__":

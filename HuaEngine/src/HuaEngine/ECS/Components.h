@@ -10,8 +10,8 @@
 #include "HuaEngine/Reflection/ReflectionMarkers.h"
 
 namespace HE {
-	HE_REFLECT_COMPONENT(DisplayName="Transform", Category="Core")
-	struct TransformComponent : Component {
+	HE_REFLECT_COMPONENT(Guid="4f745e86ab69460db41dac991f79c001", DisplayName="Transform", Category="Core")
+	struct TransformComponent {
 		HE_REFLECT_FIELD()
 		glm::vec3 Position = {0.0f, 0.0f, 0.0f};
 		HE_REFLECT_FIELD()

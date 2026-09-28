@@ -1,5 +1,5 @@
 # HuaEngine Static Library
-cmake_minimum_required(VERSION 3.16)
+cmake_minimum_required(VERSION 3.24)
 
 project(HuaEngine LANGUAGES CXX)
 
@@ -12,6 +12,8 @@ file(GLOB_RECURSE HUAENGINE_SOURCES CONFIGURE_DEPENDS
     "src/*.cpp"
     "src/*.h"
 )
+list(FILTER HUAENGINE_SOURCES EXCLUDE REGEX "/HuaEngine/Generated/")
+list(FILTER HUAENGINE_SOURCES EXCLUDE REGEX "/HuaEngine/ECS/(World|Entity|Query|Scheduler|System|Syetem|CommandBuffer|ComponentType|FrameContext)\\.(cpp|h)$")
 
 list(APPEND HUAENGINE_SOURCES
     "${CMAKE_CURRENT_SOURCE_DIR}/src/HuaEngine/Asset/AssetTypes.h"
@@ -54,12 +56,6 @@ foreach(source IN ITEMS ${STB_IMAGE_SOURCES})
 endforeach()
 
 # Include directories
-target_include_directories(HuaEngine
-    SYSTEM
-    PUBLIC
-        ${ENTT_INCLUDE_DIR}
-)
-
 target_include_directories(HuaEngine
     PUBLIC
         $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/src>
@@ -111,3 +107,11 @@ endif()
 set_target_properties(HuaEngine PROPERTIES
     ARCHIVE_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/bin/$<CONFIG>-${CMAKE_SYSTEM_NAME}-${ARCHITECTURE}/HuaEngine"
 )
+
+hua_add_meta_module(NAME Core TARGET HuaEngine
+    ENTRY_HEADER "${CMAKE_CURRENT_SOURCE_DIR}/src/HuaEngine/ECS/Components.h")
+hua_add_meta_module(NAME Rendering TARGET HuaEngine
+    ENTRY_HEADER "${CMAKE_CURRENT_SOURCE_DIR}/src/Module/Rendering/RenderingComponent.h")
+hua_add_meta_module(NAME RenderingQueries TARGET HuaEngine
+    ENTRY_HEADER "${CMAKE_CURRENT_SOURCE_DIR}/src/Module/Rendering/RenderQueries.h")
+hua_add_meta_umbrella(HuaEngine Core Rendering RenderingQueries)

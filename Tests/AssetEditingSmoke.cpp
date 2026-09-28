@@ -153,10 +153,7 @@ int main() {
 	Require(dynamic_cast<HE::Editor::SceneAssetEditor*>(host.GetEditor()) != nullptr, "Expected specialized scene inspector");
 	host.Close();
 
-	std::filesystem::path repositoryRoot = std::filesystem::current_path();
-	while (!repositoryRoot.empty() && !std::filesystem::exists(repositoryRoot / "CMakeLists.txt")) {
-		repositoryRoot = repositoryRoot.parent_path();
-	}
+	const std::filesystem::path repositoryRoot(HUAENGINE_TEST_SOURCE_ROOT);
 	Require(!repositoryRoot.empty(), "Expected to locate repository root");
 	std::ifstream assetEditorStream(repositoryRoot / "Editor" / "src" / "Assets" / "AssetEditor.h");
 	Require(assetEditorStream.good(), "Expected AssetEditor.h to be readable");

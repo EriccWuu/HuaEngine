@@ -1,0 +1,12 @@
+#pragma once
+
+#include "HuaEngine/Reflection/Reflection.h"
+@HUA_META_UMBRELLA_INCLUDES@
+
+namespace HE::Generated {
+    std::span<const ReflectedTypeInfo> GetReflectedTypes();
+    const ReflectedTypeInfo* FindReflectedType(std::string_view qualifiedName);
+    std::span<const ReflectedEnumInfo> GetReflectedEnums();
+    const ReflectedEnumInfo* FindReflectedEnum(std::string_view qualifiedName);
+    Ecs::Result<void> RegisterGeneratedComponents(Ecs::TypeRegistry& registry);
+}

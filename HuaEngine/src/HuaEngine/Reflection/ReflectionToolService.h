@@ -8,6 +8,8 @@
 namespace HE {
 	struct ReflectionToolRequest {
 		std::filesystem::path RootPath;
+		std::filesystem::path MetaConfigPath;
+		std::filesystem::path EntryHeader;
 		std::filesystem::path ManifestPath;
 		std::filesystem::path OutputDirectory;
 	};

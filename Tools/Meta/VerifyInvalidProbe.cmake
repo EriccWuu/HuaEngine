@@ -1,0 +1,16 @@
+execute_process(COMMAND "${TOOL}" -p "${BUILD_ROOT}" --output "${OUTPUT}"
+    --resource-dir "${RESOURCE_DIR}" "${INPUT}"
+    RESULT_VARIABLE result OUTPUT_VARIABLE stdout ERROR_VARIABLE stderr)
+message("${stdout}${stderr}")
+if(NOT result STREQUAL "1")
+    message(FATAL_ERROR "Expected an ordinary parse failure (1), got ${result}.")
+endif()
+file(READ "${OUTPUT}" report)
+string(JSON passed GET "${report}" passed)
+string(JSON parse_exit GET "${report}" parse_exit)
+if(passed OR parse_exit EQUAL 0)
+    message(FATAL_ERROR "Invalid C++ must produce a failed parse in the structured report.")
+endif()
+if(NOT stderr MATCHES "Invalid.cpp.*error:")
+    message(FATAL_ERROR "Expected a Clang diagnostic naming the invalid source.")
+endif()

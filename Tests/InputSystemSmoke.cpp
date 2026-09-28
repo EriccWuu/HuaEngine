@@ -7,7 +7,7 @@
 
 #include "HuaEngine/Core/KeyCodes.h"
 #include "HuaEngine/Core/MouseCodes.h"
-#include "HuaEngine/ECS/FrameContext.h"
+#include "HuaEngine/ECS/Runtime/EcsContext.h"
 #include "HuaEngine/GUI/ImguiInputBridge.h"
 #include "HuaEngine/Input/InputSystem.h"
 #include "Platform/Windows/GlfwInputTranslator.h"
@@ -32,9 +32,11 @@ int main() {
 	input.Submit(HE::RawInputEvent::Key(HE::Key::W, HE::InputPhase::Pressed));
 	const auto& pressed = input.FinalizeFrame();
 	Require(pressed.WasPressed(w) && pressed.IsDown(w), "Expected W press edge and held state");
-	HE::FrameContext frame;
-	frame.GetOrCreate<HE::InputFrameState>().Snapshot = &pressed;
-	Require(frame.TryGet<HE::InputFrameState>()->Snapshot == &pressed, "Expected InputSnapshot publication through FrameContext");
+	HE::Ecs::EcsContext context;
+	auto ownedSnapshot = std::make_shared<HE::InputSnapshot>(pressed);
+	const auto resource = context.Resources().Register(ownedSnapshot);
+	Require(resource.HasValue() && context.Resources().Find(resource.Value())->Object.get() == ownedSnapshot.get(),
+		"Expected input snapshot publication as an owned Context resource");
 
 	input.BeginFrame();
 	const auto& held = input.FinalizeFrame();
@@ -98,10 +100,7 @@ int main() {
 			HE::HasModifier(translated.Modifiers, HE::InputModifiers::Shift),
 		"Expected platform phase and modifier translation");
 
-	std::filesystem::path repositoryRoot = std::filesystem::current_path();
-	while (!repositoryRoot.empty() && !std::filesystem::exists(repositoryRoot / "CMakeLists.txt")) {
-		repositoryRoot = repositoryRoot.parent_path();
-	}
+	const std::filesystem::path repositoryRoot(HUAENGINE_TEST_SOURCE_ROOT);
 	Require(!repositoryRoot.empty(), "Expected to locate repository root");
 	std::ifstream applicationStream(repositoryRoot / "HuaEngine" / "src" / "HuaEngine" / "Application.cpp");
 	Require(applicationStream.good(), "Expected Application.cpp to be readable");

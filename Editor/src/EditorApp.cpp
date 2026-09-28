@@ -4,8 +4,7 @@
 #include <filesystem>
 #include <string_view>
 
-// Entry Point - Must be included in main application file only
-#include "HuaEngine/EntryPoint.h"
+#include "Workbench/EcsHostSmoke.h"
 
 namespace HE {
 	namespace {
@@ -47,16 +46,17 @@ namespace HE {
 
 	class EditorApp : public Application {
 	public:
-		explicit EditorApp(CommandLineArguments args)
+		explicit EditorApp(CommandLineArguments args, std::shared_ptr<HostSmoke::Session> smoke = {})
 			: Application(ApplicationSpecification{
 				.Name = "HuaEditor",
 				.EnableGuiLayer = true,
 				.CommandLineArgs = args
 			}) {
-			const auto launchOptions = ParseEditorLaunchOptions(args);
+			const auto launchOptions = smoke ? EditorLaunchOptions{} : ParseEditorLaunchOptions(args);
 			EditorLayerSpecification layerSpecification;
 			layerSpecification.StartupProjectPath = launchOptions.ProjectPath;
 			layerSpecification.StartupScenePath = launchOptions.ScenePath;
+			layerSpecification.Smoke = std::move(smoke);
 			PushLayer(new EditorLayer(layerSpecification));
 		}
 
@@ -68,4 +68,10 @@ namespace HE {
 	HE::Application* HE::CreateApplication(CommandLineArguments args) {
 		return new EditorApp(args);
 	}
+}
+
+int main(int count, char** values) {
+    return HE::HostSmoke::Run({count, values}, "Editor", [](HE::CommandLineArguments args, std::shared_ptr<HE::HostSmoke::Session> smoke) {
+        return std::make_unique<HE::EditorApp>(args, std::move(smoke));
+    });
 }

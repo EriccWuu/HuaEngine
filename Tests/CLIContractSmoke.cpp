@@ -239,12 +239,12 @@ int main() {
 	};
 
 	for (const auto& contractCase : failureCases) {
-		ExpectContractCase(cliExecutable, binaryDirectory, contractCase);
+		ExpectContractCase(cliExecutable, std::filesystem::current_path(), contractCase);
 	}
 
 	const auto projectRoot = tempRoot / "Project";
 	const auto nestedProjectDirectory = projectRoot / "Nested" / "Child";
-	ExpectContractCase(cliExecutable, binaryDirectory, {
+	ExpectContractCase(cliExecutable, std::filesystem::current_path(), {
 		"project init",
 		{ "project", "init", "--root", projectRoot.string(), "--name", "ContractSmoke" },
 		0,
@@ -269,7 +269,7 @@ int main() {
 		projectFile << "{ broken json";
 	}
 
-	ExpectContractCase(cliExecutable, binaryDirectory, {
+	ExpectContractCase(cliExecutable, std::filesystem::current_path(), {
 		"manual intervention",
 		{ "project", "status", "--path", brokenRoot.string() },
 		2,

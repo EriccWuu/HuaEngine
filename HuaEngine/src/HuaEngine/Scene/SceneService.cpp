@@ -4,6 +4,9 @@
 #include <system_error>
 
 #include "HuaEngine/Serialization/Serialization.h"
+#include "HuaEngine/ECS/Components.h"
+#include "HuaEngine/Application/EcsResultEnvelope.h"
+#include "HuaEngine/ECS/Runtime/WorldScope.h"
 #include "Module/Rendering/RenderingComponent.h"
 
 namespace {
@@ -48,7 +51,12 @@ namespace HE {
 
 	ResultEnvelope SceneService::CreateScene(std::string_view sceneName, Ref<Scene>& outScene) const {
 		auto resolvedName = sceneName.empty() ? std::string("Untitled Scene") : std::string(sceneName);
-		outScene = CreateRef<Scene>(resolvedName);
+		try {
+			outScene = CreateRef<Scene>(resolvedName);
+		} catch (const std::exception& error) {
+			return EcsFailureEnvelope("scene.create", resolvedName,
+				{Ecs::ErrorCode::ConstructionFailed, "CreateScene", error.what()});
+		}
 
 		auto result = ResultEnvelope::Success("scene.create", resolvedName, "Scene created");
 		result.SetPayloadValue("scene_name", resolvedName);
@@ -79,7 +87,13 @@ namespace HE {
 			return result;
 		}
 
-		auto loadedScene = CreateRef<Scene>();
+		Ref<Scene> loadedScene;
+		try {
+			loadedScene = CreateRef<Scene>();
+		} catch (const std::exception& error) {
+			return EcsFailureEnvelope("scene.load", targetId,
+				{Ecs::ErrorCode::ConstructionFailed, "CreateScene", error.what()});
+		}
 		if (!Serialization::LoadScene(normalizedPath.string(), *loadedScene)) {
 			auto result = ResultEnvelope::ManualIntervention("scene.load", targetId, "Scene file exists but could not be deserialized");
 			result.AddDetail({ DiagnosticSeverity::Error, "scene.deserialize.failed", "Scene deserialization returned false", normalizedPath.generic_string() });
@@ -131,13 +145,16 @@ namespace HE {
 		SceneValidationReport report;
 		report.HasName = !scene.GetName().empty();
 
-		const_cast<Scene&>(scene).GetWorld().ForEachEntity([&](Entity entity) {
+		auto scope = Ecs::WorldReadScope::Acquire(const_cast<Scene&>(scene).GetWorld());
+		if (!scope) return EcsFailureEnvelope("scene.validate", scene.GetName(), scope.GetError());
+		const auto& world = scope.Value().Get();
+		for (const EntityId entity : world.Entities()) {
 			++report.EntityCount;
 
-			const bool hasTransform = entity.HasComponent<TransformComponent>();
-			const bool hasMesh = entity.HasComponent<Rendering::MeshComponent>();
-			const bool hasMaterial = entity.HasComponent<Rendering::MaterialComponent>();
-			const bool hasLegacyRenderer = entity.HasComponent<Rendering::RendererComponent>();
+			const bool hasTransform = world.Has<TransformComponent>(entity);
+			const bool hasMesh = world.Has<Rendering::MeshComponent>(entity);
+			const bool hasMaterial = world.Has<Rendering::MaterialComponent>(entity);
+			const bool hasLegacyRenderer = world.Has<Rendering::RendererComponent>(entity);
 
 			if (!hasTransform) {
 				++report.EntitiesMissingTransform;
@@ -154,7 +171,7 @@ namespace HE {
 			if (hasLegacyRenderer) {
 				++report.EntitiesUsingLegacyRenderer;
 			}
-		});
+		}
 
 		if (outReport) {
 			*outReport = report;

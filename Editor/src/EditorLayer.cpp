@@ -5,15 +5,19 @@
 #include <cctype>
 #include <cstring>
 #include <filesystem>
+#include <optional>
 #include <system_error>
 #include <vector>
 
 #include "HuaEngine/Application/ApplicationOperations.h"
+#include "HuaEngine/Application/EcsResultEnvelope.h"
+#include "HuaEngine/ECS/Runtime/WorldScope.h"
 #include "HuaEngine/Core/HostLaunch.h"
 #include "HuaEngine/Asset/Import/ShaderDescriptor.h"
 #include "HuaEngine/Rendering/RHI/RenderHardwareInterface.h"
 #include "Input/EditorInputBindingStorage.h"
 #include "Interaction/EditorSceneCommands.h"
+#include "Workbench/EcsHostSmoke.h"
 #include "ImGuizmo.h"
 #include "imgui.h"
 #include <imgui_internal.h>
@@ -115,11 +119,156 @@ namespace HE {
         EnterProjectHub();
         InitializeStartupProjectSession();
 
+        if (m_Specification.Smoke) {
+            InitializeEcsSmoke();
+            return;
+        }
+
         if (!m_Specification.StartupProjectPath.empty()) {
             if (OpenProjectFromPath(m_Specification.StartupProjectPath, false, {}, false) &&
                 !m_Specification.StartupScenePath.empty()) {
                 OpenSceneDocument(m_Specification.StartupScenePath);
             }
+        }
+    }
+
+    void EditorLayer::InitializeEcsSmoke() {
+        auto& smoke = *m_Specification.Smoke;
+        auto& application = Application::GetInstance();
+        HostSmoke::Require(application.IsRuntimeInitialized() && application.GetSpecification().EnableWindow,
+            "Editor smoke requires the normal initialized window host");
+        smoke.Event("engine_initialized");
+        const bool create = smoke.SourceProject.empty();
+        const auto project = smoke.Workspace / "Project";
+        if (!create) {
+            const auto source = NormalizePath(smoke.SourceProject);
+            smoke.CopyProject(source, project);
+            smoke.Snapshots["source_project_path"] = source.generic_string();
+            ProjectContext copiedContext;
+            HostSmoke::Require(application.GetOperations().ResolveProjectContext(project, copiedContext).Succeeded(),
+                "Cannot resolve the copied smoke project descriptor");
+            HostSmoke::Require(std::filesystem::weakly_canonical(copiedContext.RootPath) == std::filesystem::weakly_canonical(project),
+                "The copied smoke directory must contain its own project descriptor");
+            const std::filesystem::path configuredAssets(copiedContext.Descriptor.AssetDirectory);
+            HostSmoke::Require(!configuredAssets.empty() && !configuredAssets.has_root_path(),
+                "Smoke projects require a relative asset directory within the project copy");
+            for (const auto& part : configuredAssets) {
+                HostSmoke::Require(part != "..", "Smoke project asset directories cannot escape through '..'");
+            }
+            const auto canonicalProject = std::filesystem::weakly_canonical(project);
+            const auto canonicalAssets = std::filesystem::weakly_canonical(copiedContext.GetAssetRootPath());
+            const auto relativeAssets = canonicalAssets.lexically_relative(canonicalProject);
+            HostSmoke::Require(!relativeAssets.empty() && relativeAssets != "." && !relativeAssets.has_root_path(),
+                "Smoke project asset root must stay strictly within the project copy");
+            for (const auto& part : relativeAssets) {
+                HostSmoke::Require(part != "..", "The canonical smoke asset root escaped the project copy");
+            }
+        }
+        HostSmoke::Require(OpenProjectFromPath(project, create, "ECS Host Smoke", true),
+            "Cannot open the smoke project: " + m_LastOperationResult.Summary);
+        smoke.Snapshots["project_path"] = NormalizePath(m_ProjectSession.Context.RootPath).generic_string();
+        smoke.Event("project_opened");
+        const auto scenePath = m_ProjectSession.Context.GetAssetRootPath() / "host.scene";
+        HostSmoke::Require(SaveActiveSceneDocumentAs(scenePath) && OpenSceneDocument(scenePath),
+            "Cannot create and load the smoke scene: " + m_LastOperationResult.Summary);
+        smoke.Snapshots["scene_path"] = NormalizePath(scenePath).generic_string();
+        smoke.Event("scene_loaded");
+    }
+
+    void EditorLayer::AdvanceEcsSmoke() {
+        auto& smoke = *m_Specification.Smoke;
+        smoke.Tick();
+        HostSmoke::Require(m_WorkbenchReady && m_SceneDocument.SceneRef,
+            "Editor workbench stopped being ready during smoke execution");
+        auto& scene = *m_SceneDocument.SceneRef;
+        auto& world = scene.GetWorld();
+        auto& operations = Application::GetInstance().GetOperations();
+        const auto readPosition = [&]() {
+            auto scope = Ecs::WorldReadScope::Acquire(world);
+            HostSmoke::Require(static_cast<bool>(scope), "Cannot read smoke entity transform");
+            const auto& read = scope.Value().Get();
+            const auto* transform = read.TryGet<TransformComponent>(read.Find(m_SmokeEntity));
+            HostSmoke::Require(transform != nullptr, "Smoke entity lost its transform or UUID");
+            return transform->Position.x;
+        };
+        if (smoke.Updates == 1) {
+            HostSmoke::Require(ExecuteEditorCommand(CreateCreateEntityCommand("Smoke Entity")), "Entity creation command failed");
+            const auto entity = Selection::ResolvePrimarySelection(world);
+            HostSmoke::Require(world.IsAlive(entity), "Entity creation did not select the new entity");
+            m_SmokeEntity = world.Uuid(entity);
+            HostSmoke::Require(ExecuteEditorCommand(CreateAddComponentCommand(EditorInspectableComponent::Mesh, world, entity)),
+                "Adding the smoke mesh through the editor command failed");
+            HostSmoke::Require(ExecuteEditorCommand(CreateAddComponentCommand(EditorInspectableComponent::Material, world, entity)),
+                "Adding the smoke material through the editor command failed");
+            uint32_t camera = 0;
+            HostSmoke::Require(operations.CreateSceneEntity(scene, "Smoke Camera", &camera).Succeeded(), "Cannot create the runtime camera");
+            HostSmoke::Require(operations.AddSceneComponent(scene, camera, SceneComponentKind::Camera).Succeeded(), "Cannot attach the runtime camera component");
+            TransformComponent cameraTransform;
+            cameraTransform.Position.z = 5.0f;
+            HostSmoke::Require(operations.UpsertSceneEntityTransform(scene, camera, cameraTransform).Succeeded(), "Cannot position the runtime camera");
+            smoke.Snapshots["entity_uuid"] = ToString(m_SmokeEntity);
+            smoke.Event("entity_created");
+        } else if (smoke.Updates == 2) {
+            Ecs::OwnedValue before, after;
+            EntityId entity;
+            {
+                auto scope = Ecs::WorldReadScope::Acquire(world);
+                HostSmoke::Require(static_cast<bool>(scope), "Cannot acquire the Inspector edit snapshot");
+                const auto& read = scope.Value().Get();
+                entity = read.Find(m_SmokeEntity);
+                const auto* type = read.Types().Find<TransformComponent>();
+                HostSmoke::Require(type && type->Descriptor.Reflection, "Transform reflection is unavailable");
+                auto copied = Ecs::OwnedValue::Copy(*type, read.TryGet(entity, type->Id));
+                HostSmoke::Require(static_cast<bool>(copied), "Cannot copy the Inspector edit snapshot");
+                before = std::move(copied).Value();
+                auto cloned = before.Clone();
+                HostSmoke::Require(static_cast<bool>(cloned), "Cannot copy the Inspector edit candidate");
+                after = std::move(cloned).Value();
+                bool edited = false;
+                for (const auto& field : type->Descriptor.Reflection->Fields) {
+                    if (field.Name == "Position") edited = Refl::SetRuntimeFieldValue(field, after.Data(), glm::vec3(0.25f, 0.0f, 0.0f));
+                }
+                HostSmoke::Require(edited, "The generated Inspector Position field could not be edited");
+            }
+            HostSmoke::Require(ExecuteEditorCommand(CreateSetComponentValueCommand(m_SceneDocument.SceneRef, entity,
+                std::move(before), std::move(after))), "Inspector component edit command failed");
+            HostSmoke::Require(readPosition() == 0.25f, "Inspector edit did not reach the scene");
+            smoke.Snapshots["edited_position_x"] = "0.25";
+            smoke.Event("component_edited");
+        } else if (smoke.Updates == 3) {
+            HostSmoke::Require(m_InteractionHost.Undo().Succeeded() && readPosition() == 0.0f, "Inspector edit undo failed");
+            HostSmoke::Require(m_InteractionHost.Redo().Succeeded() && readPosition() == 0.25f, "Inspector edit redo failed");
+            smoke.Event("undo_redo");
+        } else if (smoke.Updates == 4) {
+            const auto path = m_SceneDocument.ScenePath;
+            HostSmoke::Require(SaveActiveSceneDocument() && OpenSceneDocument(path), "Edited scene save/reload failed");
+            auto scope = Ecs::WorldReadScope::Acquire(m_SceneDocument.SceneRef->GetWorld());
+            HostSmoke::Require(static_cast<bool>(scope), "Cannot inspect the reloaded scene");
+            const auto& read = scope.Value().Get();
+            const auto entity = read.Find(m_SmokeEntity);
+            const auto* transform = read.TryGet<TransformComponent>(entity);
+            const auto* mesh = read.TryGet<Rendering::MeshComponent>(entity);
+            const auto* material = read.TryGet<Rendering::MaterialComponent>(entity);
+            HostSmoke::Require(transform && transform->Position.x == 0.25f && mesh && material,
+                "Scene reload did not preserve UUID, component values, or resource references");
+            HostSmoke::Require(mesh->Mesh.Reference.Guid == BuiltinAssetGuids::QuadMesh &&
+                material->Material.Reference.Guid == BuiltinAssetGuids::DefaultMaterial, "Scene reload changed asset GUIDs");
+            smoke.Snapshots["reloaded_entity_uuid"] = ToString(read.Uuid(entity));
+            smoke.Snapshots["reloaded_position_x"] = "0.25";
+            smoke.Snapshots["mesh_guid"] = mesh->Mesh.Reference.Guid;
+            smoke.Snapshots["material_guid"] = material->Material.Reference.Guid;
+            Selection::SetSelection(read, entity);
+            smoke.Event("saved_reloaded");
+        } else if (smoke.Updates == 5) {
+            scene.OnRuntimeStart();
+        } else if (smoke.Updates == 6) {
+            scene.OnRuntimeStop();
+            smoke.Event("stopped");
+        } else if (smoke.Updates >= 32 && smoke.GuiFrames >= 31) {
+            // Sample complete update, GUI and Present loops after the workflow.
+            smoke.CaptureWindow();
+            smoke.WorkflowComplete = true;
+            Application::GetInstance().RequestShutdown();
         }
     }
 
@@ -383,7 +532,7 @@ namespace HE {
         summary.ScenePath = m_SceneDocument.ScenePath.generic_string();
         summary.Source = ToString(m_SceneDocument.Source);
         if (m_SceneDocument.SceneRef) {
-            summary.EntityCount = static_cast<uint32_t>(m_SceneDocument.SceneRef->GetWorld().GetEntityCount());
+            summary.EntityCount = static_cast<uint32_t>(m_SceneDocument.SceneRef->GetWorld().EntityCount());
         }
         m_WorkbenchState.SetSceneDocumentSummary(summary);
     }
@@ -507,7 +656,7 @@ namespace HE {
 				"Inspector",
 				[this, type = descriptor.Type]() {
 					if (!m_SceneDocument.SceneRef || !Selection::HasSingleSelection()) return false;
-					return CanRemoveInspectableComponent(type, Selection::ResolvePrimarySelection(m_SceneDocument.SceneRef->GetWorld()));
+					return CanRemoveInspectableComponent(type, m_SceneDocument.SceneRef->GetWorld(), Selection::ResolvePrimarySelection(m_SceneDocument.SceneRef->GetWorld()));
 				},
 				[this, type = descriptor.Type]() { RemoveComponentFromPrimarySelection(type); }
 			});
@@ -844,6 +993,11 @@ namespace HE {
     }
 
     void EditorLayer::OnUpdate() {
+		if (m_Specification.Smoke) {
+			AdvanceEcsSmoke();
+			if (m_Specification.Smoke->WorkflowComplete) return;
+			m_Specification.Smoke->Graphics();
+		}
 		ResolveEditorInput();
         if (m_Mode != EditorWorkbenchMode::WorkbenchShell || !m_WorkbenchReady || !m_SceneDocument.SceneRef) {
             return;
@@ -873,11 +1027,32 @@ namespace HE {
         if (!renderResult.Succeeded()) {
             CaptureOperationResult(renderResult);
             m_WorkbenchReady = false;
+            if (m_Specification.Smoke) {
+                HostSmoke::Require(false, "Editor viewport render failed: " + renderResult.Summary);
+            }
+            return;
         }
-        m_SceneDocument.SceneRef->Update();
+        const auto updated = m_SceneDocument.SceneRef->Update();
+        if (!updated) {
+            CaptureOperationResult(EcsFailureEnvelope("scene.update", m_SceneDocument.SceneRef->GetName(), updated.GetError()));
+            m_WorkbenchReady = false;
+            if (m_Specification.Smoke) {
+                HostSmoke::Require(false, "Runtime scene update failed: " + updated.GetError().Message);
+            }
+            return;
+        }
+        if (m_Specification.Smoke) {
+            ++m_Specification.Smoke->RenderFrames;
+            if (m_Specification.Smoke->Updates == 5) {
+                HostSmoke::Require(m_SceneDocument.SceneRef->GetWorld().IsAlive(m_SceneDocument.SceneRef->LastActiveCameraEntity()),
+                    "Runtime frame did not select a live primary camera");
+                m_Specification.Smoke->Event("play_frame_rendered");
+            }
+        }
     }
 
 	void EditorLayer::OnEvent(Event& event) {
+		if (m_Specification.Smoke) ++m_Specification.Smoke->WindowEvents;
 		if (event.GetEventType() == EventType::WindowClose && (m_SceneDocument.Dirty || (m_AssetInspectorEditor && m_AssetInspectorEditor->HasDirtyEdit()))) {
 			event.Handled = true;
 			RequestWorkbenchAction({ WorkbenchActionType::Exit });
@@ -964,11 +1139,10 @@ namespace HE {
         while (true) {
             const std::string candidate = "Entity " + std::to_string(suffix);
             bool exists = false;
-            m_SceneDocument.SceneRef->GetWorld().ForEachEntity([&](Entity entity) {
-                if (entity.GetName() == candidate) {
-                    exists = true;
-                }
-            });
+            const auto& world = m_SceneDocument.SceneRef->GetWorld();
+            for (const auto entity : world.Entities()) {
+                if (world.Name(entity) == candidate) { exists = true; break; }
+            }
 
             if (!exists) {
                 return candidate;
@@ -987,7 +1161,7 @@ namespace HE {
             return;
         }
 
-        ExecuteEditorCommand(CreateDeleteEntitiesCommand(Selection::ResolveSelections(m_SceneDocument.SceneRef->GetWorld())));
+        ExecuteEditorCommand(CreateDeleteEntitiesCommand(m_SceneDocument.SceneRef->GetWorld(), Selection::ResolveSelections(m_SceneDocument.SceneRef->GetWorld())));
     }
 
     void EditorLayer::AddComponentToPrimarySelection(EditorInspectableComponent type) {
@@ -995,7 +1169,7 @@ namespace HE {
             return;
         }
 
-        ExecuteEditorCommand(CreateAddComponentCommand(type, Selection::ResolvePrimarySelection(m_SceneDocument.SceneRef->GetWorld())));
+        ExecuteEditorCommand(CreateAddComponentCommand(type, m_SceneDocument.SceneRef->GetWorld(), Selection::ResolvePrimarySelection(m_SceneDocument.SceneRef->GetWorld())));
     }
 
     void EditorLayer::RemoveComponentFromPrimarySelection(EditorInspectableComponent type) {
@@ -1003,7 +1177,7 @@ namespace HE {
             return;
         }
 
-        ExecuteEditorCommand(CreateRemoveComponentCommand(type, Selection::ResolvePrimarySelection(m_SceneDocument.SceneRef->GetWorld())));
+        ExecuteEditorCommand(CreateRemoveComponentCommand(type, m_SceneDocument.SceneRef->GetWorld(), Selection::ResolvePrimarySelection(m_SceneDocument.SceneRef->GetWorld())));
     }
 
     void EditorLayer::ResolveEditorInput() {
@@ -1091,6 +1265,10 @@ namespace HE {
     }
 
     void EditorLayer::OnGuiRender() {
+		if (m_Specification.Smoke) {
+			m_Specification.Smoke->Graphics();
+			++m_Specification.Smoke->GuiFrames;
+		}
 		ImGuizmo::BeginFrame();
         if (m_Mode == EditorWorkbenchMode::ProjectHub) {
             OnProjectHubShell();
@@ -1519,35 +1697,36 @@ namespace HE {
 		ImGuizmo::AllowAxisFlip(false);
 		ImGuizmo::SetAxisLimit(0.0f);
 		const auto camera = m_EditorCameraController->BuildRenderCamera();
-        auto selectedEntity = Selection::HasSingleSelection()
-            ? Selection::ResolvePrimarySelection(m_SceneDocument.SceneRef->GetWorld())
-            : Entity{};
-        if (selectedEntity.IsValid() && selectedEntity.HasComponent<TransformComponent>()) {
-            auto& transform = selectedEntity.GetComponent<TransformComponent>();
+        auto& world = m_SceneDocument.SceneRef->GetWorld();
+        const auto selectedEntity = Selection::HasSingleSelection() ? Selection::ResolvePrimarySelection(world) : EntityId{};
+        std::optional<TransformComponent> selectedTransform;
+        {
+            auto scope = Ecs::WorldReadScope::Acquire(world);
+            if (scope) {
+                if (const auto* transform = scope.Value().Get().TryGet<TransformComponent>(selectedEntity)) selectedTransform = *transform;
+            }
+        }
+        if (world.IsAlive(selectedEntity) && selectedTransform) {
+            auto transform = *selectedTransform;
             auto transformMatrix = transform.GetTransformMat();
-            ImGuizmo::Manipulate(
-                glm::value_ptr(camera.GetView()),
-                glm::value_ptr(camera.GetProjection()),
-                static_cast<ImGuizmo::OPERATION>(m_GizmoOperation),
-                ImGuizmo::LOCAL,
-                glm::value_ptr(transformMatrix));
-
+            ImGuizmo::Manipulate(glm::value_ptr(camera.GetView()), glm::value_ptr(camera.GetProjection()),
+                static_cast<ImGuizmo::OPERATION>(m_GizmoOperation), ImGuizmo::LOCAL, glm::value_ptr(transformMatrix));
             const bool isUsing = ImGuizmo::IsUsing();
+            const auto uuid = world.Uuid(selectedEntity);
             if (isUsing) {
-                if (!m_GizmoWasUsing || m_GizmoEntityUuid != selectedEntity.GetUuid()) {
+                if (!m_GizmoWasUsing || m_GizmoEntityUuid != uuid) {
                     m_GizmoInitialTransform = transform;
-                    m_GizmoEntityUuid = selectedEntity.GetUuid();
+                    m_GizmoEntityUuid = uuid;
                 }
-
-                float translation[3];
-                float rotationDegrees[3];
-                float scale[3];
+                float translation[3], rotationDegrees[3], scale[3];
                 ImGuizmo::DecomposeMatrixToComponents(glm::value_ptr(transformMatrix), translation, rotationDegrees, scale);
-                transform.Position = { translation[0], translation[1], translation[2] };
+                transform.Position = {translation[0], translation[1], translation[2]};
                 transform.Rotation = glm::radians(glm::vec3(rotationDegrees[0], rotationDegrees[1], rotationDegrees[2]));
-                transform.Scale = { scale[0], scale[1], scale[2] };
-            } else if (m_GizmoWasUsing && m_GizmoEntityUuid == selectedEntity.GetUuid()) {
-                ExecuteEditorCommand(CreateSetTransformCommand(selectedEntity, m_GizmoInitialTransform, transform));
+                transform.Scale = {scale[0], scale[1], scale[2]};
+                auto result = Application::GetInstance().GetOperations().UpsertSceneEntityTransform(*m_SceneDocument.SceneRef, selectedEntity.Index, transform);
+                if (!result.Succeeded()) CaptureOperationResult(result);
+            } else if (m_GizmoWasUsing && m_GizmoEntityUuid == uuid) {
+                ExecuteEditorCommand(CreateSetTransformCommand(world, selectedEntity, m_GizmoInitialTransform, transform));
                 m_GizmoEntityUuid = {};
             }
             m_GizmoWasUsing = isUsing;
@@ -1571,7 +1750,9 @@ namespace HE {
                 if (encodedEntityId == 0u) {
                     Selection::ClearSelection();
                 } else {
-                    Selection::SetSelection(m_SceneDocument.SceneRef->GetWorld().GetEntityByIndex(encodedEntityId - 1u));
+                    const auto picked = m_SceneRenderExtension.ResolveObjectId(encodedEntityId, world.Id());
+                    if (world.IsAlive(picked)) Selection::SetSelection(world, picked);
+                    else Selection::ClearSelection();
                 }
             }
         }

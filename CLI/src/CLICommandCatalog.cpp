@@ -222,10 +222,12 @@ namespace HE::CLI {
 			{ "reflection", "scan" },
 			CLICommandDomain::Reflection,
 			"reflection.scan",
-			"Scan source reflection markers into a manifest.",
-			"reflection scan --root <path> [--out <manifest>]",
+			"Scan the configured module with Clang into a manifest.",
+			"reflection scan --meta-config <path> [--entry-header <path>] [--out <manifest>]",
 			{
-				ValueOption("--root", "Repository root path.", true),
+				ValueOption("--meta-config", "CMake module/configuration metadata file.", true),
+				ValueOption("--root", "Optional repository root consistency check."),
+				ValueOption("--entry-header", "Optional configured entry header consistency check."),
 				ValueOption("--out", "Manifest output path.")
 			}
 		});
@@ -234,9 +236,11 @@ namespace HE::CLI {
 			CLICommandDomain::Reflection,
 			"reflection.generate",
 			"Generate C++ reflection metadata files.",
-			"reflection generate --root <path> [--out-dir <path>] [--out <manifest>]",
+			"reflection generate --meta-config <path> [--out-dir <path>] [--out <manifest>]",
 			{
-				ValueOption("--root", "Repository root path.", true),
+				ValueOption("--meta-config", "CMake module/configuration metadata file.", true),
+				ValueOption("--root", "Optional repository root consistency check."),
+				ValueOption("--entry-header", "Optional configured entry header consistency check."),
 				ValueOption("--out-dir", "Generated C++ output directory."),
 				ValueOption("--out", "Manifest output path.")
 			}
@@ -245,9 +249,13 @@ namespace HE::CLI {
 			{ "reflection", "validate" },
 			CLICommandDomain::Reflection,
 			"reflection.validate",
-			"Validate source reflection markers.",
-			"reflection validate --root <path>",
-			{ ValueOption("--root", "Repository root path.", true) }
+			"Validate the configured module and generated output.",
+			"reflection validate --meta-config <path>",
+			{
+				ValueOption("--meta-config", "CMake module/configuration metadata file.", true),
+				ValueOption("--root", "Optional repository root consistency check."),
+				ValueOption("--entry-header", "Optional configured entry header consistency check.")
+			}
 		});
 
 		Register({

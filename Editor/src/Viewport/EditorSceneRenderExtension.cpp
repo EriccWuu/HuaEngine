@@ -2,6 +2,8 @@
 #include "EditorSceneRenderExtension.h"
 #include "EditorGrid.h"
 
+#include <limits>
+
 #include "HuaEngine/Rendering/RenderPipeline/RenderBindGroupBuilder.h"
 #include "HuaEngine/Rendering/RenderPipeline/RenderResourceResolver.h"
 #include "HuaEngine/Rendering/RenderPipeline/UniformBufferArena.h"
@@ -127,6 +129,7 @@ namespace HE::Editor {
 	}
 
 	void EditorObjectIdPass::Execute(Rendering::RenderPassContext& context) {
+		ResetPicks();
 		if (!context.View || !context.View->CameraRef || !context.Device || !context.RenderItems
 			|| !context.ResourceResolver || !context.Commands || !context.Stats || !context.Diagnostics) {
 			return;
@@ -196,7 +199,9 @@ namespace HE::Editor {
 			}
 
 			auto objectBindGroup = Rendering::CreateObjectBindGroup(*context.Device, uniformArena, objectBlock, objectLayout, item.Transform);
-			const uint32_t entityId = item.SourceEntity.GetUid() + 1u;
+			// Never recycle a GPU token; exhaustion disables picking safely.
+			if (m_NextToken > std::numeric_limits<uint32_t>::max()) continue;
+			const uint32_t entityId = static_cast<uint32_t>(m_NextToken);
 			const glm::vec4 encodedId(
 				static_cast<float>(entityId & 0xffu) / 255.0f,
 				static_cast<float>((entityId >> 8u) & 0xffu) / 255.0f,
@@ -211,6 +216,8 @@ namespace HE::Editor {
 			if (!objectBindGroup || !idBindGroup) {
 				continue;
 			}
+			m_Picks.push_back({item.SourceEntity, item.SourceWorldId});
+			++m_NextToken;
 
 			if (context.RecordingCommandBuffer) {
 				context.RecordingCommandBuffer->RetainResource(resolvedItem.VertexBufferViewRef);
@@ -227,10 +234,19 @@ namespace HE::Editor {
 		++context.Stats->PassCount;
 	}
 
+	EntityId EditorObjectIdPass::ResolveObjectId(uint32_t token, uint64_t worldId) const noexcept {
+		if (!token || token < m_FirstToken || token >= m_NextToken) return {};
+		const auto index = static_cast<size_t>(static_cast<uint64_t>(token) - m_FirstToken);
+		if (index >= m_Picks.size()) return {};
+		const auto& pick = m_Picks[index];
+		return pick.WorldId == worldId ? pick.Entity : EntityId{};
+	}
+
 	void EditorSceneRenderExtension::AddAfterOpaquePasses(
 		Rendering::RenderGraphBuilder& graph,
 		const Rendering::ForwardSceneResources& resources,
 		const Rendering::RenderView& view) {
+		m_EditorObjectIdPass.ResetPicks();
 		if (!m_ObjectIdTarget) {
 			return;
 		}

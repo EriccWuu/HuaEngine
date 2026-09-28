@@ -78,7 +78,8 @@ namespace {
 
 int main() {
 	HE::Log::Init({ .EnableConsoleOutput = false });
-	const auto smokeRoot = std::filesystem::temp_directory_path() / "HuaEngineRHIResourceCreationSmoke";
+	// Asset artifact filenames include long content hashes on Windows.
+	const auto smokeRoot = std::filesystem::temp_directory_path() / "HuaRHISmoke";
 	std::error_code smokeError;
 	std::filesystem::remove_all(smokeRoot, smokeError);
 	Require(!smokeError, "Expected smoke directory cleanup before test");

@@ -349,7 +349,7 @@ int main() {
 	bool manifestSnapshotReady = false;
 
 	for (const auto& step : workflow) {
-		const auto result = RunCLICommand(cliExecutable, step.Arguments, binaryDirectory);
+		const auto result = RunCLICommand(cliExecutable, step.Arguments, std::filesystem::current_path());
 		Expect(result.ExitCode == step.ExpectedExitCode, step.Name + " should exit with code " + std::to_string(step.ExpectedExitCode) + "\n" + result.Output);
 
 		for (const auto& fragment : step.ExpectedFragments) {

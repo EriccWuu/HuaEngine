@@ -1,3 +1,5 @@
+#include <array>
+#include "ECSTestSupport.h"
 #include <cstdlib>
 #include <filesystem>
 #include <iostream>
@@ -44,7 +46,7 @@ namespace {
     };
 
     size_t CountEntities(HE::Scene& scene) {
-        return scene.GetWorld().GetEntityCount();
+        return scene.GetWorld().EntityCount();
     }
 }
 
@@ -53,6 +55,7 @@ int main() {
 	HE::Editor::SceneEntityInspectorEditor sceneInspector(pickerCatalog);
 	sceneInspector.BindInteractionHost(nullptr);
 	Require(!sceneInspector.HasEditingContext(), "Expected no scene editing context without host");
+	Require(sceneInspector.ResolveTypeRegistry() == nullptr, "Expected no borrowed component registry without a scene");
 
 	HE::Editor::EditorSelectionService selectionService;
 	const HE::EntityUuid firstUuid{ 1, 2 };
@@ -137,6 +140,32 @@ int main() {
 
     HE::EditorInteractionHost interactionHost;
     interactionHost.Bind(&workbenchState, &projectSession, &sceneDocument);
+    sceneInspector.BindInteractionHost(&interactionHost);
+    const auto* initialRegistry = &scene->GetWorld().Types();
+    Require(sceneInspector.ResolveTypeRegistry() == initialRegistry,
+        "Expected Inspector to borrow the active World's Context registry");
+    {
+        HE::Ecs::EcsContext alternateContext;
+        const auto reflectedTypes = HE::Refl::GetRuntimeTypes();
+        for (auto iterator = reflectedTypes.rbegin(); iterator != reflectedTypes.rend(); ++iterator) {
+            if (iterator->Kind != "component") continue;
+            Require(iterator->MakeEcsType != nullptr, "Expected a shared ECS component descriptor factory");
+            Require(alternateContext.Types().Register(iterator->MakeEcsType()).HasValue(),
+                "Expected reverse component registration for Inspector Context switching");
+        }
+        HE::SceneDocument alternateDocument;
+        alternateDocument.SceneRef = HE::CreateRef<HE::Scene>(alternateContext, "Alternate Inspector Scene");
+        interactionHost.Bind(&workbenchState, &projectSession, &alternateDocument);
+        const auto* alternateRegistry = sceneInspector.ResolveTypeRegistry();
+        Require(alternateRegistry == &alternateContext.Types() && alternateRegistry != initialRegistry,
+            "Expected Inspector scene switching to resolve the new Context without a cached registry");
+        const auto* metadata = alternateRegistry->Find<HE::TransformComponent>();
+        Require(metadata != nullptr && metadata == alternateContext.Types().Find<HE::TransformComponent>(),
+            "Expected Inspector metadata to belong to the selected Context");
+        interactionHost.Bind(&workbenchState, &projectSession, &sceneDocument);
+        Require(sceneInspector.ResolveTypeRegistry() == initialRegistry,
+            "Expected Inspector to restore the first Context when switching back");
+    }
     interactionHost.ResetCommandHistory(true);
     HE::Selection::ClearSelection();
 
@@ -196,34 +225,62 @@ int main() {
     Require(CountEntities(*scene) == 1, "Expected exactly one entity after the first create command");
 
     auto firstEntity = HE::Selection::ResolvePrimarySelection(scene->GetWorld());
-    auto addCameraResult = interactionHost.ExecuteCommand(HE::CreateAddComponentCommand(HE::EditorInspectableComponent::Camera, firstEntity));
+    auto addCameraResult = interactionHost.ExecuteCommand(HE::CreateAddComponentCommand(HE::EditorInspectableComponent::Camera, scene->GetWorld(), firstEntity));
     Require(addCameraResult.Succeeded(), "Expected add-camera command to succeed");
-    Require(firstEntity.HasComponent<HE::Rendering::CameraComponent>(), "Expected CameraComponent to exist after add-camera");
+    Require(scene->GetWorld().Has<HE::Rendering::CameraComponent>(firstEntity), "Expected CameraComponent to exist after add-camera");
 
-    auto removeCameraResult = interactionHost.ExecuteCommand(HE::CreateRemoveComponentCommand(HE::EditorInspectableComponent::Camera, firstEntity));
+    auto removeCameraResult = interactionHost.ExecuteCommand(HE::CreateRemoveComponentCommand(HE::EditorInspectableComponent::Camera, scene->GetWorld(), firstEntity));
     Require(removeCameraResult.Succeeded(), "Expected remove-camera command to succeed");
-    Require(!firstEntity.HasComponent<HE::Rendering::CameraComponent>(), "Expected CameraComponent to be removed");
+    Require(!scene->GetWorld().Has<HE::Rendering::CameraComponent>(firstEntity), "Expected CameraComponent to be removed");
 
     auto undoRemoveCamera = interactionHost.Undo();
     Require(undoRemoveCamera.Succeeded(), "Expected undo after remove-camera to succeed");
-    Require(firstEntity.HasComponent<HE::Rendering::CameraComponent>(), "Expected undo to restore CameraComponent");
+    Require(scene->GetWorld().Has<HE::Rendering::CameraComponent>(firstEntity), "Expected undo to restore CameraComponent");
 
-    Require(interactionHost.ExecuteCommand(HE::CreateAddComponentCommand(HE::EditorInspectableComponent::Material, firstEntity)).Succeeded(), "Expected add-material command to succeed");
+    Require(interactionHost.ExecuteCommand(HE::CreateAddComponentCommand(HE::EditorInspectableComponent::Material, scene->GetWorld(), firstEntity)).Succeeded(), "Expected add-material command to succeed");
     HE::Rendering::MaterialOverrideSet beforeOverrides;
     HE::Rendering::MaterialOverrideSet afterOverrides;
     afterOverrides.SetVec4("u_Color", glm::vec4(0.2f, 0.4f, 0.6f, 1.0f));
-    Require(interactionHost.ExecuteCommand(HE::CreateSetMaterialOverridesCommand(firstEntity, beforeOverrides, afterOverrides)).Succeeded(), "Expected material override command to succeed");
-    Require(firstEntity.GetComponent<HE::Rendering::MaterialComponent>().Overrides.Parameters.contains("u_Color"), "Expected material override command to apply");
-    Require(interactionHost.Undo().Succeeded() && firstEntity.GetComponent<HE::Rendering::MaterialComponent>().Overrides.Empty(), "Expected material override undo to restore the prior value");
-    Require(interactionHost.Redo().Succeeded() && firstEntity.GetComponent<HE::Rendering::MaterialComponent>().Overrides.Parameters.contains("u_Color"), "Expected material override redo to reapply the value");
+    Require(interactionHost.ExecuteCommand(HE::CreateSetMaterialOverridesCommand(scene->GetWorld(), firstEntity, beforeOverrides, afterOverrides)).Succeeded(), "Expected material override command to succeed");
+    Require(ECSTestSupport::Get<HE::Rendering::MaterialComponent>(scene->GetWorld(), firstEntity).Overrides.Parameters.contains("u_Color"), "Expected material override command to apply");
+    Require(interactionHost.Undo().Succeeded() && ECSTestSupport::Get<HE::Rendering::MaterialComponent>(scene->GetWorld(), firstEntity).Overrides.Empty(), "Expected material override undo to restore the prior value");
+    Require(interactionHost.Redo().Succeeded() && ECSTestSupport::Get<HE::Rendering::MaterialComponent>(scene->GetWorld(), firstEntity).Overrides.Parameters.contains("u_Color"), "Expected material override redo to reapply the value");
+
+    const auto firstIdentity = scene->GetWorld().Uuid(firstEntity);
+    const auto* transformType = scene->GetWorld().Types().Find<HE::TransformComponent>();
+    auto beforeTransform = ECSTestSupport::Take(HE::Ecs::OwnedValue::Copy(*transformType,
+        scene->GetWorld().TryGet<HE::TransformComponent>(firstEntity)));
+    auto afterTransform = ECSTestSupport::Take(beforeTransform.Clone());
+    static_cast<HE::TransformComponent*>(afterTransform.Data())->Position = {7, 11, 13};
+    Require(interactionHost.ExecuteCommand(HE::CreateSetComponentValueCommand(scene, firstEntity,
+        std::move(beforeTransform), std::move(afterTransform))).Succeeded(), "Expected generic reflected component edit");
+    Require(ECSTestSupport::Get<HE::TransformComponent>(scene->GetWorld(), firstEntity).Position == glm::vec3(7, 11, 13),
+        "Expected generic owned edit payload to reach runtime storage");
+    Require(interactionHost.Undo().Succeeded() &&
+        ECSTestSupport::Get<HE::TransformComponent>(scene->GetWorld(), firstEntity).Position == glm::vec3(0),
+        "Expected generic field undo to restore the entire owned component");
+    Require(interactionHost.Redo().Succeeded(), "Expected generic field redo");
+    {
+        auto before = ECSTestSupport::Take(HE::Ecs::OwnedValue::Copy(*transformType,
+            scene->GetWorld().TryGet<HE::TransformComponent>(firstEntity)));
+        auto after = ECSTestSupport::Take(before.Clone());
+        auto oldSceneCommand = HE::CreateSetComponentValueCommand(scene, firstEntity, std::move(before), std::move(after));
+        HE::SceneDocument alternate;
+        alternate.SceneRef = HE::CreateRef<HE::Scene>("Other command target");
+        interactionHost.Bind(&workbenchState, &projectSession, &alternate);
+        Require(!interactionHost.ExecuteCommand(std::move(oldSceneCommand)).Succeeded(),
+            "Expected a captured component command to reject a different scene");
+        interactionHost.Bind(&workbenchState, &projectSession, &sceneDocument);
+    }
 
     auto createSecondEntityResult = interactionHost.ExecuteCommand(HE::CreateCreateEntityCommand("Smoke Entity 2"));
     Require(createSecondEntityResult.Succeeded(), "Expected second create-entity command to succeed");
     auto secondEntity = HE::Selection::ResolvePrimarySelection(scene->GetWorld());
     Require(CountEntities(*scene) == 2, "Expected two entities after the second create command");
 
-    HE::Selection::SetSelections({ firstEntity, secondEntity });
-    auto deleteEntitiesResult = interactionHost.ExecuteCommand(HE::CreateDeleteEntitiesCommand(HE::Selection::ResolveSelections(scene->GetWorld())));
+    const std::array selectedIds{firstEntity, secondEntity};
+    HE::Selection::SetSelections(scene->GetWorld(), selectedIds);
+    auto deleteEntitiesResult = interactionHost.ExecuteCommand(HE::CreateDeleteEntitiesCommand(scene->GetWorld(), HE::Selection::ResolveSelections(scene->GetWorld())));
     Require(deleteEntitiesResult.Succeeded(), "Expected delete-selected command to succeed");
     Require(!HE::Selection::HasSelection(), "Expected delete-selected command to clear the selection");
     Require(CountEntities(*scene) == 0, "Expected delete-selected command to remove both entities");
@@ -232,6 +289,12 @@ int main() {
     Require(undoDelete.Succeeded(), "Expected undo after delete-selected to succeed");
     Require(HE::Selection::Count() == 2, "Expected undo after delete-selected to restore both selections");
     Require(CountEntities(*scene) == 2, "Expected undo after delete-selected to restore both entities");
+
+    Require(scene->GetWorld().Find(firstIdentity) != HE::EntityId{} && !scene->GetWorld().IsAlive(firstEntity),
+        "Expected undo deletion to preserve UUID while allocating a new generation");
+    const auto restoredFirst = scene->GetWorld().Find(firstIdentity);
+    Require(ECSTestSupport::Get<HE::TransformComponent>(scene->GetWorld(), restoredFirst).Position == glm::vec3(7, 11, 13),
+        "Expected delete undo to restore edited component values");
 
     interactionHost.MarkSaved();
     Require(!sceneDocument.Dirty, "Expected mark-saved to clear the document dirty flag");

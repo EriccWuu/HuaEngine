@@ -5,6 +5,7 @@
 #include <string_view>
 
 #include "HuaEngine/ECS/Components.h"
+#include "HuaEngine/Generated/GeneratedReflection.h"
 #include "HuaEngine/Reflection/Reflection.h"
 #include "HuaEngine/Serialization/Serialization.h"
 
@@ -37,7 +38,8 @@ int main() {
 	Require(transformType->Kind == "component", "Expected TransformComponent runtime descriptor kind");
 	Require(transformType->DisplayName == "Transform", "Expected TransformComponent runtime display name");
 	Require(transformType->Category == "Core", "Expected TransformComponent runtime category");
-	Require(transformType->TypeId == HE::ComponentTypeIdOf<HE::TransformComponent>(), "Expected TransformComponent runtime type id");
+	Require(transformType->MakeEcsType && transformType->MakeEcsType().Guid == HE::Ecs::ComponentTraits<HE::TransformComponent>::Guid,
+		"Expected the generated runtime descriptor to preserve the stable component Guid");
 	Require(transformType->Size == sizeof(HE::TransformComponent), "Expected TransformComponent runtime size");
 	Require(transformType->Fields.size() == 3, "Expected TransformComponent runtime descriptor to expose three fields");
 	Require(HasRuntimeField(transformType->Fields, "Position", "glm::vec3"), "Expected runtime Position field");

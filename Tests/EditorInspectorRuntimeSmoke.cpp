@@ -5,7 +5,7 @@
 #include <sstream>
 #include <string>
 
-#include "HuaEngine/ECS/ComponentRegistry.h"
+#include "HuaEngine/ECS/Runtime/TypeRegistry.h"
 #include "HuaEngine/ECS/Components.h"
 #include "HuaEngine/Generated/GeneratedReflection.h"
 #include "HuaEngine/Reflection/Reflection.h"
@@ -47,52 +47,52 @@ int main() {
 	Require(!invalidRangeOptions.HasRange, "Expected reversed material range not to clamp the editor widget");
 	Require(invalidRangeOptions.Speed == 0.1f, "Expected default material drag speed when step is absent");
 
-	HE::ComponentRegistry registry;
-	HE::RegisterCoreComponents(registry);
+	HE::Ecs::TypeRegistry registry;
+	Require(HE::Generated::RegisterGeneratedComponents(registry).HasValue(), "Expected canonical module registration");
 
-	const HE::ComponentMetadata* transform = registry.FindByType<HE::TransformComponent>();
+	const HE::Ecs::RegisteredType* transform = registry.Find<HE::TransformComponent>();
 	Require(transform != nullptr, "Expected TransformComponent metadata");
-	Require(transform->RuntimeType != nullptr, "Expected TransformComponent runtime type");
-	const auto* position = FindField(transform->RuntimeType->Fields, "Position");
+	Require(transform->Descriptor.Reflection != nullptr, "Expected TransformComponent runtime type");
+	const auto* position = FindField(transform->Descriptor.Reflection->Fields, "Position");
 	Require(position != nullptr, "Expected TransformComponent Position field");
 	Require(
 		HE::Refl::GetRuntimeFieldValueKind(*position) == HE::Refl::RuntimeFieldValueKind::Float3,
 		"Expected Position to use Float3 runtime editor");
 	Require(HE::Editor::IsRuntimeFieldEditable(*position), "Expected Position to be runtime editable");
 
-	const HE::ComponentMetadata* camera = registry.FindByType<HE::Rendering::CameraComponent>();
+	const HE::Ecs::RegisteredType* camera = registry.Find<HE::Rendering::CameraComponent>();
 	Require(camera != nullptr, "Expected CameraComponent metadata");
-	const auto* primary = FindField(camera->RuntimeType->Fields, "Primary");
+	const auto* primary = FindField(camera->Descriptor.Reflection->Fields, "Primary");
 	Require(primary != nullptr, "Expected CameraComponent Primary field");
 	Require(
 		HE::Refl::GetRuntimeFieldValueKind(*primary) == HE::Refl::RuntimeFieldValueKind::Bool,
 		"Expected CameraComponent Primary to use Bool runtime editor");
 
-	const HE::ComponentMetadata* mesh = registry.FindByType<HE::Rendering::MeshComponent>();
+	const HE::Ecs::RegisteredType* mesh = registry.Find<HE::Rendering::MeshComponent>();
 	Require(mesh != nullptr, "Expected MeshComponent metadata");
-	const auto* meshAsset = FindField(mesh->RuntimeType->Fields, "Mesh");
+	const auto* meshAsset = FindField(mesh->Descriptor.Reflection->Fields, "Mesh");
 	Require(meshAsset != nullptr, "Expected MeshComponent Mesh field");
 	Require(
 		HE::Refl::GetRuntimeFieldValueKind(*meshAsset) == HE::Refl::RuntimeFieldValueKind::AssetRef,
 		"Expected Mesh to use AssetRef runtime editor");
 	Require(HE::Editor::IsRuntimeFieldEditable(*meshAsset), "Expected Mesh asset ref to be runtime editable");
-	Require(FindField(mesh->RuntimeType->Fields, "MeshAssetName") == nullptr, "Expected MeshAssetName field to be removed");
+	Require(FindField(mesh->Descriptor.Reflection->Fields, "MeshAssetName") == nullptr, "Expected MeshAssetName field to be removed");
 
-	const HE::ComponentMetadata* material = registry.FindByType<HE::Rendering::MaterialComponent>();
+	const HE::Ecs::RegisteredType* material = registry.Find<HE::Rendering::MaterialComponent>();
 	Require(material != nullptr, "Expected MaterialComponent metadata");
-	const auto* materialAsset = FindField(material->RuntimeType->Fields, "Material");
+	const auto* materialAsset = FindField(material->Descriptor.Reflection->Fields, "Material");
 	Require(materialAsset != nullptr, "Expected MaterialComponent Material field");
 	Require(
 		HE::Refl::GetRuntimeFieldValueKind(*materialAsset) == HE::Refl::RuntimeFieldValueKind::AssetRef,
 		"Expected Material to use AssetRef runtime field kind");
 	Require(HE::Editor::IsRuntimeFieldEditable(*materialAsset), "Expected Material asset ref to be runtime editable");
-	const auto* overrides = FindField(material->RuntimeType->Fields, "Overrides");
+	const auto* overrides = FindField(material->Descriptor.Reflection->Fields, "Overrides");
 	Require(overrides != nullptr, "Expected MaterialComponent Overrides field");
 	Require(
 		HE::Refl::GetRuntimeFieldValueKind(*overrides) == HE::Refl::RuntimeFieldValueKind::Object,
 		"Expected Overrides to use Object runtime field kind");
-	Require(FindField(material->RuntimeType->Fields, "MaterialInstance") == nullptr, "Expected MaterialInstance field to be removed");
-	const auto* blendMode = FindField(material->RuntimeType->Fields, "BlendMode");
+	Require(FindField(material->Descriptor.Reflection->Fields, "MaterialInstance") == nullptr, "Expected MaterialInstance field to be removed");
+	const auto* blendMode = FindField(material->Descriptor.Reflection->Fields, "BlendMode");
 	Require(blendMode != nullptr, "Expected MaterialComponent BlendMode field");
 	Require(
 		HE::Refl::GetRuntimeFieldValueKind(*blendMode) == HE::Refl::RuntimeFieldValueKind::Enum,
@@ -101,10 +101,10 @@ int main() {
 	Require(blendMode->EnumType != nullptr, "Expected BlendMode enum metadata");
 
 	Require(
-		HE::Editor::GetRuntimeComponentDisplayName(*transform->RuntimeType) == "Transform",
+		HE::Editor::GetRuntimeComponentDisplayName(*transform->Descriptor.Reflection) == "Transform",
 		"Expected Transform display name from runtime metadata");
 	Require(
-		HE::Editor::GetRuntimeComponentDisplayName(*camera->RuntimeType) == "Camera",
+		HE::Editor::GetRuntimeComponentDisplayName(*camera->Descriptor.Reflection) == "Camera",
 		"Expected Camera display name from runtime metadata");
 	Require(
 		registry.FindByName("NameComponent") == nullptr,
@@ -113,10 +113,7 @@ int main() {
 		registry.FindByName("RendererComponent") == nullptr,
 		"Expected deprecated RendererComponent to stay out of generated runtime metadata");
 
-	std::filesystem::path repositoryRoot = std::filesystem::current_path();
-	while (!repositoryRoot.empty() && !std::filesystem::exists(repositoryRoot / "CMakeLists.txt")) {
-		repositoryRoot = repositoryRoot.parent_path();
-	}
+	const std::filesystem::path repositoryRoot(HUAENGINE_TEST_SOURCE_ROOT);
 	Require(!repositoryRoot.empty(), "Expected to locate repository root");
 
 	const std::filesystem::path inspectorPath = repositoryRoot / "Editor" / "src" / "Panels" / "InspectorPanel.cpp";
@@ -176,14 +173,14 @@ int main() {
 			inspectorSource.find("GetAll()") == std::string::npos,
 		"Expected InspectorPanel to remain a selection router without component implementation");
 	Require(
-		sceneInspectorSource.find("ListComponentTypes") != std::string::npos,
+		sceneInspectorSource.find("ListTypes") != std::string::npos,
 		"Expected SceneEntityInspectorEditor to enumerate entity runtime component types");
 	Require(
-		sceneInspectorSource.find("PushID(static_cast<int>(selection.GetUid()))") != std::string::npos,
+		sceneInspectorSource.find("PushID(static_cast<int>(entity.Index))") != std::string::npos,
 		"Expected inspector widget IDs to be scoped by selected entity");
 	Require(
-		sceneInspectorSource.find("GetAll()") != std::string::npos,
-		"Expected Add Component candidates to come from ComponentRegistry::GetAll()");
+		sceneInspectorSource.find("Types().All()") != std::string::npos,
+		"Expected Add Component candidates to come from the selected World's TypeRegistry");
 	Require(
 		sceneInspectorSource.find("editor.material_overrides.removed") != std::string::npos &&
 			sceneInspectorSource.find("RecordEvent") != std::string::npos,

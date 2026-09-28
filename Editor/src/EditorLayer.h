@@ -25,6 +25,7 @@
 #include "Viewport/EditorSceneRenderExtension.h"
 
 namespace HE {
+    namespace HostSmoke { struct Session; }
     enum class EditorWorkbenchMode {
         ProjectHub,
         WorkbenchShell
@@ -35,6 +36,7 @@ namespace HE {
         std::string InitialSceneName = "EditorWorkbench";
         std::filesystem::path StartupProjectPath;
         std::filesystem::path StartupScenePath;
+        std::shared_ptr<HostSmoke::Session> Smoke;
     };
 
     enum class WorkbenchActionType {
@@ -65,6 +67,8 @@ namespace HE {
 		void OnEvent(Event& event) override;
 
     private:
+        void InitializeEcsSmoke();
+        void AdvanceEcsSmoke();
         bool InitializeStartupProjectSession();
         bool OpenProjectFromPath(const std::filesystem::path& path, bool createIfMissing, std::string_view projectName, bool seedInitialScene);
         bool ActivateProjectSession(const ProjectContext& context, const ProjectStatusReport& status, bool seedInitialScene);
@@ -115,6 +119,7 @@ namespace HE {
 
     private:
         EditorLayerSpecification m_Specification;
+        EntityUuid m_SmokeEntity;
         EditorWorkbenchMode m_Mode = EditorWorkbenchMode::ProjectHub;
         ResultEnvelope m_LastOperationResult;
         EditorWorkbenchState m_WorkbenchState;

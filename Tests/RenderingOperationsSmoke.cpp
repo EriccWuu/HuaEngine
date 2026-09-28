@@ -1,3 +1,4 @@
+#include "ECSTestSupport.h"
 #include <cstdlib>
 #include <cstdint>
 #include <filesystem>
@@ -5,6 +6,7 @@
 #include <iostream>
 #include <algorithm>
 #include <string>
+#include <thread>
 
 #include <glm/glm.hpp>
 #include <glm/gtc/matrix_transform.hpp>
@@ -12,12 +14,49 @@
 #include "HuaEngine.h"
 #include "HuaEngine/Application/ApplicationServices.h"
 #include "HuaEngine/Rendering/RenderPipeline/RenderTypes.h"
+#include "HuaEngine/Rendering/RenderPipeline/RenderGraphExtension.h"
 #include "HuaEngine/Rendering/RenderPipeline/RenderBindGroupBuilder.h"
 #include "HuaEngine/Rendering/RenderPipeline/UniformBufferArena.h"
 #include "HuaEngine/Rendering/RHI/RenderHardwareInterface.h"
-#include "Module/Rendering/RenderSystem.h"
+#include "Module/Rendering/SceneRenderer.h"
+#include "Viewport/EditorSceneRenderExtension.h"
 
 namespace {
+	class ThreadObservedGraphExtension final : public HE::Rendering::RenderGraphExtension {
+	public:
+		std::thread::id MainThread = std::this_thread::get_id();
+		std::thread::id PassThread;
+		size_t RhiCalls = 0;
+		void AddBeforeOpaquePasses(HE::Rendering::RenderGraphBuilder&,
+			const HE::Rendering::ForwardSceneResources&, const HE::Rendering::RenderView&) override {}
+		void AddAfterOpaquePasses(HE::Rendering::RenderGraphBuilder& graph,
+			const HE::Rendering::ForwardSceneResources& resources, const HE::Rendering::RenderView&) override {
+			graph.AddPass("ObserveActualGraphicsThread", HE::Rendering::RenderGraphPassType::Graphics,
+				[this, resources](HE::Rendering::RenderGraphPassBuilder& pass) {
+					pass.WriteColor(resources.Color, HE::Rendering::LoadOp::Load, HE::Rendering::StoreOp::Store);
+					pass.SetExecute([this](HE::Rendering::RenderPassContext& context) {
+						PassThread = std::this_thread::get_id();
+						if (PassThread != MainThread || !context.Device) throw std::runtime_error("Graphics pass escaped the main thread");
+						const uint32_t data = 0;
+						auto buffer = context.Device->CreateBuffer({.Usage = HE::Rendering::GpuBufferUsage::Vertex,
+							.Size = sizeof(data), .Stride = sizeof(data)}, &data);
+						if (!buffer) throw std::runtime_error("Observed graphics pass could not create its actual RHI buffer");
+						++RhiCalls;
+					});
+				});
+		}
+	};
+	class InvalidGraphExtension final : public HE::Rendering::RenderGraphExtension {
+	public:
+		void AddBeforeOpaquePasses(HE::Rendering::RenderGraphBuilder& graph,
+			const HE::Rendering::ForwardSceneResources& resources, const HE::Rendering::RenderView&) override {
+			graph.AddPass("DeliberatelyInvalidUsage", HE::Rendering::RenderGraphPassType::Graphics,
+				[resources](HE::Rendering::RenderGraphPassBuilder& pass) {
+					pass.Read(resources.Color, HE::Rendering::ResourceState::Undefined);
+					pass.SetExecute([](HE::Rendering::RenderPassContext&) {});
+				});
+		}
+	};
 	void Require(bool condition, const std::string& message) {
 		if (!condition) {
 			std::cerr << "[RenderingOperationsSmoke] " << message << std::endl;
@@ -42,12 +81,12 @@ namespace {
 
 	uint32_t CountRenderableSubmissions(HE::Scene& scene) {
 		uint32_t renderableCount = 0;
-		scene.GetWorld().Query<HE::TransformComponent, HE::Rendering::MeshComponent, HE::Rendering::MaterialComponent>().ForEach(
-			[&](HE::Entity, HE::TransformComponent&, HE::Rendering::MeshComponent& mesh, HE::Rendering::MaterialComponent& material) {
-				if (mesh.Mesh.Reference.IsValid() && material.Material.Reference.IsValid()) {
-					++renderableCount;
-				}
-			});
+		for (const auto id : scene.GetWorld().Entities()) {
+			const auto* mesh = scene.GetWorld().TryGet<HE::Rendering::MeshComponent>(id);
+			const auto* material = scene.GetWorld().TryGet<HE::Rendering::MaterialComponent>(id);
+			if (scene.GetWorld().Has<HE::TransformComponent>(id) && mesh && material &&
+				mesh->Mesh.Reference.IsValid() && material->Material.Reference.IsValid()) ++renderableCount;
+		}
 		return renderableCount;
 	}
 
@@ -121,7 +160,7 @@ namespace {
 				: std::string{};
 		};
 
-		const auto renderingRoot = std::filesystem::current_path() / "HuaEngine" / "src" / "HuaEngine" / "Rendering";
+		const auto renderingRoot = std::filesystem::path(HUAENGINE_TEST_SOURCE_ROOT) / "HuaEngine" / "src" / "HuaEngine" / "Rendering";
 		const auto pipelineContent = readSource(renderingRoot / "RenderPipeline" / "ForwardRenderPipeline.cpp");
 		const auto extensionContent = readSource(renderingRoot / "RenderPipeline" / "RenderGraphExtension.h");
 		const auto opaqueContent = readSource(renderingRoot / "RenderPipeline" / "GraphPasses" / "ForwardOpaquePass.cpp");
@@ -217,6 +256,7 @@ int main() {
 
 	SmokeApplication application;
 	application.Start();
+	std::cerr << "[RenderingOperationsSmoke] application started\n";
 	Require(ForwardPipelineUsesExplicitVertexIndexBinding(), "Expected ForwardRenderPipeline main draw path to use explicit vertex/index binding");
 	Require(SphereTrianglesFaceOutward(), "Expected generated sphere triangle winding to face outward");
 	Require(CubeTrianglesFaceOutward(), "Expected generated cube triangle winding to face outward");
@@ -224,16 +264,18 @@ int main() {
 	auto& operations = application.GetOperations();
 	Require(operations.Supports("rendering.attach_scene_viewport"), "Expected rendering.attach_scene_viewport to be registered");
 	Require(operations.Supports("rendering.render_scene_viewport"), "Expected rendering.render_scene_viewport to be registered");
-	const auto smokeRoot = std::filesystem::temp_directory_path() / "HuaEngineRenderingOperationsSmoke";
+	const auto smokeRoot = std::filesystem::temp_directory_path() / "rendering";
 	std::error_code errorCode;
 	std::filesystem::remove_all(smokeRoot, errorCode);
 	HE::ProjectContext projectContext;
 	Require(
 		operations.InitializeProject(smokeRoot / "SmokeProject", &projectContext, "RenderingSmokeProject").Succeeded(),
 		"Expected rendering smoke project initialization");
+	std::cerr << "[RenderingOperationsSmoke] initializing assets\n";
 	Require(
 		operations.InitializeProjectAssets(projectContext).Succeeded(),
 		"Expected builtin render artifacts to initialize");
+	std::cerr << "[RenderingOperationsSmoke] assets initialized\n";
 
 	HE::Ref<HE::Scene> scene;
 	auto createScene = operations.CreateScene("RenderingSmoke", scene);
@@ -258,20 +300,23 @@ int main() {
 
 	auto attachRendererAgain = operations.AttachSceneViewportRenderer(scene, renderTarget);
 	Require(attachRendererAgain.Succeeded(), "Expected rendering.attach_scene_viewport to support reuse");
-	Require(attachRenderer.Payload.at("created_render_system") == "true", "Expected first attach to create a render system");
-	Require(attachRendererAgain.Payload.at("created_render_system") == "false", "Expected second attach to reuse the existing render system");
+	Require(attachRenderer.Payload.at("created_render_system") == "true", "Expected first attach to create a scene renderer");
+	Require(attachRendererAgain.Payload.at("created_render_system") == "false", "Expected second attach to reuse the existing scene renderer");
 
-	auto invalidRenderable = scene->GetWorld().CreateEntity("Invalid Renderable");
-	auto& invalidMesh = invalidRenderable.AddComponent<HE::Rendering::MeshComponent>();
+	auto invalidRenderable = ECSTestSupport::Take(scene->CreateEntity("Invalid Renderable"));
+	std::cerr << "[RenderingOperationsSmoke] entity created\n";
+	auto& invalidMesh = ECSTestSupport::Add<HE::Rendering::MeshComponent>(scene->GetWorld(), invalidRenderable);
 	invalidMesh.Mesh.Reference.Guid = "missing-smoke-mesh";
-	auto& invalidMaterial = invalidRenderable.AddComponent<HE::Rendering::MaterialComponent>();
+	auto& invalidMaterial = ECSTestSupport::Add<HE::Rendering::MaterialComponent>(scene->GetWorld(), invalidRenderable);
 	invalidMaterial.Material.Reference.Guid = "missing-smoke-material";
 
+	std::cerr << "[RenderingOperationsSmoke] initial viewport entering\n";
 	auto renderViewport = operations.RenderSceneViewport(*scene, camera);
+	std::cerr << "[RenderingOperationsSmoke] initial viewport returned\n";
 	Require(renderViewport.Succeeded(), "Expected rendering.render_scene_viewport to succeed");
-	auto initialRenderSystem = scene->FindSystem<HE::RenderSystem>();
-	Require(static_cast<bool>(initialRenderSystem), "Expected render system to remain attached after viewport render");
-	const auto& initialRenderResult = initialRenderSystem->GetLastRenderResult();
+	const auto* initialRenderResultPointer = scene->LastRenderResult();
+	Require(initialRenderResultPointer != nullptr, "Expected scene renderer to remain attached after viewport render");
+	const auto& initialRenderResult = *initialRenderResultPointer;
 	Require(initialRenderResult.Succeeded, "Expected render result to succeed with fallback resources");
 	Require(initialRenderResult.Stats.SkippedItems == 0, "Expected fallback resources to avoid skipping render item");
 	Require(initialRenderResult.Stats.FallbackItems == 1, "Expected one render item with fallback resources even when mesh and material both fall back");
@@ -310,17 +355,65 @@ int main() {
 	Require(renderViewport.Payload.at("graph_edges") == "2", "Expected forward render graph to report typed dependency and output edges");
 	Require(renderViewport.Payload.at("graph_outputs") == "1", "Expected forward render graph to report one output");
 	Require(renderViewport.Payload.at("graph_diagnostics") == "0", "Expected forward render graph to emit no diagnostics");
+	{
+		ThreadObservedGraphExtension observed;
+		ECSTestSupport::Check(scene->RenderSingleCamera(camera, &observed));
+		Require(observed.RhiCalls == 1 && observed.PassThread == observed.MainThread,
+			"Expected the actual render graph pass and its RHI call to execute on the main thread");
+		std::ofstream evidence(std::filesystem::temp_directory_path() / "render-thread-evidence.json");
+		evidence << "{\"schema_version\":1,\"scope\":\"RenderGraph pass execution and direct RenderDevice::CreateBuffer\","
+			<< "\"main_thread\":\"" << observed.MainThread << "\",\"pass_thread\":\"" << observed.PassThread
+			<< "\",\"observed_rhi_calls\":" << observed.RhiCalls << ",\"calls_on_worker\":0}";
+		Require(evidence.good(), "Expected precise graphics-thread evidence persistence");
+	}
+
+    {
+        std::cerr << "[RenderingOperationsSmoke] active camera selection\n";
+        auto& world = scene->GetWorld();
+        const auto first = ECSTestSupport::Take(scene->CreateEntity("first primary camera"));
+        const auto second = ECSTestSupport::Take(scene->CreateEntity("second primary camera"));
+        const auto third = ECSTestSupport::Take(scene->CreateEntity("third primary camera"));
+        for (const auto id : {first, second, third}) {
+            auto& component = ECSTestSupport::Add<HE::Rendering::CameraComponent>(world, id);
+            component.Primary = true;
+        }
+        ECSTestSupport::Check(scene->OnUpdate());
+        Require(scene->LastActiveCameraEntity() == first, "Expected real rendering to select the smallest active primary index");
+        ECSTestSupport::Check(world.Destroy(first));
+        const auto cameraType = world.Types().Find<HE::Rendering::CameraComponent>()->Id;
+        ECSTestSupport::Check(world.SetComponentEnabled(second, cameraType, false));
+        ECSTestSupport::Check(scene->OnUpdate());
+        Require(scene->LastActiveCameraEntity() == third, "Expected camera selection to skip deleted and disabled components");
+        ECSTestSupport::Check(world.SetComponentEnabled(second, cameraType, true));
+        ECSTestSupport::Check(scene->OnUpdate());
+        Require(scene->LastActiveCameraEntity() == second, "Expected camera re-enabling to restore minimum-index priority");
+        ECSTestSupport::Check(world.SetEnabled(second, false));
+        ECSTestSupport::Check(scene->OnUpdate());
+        Require(scene->LastActiveCameraEntity() == third, "Expected disabled entities to be excluded from active camera selection");
+        ECSTestSupport::Check(world.SetEnabled(third, false));
+        ECSTestSupport::Check(scene->OnUpdate());
+        Require(!scene->LastActiveCameraEntity(), "Expected no active camera when every primary candidate is disabled");
+        Require(operations.RenderSceneViewport(*scene, camera).Succeeded() && !scene->LastActiveCameraEntity(),
+            "Expected explicit camera rendering to remain independent of scene camera selection");
+        InvalidGraphExtension invalidGraph;
+        const auto failed = scene->RenderSingleCamera(camera, &invalidGraph);
+        Require(!failed && failed.GetError().Code == HE::Ecs::ErrorCode::InvalidState &&
+            scene->LastRenderResult() && !scene->LastRenderResult()->Succeeded,
+            "Expected a failed render graph to propagate failure while retaining diagnostics");
+        Require(!scene->GetWorld().Context().HasScheduledWork(), "Expected render failure to release all extraction tasks");
+        Require(operations.RenderSceneViewport(*scene, camera).Succeeded(), "Expected later rendering to recover after graph rejection");
+    }
 
 	HE::Ref<HE::Scene> assetRefScene;
 	auto createAssetRefScene = operations.CreateScene("TypedAssetRefSmoke", assetRefScene);
 	Require(createAssetRefScene.Succeeded() && assetRefScene, "Expected typed asset-ref scene.create to succeed for rendering smoke");
 
-	auto assetRefRenderable = assetRefScene->GetWorld().CreateEntity("Typed AssetRef Renderable");
-	auto& assetRefTransform = assetRefRenderable.AddComponent<HE::TransformComponent>();
+	auto assetRefRenderable = ECSTestSupport::Take(assetRefScene->CreateEntity("Typed AssetRef Renderable"));
+	auto& assetRefTransform = ECSTestSupport::Add<HE::TransformComponent>(assetRefScene->GetWorld(), assetRefRenderable);
 	assetRefTransform.Position.z = -3.0f;
-	auto& assetRefMesh = assetRefRenderable.AddComponent<HE::Rendering::MeshComponent>();
+	auto& assetRefMesh = ECSTestSupport::Add<HE::Rendering::MeshComponent>(assetRefScene->GetWorld(), assetRefRenderable);
 	assetRefMesh.Mesh.Reference.Guid = HE::BuiltinAssetGuids::QuadMesh;
-	auto& assetRefMaterial = assetRefRenderable.AddComponent<HE::Rendering::MaterialComponent>();
+	auto& assetRefMaterial = ECSTestSupport::Add<HE::Rendering::MaterialComponent>(assetRefScene->GetWorld(), assetRefRenderable);
 	assetRefMaterial.Material.Reference.Guid = HE::BuiltinAssetGuids::DefaultMaterial;
 	assetRefMaterial.Overrides.SetVec4("u_Color", glm::vec4(0.9f, 0.8f, 0.2f, 1.0f));
 	Require(!assetRefMaterial.Overrides.Empty(), "Expected typed asset-ref renderable to carry material overrides");
@@ -362,15 +455,65 @@ int main() {
 		}
 	}
 	Require(hasOverrideColorPixel, "Expected typed asset-ref material override color to be visible in the render target");
+	{
+		std::cerr << "[RenderingOperationsSmoke] frame identity picking\n";
+		HE::Scene pickScene("Frame identity picking");
+		auto& world = pickScene.GetWorld();
+		for (int index = 0; index < 10; ++index) ECSTestSupport::Take(pickScene.CreateEntity("unrendered"));
+		const auto picked = ECSTestSupport::Take(pickScene.CreateEntity("pick target"));
+		ECSTestSupport::Get<HE::TransformComponent>(world, picked).Position.z = -2.0f;
+		ECSTestSupport::Add<HE::Rendering::MeshComponent>(world, picked).Mesh.Reference.Guid = HE::BuiltinAssetGuids::QuadMesh;
+		ECSTestSupport::Add<HE::Rendering::MaterialComponent>(world, picked).Material.Reference.Guid = HE::BuiltinAssetGuids::DefaultMaterial;
+		ECSTestSupport::Take(pickScene.AttachRenderer(renderTarget, &application.Services().GetAssetResolver()));
+		auto objectTarget = HE::Rendering::RenderHardwareInterface::GetDevice().CreateRenderTarget({.Specification = specification});
+		HE::Editor::EditorSceneRenderExtension extension;
+		Require(!extension.ResolveObjectId(0, world.Id()) && !extension.ResolveObjectId(1, world.Id()),
+			"Expected empty pick tables and zero tokens to resolve no entity");
+		extension.SetObjectIdTarget(objectTarget);
+		ECSTestSupport::Check(pickScene.RenderSingleCamera(camera, &extension));
+		std::cerr << "[RenderingOperationsSmoke] pick frame rendered\n";
+		uint32_t token = 0;
+		for (uint32_t y = 0; y < specification.Height && !token; y += 4) {
+			for (uint32_t x = 0; x < specification.Width && !token; x += 4) {
+				const auto pixel = objectTarget->ReadPixelRGBA8(0, x, y);
+				const uint32_t candidate = uint32_t(pixel.R) | (uint32_t(pixel.G) << 8) | (uint32_t(pixel.B) << 16) | (uint32_t(pixel.A) << 24);
+				if (extension.ResolveObjectId(candidate, world.Id()) == picked) token = candidate;
+			}
+		}
+		Require(token != 0 && token != picked.Index + 1 && extension.ResolveObjectId(token, world.Id()) == picked,
+			"Expected actual GPU tokens to resolve full entity identity independently of slot index");
+		Require(!extension.ResolveObjectId(token, world.Id() + 1) && !extension.ResolveObjectId(UINT32_MAX, world.Id()),
+			"Expected foreign World and out-of-range pick token rejection");
+		ECSTestSupport::Check(world.Destroy(picked));
+		const auto replacement = ECSTestSupport::Take(pickScene.CreateEntity("reused pick slot"));
+		Require(replacement.Index == picked.Index && replacement.Generation != picked.Generation &&
+			!world.IsAlive(extension.ResolveObjectId(token, world.Id())),
+			"Expected a delayed pick to reject a reused slot by its original generation");
+		ECSTestSupport::Get<HE::TransformComponent>(world, replacement).Position.z = -2.0f;
+		ECSTestSupport::Add<HE::Rendering::MeshComponent>(world, replacement).Mesh.Reference.Guid = HE::BuiltinAssetGuids::QuadMesh;
+		ECSTestSupport::Add<HE::Rendering::MaterialComponent>(world, replacement).Material.Reference.Guid = HE::BuiltinAssetGuids::DefaultMaterial;
+		ECSTestSupport::Check(pickScene.RenderSingleCamera(camera, &extension));
+		Require(!extension.ResolveObjectId(token, world.Id()), "Expected a delayed token never to alias a replacement rendered in the next frame");
+		uint32_t replacementToken = 0;
+		for (uint32_t y = 0; y < specification.Height && !replacementToken; y += 4) {
+			for (uint32_t x = 0; x < specification.Width && !replacementToken; x += 4) {
+				const auto pixel = objectTarget->ReadPixelRGBA8(0, x, y);
+				const uint32_t candidate = uint32_t(pixel.R) | (uint32_t(pixel.G) << 8) | (uint32_t(pixel.B) << 16) | (uint32_t(pixel.A) << 24);
+				if (extension.ResolveObjectId(candidate, world.Id()) == replacement) replacementToken = candidate;
+			}
+		}
+		Require(replacementToken != 0 && replacementToken != token,
+			"Expected the actual replacement draw to receive a distinct frame token");
+	}
 
 	const auto addBuiltinRenderable = [&](std::string_view name, const HE::AssetGuid& meshGuid, const glm::vec3& position) {
-		auto entity = assetRefScene->GetWorld().CreateEntity(std::string(name));
-		auto& transform = entity.AddComponent<HE::TransformComponent>();
+		auto entity = ECSTestSupport::Take(assetRefScene->CreateEntity(std::string(name)));
+		auto& transform = ECSTestSupport::Add<HE::TransformComponent>(assetRefScene->GetWorld(), entity);
 		transform.Position = position;
 		transform.Scale = glm::vec3(0.5f);
-		auto& mesh = entity.AddComponent<HE::Rendering::MeshComponent>();
+		auto& mesh = ECSTestSupport::Add<HE::Rendering::MeshComponent>(assetRefScene->GetWorld(), entity);
 		mesh.Mesh.Reference.Guid = meshGuid;
-		auto& material = entity.AddComponent<HE::Rendering::MaterialComponent>();
+		auto& material = ECSTestSupport::Add<HE::Rendering::MaterialComponent>(assetRefScene->GetWorld(), entity);
 		material.Material.Reference.Guid = HE::BuiltinAssetGuids::DefaultMaterial;
 		material.Overrides.SetVec4("u_Color", glm::vec4(0.8f, 0.0f, 0.9f, 1.0f));
 	};
@@ -378,6 +521,7 @@ int main() {
 	addBuiltinRenderable("Serialized Sphere", HE::BuiltinAssetGuids::SphereMesh, glm::vec3(0.9f, 0.0f, -3.0f));
 
 	HE::Ref<HE::Scene> loadedScene;
+	std::cerr << "[RenderingOperationsSmoke] serialized scene rendering\n";
 	const auto scenePath = projectContext.GetAssetRootPath() / "SerializedBuiltinScene.scene";
 	Require(operations.SaveScene(*assetRefScene, scenePath).Succeeded(), "Expected builtin asset-ref scene save to succeed");
 	auto loadScene = operations.LoadScene(scenePath, loadedScene);
@@ -400,15 +544,16 @@ int main() {
 	Require(renderLoadedScene.Payload.at("graph_outputs") == "1", "Expected loaded scene render graph to report one output");
 	Require(renderLoadedScene.Payload.at("graph_diagnostics") == "0", "Expected loaded scene render to emit no render graph diagnostics");
 
-	auto loadedRenderSystem = loadedScene->FindSystem<HE::RenderSystem>();
-	Require(static_cast<bool>(loadedRenderSystem), "Expected loaded scene render system to remain attached");
-	const auto& loadedRenderStats = loadedRenderSystem->GetLastRenderResult().Stats;
+	const auto* loadedRenderResult = loadedScene->LastRenderResult();
+	Require(loadedRenderResult != nullptr, "Expected loaded scene scene renderer to remain attached");
+	const auto& loadedRenderStats = loadedRenderResult->Stats;
 	Require(loadedRenderStats.BindGroupLayoutCacheHits > 0, "Expected multi-item render to reuse standard bind group layouts");
 	Require(loadedRenderStats.PipelineStateCacheHits > 0, "Expected multi-item render to reuse pipeline state");
 
 	HE::ProjectContext texturedProject;
+	std::cerr << "[RenderingOperationsSmoke] textured project\n";
 	const auto texturedProjectRoot = smokeRoot / "TexturedProject";
-	std::filesystem::copy(std::filesystem::current_path() / "Tests" / "TestProj", texturedProjectRoot, std::filesystem::copy_options::recursive);
+	std::filesystem::copy(std::filesystem::path(HUAENGINE_TEST_SOURCE_ROOT) / "Tests" / "TestProj", texturedProjectRoot, std::filesystem::copy_options::recursive);
 	Require(operations.ResolveProjectContext(texturedProjectRoot, texturedProject).Succeeded(), "Expected textured test project context");
 	Require(operations.InitializeProjectAssets(texturedProject).Succeeded(), "Expected textured test project assets");
 	HE::Ref<HE::Rendering::Mesh> resolvedTexturedMesh;
@@ -443,13 +588,13 @@ int main() {
 	Require(std::any_of(boundTexturePixels.begin(), boundTexturePixels.end(), [](uint8_t channel) { return channel < 128; }), "Expected non-white bound texture content");
 	HE::Ref<HE::Scene> texturedScene;
 	Require(operations.CreateScene("TexturedMaterialSmoke", texturedScene).Succeeded(), "Expected textured scene creation");
-	auto texturedEntity = texturedScene->GetWorld().CreateEntity("Textured Quad");
-	auto& texturedTransform = texturedEntity.AddComponent<HE::TransformComponent>();
+	auto texturedEntity = ECSTestSupport::Take(texturedScene->CreateEntity("Textured Quad"));
+	auto& texturedTransform = ECSTestSupport::Add<HE::TransformComponent>(texturedScene->GetWorld(), texturedEntity);
 	texturedTransform.Position.z = -2.0f;
 	texturedTransform.Scale = glm::vec3(2.0f);
-	auto& texturedMesh = texturedEntity.AddComponent<HE::Rendering::MeshComponent>();
+	auto& texturedMesh = ECSTestSupport::Add<HE::Rendering::MeshComponent>(texturedScene->GetWorld(), texturedEntity);
 	texturedMesh.Mesh.Reference.Guid = "15da0d336597b40d17f6cbf870ece1ff";
-	auto& texturedMaterial = texturedEntity.AddComponent<HE::Rendering::MaterialComponent>();
+	auto& texturedMaterial = ECSTestSupport::Add<HE::Rendering::MaterialComponent>(texturedScene->GetWorld(), texturedEntity);
 	texturedMaterial.Material.Reference.Guid = "6de06c0940c1fcd1aa64972a6eaf9f1b";
 	Require(operations.AttachSceneViewportRenderer(texturedScene, renderTarget).Succeeded(), "Expected textured scene renderer attach");
 	const auto texturedRender = operations.RenderSceneViewport(*texturedScene, camera);

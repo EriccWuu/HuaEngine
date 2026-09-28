@@ -10,8 +10,10 @@ namespace HE::CLI {
 		CLICommandContext& context) {
 		if (command.Path == std::vector<std::string>{ "project", "init" }) {
 			ProjectContext projectContext;
+			const auto rootArgument = options.GetValue("--root");
+			const auto rootPath = rootArgument.has_value() ? std::filesystem::u8path(*rootArgument) : NormalizePath(context.WorkingDirectory);
 			auto result = context.Operations.InitializeProject(
-				options.GetValue("--root").value_or(NormalizePath(context.WorkingDirectory).string()),
+				rootPath,
 				&projectContext,
 				options.GetValue("--name").value_or(std::string()));
 			return { std::move(result) };

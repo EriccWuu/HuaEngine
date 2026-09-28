@@ -1,53 +1,59 @@
 #pragma once
 
+#include <memory>
 #include <string>
-#include "HuaEngine/ECS/Entity.h"
-#include "HuaEngine/ECS/Scheduler.h"
-#include "HuaEngine/ECS/System.h"
-#include "HuaEngine/ECS/World.h"
+#include <string_view>
+
+#include "HuaEngine/Core/Core.h"
+#include "HuaEngine/ECS/Runtime/World.h"
 
 namespace HE {
+    class AssetResolver;
+    class SceneRenderer;
 
-	class Scene {
-	public:
-		Scene() = default;
-		Scene(const std::string& name) : m_Name(name) {}
-		~Scene() = default;
+    namespace Rendering {
+        class RenderCamera;
+        class RenderGraphExtension;
+        class RenderTarget;
+        struct RenderResult;
+    }
 
-		void Update();
-		void OnRuntimeStart();
-		void OnUpdate(float deltaTime = 0.0f);
-		void OnRuntimeStop();
+    class Scene final {
+    public:
+        Scene();
+        explicit Scene(const std::string& name);
+        explicit Scene(Ecs::EcsContext& context, const std::string& name = {});
+        ~Scene();
+        Scene(const Scene&) = delete;
+        Scene& operator=(const Scene&) = delete;
+        Scene(Scene&&) = delete;
+        Scene& operator=(Scene&&) = delete;
 
-		// Scene name
-		const std::string& GetName() const { return m_Name; }
-		void SetName(const std::string& name) { m_Name = name; }
+        [[nodiscard]] Ecs::Result<void> Update();
+        void OnRuntimeStart();
+        [[nodiscard]] Ecs::Result<void> OnUpdate(float deltaTime = 0.0f);
+        void OnRuntimeStop();
 
-		void AddSystem(Ref<System> system);
-		void AddSyetem(Ref<System> system) { AddSystem(system); }
-		World& GetWorld() { return m_World; }
-		const World& GetWorld() const { return m_World; }
-		FrameContext& GetFrameContext() { return m_FrameContext; }
-		const FrameContext& GetFrameContext() const { return m_FrameContext; }
-		Scheduler& GetScheduler() { return m_Scheduler; }
+        [[nodiscard]] const std::string& GetName() const noexcept { return m_Name; }
+        void SetName(const std::string& name) { m_Name = name; }
+        [[nodiscard]] Ecs::World& GetWorld() noexcept { return m_World; }
+        [[nodiscard]] const Ecs::World& GetWorld() const noexcept { return m_World; }
 
-		template<typename T>
-		[[nodiscard]] Ref<T> FindSystem() const {
-			for (const auto& system : m_Systems) {
-				auto typedSystem = std::dynamic_pointer_cast<T>(system);
-				if (typedSystem) {
-					return typedSystem;
-				}
-			}
+        [[nodiscard]] Ecs::Result<EntityId> CreateEntity(std::string_view name = "Entity", EntityUuid uuid = {});
+        [[nodiscard]] static Ecs::Result<EntityId> CreateEntityInScope(Ecs::World& world,
+            std::string_view name = "Entity", EntityUuid uuid = {});
 
-			return nullptr;
-		}
+        [[nodiscard]] bool HasRenderer() const noexcept;
+        [[nodiscard]] Ecs::Result<bool> AttachRenderer(Ref<Rendering::RenderTarget> target, AssetResolver* resolver);
+        [[nodiscard]] Ecs::Result<void> RenderSingleCamera(const Rendering::RenderCamera& camera,
+            Rendering::RenderGraphExtension* extension = nullptr);
+        [[nodiscard]] const Rendering::RenderResult* LastRenderResult() const noexcept;
+        [[nodiscard]] EntityId LastActiveCameraEntity() const noexcept;
 
-	private:
-		std::string m_Name;
-		World m_World;
-		FrameContext m_FrameContext;
-		Scheduler m_Scheduler;
-		std::vector<Ref<System>> m_Systems;
-	};
+    private:
+        std::string m_Name;
+        std::shared_ptr<Ecs::EcsContext> m_OwnedContext;
+        Ecs::World m_World;
+        std::unique_ptr<SceneRenderer> m_Renderer;
+    };
 }

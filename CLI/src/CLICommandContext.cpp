@@ -64,7 +64,7 @@ namespace HE::CLI {
 		const std::filesystem::path& workingDirectory,
 		ProjectContext& outContext,
 		ResultEnvelope& outError) {
-		const auto basePath = NormalizePath(explicitPath.has_value() ? std::filesystem::path(*explicitPath) : workingDirectory);
+		const auto basePath = NormalizePath(explicitPath.has_value() ? std::filesystem::u8path(*explicitPath) : workingDirectory);
 		outError = operations.ResolveProjectContext(basePath, outContext);
 		return outError.Succeeded();
 	}
@@ -83,7 +83,7 @@ namespace HE::CLI {
 		const std::string& sceneArgument,
 		const std::optional<ProjectContext>& context,
 		const std::filesystem::path& workingDirectory) {
-		std::filesystem::path scenePath(sceneArgument);
+		const auto scenePath = std::filesystem::u8path(sceneArgument);
 		if (scenePath.is_absolute()) {
 			return NormalizePath(scenePath);
 		}

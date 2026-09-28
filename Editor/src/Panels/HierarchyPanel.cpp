@@ -89,12 +89,13 @@ namespace HE {
 			m_Filter.Build();
 		ImGui::PopItemFlag();
 
-		m_Context->GetWorld().ForEachEntity([&](Entity entity) {
-            if (m_Filter.IsActive() && !m_Filter.PassFilter(entity.GetName().c_str())) {
-                return;
-            }
-			DrawEntityNode(entity);
-		});
+        const auto scene = m_Context;
+        for (const auto entity : scene->GetWorld().Entities()) {
+            if (!scene->GetWorld().IsAlive(entity)) continue;
+            const auto name = std::string(scene->GetWorld().Name(entity));
+            if (m_Filter.IsActive() && !m_Filter.PassFilter(name.c_str())) continue;
+            DrawEntityNode(entity);
+        }
 
         HandleBackgroundSelectionClear();
 
@@ -110,18 +111,19 @@ namespace HE {
 		m_Context = context;
 	}
 
-	void HierarchyPanel::DrawEntityNode(Entity& entity) {
-		const std::string entityUuid = ToString(entity.GetUuid());
+	void HierarchyPanel::DrawEntityNode(EntityId entity) {
+        if (!m_Context || !m_Context->GetWorld().IsAlive(entity)) return;
+		const std::string entityUuid = ToString(m_Context->GetWorld().Uuid(entity));
 		ImGui::PushID(entityUuid.c_str());
 		ImGuiTreeNodeFlags tree_flags = ImGuiTreeNodeFlags_None;
 		tree_flags |= ImGuiTreeNodeFlags_OpenOnArrow | ImGuiTreeNodeFlags_OpenOnDoubleClick;    // Standard opening mode as we are likely to want to add selection afterwards
 		tree_flags |= ImGuiTreeNodeFlags_NavLeftJumpsBackHere;   
 		tree_flags |= ImGuiTreeNodeFlags_Leaf | ImGuiTreeNodeFlags_Bullet;// Left arrow support
-		if (Selection::IsSelected(entity)) {
+		if (Selection::IsSelected(m_Context->GetWorld(), entity)) {
 			tree_flags |= ImGuiTreeNodeFlags_Selected;
 		}
 			
-		bool node_open = ImGui::TreeNodeEx(entityUuid.c_str(), tree_flags, "%s", entity.GetName().c_str());
+		bool node_open = ImGui::TreeNodeEx(entityUuid.c_str(), tree_flags, "%s", std::string(m_Context->GetWorld().Name(entity)).c_str());
 
 		if (ImGui::IsItemHovered() && m_InteractionHost &&
 			(m_InteractionHost->Input().WasActionTriggered("editor.hierarchy.select") ||
@@ -129,8 +131,8 @@ namespace HE {
 			HandleEntitySelection(entity);
 		}
 
-        if (ImGui::IsItemHovered() && m_InteractionHost && m_InteractionHost->Input().WasActionTriggered("editor.hierarchy.context_select") && !Selection::IsSelected(entity)) {
-            Selection::SetSelection(entity);
+        if (ImGui::IsItemHovered() && m_InteractionHost && m_InteractionHost->Input().WasActionTriggered("editor.hierarchy.context_select") && !Selection::IsSelected(m_Context->GetWorld(), entity)) {
+            Selection::SetSelection(m_Context->GetWorld(), entity);
 		}
 
         if (ImGui::BeginPopupContextItem("HierarchyEntityContextMenu")) {
@@ -152,8 +154,8 @@ namespace HE {
         DrawContextMenuEntries(m_InteractionHost, contextId);
     }
 
-    void HierarchyPanel::DrawDragDropSurface(Entity& entity) {
-        if (!m_InteractionHost) {
+    void HierarchyPanel::DrawDragDropSurface(EntityId entity) {
+        if (!m_InteractionHost || !m_Context || !m_Context->GetWorld().IsAlive(entity)) {
             return;
         }
 
@@ -162,10 +164,10 @@ namespace HE {
             return;
         }
 
-        const EntityUuid entityId = entity.GetUuid();
+        const EntityUuid entityId = m_Context->GetWorld().Uuid(entity);
         if (ImGui::BeginDragDropSource(ImGuiDragDropFlags_SourceAllowNullID)) {
             ImGui::SetDragDropPayload(intent->PayloadType.c_str(), &entityId, sizeof(entityId));
-            ImGui::TextUnformatted(intent->Label.empty() ? entity.GetName().c_str() : intent->Label.c_str());
+            ImGui::TextUnformatted(intent->Label.empty() ? std::string(m_Context->GetWorld().Name(entity)).c_str() : intent->Label.c_str());
             m_InteractionHost->Commands().SetLastRoute(std::string("drag_source.") + intent->Id);
             ImGui::EndDragDropSource();
         }
@@ -179,13 +181,13 @@ namespace HE {
         }
     }
 
-    void HierarchyPanel::HandleEntitySelection(const Entity& entity) {
+    void HierarchyPanel::HandleEntitySelection(EntityId entity) {
 		if (m_InteractionHost && m_InteractionHost->Input().WasActionTriggered("editor.hierarchy.toggle")) {
-            Selection::ToggleSelection(entity);
+            Selection::ToggleSelection(m_Context->GetWorld(), entity);
             return;
         }
 
-        Selection::SetSelection(entity);
+        Selection::SetSelection(m_Context->GetWorld(), entity);
     }
 
     void HierarchyPanel::HandleBackgroundSelectionClear() {

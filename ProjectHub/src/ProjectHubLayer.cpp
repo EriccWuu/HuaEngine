@@ -54,17 +54,100 @@ namespace {
 }
 
 namespace HE {
-	ProjectHubLayer::ProjectHubLayer()
-		: Layer("ProjectHubLayer") {
+	ProjectHubLayer::ProjectHubLayer(std::shared_ptr<HostSmoke::Session> smoke)
+		: Layer("ProjectHubLayer"), m_Smoke(std::move(smoke)) {
 	}
 
 	void ProjectHubLayer::OnAttach() {
 		CopyToBuffer(ResolveDefaultProjectRoot().generic_string(), m_ProjectPathInput.data(), m_ProjectPathInput.size());
 		CopyToBuffer("MyProject", m_ProjectNameInput.data(), m_ProjectNameInput.size());
 		RefreshSession();
+		if (m_Smoke) {
+			HostSmoke::Require(Application::GetInstance().IsRuntimeInitialized(), "ProjectHub smoke requires the normal initialized host");
+			m_Smoke->Event("hub_initialized");
+			m_SmokeProject = NormalizePath(m_Smoke->Workspace / "Project");
+			ProjectContext context;
+			auto& operations = Application::GetInstance().GetOperations();
+			const auto initialized = operations.InitializeProject(m_SmokeProject, &context, "ECS Hub Smoke");
+			CaptureResult(initialized);
+			HostSmoke::Require(initialized.Succeeded(), "ProjectHub could not create its smoke project: " + initialized.Summary);
+			ProjectStatusReport status;
+			HostSmoke::Require(operations.CheckProjectStatus(context, &status).Succeeded() && status.IsOperational(),
+				"ProjectHub smoke project did not pass the normal status check");
+			m_PersistedSession.Reset();
+			m_PersistedSession.LastProjectRoot = context.RootPath.generic_string();
+			m_PersistedSession.LastProjectName = context.Descriptor.Name;
+			HostSmoke::Require(EditorSessionStorage::Save(m_PersistedSession), "Cannot save the ProjectHub recent-project entry");
+			RefreshSession();
+			HostSmoke::Require(m_HasPersistedSession && NormalizePath(m_PersistedSession.LastProjectRoot) == m_SmokeProject,
+				"ProjectHub did not load the recent project entry it will display");
+			m_Smoke->Snapshots["project_path"] = m_SmokeProject.generic_string();
+			m_Smoke->Event("project_listed");
+		}
+	}
+
+	void ProjectHubLayer::OnUpdate() {
+		if (!m_Smoke) return;
+		m_Smoke->Tick();
+		if (!m_SmokeChild.Started() && m_Smoke->GuiFrames >= 3) {
+			// Capture the Hub before the child window can cover it.
+			m_Smoke->CaptureWindow();
+			CopyToBuffer(m_SmokeProject.generic_string(), m_ProjectPathInput.data(), m_ProjectPathInput.size());
+			HostSmoke::Require(OpenProjectAndLaunch(), "ProjectHub could not open and launch the listed project");
+			HostSmoke::Require(m_SmokeChild.Started() && m_LastResult.Operation == "project_hub.launch_editor",
+				"ProjectHub did not launch the Editor through its normal project action");
+			m_Smoke->Event("project_opened");
+		}
+		if (!m_SmokeChild.Finished()) return;
+		HostSmoke::Require(m_SmokeChild.ExitCode() == 0, "The real Editor child did not exit successfully");
+		Serialization::JsonSerializationBackend report;
+		report.LoadFromFile(m_Smoke->ChildReport.string());
+		bool success = false;
+		uint32_t process = 0, exitCode = 1, frames = 0, mainThread = 0, graphicsThread = 0, workerCalls = 1;
+		HostSmoke::Require(report.Deserialize("success", success) && success &&
+			report.Deserialize("process_id", process) && process == m_SmokeChild.Id() &&
+			report.Deserialize("exit_code", exitCode) && exitCode == 0 &&
+			report.Deserialize("frames_rendered", frames) && frames >= 3 &&
+			report.Deserialize("main_thread_id", mainThread) &&
+			report.Deserialize("graphics_thread_id", graphicsThread) && mainThread == graphicsThread &&
+			report.Deserialize("graphics_calls_on_worker", workerCalls) && workerCalls == 0,
+			"The Editor child report does not match the observed process and frame outcome");
+		std::vector<std::string> events;
+		const auto count = report.GetArraySize("events");
+		report.BeginArray("events");
+		for (size_t index = 0; index < count; ++index) {
+			std::string event;
+			report.BeginArrayElement(index);
+			HostSmoke::Require(report.Deserialize("", event), "The Editor child event report is invalid");
+			report.EndArrayElement();
+			events.push_back(std::move(event));
+		}
+		report.EndArray();
+		const auto has = [&](std::string_view event) { return std::find(events.begin(), events.end(), event) != events.end(); };
+		HostSmoke::Require(has("project_opened") && has("scene_loaded") && has("play_frame_rendered") &&
+			has("saved_reloaded") && has("shutdown_clean"), "Editor child did not complete the required real workflows");
+		std::string childProject;
+		report.BeginObject("snapshots");
+		HostSmoke::Require(report.Deserialize("source_project_path", childProject) && NormalizePath(childProject) == m_SmokeProject,
+			"Editor child copied a different source project");
+		report.EndObject();
+		m_Smoke->Event("child_project_loaded");
+		m_Smoke->Event("child_play_frame_rendered");
+		m_Smoke->Event("child_saved_reloaded");
+		m_Smoke->Event("child_shutdown_clean");
+		m_Smoke->WorkflowComplete = true;
+		Application::GetInstance().RequestShutdown();
+	}
+
+	void ProjectHubLayer::OnEvent(Event&) {
+		if (m_Smoke) ++m_Smoke->WindowEvents;
 	}
 
 	void ProjectHubLayer::OnGuiRender() {
+		if (m_Smoke) {
+			m_Smoke->Graphics();
+			++m_Smoke->GuiFrames;
+		}
 		const ImGuiViewport* viewport = ImGui::GetMainViewport();
 		ImGui::SetNextWindowPos(viewport->WorkPos);
 		ImGui::SetNextWindowSize(viewport->WorkSize);
@@ -204,6 +287,23 @@ namespace HE {
 	}
 
 	bool ProjectHubLayer::LaunchEditor(const std::filesystem::path& projectRoot, const std::filesystem::path& scenePath) {
+		if (m_Smoke) {
+			HostSmoke::Require(NormalizePath(projectRoot) == m_SmokeProject,
+				"ProjectHub smoke can only launch its isolated project");
+			m_Smoke->ChildExecutable = HostLaunch::ResolveSiblingExecutable("Editor.exe");
+			m_Smoke->ChildExecutableSha256 = HostSmoke::HashFile(m_Smoke->ChildExecutable);
+			m_Smoke->ChildReport = m_Smoke->Report.parent_path() /
+				(m_Smoke->Report.stem().string() + "-child-editor") / "report.json";
+			std::filesystem::create_directories(m_Smoke->ChildReport.parent_path());
+			m_SmokeChild.Start(m_Smoke->ChildExecutable,
+				{L"--project", projectRoot.wstring(), L"--ecs-smoke", m_Smoke->ChildReport.wstring()},
+				m_Smoke->Workspace);
+			m_Smoke->ChildProcessId = m_SmokeChild.Id();
+			CaptureResult(ResultEnvelope::Success("project_hub.launch_editor", projectRoot.generic_string(),
+				"Editor launched successfully"));
+			m_Smoke->Event("editor_launched");
+			return true;
+		}
 		std::vector<std::string> arguments = { "--project", projectRoot.generic_string() };
 		if (!scenePath.empty()) {
 			arguments.emplace_back("--scene");

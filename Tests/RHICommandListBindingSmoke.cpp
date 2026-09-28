@@ -107,7 +107,7 @@ namespace {
 	}
 
 	bool CommandListAvoidsRendererSpecificState() {
-		const auto root = std::filesystem::current_path();
+		const auto root = std::filesystem::path(HUAENGINE_TEST_SOURCE_ROOT);
 		const auto commandList = ReadSourceFile(root / "HuaEngine" / "src" / "HuaEngine" / "Rendering" / "RHI" / "CommandList.h");
 		const auto openGLCommandListHeader = ReadSourceFile(root / "HuaEngine" / "src" / "Platform" / "OpenGL" / "RHI" / "OpenGLRenderDevice.h");
 		const auto openGLCommandListSource = ReadSourceFile(root / "HuaEngine" / "src" / "Platform" / "OpenGL" / "RHI" / "OpenGLRenderDevice.cpp");
@@ -127,7 +127,7 @@ namespace {
 	}
 
 	bool OpenGLQueueHasSynchronousFenceFallback() {
-		const auto source = ReadSourceFile(std::filesystem::current_path() / "HuaEngine" / "src" / "Platform" / "OpenGL" / "RHI" / "OpenGLRenderDevice.cpp");
+		const auto source = ReadSourceFile(std::filesystem::path(HUAENGINE_TEST_SOURCE_ROOT) / "HuaEngine" / "src" / "Platform" / "OpenGL" / "RHI" / "OpenGLRenderDevice.cpp");
 		return source.find("glFinish();") != std::string::npos
 			&& source.find("m_TimelineFence.SignalCompleted(signalValue);") != std::string::npos;
 	}

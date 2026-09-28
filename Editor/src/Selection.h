@@ -1,40 +1,37 @@
 #pragma once
-
+#include <span>
+#include <initializer_list>
 #include <vector>
-
-#include "HuaEngine/Core/Core.h"
-#include "HuaEngine/ECS/Entity.h"
-#include "HuaEngine/ECS/EntityId.h"
-#include "HuaEngine/ECS/World.h"
+#include "HuaEngine/ECS/Runtime/World.h"
 #include "Selection/EditorSelectionService.h"
 
 namespace HE {
-	class Selection {
-	public:
-		static void SetSelection(const Entity& selection);
-		static void SetSelectedEntity(EntityUuid uuid);
-		static void SetSelections(std::vector<Entity> selections);
-		static void SetSelectedEntities(std::vector<EntityUuid> selections);
-		static void AddToSelection(const Entity& selection);
-		static void ToggleSelection(const Entity& selection);
-		static void RemoveFromSelection(const Entity& selection);
-		static Entity& GetSelection();
-		static Entity& GetPrimarySelection() { return GetSelection(); }
-		static const std::vector<Entity>& GetSelections();
-		static Entity ResolvePrimarySelection(World& world);
-		static const std::vector<Entity>& ResolveSelections(World& world);
-		static EntityUuid GetSelectedEntityUuid();
-		static const std::vector<EntityUuid>& GetSelectedEntityUuids();
-		static bool HasSelection();
-		static bool HasSingleSelection();
-		static bool IsSelected(const Entity& selection);
-		static size_t Count();
-		static void ClearSelection();
-		static void RemoveInvalidSelections();
-		static void RemoveInvalidSelections(World& world);
-		static void SelectAsset(AssetGuid guid);
-		static bool HasAssetSelection();
-		static AssetGuid GetSelectedAssetGuid();
-		static Editor::EditorSelectionService& GetService();
-	};
+    class Selection {
+    public:
+        static void SetSelection(const Ecs::World& world, EntityId entity);
+        static void SetSelectedEntity(EntityUuid uuid);
+        static void SetSelections(const Ecs::World& world, std::span<const EntityId> entities);
+        static void SetSelections(const Ecs::World& world, std::initializer_list<EntityId> entities) {
+            SetSelections(world, std::span<const EntityId>{entities.begin(), entities.size()});
+        }
+        static void SetSelectedEntities(std::vector<EntityUuid> selections);
+        static void AddToSelection(const Ecs::World& world, EntityId entity);
+        static void ToggleSelection(const Ecs::World& world, EntityId entity);
+        static void RemoveFromSelection(const Ecs::World& world, EntityId entity);
+        static EntityId ResolvePrimarySelection(const Ecs::World& world);
+        static std::vector<EntityId> ResolveSelections(const Ecs::World& world);
+        static EntityUuid GetSelectedEntityUuid();
+        static const std::vector<EntityUuid>& GetSelectedEntityUuids();
+        static bool HasSelection();
+        static bool HasSingleSelection();
+        static bool IsSelected(const Ecs::World& world, EntityId entity);
+        static size_t Count();
+        static void ClearSelection();
+        static void RemoveInvalidSelections();
+        static void RemoveInvalidSelections(const Ecs::World& world);
+        static void SelectAsset(AssetGuid guid);
+        static bool HasAssetSelection();
+        static AssetGuid GetSelectedAssetGuid();
+        static Editor::EditorSelectionService& GetService();
+    };
 }

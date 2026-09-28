@@ -4,7 +4,7 @@
 #include <string>
 #include <string_view>
 
-#include "HuaEngine/ECS/ComponentRegistry.h"
+#include "HuaEngine/ECS/Runtime/TypeRegistry.h"
 #include "HuaEngine/ECS/Components.h"
 #include "HuaEngine/Generated/GeneratedReflection.h"
 #include "HuaEngine/Reflection/Reflection.h"
@@ -88,8 +88,8 @@ int main() {
 	Require(HasField(material->Fields, "Overrides"), "Expected MaterialComponent Overrides field");
 	Require(!HasField(material->Fields, "MaterialInstance"), "Expected MaterialInstance field to be removed");
 
-	HE::ComponentRegistry registry;
-	HE::Generated::RegisterGeneratedComponents(registry);
+	HE::Ecs::TypeRegistry registry;
+	Require(HE::Generated::RegisterGeneratedComponents(registry).HasValue(), "Expected canonical module registration");
 
 	constexpr std::string_view expectedNames[] = {
 		"TransformComponent",
@@ -102,10 +102,10 @@ int main() {
 	}
 	Require(registry.FindByName("NameComponent") == nullptr, "Expected NameComponent not to be registered");
 
-	const HE::ComponentMetadata* transformMetadata = registry.FindByName("TransformComponent");
+	const HE::Ecs::RegisteredType* transformMetadata = registry.FindByName("TransformComponent");
 	Require(transformMetadata != nullptr, "Expected TransformComponent metadata to be registered");
-	Require(transformMetadata->Size == sizeof(HE::TransformComponent), "Expected TransformComponent metadata size to match component size");
-	Require(transformMetadata->RuntimeType == transformRuntime, "Expected TransformComponent metadata to reference runtime type");
+	Require(transformMetadata->Descriptor.Size == sizeof(HE::TransformComponent), "Expected TransformComponent metadata size to match component size");
+	Require(transformMetadata->Descriptor.Reflection == transformRuntime, "Expected TransformComponent metadata to reference runtime type");
 
 	HE::TransformComponent sourceTransform;
 	sourceTransform.Position = { 1.0f, 2.0f, 3.0f };
@@ -113,7 +113,7 @@ int main() {
 	sourceTransform.Scale = { 7.0f, 8.0f, 9.0f };
 
 	HE::Serialization::JsonSerializationBackend writeBackend;
-	HE::Refl::SerializeRuntimeObject(*transformMetadata->RuntimeType, writeBackend, transformMetadata->TypeName, &sourceTransform);
+	HE::Refl::SerializeRuntimeObject(*transformMetadata->Descriptor.Reflection, writeBackend, transformMetadata->Descriptor.Name, &sourceTransform);
 	const std::string transformJson = writeBackend.SaveToString();
 	Require(transformJson.find("\"Position\"") != std::string::npos, "Expected metadata serialization to emit Position");
 	Require(transformJson.find("\"Rotation\"") != std::string::npos, "Expected metadata serialization to emit Rotation");
@@ -123,7 +123,7 @@ int main() {
 	HE::Serialization::JsonSerializationBackend readBackend;
 	readBackend.LoadFromString(transformJson);
 	Require(
-		HE::Refl::DeserializeRuntimeObject(*transformMetadata->RuntimeType, readBackend, transformMetadata->TypeName, &loadedTransform),
+		HE::Refl::DeserializeRuntimeObject(*transformMetadata->Descriptor.Reflection, readBackend, transformMetadata->Descriptor.Name, &loadedTransform),
 		"Expected metadata deserialization to succeed");
 	Require(loadedTransform.Position == sourceTransform.Position, "Expected metadata deserialization to round-trip Position");
 	Require(loadedTransform.Rotation == sourceTransform.Rotation, "Expected metadata deserialization to round-trip Rotation");

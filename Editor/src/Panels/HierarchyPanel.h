@@ -41,10 +41,10 @@ namespace HE {
 		[[nodiscard]] bool IsHovered() const { return m_IsHovered; }
 
 	private:
-		void DrawEntityNode(Entity& eneity);
+		void DrawEntityNode(EntityId entity);
         void DrawRegisteredContextMenu(const char* popupId, std::string_view contextId);
-        void DrawDragDropSurface(Entity& entity);
-        void HandleEntitySelection(const Entity& entity);
+        void DrawDragDropSurface(EntityId entity);
+        void HandleEntitySelection(EntityId entity);
         void HandleBackgroundSelectionClear();
 
 	private:

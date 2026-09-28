@@ -6,16 +6,22 @@
 #include "HuaEngine.h"
 #include "HuaEngine/Core/ResultEnvelope.h"
 #include "Workbench/EditorSessionStorage.h"
+#include "Workbench/EcsHostSmoke.h"
 
 namespace HE {
 	class ProjectHubLayer : public Layer {
 	public:
-		ProjectHubLayer();
+		explicit ProjectHubLayer(std::shared_ptr<HostSmoke::Session> smoke = {});
 
 		void OnAttach() override;
+		void OnUpdate() override;
+		void OnEvent(Event& event) override;
 		void OnGuiRender() override;
 
 	private:
+		std::shared_ptr<HostSmoke::Session> m_Smoke;
+		HostSmoke::ChildProcess m_SmokeChild;
+		std::filesystem::path m_SmokeProject;
 		bool CreateProjectAndLaunch();
 		bool OpenProjectAndLaunch();
 		bool ResumeLastProject();

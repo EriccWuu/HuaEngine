@@ -60,7 +60,7 @@ int main() {
 	Require(validationDescriptor != nullptr, "Expected validation.validate to resolve from the registry");
 	Require(validationDescriptor->Domain == HE::OperationDomain::Validation, "Expected validation.validate to belong to the validation domain");
 
-	const auto smokeRoot = std::filesystem::temp_directory_path() / "HuaEngineApplicationOperationsSmoke";
+	const auto smokeRoot = std::filesystem::temp_directory_path() / "operations";
 	std::error_code errorCode;
 	std::filesystem::remove_all(smokeRoot, errorCode);
 
@@ -119,6 +119,11 @@ int main() {
 
 	HE::AssetGuid importedGuid;
 	auto importMesh = operations.ImportAsset(projectContext, "Meshes/ImportedQuad.mesh", HE::AssetKind::Mesh, &importedGuid);
+	if (!importMesh.Succeeded()) {
+		std::cerr << importMesh.Summary << '\n';
+		for (const auto& detail : importMesh.Details)
+			std::cerr << detail.Code << ": " << detail.Message << " [" << detail.Context << "]\n";
+	}
 	Require(importMesh.Succeeded(), "Expected asset.import to succeed through ApplicationOperations");
 	Require(importMesh.Operation == "asset.import", "Expected asset.import result to preserve the stable operation id");
 	Require(!importedGuid.empty(), "Expected asset.import to return an asset guid");

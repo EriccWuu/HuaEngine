@@ -1,159 +1,87 @@
 #include "enginepch.h"
 #include "Selection.h"
-
 #include <algorithm>
 
 namespace HE {
-	namespace {
-		std::vector<Entity>& ResolvedSelectionCache() {
-			static std::vector<Entity> selections;
-			return selections;
-		}
-
-		Entity& EmptySelection() {
-			static Entity selection;
-			return selection;
-		}
-	}
-
-	Editor::EditorSelectionService& Selection::GetService() {
-		static Editor::EditorSelectionService service;
-		return service;
-	}
-
-	void Selection::SetSelection(const Entity& selection) {
-		SetSelectedEntity(selection.IsValid() ? selection.GetUuid() : EntityUuid{});
-	}
-
-	void Selection::SetSelectedEntity(EntityUuid uuid) {
-		GetService().SelectEntities(uuid == EntityUuid{} ? std::vector<EntityUuid>{} : std::vector<EntityUuid>{ uuid });
-	}
-
-	void Selection::SetSelections(std::vector<Entity> selections) {
-		std::vector<EntityUuid> entities;
-		entities.reserve(selections.size());
-		for (const Entity& selection : selections) {
-			if (selection.IsValid()) entities.push_back(selection.GetUuid());
-		}
-		GetService().SelectEntities(std::move(entities));
-	}
-
-	void Selection::SetSelectedEntities(std::vector<EntityUuid> selections) {
-		GetService().SelectEntities(std::move(selections));
-	}
-
-	void Selection::AddToSelection(const Entity& selection) {
-		if (!selection.IsValid() || IsSelected(selection)) return;
-		auto entities = GetSelectedEntityUuids();
-		entities.push_back(selection.GetUuid());
-		GetService().SelectEntities(std::move(entities));
-	}
-
-	void Selection::ToggleSelection(const Entity& selection) {
-		if (!selection.IsValid()) return;
-		if (IsSelected(selection)) RemoveFromSelection(selection); else AddToSelection(selection);
-	}
-
-	void Selection::RemoveFromSelection(const Entity& selection) {
-		auto entities = GetSelectedEntityUuids();
-		const EntityUuid uuid = selection.GetUuid();
-		entities.erase(std::remove(entities.begin(), entities.end(), uuid), entities.end());
-		GetService().SelectEntities(std::move(entities));
-	}
-
-	Entity& Selection::GetSelection() {
-		RemoveInvalidSelections();
-		return EmptySelection();
-	}
-
-	const std::vector<Entity>& Selection::GetSelections() {
-		RemoveInvalidSelections();
-		auto& selections = ResolvedSelectionCache();
-		selections.clear();
-		return selections;
-	}
-
-	Entity Selection::ResolvePrimarySelection(World& world) {
-		RemoveInvalidSelections(world);
-		const auto& entities = GetSelectedEntityUuids();
-		return entities.empty() ? Entity{} : world.GetEntity(entities.front());
-	}
-
-	const std::vector<Entity>& Selection::ResolveSelections(World& world) {
-		RemoveInvalidSelections(world);
-		auto& selections = ResolvedSelectionCache();
-		selections.clear();
-		selections.reserve(GetSelectedEntityUuids().size());
-		for (EntityUuid uuid : GetSelectedEntityUuids()) {
-			Entity entity = world.GetEntity(uuid);
-			if (entity.IsValid()) selections.push_back(entity);
-		}
-		return selections;
-	}
-
-	EntityUuid Selection::GetSelectedEntityUuid() {
-		RemoveInvalidSelections();
-		const auto& entities = GetSelectedEntityUuids();
-		return entities.empty() ? EntityUuid{} : entities.front();
-	}
-
-	const std::vector<EntityUuid>& Selection::GetSelectedEntityUuids() {
-		static const std::vector<EntityUuid> empty;
-		const auto* selection = GetService().GetEntitySelection();
-		return selection ? selection->Entities : empty;
-	}
-
-	bool Selection::HasSelection() {
-		RemoveInvalidSelections();
-		return GetService().HasEntitySelection();
-	}
-
-	bool Selection::HasSingleSelection() {
-		RemoveInvalidSelections();
-		return GetSelectedEntityUuids().size() == 1;
-	}
-
-	bool Selection::IsSelected(const Entity& selection) {
-		RemoveInvalidSelections();
-		if (!selection.IsValid()) return false;
-		const auto& entities = GetSelectedEntityUuids();
-		return std::find(entities.begin(), entities.end(), selection.GetUuid()) != entities.end();
-	}
-
-	size_t Selection::Count() {
-		RemoveInvalidSelections();
-		return GetSelectedEntityUuids().size();
-	}
-
-	void Selection::ClearSelection() {
-		GetService().Clear();
-		ResolvedSelectionCache().clear();
-		EmptySelection() = {};
-	}
-
-	void Selection::RemoveInvalidSelections() {
-		if (const auto* selection = GetService().GetEntitySelection(); selection && selection->Entities.empty()) GetService().Clear();
-	}
-
-	void Selection::RemoveInvalidSelections(World& world) {
-		if (!GetService().HasEntitySelection()) return;
-		auto entities = GetSelectedEntityUuids();
-		entities.erase(
-			std::remove_if(entities.begin(), entities.end(), [&world](EntityUuid uuid) { return !world.GetEntity(uuid).IsValid(); }),
-			entities.end());
-		GetService().SelectEntities(std::move(entities));
-	}
-
-	void Selection::SelectAsset(AssetGuid guid) {
-		GetService().SelectAsset(std::move(guid));
-	}
-
-	bool Selection::HasAssetSelection() {
-		return GetService().HasAssetSelection();
-	}
-
-	AssetGuid Selection::GetSelectedAssetGuid() {
-		const auto* selection = GetService().GetAssetSelection();
-		return selection ? selection->Guid : AssetGuid{};
-	}
+    Editor::EditorSelectionService& Selection::GetService() {
+        static Editor::EditorSelectionService service;
+        return service;
+    }
+    void Selection::SetSelection(const Ecs::World& world, EntityId entity) {
+        SetSelectedEntity(world.IsAlive(entity) ? world.Uuid(entity) : EntityUuid{});
+    }
+    void Selection::SetSelectedEntity(EntityUuid uuid) {
+        GetService().SelectEntities(uuid == EntityUuid{} ? std::vector<EntityUuid>{} : std::vector<EntityUuid>{uuid});
+    }
+    void Selection::SetSelections(const Ecs::World& world, std::span<const EntityId> entities) {
+        std::vector<EntityUuid> selected;
+        selected.reserve(entities.size());
+        for (auto entity : entities) if (world.IsAlive(entity)) selected.push_back(world.Uuid(entity));
+        SetSelectedEntities(std::move(selected));
+    }
+    void Selection::SetSelectedEntities(std::vector<EntityUuid> entities) { GetService().SelectEntities(std::move(entities)); }
+    void Selection::AddToSelection(const Ecs::World& world, EntityId entity) {
+        if (!world.IsAlive(entity) || IsSelected(world, entity)) return;
+        auto entities = GetSelectedEntityUuids();
+        entities.push_back(world.Uuid(entity));
+        SetSelectedEntities(std::move(entities));
+    }
+    void Selection::ToggleSelection(const Ecs::World& world, EntityId entity) {
+        if (!world.IsAlive(entity)) return;
+        if (IsSelected(world, entity)) RemoveFromSelection(world, entity); else AddToSelection(world, entity);
+    }
+    void Selection::RemoveFromSelection(const Ecs::World& world, EntityId entity) {
+        auto entities = GetSelectedEntityUuids();
+        const auto uuid = world.Uuid(entity);
+        std::erase(entities, uuid);
+        SetSelectedEntities(std::move(entities));
+    }
+    EntityId Selection::ResolvePrimarySelection(const Ecs::World& world) {
+        RemoveInvalidSelections(world);
+        const auto& entities = GetSelectedEntityUuids();
+        return entities.empty() ? EntityId{} : world.Find(entities.front());
+    }
+    std::vector<EntityId> Selection::ResolveSelections(const Ecs::World& world) {
+        RemoveInvalidSelections(world);
+        std::vector<EntityId> result;
+        result.reserve(GetSelectedEntityUuids().size());
+        for (const auto uuid : GetSelectedEntityUuids()) {
+            const auto entity = world.Find(uuid);
+            if (world.IsAlive(entity)) result.push_back(entity);
+        }
+        return result;
+    }
+    EntityUuid Selection::GetSelectedEntityUuid() {
+        const auto& entities = GetSelectedEntityUuids();
+        return entities.empty() ? EntityUuid{} : entities.front();
+    }
+    const std::vector<EntityUuid>& Selection::GetSelectedEntityUuids() {
+        static const std::vector<EntityUuid> empty;
+        const auto* selected = GetService().GetEntitySelection();
+        return selected ? selected->Entities : empty;
+    }
+    bool Selection::HasSelection() { RemoveInvalidSelections(); return GetService().HasEntitySelection(); }
+    bool Selection::HasSingleSelection() { return GetSelectedEntityUuids().size() == 1; }
+    bool Selection::IsSelected(const Ecs::World& world, EntityId entity) {
+        if (!world.IsAlive(entity)) return false;
+        const auto& entities = GetSelectedEntityUuids();
+        return std::find(entities.begin(), entities.end(), world.Uuid(entity)) != entities.end();
+    }
+    size_t Selection::Count() { return GetSelectedEntityUuids().size(); }
+    void Selection::ClearSelection() { GetService().Clear(); }
+    void Selection::RemoveInvalidSelections() {
+        if (const auto* selected = GetService().GetEntitySelection(); selected && selected->Entities.empty()) GetService().Clear();
+    }
+    void Selection::RemoveInvalidSelections(const Ecs::World& world) {
+        if (!GetService().HasEntitySelection()) return;
+        auto entities = GetSelectedEntityUuids();
+        std::erase_if(entities, [&world](EntityUuid uuid) { return !world.IsAlive(world.Find(uuid)); });
+        SetSelectedEntities(std::move(entities));
+    }
+    void Selection::SelectAsset(AssetGuid guid) { GetService().SelectAsset(std::move(guid)); }
+    bool Selection::HasAssetSelection() { return GetService().HasAssetSelection(); }
+    AssetGuid Selection::GetSelectedAssetGuid() {
+        const auto* selected = GetService().GetAssetSelection();
+        return selected ? selected->Guid : AssetGuid{};
+    }
 }

@@ -1,7 +1,10 @@
+#include <array>
+#include <cstdint>
 #include <cstdlib>
 #include <filesystem>
 #include <fstream>
 #include <iostream>
+#include <iterator>
 #include <string>
 #include <string_view>
 #include <vector>
@@ -165,36 +168,12 @@ namespace {
 			std::string(context) + ": missing fragment " + std::string(fragment) + "\n" + std::string(output));
 	}
 
-	void WriteTextFile(const std::filesystem::path& path, std::string_view content) {
-		std::error_code errorCode;
-		std::filesystem::create_directories(path.parent_path(), errorCode);
-		Expect(!errorCode, "Failed to create fixture directory: " + path.parent_path().string());
-
-		std::ofstream stream(path, std::ios::binary);
-		Expect(stream.is_open(), "Failed to open fixture file: " + path.string());
-		stream << content;
-		stream.close();
-		Expect(stream.good(), "Failed to write fixture file: " + path.string());
-	}
-
-	void CopyFileToFixture(const std::filesystem::path& source, const std::filesystem::path& destination) {
-		std::error_code errorCode;
-		std::filesystem::create_directories(destination.parent_path(), errorCode);
-		Expect(!errorCode, "Failed to create fixture directory: " + destination.parent_path().string());
-		std::filesystem::copy_file(source, destination, std::filesystem::copy_options::overwrite_existing, errorCode);
-		Expect(!errorCode, "Failed to copy fixture file from " + source.string() + " to " + destination.string());
-	}
-
-	void ExpectResultEnvelope(
-		std::string_view output,
-		std::string_view operation,
-		std::string_view reflectedTypeCount,
-		std::string_view reflectedEnumCount,
-		std::string_view context) {
-		ExpectContains(output, "\"operation\":\"" + std::string(operation) + "\"", context);
-		ExpectContains(output, "\"status\":\"success\"", context);
-		ExpectContains(output, "\"reflected_type_count\":\"" + std::string(reflectedTypeCount) + "\"", context);
-		ExpectContains(output, "\"reflected_enum_count\":\"" + std::string(reflectedEnumCount) + "\"", context);
+	void ExpectSuccess(const ProcessResult& result, std::string_view operation) {
+		Expect(result.ExitCode == 0, std::string(operation) + " should succeed\n" + result.Output);
+		ExpectContains(result.Output, "\"operation\":\"" + std::string(operation) + "\"", operation);
+		ExpectContains(result.Output, "\"status\":\"success\"", operation);
+		ExpectContains(result.Output, "\"reflected_type_count\"", operation);
+		ExpectContains(result.Output, "\"reflected_enum_count\"", operation);
 	}
 
 	std::filesystem::path GetCurrentExecutablePath() {
@@ -212,119 +191,127 @@ namespace {
 		}
 	}
 
-	std::filesystem::path FindRepositoryRoot(std::filesystem::path start) {
-		std::error_code errorCode;
-		start = std::filesystem::absolute(std::move(start), errorCode);
-		Expect(!errorCode, "Failed to resolve current directory");
+	std::string ReadText(const std::filesystem::path& path) {
+		std::ifstream input(path, std::ios::binary);
+		Expect(input.is_open(), "Failed to read " + path.string());
+		return { std::istreambuf_iterator<char>(input), std::istreambuf_iterator<char>() };
+	}
 
-		for (std::filesystem::path candidate = start; !candidate.empty(); candidate = candidate.parent_path()) {
-			if (std::filesystem::exists(candidate / "Tools" / "Reflection" / "reflection_tool.py")) {
-				return candidate;
+	std::string Utf8PathArgument(const std::filesystem::path& path) {
+		const auto encoded = path.generic_u8string();
+		return { reinterpret_cast<const char*>(encoded.data()), encoded.size() };
+	}
+
+	std::filesystem::path ConfiguredPath(const std::string& config, std::string_view key) {
+		const std::string quotedKey = "\"" + std::string(key) + "\"";
+		const size_t keyAt = config.find(quotedKey);
+		Expect(keyAt != std::string::npos, "Missing meta configuration key: " + std::string(key));
+		const size_t separator = config.find(':', keyAt + quotedKey.size());
+		Expect(separator != std::string::npos, "Invalid meta configuration key: " + std::string(key));
+		const size_t valueAt = config.find('"', separator);
+		Expect(valueAt != std::string::npos, "Invalid meta configuration value: " + std::string(key));
+		std::string value;
+		for (size_t index = valueAt + 1; index < config.size(); ++index) {
+			const char character = config[index];
+			if (character == '"') {
+				const std::filesystem::path path = std::filesystem::u8path(value);
+				Expect(path.is_absolute(), "Meta configuration path must be absolute: " + std::string(key));
+				return path;
 			}
-
-			if (candidate == candidate.parent_path()) {
-				break;
+			if (character == '\\' && index + 1 < config.size()) {
+				const char escaped = config[++index];
+				Expect(escaped == '\\' || escaped == '/' || escaped == '"', "Unsupported path escape in meta configuration");
+				value += escaped;
+			} else {
+				value += character;
 			}
 		}
-
-		Expect(false, "Failed to locate repository root");
+		Expect(false, "Unterminated meta configuration path: " + std::string(key));
 		return {};
 	}
 
-	void ExpectReflectionResult(
-		const std::filesystem::path& cliExecutable,
-		const std::filesystem::path& workingDirectory,
-		const std::filesystem::path& repositoryRoot,
-		std::string_view command,
-		std::string_view operation) {
-		const auto result = RunCLICommand(
-			cliExecutable,
-			{ "reflection", std::string(command), "--root", repositoryRoot.string() },
-			workingDirectory);
+	struct FileFingerprint {
+		std::filesystem::file_time_type Modified;
+		uint64_t Hash = 14695981039346656037ull;
+		uintmax_t Size = 0;
+	};
 
-		Expect(result.ExitCode == 0, std::string(command) + " should exit with code 0\n" + result.Output);
-		ExpectResultEnvelope(result.Output, operation, "4", "1", command);
+	FileFingerprint Fingerprint(const std::filesystem::path& path) {
+		Expect(std::filesystem::is_regular_file(path), "Missing generated artifact: " + path.string());
+		FileFingerprint result;
+		result.Modified = std::filesystem::last_write_time(path);
+		result.Size = std::filesystem::file_size(path);
+		for (const unsigned char byte : ReadText(path)) {
+			result.Hash = (result.Hash ^ byte) * 1099511628211ull;
+		}
+		return result;
 	}
 
-	void ExpectReflectionResult(
+	void ValidateWithoutWriting(
 		const std::filesystem::path& cliExecutable,
 		const std::filesystem::path& workingDirectory,
-		const std::vector<std::string>& arguments,
-		std::string_view operation,
-		std::string_view reflectedTypeCount,
-		std::string_view reflectedEnumCount,
-		std::string_view context) {
-		const auto result = RunCLICommand(cliExecutable, arguments, workingDirectory);
+		const std::filesystem::path& configPath,
+		const std::string& config) {
+		const auto manifest = ConfiguredPath(config, "manifest");
+		const auto output = ConfiguredPath(config, "output_dir");
+		const std::array<std::filesystem::path, 6> artifacts{
+			manifest,
+			output / "GeneratedReflection.h",
+			output / "GeneratedReflection.cpp",
+			output / "GeneratedQueries.h",
+			output / "GeneratedQueries.cpp",
+			output / "generation-stamp.json"
+		};
+		std::array<FileFingerprint, 6> before;
+		for (size_t index = 0; index < artifacts.size(); ++index) {
+			before[index] = Fingerprint(artifacts[index]);
+		}
 
-		Expect(result.ExitCode == 0, std::string(context) + " should exit with code 0\n" + result.Output);
-		ExpectResultEnvelope(result.Output, operation, reflectedTypeCount, reflectedEnumCount, context);
-	}
-
-	void RunShellSafePathSmoke(
-		const std::filesystem::path& cliExecutable,
-		const std::filesystem::path& workingDirectory,
-		const std::filesystem::path& repositoryRoot) {
-		const auto fixtureRoot = repositoryRoot / "Tools" / "Reflection" / ".smoke" / "reflection_cli_smoke" / "root with spaces %USERNAME% & meta";
-		RegisterCleanupPath(repositoryRoot / "Tools" / "Reflection" / ".smoke" / "reflection_cli_smoke");
-		std::error_code errorCode;
-		std::filesystem::remove_all(fixtureRoot, errorCode);
-		Expect(!errorCode, "Failed to clean CLI shell-safe fixture");
-
-		CopyFileToFixture(
-			repositoryRoot / "Tools" / "Reflection" / "reflection_tool.py",
-			fixtureRoot / "Tools" / "Reflection" / "reflection_tool.py");
-		WriteTextFile(
-			fixtureRoot / "HuaEngine" / "src" / "Fixture" / "ShellSafeComponent.h",
-			"namespace HE {\n"
-			"HE_REFLECT_" "COMPONENT(DisplayName=\"Shell Safe\", Category=\"Fixture\")\n"
-			"struct ShellSafeComponent {\n"
-			"    HE_REFLECT_" "FIELD()\n"
-			"    int Value = 7;\n"
-			"};\n"
-			"}\n");
-
-		const auto generatedDirectory = fixtureRoot / "HuaEngine" / "src" / "HuaEngine" / "Generated";
-		ExpectReflectionResult(
-			cliExecutable,
-			workingDirectory,
-			{ "reflection", "scan", "--root", fixtureRoot.string() },
-			"reflection.scan",
-			"1",
-			"0",
-			"reflection scan with shell-safe root");
-		ExpectReflectionResult(
-			cliExecutable,
-			workingDirectory,
-			{ "reflection", "generate", "--root", fixtureRoot.string(), "--out-dir", generatedDirectory.string() },
-			"reflection.generate",
-			"1",
-			"0",
-			"reflection generate with shell-safe root");
-		ExpectReflectionResult(
-			cliExecutable,
-			workingDirectory,
-			{ "reflection", "validate", "--root", fixtureRoot.string() },
-			"reflection.validate",
-			"1",
-			"0",
-			"reflection validate with shell-safe root");
+		ExpectSuccess(RunCLICommand(cliExecutable,
+			{ "reflection", "validate", "--meta-config", Utf8PathArgument(configPath) }, workingDirectory), "reflection.validate");
+		for (size_t index = 0; index < artifacts.size(); ++index) {
+			const auto after = Fingerprint(artifacts[index]);
+			Expect(after.Modified == before[index].Modified && after.Size == before[index].Size && after.Hash == before[index].Hash,
+				"Validation must not rewrite " + artifacts[index].string());
+		}
 	}
 }
 
-int main() {
+int main(int argc, char** argv) {
 	(void)CleanupPaths();
 	std::atexit(CleanupRegisteredPaths);
+	Expect(argc == 2, "CTest must pass the absolute Core meta-config path");
+	const std::filesystem::path configPath = std::filesystem::absolute(std::filesystem::u8path(argv[1]));
+	Expect(std::filesystem::is_regular_file(configPath), "Missing CMake-generated meta configuration");
+	const std::string config = ReadText(configPath);
 
-	const auto binaryDirectory = GetCurrentExecutablePath().parent_path();
-	const auto cliExecutable = binaryDirectory / "HuaEngineCLI.exe";
-	Expect(std::filesystem::exists(cliExecutable), "HuaEngineCLI.exe must exist next to the smoke executable");
+	const auto cliExecutable = GetCurrentExecutablePath().parent_path() / "HuaEngineCLI.exe";
+	Expect(std::filesystem::is_regular_file(cliExecutable), "HuaEngineCLI.exe must exist next to the smoke executable");
+	const auto workingDirectory = std::filesystem::current_path();
+	const auto missingConfig = RunCLICommand(cliExecutable, { "reflection", "scan" }, workingDirectory);
+	Expect(missingConfig.ExitCode != 0, "Scanning without --meta-config must fail");
+	ExpectContains(missingConfig.Output, "--meta-config", "missing meta configuration");
 
-	const auto repositoryRoot = FindRepositoryRoot(std::filesystem::current_path());
-	RegisterCleanupPath(repositoryRoot / "Tools" / "Reflection" / "__pycache__");
-	RegisterCleanupPath(repositoryRoot / "Tools" / "Reflection" / "reflection_manifest.json");
-	ExpectReflectionResult(cliExecutable, binaryDirectory, repositoryRoot, "scan", "reflection.scan");
-	ExpectReflectionResult(cliExecutable, binaryDirectory, repositoryRoot, "validate", "reflection.validate");
-	RunShellSafePathSmoke(cliExecutable, binaryDirectory, repositoryRoot);
+	const auto fixtureWorkspace = configPath.parent_path() / ("cli-reflection-smoke-" + std::to_string(GetCurrentProcessId()));
+	RegisterCleanupPath(fixtureWorkspace);
+	const auto fixtureRoot = fixtureWorkspace / std::filesystem::u8path(u8"root with spaces %USERNAME% & unicode 空间");
+	std::filesystem::create_directories(fixtureRoot);
+	const auto fixtureConfig = fixtureRoot / "meta-config.json";
+	std::filesystem::copy_file(configPath, fixtureConfig, std::filesystem::copy_options::overwrite_existing);
+	const auto fixtureManifest = fixtureRoot / "manifest.json";
+	const auto fixtureGenerated = fixtureRoot / "generated";
+
+	ExpectSuccess(RunCLICommand(cliExecutable,
+		{ "reflection", "scan", "--meta-config", Utf8PathArgument(fixtureConfig), "--out", Utf8PathArgument(fixtureManifest) },
+		workingDirectory), "reflection.scan");
+	Expect(std::filesystem::is_regular_file(fixtureManifest), "CLI scan must write the requested manifest");
+	ExpectSuccess(RunCLICommand(cliExecutable,
+		{ "reflection", "generate", "--meta-config", Utf8PathArgument(fixtureConfig), "--out", Utf8PathArgument(fixtureManifest),
+			"--out-dir", Utf8PathArgument(fixtureGenerated) }, workingDirectory), "reflection.generate");
+	Expect(std::filesystem::is_regular_file(fixtureGenerated / "GeneratedReflection.cpp"), "CLI must generate reflection source");
+	Expect(std::filesystem::is_regular_file(fixtureGenerated / "GeneratedQueries.cpp"), "CLI must generate query source");
+
+	ValidateWithoutWriting(cliExecutable, workingDirectory, configPath, config);
 
 	std::cout << "CLIReflectionSmoke passed" << std::endl;
 	return 0;

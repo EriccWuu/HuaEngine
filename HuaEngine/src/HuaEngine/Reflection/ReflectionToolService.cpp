@@ -3,9 +3,11 @@
 
 #include <fstream>
 #include <sstream>
+#include <stdexcept>
 #include <string_view>
 #include <system_error>
 #include <vector>
+#include <yaml-cpp/yaml.h>
 
 #ifdef HE_PLATFORM_WINDOWS
 #define WIN32_LEAN_AND_MEAN
@@ -17,6 +19,11 @@
 #endif
 
 namespace {
+	std::string PathUtf8(const std::filesystem::path& path) {
+		const auto encoded = path.generic_u8string();
+		return { reinterpret_cast<const char*>(encoded.data()), encoded.size() };
+	}
+
 	std::filesystem::path NormalizePath(const std::filesystem::path& path) {
 		if (path.empty()) {
 			return {};
@@ -45,6 +52,28 @@ namespace {
 		std::ostringstream output;
 		output << stream.rdbuf();
 		return output.str();
+	}
+
+	YAML::Node ReadMetaConfiguration(const std::filesystem::path& path) {
+		if (path.empty() || !std::filesystem::is_regular_file(path)) {
+			throw std::invalid_argument("Missing meta configuration. Run CMake configure first and pass --meta-config <module/configuration/meta-config.json>.");
+		}
+		const auto config = YAML::Load(ReadFileText(path));
+		if (!config.IsMap() || !config["config_version"] || config["config_version"].as<int>() != 1) {
+			throw std::invalid_argument("Unsupported meta configuration version; run CMake configure again.");
+		}
+		return config;
+	}
+
+	std::filesystem::path ConfiguredPath(const YAML::Node& config, const char* key) {
+		if (!config[key] || !config[key].IsScalar()) {
+			throw std::invalid_argument(std::string("Meta configuration requires ") + key);
+		}
+		const auto path = std::filesystem::u8path(config[key].as<std::string>());
+		if (!path.is_absolute()) {
+			throw std::invalid_argument(std::string("Meta configuration requires an absolute ") + key + " path");
+		}
+		return NormalizePath(path);
 	}
 
 	size_t CountQualifiedNames(std::string_view text) {
@@ -180,7 +209,7 @@ namespace {
 	}
 
 	ToolArgument PathArgument(const std::filesystem::path& path) {
-		return { path.wstring(), path.generic_string() };
+		return { path.wstring(), PathUtf8(path) };
 	}
 
 	std::wstring QuoteForWindowsCommandLine(const std::wstring& argument) {
@@ -438,7 +467,7 @@ namespace {
 		const std::filesystem::path& rootPath,
 		std::string summary,
 		std::string context = {}) {
-		auto result = HE::ResultEnvelope::Failure(std::move(operation), rootPath.generic_string(), std::move(summary));
+		auto result = HE::ResultEnvelope::Failure(std::move(operation), PathUtf8(rootPath), std::move(summary));
 		if (!context.empty()) {
 			result.AddDetail({ HE::DiagnosticSeverity::Error, "reflection.tool.request_invalid", result.Summary, std::move(context) });
 		}
@@ -450,13 +479,14 @@ namespace {
 		const HE::ReflectionToolRequest& request,
 		std::string toolOutput,
 		ReflectionPayloadCounts counts) {
-		result.SetPayloadValue("root", request.RootPath.generic_string());
-		result.SetPayloadValue("manifest", request.ManifestPath.generic_string());
+		result.SetPayloadValue("root", PathUtf8(request.RootPath));
+		result.SetPayloadValue("meta_config", PathUtf8(request.MetaConfigPath));
+		result.SetPayloadValue("manifest", PathUtf8(request.ManifestPath));
 		result.SetPayloadValue("tool_output", std::move(toolOutput));
 		result.SetPayloadValue("reflected_type_count", std::to_string(counts.ReflectedTypes));
 		result.SetPayloadValue("reflected_enum_count", std::to_string(counts.ReflectedEnums));
 		if (!request.OutputDirectory.empty()) {
-			result.SetPayloadValue("output_directory", request.OutputDirectory.generic_string());
+			result.SetPayloadValue("output_directory", PathUtf8(request.OutputDirectory));
 		}
 	}
 
@@ -466,14 +496,19 @@ namespace {
 		const HE::ReflectionToolRequest& request,
 		const std::vector<ToolArgument>& toolArguments,
 		bool countFromManifest) {
-		const auto toolPath = request.RootPath / "Tools" / "Reflection" / "reflection_tool.py";
+		const auto config = ReadMetaConfiguration(request.MetaConfigPath);
+		const auto toolPath = ConfiguredPath(config, "generator");
+		const auto pythonPath = ConfiguredPath(config, "python");
 		if (!std::filesystem::exists(toolPath)) {
-			return MakeRequestFailure(std::move(operation), request.RootPath, "Reflection tool script was not found", toolPath.generic_string());
+			return MakeRequestFailure(std::move(operation), request.RootPath, "Reflection tool script was not found", PathUtf8(toolPath));
+		}
+		if (!std::filesystem::is_regular_file(pythonPath)) {
+			return MakeRequestFailure(std::move(operation), request.RootPath, "Configured Python runtime was not found; run the project bootstrap first", PathUtf8(pythonPath));
 		}
 
 		std::vector<ToolArgument> arguments;
 		arguments.reserve(toolArguments.size() + 2);
-		arguments.push_back(LiteralArgument("python"));
+		arguments.push_back(PathArgument(pythonPath));
 		arguments.push_back(PathArgument(toolPath));
 		arguments.insert(arguments.end(), toolArguments.begin(), toolArguments.end());
 
@@ -486,7 +521,7 @@ namespace {
 		};
 
 		if (execution.ExitCode != 0) {
-			auto result = HE::ResultEnvelope::Failure(std::move(operation), request.RootPath.generic_string(), "Reflection tool command failed");
+			auto result = HE::ResultEnvelope::Failure(std::move(operation), PathUtf8(request.RootPath), "Reflection tool command failed");
 			AddCommonPayload(result, request, execution.Output, counts);
 			result.AddDetail({
 				HE::DiagnosticSeverity::Error,
@@ -497,7 +532,7 @@ namespace {
 			return result;
 		}
 
-		auto result = HE::ResultEnvelope::Success(std::move(operation), request.RootPath.generic_string(), std::move(summary));
+		auto result = HE::ResultEnvelope::Success(std::move(operation), PathUtf8(request.RootPath), std::move(summary));
 		AddCommonPayload(result, request, execution.Output, counts);
 		return result;
 	}
@@ -506,71 +541,76 @@ namespace {
 namespace HE {
 	ReflectionToolRequest ReflectionToolService::ResolveRequestDefaults(const ReflectionToolRequest& request) const {
 		ReflectionToolRequest resolved;
-		resolved.RootPath = NormalizePath(request.RootPath);
-		if (resolved.RootPath.empty()) {
-			return resolved;
+		resolved.MetaConfigPath = NormalizePath(request.MetaConfigPath);
+		const auto config = ReadMetaConfiguration(resolved.MetaConfigPath);
+		resolved.RootPath = ConfiguredPath(config, "repository_root");
+		if (!request.RootPath.empty() && NormalizePath(request.RootPath) != resolved.RootPath) {
+			throw std::invalid_argument("The requested root differs from the selected meta configuration.");
 		}
-
+		resolved.EntryHeader = ConfiguredPath(config, "entry_header");
+		if (!request.EntryHeader.empty() && NormalizePath(request.EntryHeader) != resolved.EntryHeader) {
+			throw std::invalid_argument("The requested entry header differs from the scanning target; run CMake configure with that entry first.");
+		}
 		resolved.ManifestPath = request.ManifestPath.empty()
-			? resolved.RootPath / "Tools" / "Reflection" / "reflection_manifest.json"
+			? ConfiguredPath(config, "manifest")
 			: NormalizePath(request.ManifestPath);
 		resolved.OutputDirectory = request.OutputDirectory.empty()
-			? resolved.RootPath / "HuaEngine" / "src" / "HuaEngine" / "Generated"
+			? ConfiguredPath(config, "output_dir")
 			: NormalizePath(request.OutputDirectory);
 		return resolved;
 	}
 
 	ResultEnvelope ReflectionToolService::Scan(const ReflectionToolRequest& request) const {
-		const auto resolved = ResolveRequestDefaults(request);
-		if (resolved.RootPath.empty()) {
-			return MakeRequestFailure("reflection.scan", {}, "Reflection scan requires a root path");
+		try {
+			const auto resolved = ResolveRequestDefaults(request);
+			return RunReflectionTool(
+				"reflection.scan",
+				"Reflection manifest generated",
+				resolved,
+				{ LiteralArgument("scan"), LiteralArgument("--meta-config"), PathArgument(resolved.MetaConfigPath), LiteralArgument("--out"), PathArgument(resolved.ManifestPath) },
+				true);
+		} catch (const std::exception& exception) {
+			return MakeRequestFailure("reflection.scan", request.RootPath, exception.what(), PathUtf8(request.MetaConfigPath));
 		}
-
-		return RunReflectionTool(
-			"reflection.scan",
-			"Reflection manifest generated",
-			resolved,
-			{ LiteralArgument("scan"), LiteralArgument("--root"), PathArgument(resolved.RootPath), LiteralArgument("--out"), PathArgument(resolved.ManifestPath) },
-			true);
 	}
 
 	ResultEnvelope ReflectionToolService::Generate(const ReflectionToolRequest& request) const {
-		const auto resolved = ResolveRequestDefaults(request);
-		if (resolved.RootPath.empty()) {
-			return MakeRequestFailure("reflection.generate", {}, "Reflection generation requires a root path");
-		}
+		try {
+			const auto resolved = ResolveRequestDefaults(request);
+			auto scanResult = Scan(resolved);
+			if (!scanResult.Succeeded()) {
+				scanResult.Operation = "reflection.generate";
+				scanResult.Summary = "Reflection generation failed during scan";
+				return scanResult;
+			}
 
-		auto scanResult = Scan(resolved);
-		if (!scanResult.Succeeded()) {
-			scanResult.Operation = "reflection.generate";
-			scanResult.Summary = "Reflection generation failed during scan";
-			return scanResult;
-		}
+			auto generateResult = RunReflectionTool(
+				"reflection.generate",
+				"Reflection files generated",
+				resolved,
+				{ LiteralArgument("generate"), LiteralArgument("--meta-config"), PathArgument(resolved.MetaConfigPath), LiteralArgument("--manifest"), PathArgument(resolved.ManifestPath), LiteralArgument("--out-dir"), PathArgument(resolved.OutputDirectory) },
+				true);
 
-		auto generateResult = RunReflectionTool(
-			"reflection.generate",
-			"Reflection files generated",
-			resolved,
-			{ LiteralArgument("generate"), LiteralArgument("--manifest"), PathArgument(resolved.ManifestPath), LiteralArgument("--out-dir"), PathArgument(resolved.OutputDirectory) },
-			true);
-
-		if (generateResult.Succeeded() && generateResult.Payload.find("tool_output") != generateResult.Payload.end()) {
-			generateResult.Payload["scan_output"] = scanResult.Payload["tool_output"];
+			if (generateResult.Succeeded() && generateResult.Payload.find("tool_output") != generateResult.Payload.end()) {
+				generateResult.Payload["scan_output"] = scanResult.Payload["tool_output"];
+			}
+			return generateResult;
+		} catch (const std::exception& exception) {
+			return MakeRequestFailure("reflection.generate", request.RootPath, exception.what(), PathUtf8(request.MetaConfigPath));
 		}
-		return generateResult;
 	}
 
 	ResultEnvelope ReflectionToolService::Validate(const ReflectionToolRequest& request) const {
-		const auto resolved = ResolveRequestDefaults(request);
-		if (resolved.RootPath.empty()) {
-			return MakeRequestFailure("reflection.validate", {}, "Reflection validation requires a root path");
+		try {
+			const auto resolved = ResolveRequestDefaults(request);
+			return RunReflectionTool(
+				"reflection.validate",
+				"Reflection manifest validated",
+				resolved,
+				{ LiteralArgument("validate"), LiteralArgument("--meta-config"), PathArgument(resolved.MetaConfigPath) },
+				false);
+		} catch (const std::exception& exception) {
+			return MakeRequestFailure("reflection.validate", request.RootPath, exception.what(), PathUtf8(request.MetaConfigPath));
 		}
-
-		return RunReflectionTool(
-			"reflection.validate",
-			"Reflection manifest validated",
-			resolved,
-			{ LiteralArgument("validate"), LiteralArgument("--root"), PathArgument(resolved.RootPath) },
-			false);
 	}
 }

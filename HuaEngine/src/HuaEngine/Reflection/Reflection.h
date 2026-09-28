@@ -1,5 +1,6 @@
 #pragma once
 
+#include <array>
 #include <cstddef>
 #include <cstdint>
 #include <cstring>
@@ -12,16 +13,41 @@
 #include <utility>
 #include <vector>
 
-#include "HuaEngine/ECS/ComponentType.h"
-#include "HuaEngine/ECS/EntityId.h"
 
 #include "TypeList.h"
 #include "FieldTraits.h"
 #include "misc.h"
 #include "ConstStr.h"
 
+namespace HE::Ecs { struct TypeDescriptor; }
+
 namespace HE {
-class World;
+
+namespace Generated {
+    struct ReflectedFieldInfo {
+        std::string_view Name;
+        std::string_view Type;
+    };
+    struct ReflectedTypeInfo {
+        std::string_view Name;
+        std::string_view QualifiedName;
+        std::string_view Kind;
+        std::string_view DisplayName;
+        std::string_view Category;
+        std::span<const ReflectedFieldInfo> Fields;
+    };
+    struct ReflectedEnumValueInfo {
+        std::string_view Name;
+        int64_t Value;
+        std::string_view DisplayName;
+    };
+    struct ReflectedEnumInfo {
+        std::string_view Name;
+        std::string_view QualifiedName;
+        std::string_view UnderlyingType;
+        std::span<const ReflectedEnumValueInfo> Values;
+    };
+}
 
 namespace Serialization {
     class SerializationBackend;
@@ -110,7 +136,6 @@ struct RuntimeTypeDescriptor {
     std::string_view Kind;
     std::string_view DisplayName;
     std::string_view Category;
-    ComponentTypeId TypeId;
     size_t Size;
     std::span<const RuntimeFieldDescriptor> Fields;
     void* (*ConstructDefault)();
@@ -118,12 +143,11 @@ struct RuntimeTypeDescriptor {
     void* (*Copy)(const void*);
     void (*Serialize)(Serialization::SerializationBackend&, const std::string&, const void*);
     bool (*Deserialize)(Serialization::SerializationBackend&, const std::string&, void*);
-    void (*AddCopyToWorld)(World&, EntityId, const void*);
+    Ecs::TypeDescriptor (*MakeEcsType)() = nullptr;
 };
 
 std::span<const RuntimeTypeDescriptor> GetRuntimeTypes();
 const RuntimeTypeDescriptor* FindRuntimeType(std::string_view qualifiedName);
-const RuntimeTypeDescriptor* FindRuntimeType(ComponentTypeId typeId);
 std::span<const RuntimeEnumDescriptor> GetRuntimeEnums();
 const RuntimeEnumDescriptor* FindRuntimeEnum(std::string_view qualifiedName);
 const RuntimeEnumValueDescriptor* FindRuntimeEnumValueByName(
@@ -455,10 +479,8 @@ const RuntimeTypeDescriptor& MakeStaticRuntimeTypeDescriptor(
         stableKind,
         "",
         "",
-        InvalidComponentTypeId,
         sizeof(Type),
         std::span<const RuntimeFieldDescriptor>{ fields.data(), fields.size() },
-        nullptr,
         nullptr,
         nullptr,
         nullptr,

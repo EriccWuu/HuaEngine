@@ -8,7 +8,7 @@
 #include "glm/glm.hpp"
 
 #include "HuaEngine/Core/Core.h"
-#include "HuaEngine/ECS/Entity.h"
+#include "HuaEngine/ECS/EntityId.h"
 #include "HuaEngine/Rendering/RenderCamera.h"
 #include "HuaEngine/Rendering/Material/Material.h"
 #include "HuaEngine/Rendering/RHI/BindGroup.h"
@@ -36,7 +36,8 @@ namespace HE::Rendering {
 	};
 
 	struct RenderItem {
-		Entity SourceEntity;
+		EntityId SourceEntity;
+		uint64_t SourceWorldId = 0;
 		glm::mat4 Transform = glm::mat4(1.0f);
 		MeshAssetRef Mesh;
 		MaterialAssetRef Material;
@@ -56,7 +57,7 @@ namespace HE::Rendering {
 
 	struct RenderDiagnostic {
 		RenderDiagnosticCode Code;
-		Entity SourceEntity;
+		EntityId SourceEntity;
 		std::string Message;
 	};
 

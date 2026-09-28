@@ -1,3 +1,4 @@
+#include "ECSTestSupport.h"
 #include <cstdlib>
 #include <filesystem>
 #include <iostream>
@@ -32,11 +33,9 @@ namespace {
 
 	HE::TransformComponent& GetFirstTransform(HE::Scene& scene) {
 		HE::TransformComponent* firstTransform = nullptr;
-		scene.GetWorld().Query<HE::TransformComponent>().ForEach([&](HE::Entity, HE::TransformComponent& transform) {
-			if (firstTransform == nullptr) {
-				firstTransform = &transform;
-			}
-		});
+		for (const auto id : scene.GetWorld().Entities()) {
+            if (auto* value = scene.GetWorld().TryGet<HE::TransformComponent>(id)) { firstTransform = value; break; }
+        }
 		Require(firstTransform != nullptr, "Expected at least one TransformComponent in the scene");
 		return *firstTransform;
 	}
@@ -77,8 +76,8 @@ int main() {
 	auto createScene = operations.CreateScene("WorkbenchScene", scene);
 	Require(createScene.Succeeded() && scene, "Expected scene.create to succeed");
 
-	auto entity = scene->GetWorld().CreateEntity();
-	auto& transform = entity.GetComponent<HE::TransformComponent>();
+	auto entity = ECSTestSupport::Take(scene->CreateEntity());
+	auto& transform = ECSTestSupport::Get<HE::TransformComponent>(scene->GetWorld(), entity);
 	transform.Position = { 1.0f, 2.0f, 3.0f };
 
 	HE::SceneDocument document;

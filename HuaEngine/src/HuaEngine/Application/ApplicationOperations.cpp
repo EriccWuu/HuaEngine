@@ -9,9 +9,10 @@
 #include "HuaEngine/Scene/SceneService.h"
 #include "HuaEngine/Asset/AssetService.h"
 #include "HuaEngine/Rendering/RHI/RenderTarget.h"
+#include "HuaEngine/Rendering/RenderPipeline/RenderTypes.h"
 #include "HuaEngine/Validation/ValidationService.h"
-#include "Module/Rendering/CameraSystem.h"
-#include "Module/Rendering/RenderSystem.h"
+#include "EcsResultEnvelope.h"
+#include "HuaEngine/ECS/Runtime/WorldScope.h"
 #include "Module/Rendering/RenderingComponent.h"
 
 namespace {
@@ -34,29 +35,21 @@ namespace {
 		return result;
 	}
 
-	HE::Entity ResolveSceneEntity(HE::Scene& scene, uint32_t entityId) {
-		return scene.GetWorld().GetEntityByIndex(entityId);
-	}
-
-	bool EnsureSceneEntityExists(HE::Scene& scene, uint32_t entityId, HE::ResultEnvelope& outError) {
-		auto entity = ResolveSceneEntity(scene, entityId);
-		if (entity.IsValid()) {
-			return true;
-		}
-
-		outError = MakeSceneEntityMissingResult("scene.entity.resolve", scene, entityId, "Scene entity does not exist");
-		return false;
-	}
-
-	template<typename Component>
-	void UpsertSceneComponent(HE::Entity entity, const Component& component) {
-		if (entity.HasComponent<Component>()) {
-			entity.GetComponent<Component>() = component;
-			return;
-		}
-
-		entity.AddComponent<Component>(component);
-	}
+    template<typename Component>
+    HE::ResultEnvelope UpsertSceneComponent(HE::Scene& scene, uint32_t index,
+        const Component& component, std::string operation, std::string summary, std::string_view kind = {}) {
+        auto scope = HE::Ecs::WorldEditScope::Acquire(scene.GetWorld());
+        if (!scope) return HE::EcsFailureEnvelope(operation, MakeSceneEntityTarget(scene, index), scope.GetError());
+        auto& world = scope.Value().Get();
+        const auto entity = world.FindByIndex(index);
+        if (!world.IsAlive(entity)) return MakeSceneEntityMissingResult(operation, scene, index, "Scene entity does not exist");
+        auto edited = world.Emplace<Component>(entity, component);
+        if (!edited) return HE::EcsFailureEnvelope(operation, MakeSceneEntityTarget(scene, index), edited.GetError());
+        auto result = HE::ResultEnvelope::Success(std::move(operation), MakeSceneEntityTarget(scene, index), std::move(summary));
+        result.SetPayloadValue("entity_id", std::to_string(index));
+        if (!kind.empty()) result.SetPayloadValue("component_kind", std::string(kind));
+        return result;
+    }
 
 	HE::Rendering::CameraComponent MakeDefaultCameraComponent() {
 		HE::Rendering::CameraComponent component;
@@ -161,240 +154,126 @@ namespace HE {
 		return m_Services->Scenes().ValidateScene(scene, outReport);
 	}
 
-	ResultEnvelope ApplicationOperations::CreateSceneEntity(
-		Scene& scene,
-		std::string_view entityName,
-		uint32_t* outEntityId) const
-	{
-		auto entity = scene.GetWorld().CreateEntity(std::string(entityName));
-		entity.AddComponent<TransformComponent>();
-		const auto entityId = entity.GetUid();
-		if (outEntityId) {
-			*outEntityId = entityId;
-		}
+    ResultEnvelope ApplicationOperations::CreateSceneEntity(Scene& scene, std::string_view name, uint32_t* outEntityId, EntityUuid uuid) const {
+        auto created = scene.CreateEntity(name, uuid);
+        if (!created) return EcsFailureEnvelope("scene.entity.create", scene.GetName(), created.GetError());
+        const auto index = created.Value().Index;
+        if (outEntityId) *outEntityId = index;
+        auto result = ResultEnvelope::Success("scene.entity.create", MakeSceneEntityTarget(scene, index), "Scene entity created");
+        result.SetPayloadValue("scene_name", scene.GetName());
+        result.SetPayloadValue("entity_id", std::to_string(index));
+        result.SetPayloadValue("entity_name", std::string(scene.GetWorld().Name(created.Value())));
+        return result;
+    }
 
-		auto result = ResultEnvelope::Success("scene.entity.create", MakeSceneEntityTarget(scene, entityId), "Scene entity created");
-		result.SetPayloadValue("scene_name", scene.GetName());
-		result.SetPayloadValue("entity_id", std::to_string(entityId));
-		result.SetPayloadValue("entity_name", entity.GetName());
-		return result;
-	}
+    ResultEnvelope ApplicationOperations::DeleteSceneEntities(Scene& scene, std::span<const uint32_t> indices, uint32_t* outDeletedCount) const {
+        if (outDeletedCount) *outDeletedCount = 0;
+        if (indices.empty()) {
+            auto result = ResultEnvelope::Failure("scene.entity.delete", scene.GetName(), "At least one scene entity id is required");
+            result.AddDetail({DiagnosticSeverity::Error, "scene.entity.delete.empty", "DeleteSceneEntities requires at least one entity id", {}});
+            return result;
+        }
+        auto scope = Ecs::WorldEditScope::Acquire(scene.GetWorld());
+        if (!scope) return EcsFailureEnvelope("scene.entity.delete", scene.GetName(), scope.GetError());
+        auto& world = scope.Value().Get();
+        uint32_t count = 0;
+        for (const auto index : indices) {
+            const auto entity = world.FindByIndex(index);
+            if (!world.IsAlive(entity)) continue;
+            auto removed = world.Destroy(entity);
+            if (!removed) {
+                auto result = EcsFailureEnvelope("scene.entity.delete", scene.GetName(), removed.GetError());
+                result.SetPayloadValue("deleted_count", std::to_string(count));
+                return result;
+            }
+            ++count;
+            if (outDeletedCount) *outDeletedCount = count;
+        }
+        if (count == 0) {
+            auto result = ResultEnvelope::Failure("scene.entity.delete", scene.GetName(), "No matching scene entities were deleted");
+            result.AddDetail({DiagnosticSeverity::Error, "scene.entity.delete.none_deleted", "None of the requested entity ids resolved to live scene entities", {}});
+            return result;
+        }
+        auto result = ResultEnvelope::Success("scene.entity.delete", scene.GetName(), count > 1 ? "Scene entities deleted" : "Scene entity deleted");
+        result.SetPayloadValue("scene_name", scene.GetName());
+        result.SetPayloadValue("deleted_count", std::to_string(count));
+        return result;
+    }
 
-	ResultEnvelope ApplicationOperations::DeleteSceneEntities(
-		Scene& scene,
-		std::span<const uint32_t> entityIds,
-		uint32_t* outDeletedCount) const
-	{
-		if (entityIds.empty()) {
-			auto result = ResultEnvelope::Failure("scene.entity.delete", scene.GetName(), "At least one scene entity id is required");
-			result.AddDetail({ DiagnosticSeverity::Error, "scene.entity.delete.empty", "DeleteSceneEntities requires at least one entity id", {} });
-			return result;
-		}
+    ResultEnvelope ApplicationOperations::UpsertSceneEntityName(Scene& scene, uint32_t index, std::string_view name) const {
+        auto scope = Ecs::WorldEditScope::Acquire(scene.GetWorld());
+        if (!scope) return EcsFailureEnvelope("scene.entity.upsert_name", MakeSceneEntityTarget(scene, index), scope.GetError());
+        auto& world = scope.Value().Get();
+        const auto entity = world.FindByIndex(index);
+        if (!world.IsAlive(entity)) return MakeSceneEntityMissingResult("scene.entity.upsert_name", scene, index, "Scene entity does not exist");
+        auto edited = world.SetName(entity, name);
+        if (!edited) return EcsFailureEnvelope("scene.entity.upsert_name", MakeSceneEntityTarget(scene, index), edited.GetError());
+        auto result = ResultEnvelope::Success("scene.entity.upsert_name", MakeSceneEntityTarget(scene, index), "Scene entity name updated");
+        result.SetPayloadValue("entity_id", std::to_string(index));
+        result.SetPayloadValue("entity_name", std::string(world.Name(entity)));
+        return result;
+    }
 
-		uint32_t deletedCount = 0;
-		for (const auto entityId : entityIds) {
-			auto entity = ResolveSceneEntity(scene, entityId);
-			if (!entity.IsValid()) {
-				continue;
-			}
+    ResultEnvelope ApplicationOperations::UpsertSceneEntityTransform(Scene& scene, uint32_t index, const TransformComponent& component) const {
+        return UpsertSceneComponent(scene, index, component, "scene.entity.upsert_transform", "Scene entity transform updated");
+    }
 
-			scene.GetWorld().DestroyEntity(entity.GetId());
-			++deletedCount;
-		}
+    ResultEnvelope ApplicationOperations::AddSceneComponent(Scene& scene, uint32_t index, SceneComponentKind kind) const {
+        // End the inspection scope before the public mutation acquires its edit scope.
+        {
+            auto scope = Ecs::WorldReadScope::Acquire(scene.GetWorld());
+            if (!scope) return EcsFailureEnvelope("scene.component.add", MakeSceneEntityTarget(scene, index), scope.GetError());
+            const auto& world = scope.Value().Get();
+            const auto entity = world.FindByIndex(index);
+            if (!world.IsAlive(entity)) return MakeSceneEntityMissingResult("scene.component.add", scene, index, "Scene entity does not exist");
+            bool exists = false;
+            switch (kind) {
+            case SceneComponentKind::Camera: exists = world.Has<Rendering::CameraComponent>(entity); break;
+            case SceneComponentKind::Mesh: exists = world.Has<Rendering::MeshComponent>(entity); break;
+            case SceneComponentKind::Material: exists = world.Has<Rendering::MaterialComponent>(entity); break;
+            }
+            if (exists) return ResultEnvelope::Failure("scene.component.add", MakeSceneEntityTarget(scene, index), "The component already exists on the target entity");
+        }
+        switch (kind) {
+        case SceneComponentKind::Camera: return UpsertSceneCameraComponent(scene, index, MakeDefaultCameraComponent());
+        case SceneComponentKind::Mesh: return UpsertSceneMeshComponent(scene, index, MakeDefaultMeshComponent());
+        case SceneComponentKind::Material: return UpsertSceneMaterialComponent(scene, index, MakeDefaultMaterialComponent());
+        }
+        auto result = ResultEnvelope::Failure("scene.component.add", MakeSceneEntityTarget(scene, index), "Unsupported scene component kind");
+        result.AddDetail({DiagnosticSeverity::Error, "scene.component.add.unsupported", "The requested scene component kind is not supported", std::string(ToString(kind))});
+        return result;
+    }
 
-		if (outDeletedCount) {
-			*outDeletedCount = deletedCount;
-		}
+    ResultEnvelope ApplicationOperations::RemoveSceneComponent(Scene& scene, uint32_t index, SceneComponentKind kind) const {
+        auto scope = Ecs::WorldEditScope::Acquire(scene.GetWorld());
+        if (!scope) return EcsFailureEnvelope("scene.component.remove", MakeSceneEntityTarget(scene, index), scope.GetError());
+        auto& world = scope.Value().Get();
+        const auto entity = world.FindByIndex(index);
+        if (!world.IsAlive(entity)) return MakeSceneEntityMissingResult("scene.component.remove", scene, index, "Scene entity does not exist");
+        const Ecs::RegisteredType* type = nullptr;
+        switch (kind) {
+        case SceneComponentKind::Camera: type = world.Types().Find<Rendering::CameraComponent>(); break;
+        case SceneComponentKind::Mesh: type = world.Types().Find<Rendering::MeshComponent>(); break;
+        case SceneComponentKind::Material: type = world.Types().Find<Rendering::MaterialComponent>(); break;
+        }
+        if (!type || !world.Has(entity, type->Id)) return ResultEnvelope::Failure("scene.component.remove", MakeSceneEntityTarget(scene, index), "The component is not present on the target entity");
+        auto removed = world.Remove(entity, type->Id);
+        if (!removed) return EcsFailureEnvelope("scene.component.remove", MakeSceneEntityTarget(scene, index), removed.GetError());
+        auto result = ResultEnvelope::Success("scene.component.remove", MakeSceneEntityTarget(scene, index), "Scene component removed");
+        result.SetPayloadValue("entity_id", std::to_string(index));
+        result.SetPayloadValue("component_kind", std::string(ToString(kind)));
+        return result;
+    }
 
-		if (deletedCount == 0) {
-			auto result = ResultEnvelope::Failure("scene.entity.delete", scene.GetName(), "No matching scene entities were deleted");
-			result.AddDetail({ DiagnosticSeverity::Error, "scene.entity.delete.none_deleted", "None of the requested entity ids resolved to live scene entities", {} });
-			return result;
-		}
-
-		auto result = ResultEnvelope::Success("scene.entity.delete", scene.GetName(), deletedCount > 1 ? "Scene entities deleted" : "Scene entity deleted");
-		result.SetPayloadValue("scene_name", scene.GetName());
-		result.SetPayloadValue("deleted_count", std::to_string(deletedCount));
-		return result;
-	}
-
-	ResultEnvelope ApplicationOperations::UpsertSceneEntityName(
-		Scene& scene,
-		uint32_t entityId,
-		std::string_view name) const
-	{
-		ResultEnvelope resolveError;
-		if (!EnsureSceneEntityExists(scene, entityId, resolveError)) {
-			resolveError.Operation = "scene.entity.upsert_name";
-			return resolveError;
-		}
-
-		auto entity = ResolveSceneEntity(scene, entityId);
-		entity.SetName(std::string(name));
-
-		auto result = ResultEnvelope::Success("scene.entity.upsert_name", MakeSceneEntityTarget(scene, entityId), "Scene entity name updated");
-		result.SetPayloadValue("entity_id", std::to_string(entityId));
-		result.SetPayloadValue("entity_name", entity.GetName());
-		return result;
-	}
-
-	ResultEnvelope ApplicationOperations::UpsertSceneEntityTransform(
-		Scene& scene,
-		uint32_t entityId,
-		const TransformComponent& component) const
-	{
-		ResultEnvelope resolveError;
-		if (!EnsureSceneEntityExists(scene, entityId, resolveError)) {
-			resolveError.Operation = "scene.entity.upsert_transform";
-			return resolveError;
-		}
-
-		scene.GetWorld().AddComponent<TransformComponent>(ResolveSceneEntity(scene, entityId).GetId(), component);
-
-		auto result = ResultEnvelope::Success("scene.entity.upsert_transform", MakeSceneEntityTarget(scene, entityId), "Scene entity transform updated");
-		result.SetPayloadValue("entity_id", std::to_string(entityId));
-		return result;
-	}
-
-	ResultEnvelope ApplicationOperations::AddSceneComponent(
-		Scene& scene,
-		uint32_t entityId,
-		SceneComponentKind componentKind) const
-	{
-		ResultEnvelope resolveError;
-		if (!EnsureSceneEntityExists(scene, entityId, resolveError)) {
-			resolveError.Operation = "scene.component.add";
-			return resolveError;
-		}
-
-		auto entity = ResolveSceneEntity(scene, entityId);
-		switch (componentKind) {
-		case SceneComponentKind::Camera:
-			if (entity.HasComponent<Rendering::CameraComponent>()) {
-				return ResultEnvelope::Failure("scene.component.add", MakeSceneEntityTarget(scene, entityId), "Camera component already exists on the target entity");
-			}
-			break;
-		case SceneComponentKind::Mesh:
-			if (entity.HasComponent<Rendering::MeshComponent>()) {
-				return ResultEnvelope::Failure("scene.component.add", MakeSceneEntityTarget(scene, entityId), "Mesh component already exists on the target entity");
-			}
-			break;
-		case SceneComponentKind::Material:
-			if (entity.HasComponent<Rendering::MaterialComponent>()) {
-				return ResultEnvelope::Failure("scene.component.add", MakeSceneEntityTarget(scene, entityId), "Material component already exists on the target entity");
-			}
-			break;
-		}
-
-		switch (componentKind) {
-		case SceneComponentKind::Camera:
-			return UpsertSceneCameraComponent(scene, entityId, MakeDefaultCameraComponent());
-		case SceneComponentKind::Mesh:
-			return UpsertSceneMeshComponent(scene, entityId, MakeDefaultMeshComponent());
-		case SceneComponentKind::Material:
-			return UpsertSceneMaterialComponent(scene, entityId, MakeDefaultMaterialComponent());
-		}
-
-		auto result = ResultEnvelope::Failure("scene.component.add", MakeSceneEntityTarget(scene, entityId), "Unsupported scene component kind");
-		result.AddDetail({ DiagnosticSeverity::Error, "scene.component.add.unsupported", "The requested scene component kind is not supported", std::string(ToString(componentKind)) });
-		return result;
-	}
-
-	ResultEnvelope ApplicationOperations::RemoveSceneComponent(
-		Scene& scene,
-		uint32_t entityId,
-		SceneComponentKind componentKind) const
-	{
-		ResultEnvelope resolveError;
-		if (!EnsureSceneEntityExists(scene, entityId, resolveError)) {
-			resolveError.Operation = "scene.component.remove";
-			return resolveError;
-		}
-
-		auto entity = ResolveSceneEntity(scene, entityId);
-		switch (componentKind) {
-		case SceneComponentKind::Camera:
-			if (!entity.HasComponent<Rendering::CameraComponent>()) {
-				return ResultEnvelope::Failure("scene.component.remove", MakeSceneEntityTarget(scene, entityId), "Camera component is not present on the target entity");
-			}
-			entity.RemoveComponent<Rendering::CameraComponent>();
-			break;
-		case SceneComponentKind::Mesh:
-			if (!entity.HasComponent<Rendering::MeshComponent>()) {
-				return ResultEnvelope::Failure("scene.component.remove", MakeSceneEntityTarget(scene, entityId), "Mesh component is not present on the target entity");
-			}
-			entity.RemoveComponent<Rendering::MeshComponent>();
-			break;
-		case SceneComponentKind::Material:
-			if (!entity.HasComponent<Rendering::MaterialComponent>()) {
-				return ResultEnvelope::Failure("scene.component.remove", MakeSceneEntityTarget(scene, entityId), "Material component is not present on the target entity");
-			}
-			entity.RemoveComponent<Rendering::MaterialComponent>();
-			break;
-		}
-
-		auto result = ResultEnvelope::Success("scene.component.remove", MakeSceneEntityTarget(scene, entityId), "Scene component removed");
-		result.SetPayloadValue("entity_id", std::to_string(entityId));
-		result.SetPayloadValue("component_kind", std::string(ToString(componentKind)));
-		return result;
-	}
-
-	ResultEnvelope ApplicationOperations::UpsertSceneCameraComponent(
-		Scene& scene,
-		uint32_t entityId,
-		const Rendering::CameraComponent& component) const
-	{
-		ResultEnvelope resolveError;
-		if (!EnsureSceneEntityExists(scene, entityId, resolveError)) {
-			resolveError.Operation = "scene.component.upsert";
-			return resolveError;
-		}
-
-		UpsertSceneComponent(ResolveSceneEntity(scene, entityId), component);
-
-		auto result = ResultEnvelope::Success("scene.component.upsert", MakeSceneEntityTarget(scene, entityId), "Camera component upserted");
-		result.SetPayloadValue("entity_id", std::to_string(entityId));
-		result.SetPayloadValue("component_kind", std::string(ToString(SceneComponentKind::Camera)));
-		return result;
-	}
-
-	ResultEnvelope ApplicationOperations::UpsertSceneMeshComponent(
-		Scene& scene,
-		uint32_t entityId,
-		const Rendering::MeshComponent& component) const
-	{
-		ResultEnvelope resolveError;
-		if (!EnsureSceneEntityExists(scene, entityId, resolveError)) {
-			resolveError.Operation = "scene.component.upsert";
-			return resolveError;
-		}
-
-		UpsertSceneComponent(ResolveSceneEntity(scene, entityId), component);
-
-		auto result = ResultEnvelope::Success("scene.component.upsert", MakeSceneEntityTarget(scene, entityId), "Mesh component upserted");
-		result.SetPayloadValue("entity_id", std::to_string(entityId));
-		result.SetPayloadValue("component_kind", std::string(ToString(SceneComponentKind::Mesh)));
-		return result;
-	}
-
-	ResultEnvelope ApplicationOperations::UpsertSceneMaterialComponent(
-		Scene& scene,
-		uint32_t entityId,
-		const Rendering::MaterialComponent& component) const
-	{
-		ResultEnvelope resolveError;
-		if (!EnsureSceneEntityExists(scene, entityId, resolveError)) {
-			resolveError.Operation = "scene.component.upsert";
-			return resolveError;
-		}
-
-		UpsertSceneComponent(ResolveSceneEntity(scene, entityId), component);
-
-		auto result = ResultEnvelope::Success("scene.component.upsert", MakeSceneEntityTarget(scene, entityId), "Material component upserted");
-		result.SetPayloadValue("entity_id", std::to_string(entityId));
-		result.SetPayloadValue("component_kind", std::string(ToString(SceneComponentKind::Material)));
-		return result;
-	}
+    ResultEnvelope ApplicationOperations::UpsertSceneCameraComponent(Scene& scene, uint32_t index, const Rendering::CameraComponent& component) const {
+        return UpsertSceneComponent(scene, index, component, "scene.component.upsert", "Camera component upserted", ToString(SceneComponentKind::Camera));
+    }
+    ResultEnvelope ApplicationOperations::UpsertSceneMeshComponent(Scene& scene, uint32_t index, const Rendering::MeshComponent& component) const {
+        return UpsertSceneComponent(scene, index, component, "scene.component.upsert", "Mesh component upserted", ToString(SceneComponentKind::Mesh));
+    }
+    ResultEnvelope ApplicationOperations::UpsertSceneMaterialComponent(Scene& scene, uint32_t index, const Rendering::MaterialComponent& component) const {
+        return UpsertSceneComponent(scene, index, component, "scene.component.upsert", "Material component upserted", ToString(SceneComponentKind::Material));
+    }
 
 	ResultEnvelope ApplicationOperations::CreateBuiltinMeshAsset(
 		const ProjectContext& context,
@@ -689,27 +568,13 @@ namespace HE {
 			return result;
 		}
 
-		auto cameraSystem = scene->FindSystem<CameraSystem>();
-		if (!cameraSystem) {
-			cameraSystem = CreateRef<CameraSystem>();
-			scene->AddSystem(cameraSystem);
-		}
-
-		auto renderSystem = scene->FindSystem<RenderSystem>();
-		const bool createdNewSystem = !renderSystem;
-		if (createdNewSystem) {
-			renderSystem = CreateRef<RenderSystem>();
-			scene->AddSystem(renderSystem);
-		}
-
-		const auto& renderTargetSpecification = renderTarget->GetSpecification();
-		cameraSystem->SetRenderViewportSize(renderTargetSpecification.Width, renderTargetSpecification.Height);
-		renderSystem->SetRenderTarget(renderTarget);
-		renderSystem->SetAssetResolver(&m_Services->GetAssetResolver());
+        auto attached = scene->AttachRenderer(renderTarget, &m_Services->GetAssetResolver());
+        if (!attached) return EcsFailureEnvelope("rendering.attach_scene_viewport", scene->GetName(), attached.GetError());
+        const bool createdRenderer = attached.Value();
 
 		auto result = ResultEnvelope::Success("rendering.attach_scene_viewport", scene->GetName(), "Scene viewport renderer attached");
 		result.SetPayloadValue("scene_name", scene->GetName());
-		result.SetPayloadValue("created_render_system", createdNewSystem ? "true" : "false");
+		result.SetPayloadValue("created_render_system", createdRenderer ? "true" : "false");
 		return result;
 	}
 
@@ -718,15 +583,25 @@ namespace HE {
 		const Rendering::RenderCamera& camera,
 		Rendering::RenderGraphExtension* extension) const
 	{
-		auto renderSystem = scene.FindSystem<RenderSystem>();
-		if (!renderSystem) {
+		if (!scene.HasRenderer()) {
 			auto result = ResultEnvelope::Failure("rendering.render_scene_viewport", scene.GetName(), "Scene viewport renderer is not attached");
 			result.AddDetail({ DiagnosticSeverity::Error, "rendering.render_scene_viewport.missing_render_system", "AttachSceneViewportRenderer must succeed before rendering a scene viewport", {} });
 			return result;
 		}
 
-		renderSystem->RenderSingleCamera(scene.GetWorld(), camera, extension);
-		const auto& renderResult = renderSystem->GetLastRenderResult();
+        auto rendered = scene.RenderSingleCamera(camera, extension);
+        if (!rendered) {
+            auto result = EcsFailureEnvelope("rendering.render_scene_viewport", scene.GetName(), rendered.GetError());
+            if (rendered.GetError().Operation == "RenderPipeline") {
+                result.AddDetail({ DiagnosticSeverity::Error, "rendering.render_scene_viewport.pipeline_failed",
+                    "RenderPipeline did not produce a successful result", {} });
+                if (const auto* failedRender = scene.LastRenderResult()) AddRenderGraphDetails(result, *failedRender);
+            }
+            return result;
+        }
+        const auto* lastResult = scene.LastRenderResult();
+        if (!lastResult) return ResultEnvelope::Failure("rendering.render_scene_viewport", scene.GetName(), "Scene viewport renderer produced no result");
+        const auto& renderResult = *lastResult;
 		if (!renderResult.Succeeded) {
 			auto result = ResultEnvelope::Failure("rendering.render_scene_viewport", scene.GetName(), "Scene viewport render failed");
 			result.AddDetail({ DiagnosticSeverity::Error, "rendering.render_scene_viewport.pipeline_failed", "RenderPipeline did not produce a successful result", {} });

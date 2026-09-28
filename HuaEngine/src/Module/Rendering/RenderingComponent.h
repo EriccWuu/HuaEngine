@@ -22,8 +22,8 @@ namespace HE::Rendering {
 		Transparent
 	};
 
-	HE_REFLECT_COMPONENT(DisplayName="Camera", Category="Rendering")
-	struct CameraComponent : Component {
+	HE_REFLECT_COMPONENT(Guid="4f745e86ab69460db41dac991f79c002", DisplayName="Camera", Category="Rendering")
+	struct CameraComponent {
 		HE_REFLECT_FIELD()
 		bool Primary = true;
 		HE_REFLECT_FIELD()
@@ -60,8 +60,8 @@ namespace HE::Rendering {
 	};
 
 	// Material component
-	HE_REFLECT_COMPONENT(DisplayName="Material", Category="Rendering")
-	struct MaterialComponent : Component {
+	HE_REFLECT_COMPONENT(Guid="4f745e86ab69460db41dac991f79c003", DisplayName="Material", Category="Rendering")
+	struct MaterialComponent {
 		MaterialComponent() = default;
 		explicit MaterialComponent(const MaterialAssetRef& material)
 			: Material(material) {}
@@ -75,7 +75,7 @@ namespace HE::Rendering {
 	};
 
 	// Legacy RendererComponent for backward compatibility (deprecated)
-	struct RendererComponent : Component {
+	struct RendererComponent {
 		RendererComponent() = default;
 		RendererComponent(const Ref<HE::Rendering::ShaderProgram>& shaderProgram, const Ref<HE::Rendering::TextureResource>& texture)
 			: ShaderProgram(shaderProgram), Texture(texture) {}
@@ -84,8 +84,8 @@ namespace HE::Rendering {
 		Ref<HE::Rendering::TextureResource> Texture;
 	};
 
-	HE_REFLECT_COMPONENT(DisplayName="Mesh", Category="Rendering")
-	struct MeshComponent : Component {
+	HE_REFLECT_COMPONENT(Guid="4f745e86ab69460db41dac991f79c004", DisplayName="Mesh", Category="Rendering")
+	struct MeshComponent {
 		MeshComponent() = default;
 		explicit MeshComponent(const MeshAssetRef& mesh)
 			: Mesh(mesh) {}

@@ -1,3 +1,4 @@
+#include "ECSTestSupport.h"
 #include <cstdlib>
 #include <filesystem>
 #include <iostream>
@@ -39,12 +40,12 @@ int main() {
 
 	HE::Scene scene("ValidationScene");
 
-	auto primaryEntity = scene.GetWorld().CreateEntity("Validation Entity");
-	primaryEntity.AddComponent<HE::TransformComponent>();
+	auto primaryEntity = ECSTestSupport::Take(scene.CreateEntity("Validation Entity"));
+	ECSTestSupport::Add<HE::TransformComponent>(scene.GetWorld(), primaryEntity);
 	HE::MeshAssetRef meshReference;
 	meshReference.Reference.Guid = HE::BuiltinAssetGuids::QuadMesh;
-	primaryEntity.AddComponent<HE::MeshComponent>(meshReference);
-	primaryEntity.AddComponent<HE::MaterialComponent>();
+	ECSTestSupport::Add<HE::MeshComponent>(scene.GetWorld(), primaryEntity, meshReference);
+	ECSTestSupport::Add<HE::MaterialComponent>(scene.GetWorld(), primaryEntity);
 
 	HE::AssetService assetService;
 	HE::AssetHandle meshHandle = 0;
@@ -127,7 +128,7 @@ int main() {
 	RequirePayloadValue(missingFileValidation, "metadata_issue_count", "1");
 	RequirePayloadValue(missingFileValidation, "runtime_issue_count", "0");
 
-	primaryEntity.RemoveComponent<HE::TransformComponent>();
+	ECSTestSupport::Remove<HE::TransformComponent>(scene.GetWorld(), primaryEntity);
 
 	HE::AssetRecord invalidAssetRecord;
 	invalidAssetRecord.Guid = "invalid-validation-asset";

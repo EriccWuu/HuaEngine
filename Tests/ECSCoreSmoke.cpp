@@ -1,117 +1,45 @@
-#include <cstdlib>
-#include <iostream>
-#include <string>
-#include <type_traits>
+#include "ECSTestSupport.h"
+#include "HuaEngine/ECS/EntityId.h"
+#include "HuaEngine/ECS/Runtime/TypeRegistry.h"
 #include <unordered_set>
 
-#include "HuaEngine/ECS/ComponentRegistry.h"
-#include "HuaEngine/ECS/ComponentType.h"
-#include "HuaEngine/ECS/EntityId.h"
-
 namespace {
-	struct SmokePosition {
-		float X = 0.0f;
-		float Y = 0.0f;
-	};
-
-	struct SmokeVelocity {
-		float X = 0.0f;
-		float Y = 0.0f;
-	};
-
-	struct PositionComponent {
-		float X = 0.0f;
-	};
-
-	struct VelocityComponent {
-		float X = 0.0f;
-	};
-
-	void Require(bool condition, const std::string& message) {
-		if (!condition) {
-			std::cerr << "[ECSCoreSmoke] " << message << std::endl;
-			std::exit(1);
-		}
-	}
+struct Position { float X = 0; float Y = 0; };
+struct Velocity { float X = 0; };
 }
 
 int main() {
-	const HE::EntityId invalidEntity;
-	Require(!invalidEntity, "Expected default EntityId to be invalid");
-	Require(invalidEntity == HE::EntityId{0, 0}, "Expected default EntityId to be {0, 0}");
-	Require(static_cast<bool>(HE::EntityId{7, 2}), "Expected non-zero generation EntityId to be valid");
-	Require(HE::EntityId{7, 2} == HE::EntityId{7, 2}, "Expected identical EntityId values to compare equal");
-	Require(HE::EntityId{7, 2} != HE::EntityId{7, 3}, "Expected different EntityId generations to compare unequal");
-
-	std::unordered_set<HE::EntityId> entitySet;
-	entitySet.insert(HE::EntityId{42, 5});
-	Require(entitySet.find(HE::EntityId{42, 5}) != entitySet.end(), "Expected EntityId hash lookup to find equivalent id");
-
-	const HE::EntityUuid uuid{0x0123456789abcdefULL, 0xfedcba9876543210ULL};
-	const auto uuidText = HE::ToString(uuid);
-	Require(uuidText == "0123456789abcdeffedcba9876543210", "Expected UUID string to be 32 lowercase hex digits");
-	Require(HE::EntityUuid::FromString(uuidText) == uuid, "Expected UUID to round-trip through string conversion");
-	Require(HE::EntityUuid::FromString("0123456789ABCDEFFEDCBA9876543210") == uuid, "Expected UUID parser to accept uppercase hex");
-	Require(HE::EntityUuid::FromString("not-a-uuid") == HE::EntityUuid{}, "Expected invalid UUID strings to return default UUID");
-
-	const HE::ComponentTypeId positionTypeId = HE::ComponentTypeIdOf<PositionComponent>();
-	const HE::ComponentTypeId velocityTypeId = HE::ComponentTypeIdOf<VelocityComponent>();
-	Require(positionTypeId != HE::InvalidComponentTypeId, "Expected concrete component type id to be valid");
-	Require(positionTypeId == HE::ComponentTypeIdOf<PositionComponent>(), "Expected component type id to be stable per type");
-	Require(positionTypeId == HE::ComponentTypeIdOf<const PositionComponent&>(), "Expected cv/ref qualifiers to share component type id");
-	Require(positionTypeId != velocityTypeId, "Expected different component types to have different ids");
-
-	static_assert(std::is_same_v<HE::QueryTermTraits<PositionComponent>::ComponentType, PositionComponent>);
-	static_assert(!HE::QueryTermTraits<PositionComponent>::IsReadOnly);
-	static_assert(std::is_same_v<HE::QueryTermTraits<HE::Read<PositionComponent>>::ComponentType, PositionComponent>);
-	static_assert(HE::QueryTermTraits<HE::Read<PositionComponent>>::IsReadOnly);
-	static_assert(!HE::IsReadTerm<PositionComponent>::Value);
-	static_assert(HE::IsReadTerm<HE::Read<PositionComponent>>::Value);
-
-	HE::ComponentRegistry registry;
-	HE::ComponentRegistration smokePositionRegistration;
-	smokePositionRegistration.TypeName = "Tests.SmokePosition";
-	smokePositionRegistration.DisplayName = "Smoke Position";
-	smokePositionRegistration.Category = "Tests";
-
-	Require(registry.Register<SmokePosition>(smokePositionRegistration), "Expected SmokePosition registration to succeed");
-	const HE::ComponentMetadata* smokePositionByType = registry.FindByType<SmokePosition>();
-	Require(smokePositionByType != nullptr, "Expected SmokePosition lookup by type to succeed");
-	Require(smokePositionByType->TypeId == HE::ComponentTypeIdOf<SmokePosition>(), "Expected SmokePosition metadata type id to match");
-	Require(smokePositionByType->TypeName == "Tests.SmokePosition", "Expected SmokePosition metadata type name to match");
-	Require(smokePositionByType->DisplayName == "Smoke Position", "Expected SmokePosition metadata display name to match");
-	Require(smokePositionByType->Category == "Tests", "Expected SmokePosition metadata category to match");
-	Require(smokePositionByType->Size == sizeof(SmokePosition), "Expected SmokePosition metadata size to match");
-	Require(!smokePositionByType->AllowMultiple, "Expected SmokePosition registration to disallow multiple by default");
-
-	const HE::ComponentMetadata* smokePositionByName = registry.FindByName("Tests.SmokePosition");
-	Require(smokePositionByName == smokePositionByType, "Expected SmokePosition lookup by name to return the same metadata");
-	Require(registry.FindByTypeId(HE::ComponentTypeIdOf<SmokePosition>()) == smokePositionByType, "Expected SmokePosition lookup by type id to return the same metadata");
-	Require(registry.GetAll().size() == 1, "Expected registry to contain one component registration");
-
-	void* constructedSmokePosition = smokePositionByType->ConstructDefault();
-	Require(constructedSmokePosition != nullptr, "Expected SmokePosition ConstructDefault to allocate an instance");
-	static_cast<SmokePosition*>(constructedSmokePosition)->X = 42.0f;
-	static_cast<SmokePosition*>(constructedSmokePosition)->Y = 24.0f;
-	void* copiedSmokePosition = smokePositionByType->Copy(constructedSmokePosition);
-	Require(copiedSmokePosition != nullptr, "Expected SmokePosition Copy to allocate an instance");
-	Require(static_cast<SmokePosition*>(copiedSmokePosition)->X == 42.0f, "Expected SmokePosition Copy to preserve X");
-	Require(static_cast<SmokePosition*>(copiedSmokePosition)->Y == 24.0f, "Expected SmokePosition Copy to preserve Y");
-	smokePositionByType->Destroy(copiedSmokePosition);
-	smokePositionByType->Destroy(constructedSmokePosition);
-
-	HE::ComponentRegistration duplicateTypeRegistration;
-	duplicateTypeRegistration.TypeName = "Tests.SmokePositionDuplicateType";
-	duplicateTypeRegistration.DisplayName = "Smoke Position Duplicate Type";
-	duplicateTypeRegistration.Category = "Tests";
-	Require(!registry.Register<SmokePosition>(duplicateTypeRegistration), "Expected duplicate SmokePosition type registration to fail");
-
-	HE::ComponentRegistration duplicateNameRegistration;
-	duplicateNameRegistration.TypeName = "Tests.SmokePosition";
-	duplicateNameRegistration.DisplayName = "Smoke Velocity";
-	duplicateNameRegistration.Category = "Tests";
-	Require(!registry.Register<SmokeVelocity>(duplicateNameRegistration), "Expected duplicate SmokePosition type name registration to fail");
-
-	std::cout << "ECSCoreSmoke passed" << std::endl;
-	return 0;
+    using namespace ECSTestSupport;
+    using namespace HE::Ecs;
+    Require(!HE::EntityId{} && HE::EntityId{} == HE::EntityId{0, 0}, "Expected default ID to be invalid");
+    Require(static_cast<bool>(HE::EntityId{7, 2}) && HE::EntityId{7, 2} != HE::EntityId{7, 3},
+        "Expected generations to participate in entity identity");
+    std::unordered_set<HE::EntityId> ids{{42, 5}};
+    Require(ids.contains({42, 5}), "Expected hashed entity lookup");
+    const HE::EntityUuid uuid{0x0123456789abcdefULL, 0xfedcba9876543210ULL};
+    Require(HE::ToString(uuid) == "0123456789abcdeffedcba9876543210", "Expected canonical UUID text");
+    Require(HE::EntityUuid::FromString(HE::ToString(uuid)) == uuid &&
+        HE::EntityUuid::FromString("0123456789ABCDEFFEDCBA9876543210") == uuid &&
+        HE::EntityUuid::FromString("not-a-uuid") == HE::EntityUuid{}, "Expected UUID roundtrip and strict parsing");
+    TypeRegistry registry;
+    const auto guid = TypeGuid{0x8137ef5f1fae4583ULL, 0xb189eb7ff45cb08eULL};
+    const auto position = Take(registry.Register<Position>(guid, "Tests.SmokePosition"));
+    const auto* metadata = registry.Find<Position>();
+    Require(metadata && metadata == registry.Find(position) && metadata == registry.Find(guid) &&
+        metadata == registry.FindByName("Tests.SmokePosition") && metadata->Owner == &registry,
+        "Expected all lookup paths to resolve the same Context-owned descriptor");
+    Require(metadata->Descriptor.Size == sizeof(Position) && metadata->Descriptor.Alignment == alignof(Position) &&
+        metadata->Descriptor.Storage == StorageKind::Direct, "Expected native layout metadata");
+    auto value = Take(OwnedValue::Default(*metadata));
+    *static_cast<Position*>(value.Data()) = {42, 24};
+    auto copy = Take(value.Clone());
+    Require(static_cast<const Position*>(copy.Data())->X == 42 && static_cast<const Position*>(copy.Data())->Y == 24,
+        "Expected descriptor-driven owned copying to retain values");
+    Require(Take(registry.Register<Position>(guid, "Tests.SmokePosition")) == position && registry.All().size() == 1,
+        "Expected exact duplicate registration to be idempotent");
+    Require(!registry.Register<Position>(guid, "Tests.RenamedPosition"), "Expected conflicting native identity to fail");
+    Require(!registry.Register<Velocity>(TypeGuid::FromName("Tests.Velocity"), "Tests.SmokePosition"),
+        "Expected duplicate stable names to fail");
+    Require(registry.All().size() == 1, "Expected rejected registrations to leave no entries");
+    std::cout << "ECSCoreSmoke passed\n";
 }

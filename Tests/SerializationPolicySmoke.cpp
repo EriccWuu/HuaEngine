@@ -1,3 +1,4 @@
+#include "ECSTestSupport.h"
 #include <chrono>
 #include <cstdint>
 #include <filesystem>
@@ -295,10 +296,10 @@ version: 3
 
 		HE::Scene loaded;
 		Require(HE::Serialization::LoadScene(scenePath.string(), loaded), "Expected scene with unknown component to load");
-		HE::Entity entity = loaded.GetWorld().GetEntity(HE::EntityUuid::FromString(uuid));
-		Require(entity.IsValid(), "Expected known entity to load when unknown component is skipped");
-		Require(entity.HasComponent<HE::TransformComponent>(), "Expected known component to load when unknown component is skipped");
-		const auto& transform = entity.GetComponent<HE::TransformComponent>();
+		const auto entity = loaded.GetWorld().Find(HE::EntityUuid::FromString(uuid));
+		Require(loaded.GetWorld().IsAlive(entity), "Expected known entity to load when unknown component is skipped");
+		Require(loaded.GetWorld().Has<HE::TransformComponent>(entity), "Expected known component to load when unknown component is skipped");
+		const auto& transform = ECSTestSupport::Get<HE::TransformComponent>(loaded.GetWorld(), entity);
 		Require(transform.Position == glm::vec3(10.0f, 20.0f, 30.0f), "Expected known component Position to load");
 		Require(transform.Rotation == glm::vec3(1.0f, 2.0f, 3.0f), "Expected known component Rotation to load");
 		Require(transform.Scale == glm::vec3(4.0f, 5.0f, 6.0f), "Expected known component Scale to load");
@@ -421,11 +422,11 @@ version: 3
 
 		HE::Scene validLoaded;
 		Require(HE::Serialization::LoadScene(validScenePath.string(), validLoaded), "Expected later independent scene load to succeed after invalid MaterialComponent rejection");
-		HE::Entity entity = validLoaded.GetWorld().GetEntity(HE::EntityUuid::FromString(uuid));
-		Require(entity.IsValid(), "Expected valid follow-up scene entity to load");
-		Require(entity.HasComponent<HE::TransformComponent>(), "Expected valid follow-up scene transform to load");
-		Require(entity.HasComponent<HE::Rendering::MaterialComponent>(), "Expected valid follow-up scene material to load");
-		const auto& material = entity.GetComponent<HE::Rendering::MaterialComponent>();
+		const auto entity = validLoaded.GetWorld().Find(HE::EntityUuid::FromString(uuid));
+		Require(validLoaded.GetWorld().IsAlive(entity), "Expected valid follow-up scene entity to load");
+		Require(validLoaded.GetWorld().Has<HE::TransformComponent>(entity), "Expected valid follow-up scene transform to load");
+		Require(validLoaded.GetWorld().Has<HE::Rendering::MaterialComponent>(entity), "Expected valid follow-up scene material to load");
+		const auto& material = ECSTestSupport::Get<HE::Rendering::MaterialComponent>(validLoaded.GetWorld(), entity);
 		Require(material.Material.Reference.Guid == HE::BuiltinAssetGuids::DefaultMaterial, "Expected valid follow-up scene material GUID to load");
 		Require(material.BlendMode == HE::Rendering::MaterialBlendMode::Transparent, "Expected valid follow-up scene blend mode to load");
 		Require(material.Overrides.Parameters.find("u_Roughness") != material.Overrides.Parameters.end(), "Expected valid follow-up scene material override to load");
@@ -457,10 +458,10 @@ version: 3
 
 		HE::Scene loaded;
 		Require(HE::Serialization::LoadScene(scenePath.string(), loaded), "Expected scene with missing reflected component field to load");
-		HE::Entity entity = loaded.GetWorld().GetEntity(HE::EntityUuid::FromString(uuid));
-		Require(entity.IsValid(), "Expected entity with missing component field to load");
-		Require(entity.HasComponent<HE::TransformComponent>(), "Expected component with missing reflected field to load");
-		const auto& transform = entity.GetComponent<HE::TransformComponent>();
+		const auto entity = loaded.GetWorld().Find(HE::EntityUuid::FromString(uuid));
+		Require(loaded.GetWorld().IsAlive(entity), "Expected entity with missing component field to load");
+		Require(loaded.GetWorld().Has<HE::TransformComponent>(entity), "Expected component with missing reflected field to load");
+		const auto& transform = ECSTestSupport::Get<HE::TransformComponent>(loaded.GetWorld(), entity);
 		Require(transform.Position == glm::vec3(7.0f, 8.0f, 9.0f), "Expected present component Position to load");
 		Require(transform.Rotation == glm::vec3(11.0f, 12.0f, 13.0f), "Expected present component Rotation to load");
 		Require(transform.Scale == glm::vec3(1.0f, 1.0f, 1.0f), "Expected missing component Scale to keep default");
@@ -470,10 +471,10 @@ version: 3
 
 	void VerifySceneOutputStability() {
 		HE::Scene scene("Stable Output Policy");
-		auto first = scene.GetWorld().CreateEntity("First Entity");
-		first.GetComponent<HE::TransformComponent>().Position = { 1.0f, 2.0f, 3.0f };
-		auto second = scene.GetWorld().CreateEntity("Second Entity");
-		second.GetComponent<HE::TransformComponent>().Rotation = { 4.0f, 5.0f, 6.0f };
+		auto first = ECSTestSupport::Take(scene.CreateEntity("First Entity"));
+		ECSTestSupport::Get<HE::TransformComponent>(scene.GetWorld(), first).Position = { 1.0f, 2.0f, 3.0f };
+		auto second = ECSTestSupport::Take(scene.CreateEntity("Second Entity"));
+		ECSTestSupport::Get<HE::TransformComponent>(scene.GetWorld(), second).Rotation = { 4.0f, 5.0f, 6.0f };
 
 		const auto firstPath = MakePolicyPath("HuaEngineSerializationPolicyStableA.scene");
 		const auto secondPath = MakePolicyPath("HuaEngineSerializationPolicyStableB.scene");

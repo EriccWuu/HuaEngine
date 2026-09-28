@@ -1,3 +1,4 @@
+#include "ECSTestSupport.h"
 #include <cstdlib>
 #include <filesystem>
 #include <iostream>
@@ -50,9 +51,9 @@ int main() {
 	meshReference.Reference.Guid = meshRecord.Guid;
 
 	HE::Scene scene("ApplicationServicesScene");
-	auto entity = scene.GetWorld().CreateEntity();
-	entity.AddComponent<HE::MeshComponent>(meshReference);
-	entity.AddComponent<HE::MaterialComponent>();
+	auto entity = ECSTestSupport::Take(scene.CreateEntity());
+	ECSTestSupport::Add<HE::MeshComponent>(scene.GetWorld(), entity, meshReference);
+	ECSTestSupport::Add<HE::MaterialComponent>(scene.GetWorld(), entity);
 
 	HE::ValidationRequest request;
 	request.Project = &projectContext;

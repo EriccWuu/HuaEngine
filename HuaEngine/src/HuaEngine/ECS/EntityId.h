@@ -91,7 +91,15 @@ namespace std {
 	template<>
 	struct hash<HE::EntityId> {
 		size_t operator()(HE::EntityId id) const noexcept {
-			return (static_cast<size_t>(id.Index) << 32) ^ static_cast<size_t>(id.Generation);
+			// Mix both fields into the low bits used by power-of-two hash tables.
+			uint64_t mixed = (static_cast<uint64_t>(id.Index) << 32) | id.Generation;
+			mixed = (mixed ^ (mixed >> 30)) * 0xbf58476d1ce4e5b9ULL;
+			mixed = (mixed ^ (mixed >> 27)) * 0x94d049bb133111ebULL;
+			mixed ^= mixed >> 31;
+			if constexpr (sizeof(size_t) < sizeof(uint64_t)) {
+				return static_cast<size_t>(mixed ^ (mixed >> 32));
+			}
+			return static_cast<size_t>(mixed);
 		}
 	};
 

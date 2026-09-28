@@ -27,16 +27,14 @@
 #include "HuaEngine/Rendering/RenderCamera.h"
 
 // ECS
-#include "HuaEngine/ECS/CommandBuffer.h"
-#include "HuaEngine/ECS/ComponentRegistry.h"
-#include "HuaEngine/ECS/ComponentType.h"
 #include "HuaEngine/ECS/EntityId.h"
-#include "HuaEngine/ECS/Entity.h"
 #include "HuaEngine/ECS/Components.h"
-#include "HuaEngine/ECS/Query.h"
-#include "HuaEngine/ECS/Scheduler.h"
-#include "HuaEngine/ECS/System.h"
-#include "HuaEngine/ECS/World.h"
+#include "HuaEngine/ECS/Runtime/Commands.h"
+#include "HuaEngine/ECS/Runtime/EcsContext.h"
+#include "HuaEngine/ECS/Runtime/GeneratedQuery.h"
+#include "HuaEngine/ECS/Runtime/Query.h"
+#include "HuaEngine/ECS/Runtime/Timeline.h"
+#include "HuaEngine/ECS/Runtime/World.h"
 #include "Module/Rendering/RenderingComponent.h"
 
 // Scene

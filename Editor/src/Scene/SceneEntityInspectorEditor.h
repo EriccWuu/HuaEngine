@@ -3,7 +3,7 @@
 #include <functional>
 
 #include "Assets/AssetPickerCatalog.h"
-#include "HuaEngine/ECS/ComponentRegistry.h"
+#include "HuaEngine/ECS/Runtime/TypeRegistry.h"
 #include "Interaction/EditorSceneCommands.h"
 #include "Panels/RuntimeInspector.h"
 
@@ -19,6 +19,7 @@ namespace HE::Editor {
 
 		bool Draw();
 		[[nodiscard]] bool HasEditingContext() const;
+		[[nodiscard]] const Ecs::TypeRegistry* ResolveTypeRegistry() const;
 
 		void BindInteractionHost(EditorInteractionHost* host) { m_InteractionHost = host; }
 		void SetWorkbenchState(EditorWorkbenchState* state) { m_WorkbenchState = state; }
@@ -34,7 +35,6 @@ namespace HE::Editor {
 		EditorWorkbenchState* m_WorkbenchState = nullptr;
 		std::function<void(EditorInspectableComponent)> m_AddComponentCallback;
 		std::function<void(EditorInspectableComponent)> m_RemoveComponentCallback;
-		ComponentRegistry m_ComponentRegistry;
 		RuntimeComponentEditorOverrideRegistry m_RuntimeOverrides;
 		bool m_ShowAddComponentWindow = false;
 	};

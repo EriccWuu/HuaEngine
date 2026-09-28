@@ -99,7 +99,7 @@ namespace HE::CLI {
 
 			const auto defaultFileName = SanitizeFileStem(*sceneName) + ".scene";
 			const auto outputPath = ResolveProjectRelativePath(
-				std::filesystem::path(options.GetValue("--output").value_or(defaultFileName)),
+				std::filesystem::u8path(options.GetValue("--output").value_or(defaultFileName)),
 				projectContext.GetAssetRootPath());
 			auto saveResult = context.Operations.SaveScene(*scene, outputPath);
 			if (!saveResult.Succeeded()) {

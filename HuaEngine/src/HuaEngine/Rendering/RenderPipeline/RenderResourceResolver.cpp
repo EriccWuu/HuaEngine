@@ -13,14 +13,14 @@ namespace HE::Rendering {
 		void AddDiagnostic(
 			std::vector<RenderDiagnostic>& diagnostics,
 			RenderDiagnosticCode code,
-			Entity sourceEntity,
+			EntityId sourceEntity,
 			std::string message) {
 			diagnostics.push_back({ code, sourceEntity, std::move(message) });
 		}
 
 		void AddFallbackDiagnostic(
 			std::vector<RenderDiagnostic>& diagnostics,
-			Entity sourceEntity,
+			EntityId sourceEntity,
 			const AssetGuid& requestedGuid,
 			const AssetGuid& fallbackGuid) {
 			AddDiagnostic(

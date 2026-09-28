@@ -1,0 +1,59 @@
+{
+  "schemaVersion": 1,
+  "platform": "windows-x64",
+  "python": {
+    "version": "3.13.15",
+    "url": "https://www.python.org/ftp/python/3.13.15/python-3.13.15-embed-amd64.zip",
+    "sha256": "d1f04d990aee1253d8569e8e5104e30fa9f5fa830899f14843448872d936a2cf",
+    "archive": "python-3.13.15-embed-amd64.zip",
+    "format": "zip",
+    "directory": "python-3.13.15",
+    "archiveRoot": "",
+    "release": "https://www.python.org/downloads/release/python-31315/",
+    "hashSource": "https://www.python.org/downloads/release/python-31315/"
+  },
+  "zlib": {
+    "version": "1.3.2",
+    "url": "https://github.com/madler/zlib/releases/download/v1.3.2/zlib-1.3.2.tar.gz",
+    "sha256": "bb329a0a2cd0274d05519d61c667c062e06990d72e125ee2dfa8de64f0119d16",
+    "archive": "zlib-1.3.2.tar.gz",
+    "format": "tar.gz",
+    "directory": "src-zlib-1.3.2",
+    "archiveRoot": "zlib-1.3.2",
+    "release": "https://github.com/llvm/llvm-project/blob/llvmorg-23.1.2/llvm/utils/release/build_llvm_release.bat",
+    "hashSource": "https://github.com/llvm/llvm-project/blob/llvmorg-23.1.2/llvm/utils/release/build_llvm_release.bat"
+  },
+  "zstd": {
+    "version": "1.5.7",
+    "url": "https://github.com/facebook/zstd/releases/download/v1.5.7/zstd-1.5.7.tar.gz",
+    "sha256": "eb33e51f49a15e023950cd7825ca74a4a2b43db8354825ac24fc1b7ee09e6fa3",
+    "archive": "zstd-1.5.7.tar.gz",
+    "format": "tar.gz",
+    "directory": "src-zstd-1.5.7",
+    "archiveRoot": "zstd-1.5.7",
+    "release": "https://github.com/llvm/llvm-project/blob/llvmorg-23.1.2/llvm/utils/release/build_llvm_release.bat",
+    "hashSource": "https://github.com/llvm/llvm-project/blob/llvmorg-23.1.2/llvm/utils/release/build_llvm_release.bat"
+  },
+  "libxml2": {
+    "version": "2.9.12",
+    "url": "https://gitlab.gnome.org/GNOME/libxml2/-/archive/v2.9.12/libxml2-v2.9.12.tar.gz",
+    "sha256": "98bfa7a9a5e2a75638422050740448ee9f02bf4dc2075c9822d7747d5ff9e617",
+    "archive": "libxml2-v2.9.12.tar.gz",
+    "format": "tar.gz",
+    "directory": "src-libxml2-2.9.12",
+    "archiveRoot": "libxml2-v2.9.12",
+    "release": "https://github.com/llvm/llvm-project/blob/llvmorg-23.1.2/llvm/utils/release/build_llvm_release.bat",
+    "hashSource": "https://github.com/llvm/llvm-project/blob/llvmorg-23.1.2/llvm/utils/release/build_llvm_release.bat"
+  },
+  "llvm": {
+    "version": "23.1.2",
+    "url": "https://github.com/llvm/llvm-project/releases/download/llvmorg-23.1.2/clang+llvm-23.1.2-x86_64-pc-windows-msvc.tar.xz",
+    "sha256": "8fb91cdc44fcbbdcf6b3ffd0a1f9859abd14a3c3aae4423c2b6d4a4f90bf0095",
+    "archive": "clang+llvm-23.1.2-x86_64-pc-windows-msvc.tar.xz",
+    "format": "tar.xz",
+    "directory": "llvm-23.1.2",
+    "archiveRoot": "clang+llvm-23.1.2-x86_64-pc-windows-msvc",
+    "release": "https://github.com/llvm/llvm-project/releases/tag/llvmorg-23.1.2",
+    "hashSource": "https://github.com/llvm/llvm-project/releases/expanded_assets/llvmorg-23.1.2"
+  }
+}

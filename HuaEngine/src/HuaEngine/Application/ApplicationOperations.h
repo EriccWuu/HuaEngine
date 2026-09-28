@@ -9,13 +9,13 @@
 #include "OperationRegistry.h"
 #include "HuaEngine/Core/Core.h"
 #include "HuaEngine/Core/ResultEnvelope.h"
+#include "HuaEngine/ECS/EntityId.h"
 #include "HuaEngine/Asset/AssetRegistry.h"
 #include "HuaEngine/Reflection/ReflectionToolService.h"
 
 namespace HE {
 	class Application;
 	class ApplicationServices;
-	class Entity;
 	class Scene;
 	struct ProjectContext;
 	struct ProjectStatusReport;
@@ -95,7 +95,8 @@ namespace HE {
 		[[nodiscard]] ResultEnvelope CreateSceneEntity(
 			Scene& scene,
 			std::string_view entityName,
-			uint32_t* outEntityId = nullptr) const;
+			uint32_t* outEntityId = nullptr,
+			EntityUuid uuid = {}) const;
 		[[nodiscard]] ResultEnvelope DeleteSceneEntities(
 			Scene& scene,
 			std::span<const uint32_t> entityIds,
