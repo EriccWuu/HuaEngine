@@ -44,7 +44,7 @@ root = Path(args.work_dir)
 root.mkdir(parents=True, exist_ok=True)
 results = []
 operations = []
-prefix = '#include "HuaEngine/ECS/Runtime/GeneratedQuery.h"\n#include "HuaEngine/Reflection/ReflectionMarkers.h"\n'
+prefix = '#include <string>\n#include "HuaEngine/Reflection/ReflectionMarkers.h"\n'
 
 
 def fixture(name, body):
@@ -92,52 +92,24 @@ component = 'HE_REFLECT_COMPONENT(Guid="d6000000000000000000000000000001", Displ
 positive = component + '''
 HE_REFLECT_COMPONENT(Guid="d6000000000000000000000000000002", DisplayName="Global disabled", Category="Tests", Tag=true) struct Disabled {};
 namespace A {
-HE_REFLECT_COMPONENT(Guid="d6000000000000000000000000000003", DisplayName="Local disabled", Category="Tests", TypeName="A.Disabled", Tag=true) struct Disabled {};
+HE_REFLECT_COMPONENT(Guid="d6000000000000000000000000000003", DisplayName="Nested component", Category="Tests", TypeName="A.Nested") struct Nested { HE_REFLECT_FIELD() std::string Text; };
 using Alias = ::Component;
-HE_ECS_QUERY(Required(Alias), Without(Disabled)) /* marker comment */
-void Run(Alias&, HE::Ecs::Value<std::string>, HE::Ecs::Value<std::unique_ptr<int>>);
-HE_ECS_QUERY(Without(::Disabled)) void Global(const Alias&);
+void Process(Alias& value);
 }
 '''
 config, path, header, manifest = scan("Positive", positive)
 require(len(manifest["types"]) == 3, "Repeated entry includes must be idempotent")
-queries = {query["qualified_name"]: query for query in manifest["queries"]}
-require(queries["A::Run"]["filters"]["without"] == ["A::Disabled"], "Unqualified filter must resolve in lexical scope")
-require(queries["A::Global"]["filters"]["without"] == ["Disabled"], "Leading global scope must be preserved")
-require(queries["A::Run"]["filters"]["required"] == ["Component"], "Alias filter must use canonical component identity")
-params = queries["A::Run"]["parameters"]
-require("<" in params[1]["component_type"] or params[1]["component_type"] == "std::string", "Value string must retain a usable C++ type")
-require("<" in params[2]["component_type"] and "int" in params[2]["component_type"], "Move-only Value must retain template arguments")
+require(manifest["queries"] == [], "The scanner must not produce Query declarations")
+types = {item["qualified_name"]: item for item in manifest["types"]}
+require(types["A::Nested"]["type_name"] == "A.Nested", "A component must keep its stable TypeName")
+require(types["A::Nested"]["fields"][0]["name"] == "Text", "Nested reflection fields must retain source metadata")
 
 scan("DuplicateGuid", component + component.replace("struct Component", "struct Other"), False, "component.duplicate_guid")
-scan("InvalidReturn", component + 'HE_ECS_QUERY() int Run(Component&);\n', False)
-scan("InvalidValueParameter", component + 'HE_ECS_QUERY() void Run(Component);\n', False)
-scan("UnregisteredParameter", 'struct Unknown {}; HE_ECS_QUERY() void Run(Unknown&);\n', False)
-scan("Overloaded", component + 'HE_ECS_QUERY() void Run(Component&); void Run(const Component&);\n', False)
 scan("InvalidCpp", component + 'void Broken( ;\n', False)
 scan("EmptyGuid", component.replace('Guid="d6000000000000000000000000000001"', 'Guid=""'), False)
 scan("MalformedGuid", component.replace('Guid="d6000000000000000000000000000001"', 'Guid="not-a-guid"'), False)
 scan("MissingGuid", component.replace('Guid="d6000000000000000000000000000001", ', ''), False)
-scan("TemplateQuery", component + 'HE_ECS_QUERY() template<class T> void Run(Component&, T);\n', False)
-scan("MemberQuery", component + 'struct Owner { HE_ECS_QUERY() void Run(Component&); };\n', False)
-scan("RvalueQuery", component + 'HE_ECS_QUERY() void Run(Component&&);\n', False)
-scan("BareWorldQuery", component + 'HE_ECS_QUERY() void Run(HE::Ecs::World&);\n', False)
-scan("DetachedMarker", component + 'HE_ECS_QUERY()\n', False)
-scan("RepeatedMarker", component + 'HE_ECS_QUERY() HE_ECS_QUERY() void Run(Component&);\n', False)
-
-_, _, _, output_manifest = scan("OutputEntity", component + '''
-using RowIdentity = HE::EntityId;
-struct Snapshot { HE::EntityId Id; std::unique_ptr<int> Value; };
-HE_ECS_QUERY() void Extract(RowIdentity, const Component&, HE::Ecs::BatchOutput<Snapshot>);
-''')
-output_parameters = output_manifest["queries"][0]["parameters"]
-require([parameter["category"] for parameter in output_parameters] == ["entity", "required_read", "output"],
-        "Entity aliases and BatchOutput must have explicit AST parameter categories")
-require(output_parameters[0]["component_type"] == "HE::EntityId" and output_parameters[2]["component_type"] == "Snapshot",
-        "Injected entity and output must retain exact native identities")
-scan("MultipleOutputs", component + 'HE_ECS_QUERY() void Run(const Component&, HE::Ecs::BatchOutput<int>, HE::Ecs::BatchOutput<std::string>);\n', False, "query.multiple_outputs")
-scan("EntityReference", component + 'HE_ECS_QUERY() void Run(HE::EntityId&, const Component&);\n', False)
-scan("OutputReference", component + 'HE_ECS_QUERY() void Run(const Component&, HE::Ecs::BatchOutput<int>&);\n', False)
+scan("DetachedMarker", component + 'HE_REFLECT_COMPONENT(Guid="d6000000000000000000000000000004", DisplayName="Detached", Category="Tests")\n', False, "marker.unbound")
 
 first, first_path, _, _ = scan("First", component)
 second, second_path, _, _ = scan("Second", component.replace("struct Component", "struct Other"))
@@ -145,6 +117,9 @@ result = run([base["python"], base["generator"], "validate-modules", "--meta-con
 require("guid" in (result.stdout + result.stderr).lower(), "Cross-module failure must identify the Guid conflict")
 
 run([base["python"], base["generator"], "generate", "--meta-config", str(path)])
+generated_names = {item.name for item in Path(config["output_dir"]).iterdir()}
+require(generated_names == {"GeneratedReflection.h", "GeneratedReflection.cpp", "generation-stamp.json"},
+        "Generation must produce only component registration and reflection outputs")
 before = fingerprint(Path(config["output_dir"]))
 run([base["python"], base["generator"], "validate", "--meta-config", str(path)])
 require(fingerprint(Path(config["output_dir"])) == before, "Successful validation must not write generated output")

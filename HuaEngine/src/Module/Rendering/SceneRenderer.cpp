@@ -13,7 +13,7 @@
 #include "HuaEngine/Rendering/RenderPipeline/RenderResourceResolver.h"
 #include "HuaEngine/Rendering/RenderPipeline/RenderTypes.h"
 #include "HuaEngine/Rendering/RHI/RenderTarget.h"
-#include "Module/Rendering/RenderQueries.h"
+#include "Module/Rendering/RenderJobs.h"
 
 namespace HE {
     struct SceneRenderer::Impl {

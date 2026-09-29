@@ -17,8 +17,6 @@ from typing import Any, Dict, List, Optional
 
 SCHEMA_VERSION = 2
 CONFIG_VERSION = 1
-OUTPUT_NAMES = ("GeneratedReflection.h", "GeneratedReflection.cpp", "GeneratedQueries.h", "GeneratedQueries.cpp", "Queries.h")
-PARAMETER_CATEGORIES = {"required_read", "required_write", "optional_read", "optional_write", "value", "random_read", "random_write", "resource_read", "resource_write", "commands", "entity", "output"}
 
 
 def cpp_string(value: str) -> str:
@@ -146,20 +144,8 @@ def verify_manifest(manifest: Dict[str, Any], config: Optional[Dict[str, Any]] =
             registered_names.add(stable_name)
             if item.get("tag", False) and item.get("fields"):
                 raise ValueError(f"Tag component cannot declare stored fields: {name}")
-    query_names: set[str] = set()
-    for query in manifest["queries"]:
-        name = query.get("qualified_name", "")
-        if not name or name in query_names:
-            raise ValueError(f"Duplicate or empty Query qualified name: {name}")
-        query_names.add(name)
-        if sum(parameter.get("category") == "output" for parameter in query.get("parameters", [])) > 1:
-            raise ValueError(f"A query may declare only one BatchOutput parameter: {name}")
-        for parameter in query.get("parameters", []):
-            category = parameter.get("category")
-            if category not in PARAMETER_CATEGORIES:
-                raise ValueError(f"Unsupported Query parameter category: {category}")
-            if category != "commands" and not parameter.get("component_type"):
-                raise ValueError(f"Query parameter requires canonical component_type: {name}")
+    if manifest["queries"]:
+        raise ValueError("Manifest contains Query declarations; only component and reflection metadata is supported")
 
 
 def load_manifest(path: Path, config: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
@@ -542,151 +528,14 @@ def render_reflection(manifest: Dict[str, Any]) -> Dict[str, str]:
     return {"GeneratedReflection.h": "\n".join(header_lines), "GeneratedReflection.cpp": "\n".join(lines)}
 
 
-def render_queries(manifest: Dict[str, Any]) -> Dict[str, str]:
-    module = manifest["module"]
-    header = ["#pragma once", "", '#include "GeneratedReflection.h"', '#include "HuaEngine/ECS/Runtime/GeneratedQuery.h"', '#include "HuaEngine/ECS/Runtime/Timeline.h"']
-    header.extend(f'#include "{path}"' for path in sorted({generated_include_for_source(query["source"]) for query in manifest["queries"]}))
-    header.extend(["", f"namespace HE::Generated::{module} {{"])
-    source = ['#include "GeneratedQueries.h"', "#include <utility>", "", f"namespace HE::Generated::{module} {{"]
-    public_header = ["#pragma once", "", '#include "GeneratedQueries.h"', "#include <exception>", "#include <utility>", ""]
-    for query in manifest["queries"]:
-        parameters = query["parameters"]
-        outputs = [parameter for parameter in parameters if parameter["category"] == "output"]
-        if len(outputs) > 1:
-            raise ValueError("A query may declare only one BatchOutput parameter")
-        output_type = outputs[0]["component_type"] if outputs else None
-        filters = query.get("filters", {})
-        name = "Submit_" + cpp_identifier(query["qualified_name"])
-        arguments = ["Ecs::Timeline& timeline", "Ecs::World& world"]
-        public_arguments = ["::HE::Ecs::Timeline& timeline", "::HE::Ecs::World& world"]
-        forwarded_arguments = ["timeline", "world"]
-        captures: List[str] = []
-        for index, parameter in enumerate(parameters):
-            category = parameter["category"]
-            value_type = parameter.get("component_type", "")
-            if category == "value":
-                arguments.append(f"{value_type} arg_{index}")
-                public_arguments.append(f"{value_type} arg_{index}")
-                forwarded_arguments.append(f"std::move(arg_{index})")
-                captures.append(f"payload_{index} = std::move(arg_{index})")
-            elif category.startswith("random_"):
-                arguments.append(f"Ecs::World& arg_{index}")
-                public_arguments.append(f"::HE::Ecs::World& arg_{index}")
-                forwarded_arguments.append(f"arg_{index}")
-                captures.append(f"world_{index} = arg_{index}.Id()")
-            elif category.startswith("resource_"):
-                arguments.append(f"Ecs::ResourceHandle arg_{index}")
-                public_arguments.append(f"::HE::Ecs::ResourceHandle arg_{index}")
-                forwarded_arguments.append(f"arg_{index}")
-                captures.append(f"resource_{index} = arg_{index}")
-        for index, _ in enumerate(filters.get("shared", [])):
-            arguments.append(f"Ecs::ResourceHandle shared_{index}")
-            public_arguments.append(f"::HE::Ecs::ResourceHandle shared_{index}")
-            forwarded_arguments.append(f"shared_{index}")
-        has_changed = bool(filters.get("changed"))
-        if has_changed:
-            arguments.append("Ecs::ChangedState& changed")
-            public_arguments.append("::HE::Ecs::ChangedState& changed")
-            forwarded_arguments.append("changed")
-        result_type = f"Ecs::GeneratedOutputTask<{output_type}>" if output_type else "Ecs::TaskHandle"
-        declaration = f"Ecs::Result<{result_type}> {name}({', '.join(arguments)})"
-        header.append("[[nodiscard]] " + declaration + ";")
-        query_namespace, _, query_name = query["qualified_name"].rpartition("::")
-        public_namespace = f"{query_namespace}::Queries" if query_namespace else "Queries"
-        public_result_type = result_type.replace("Ecs::", "::HE::Ecs::", 1)
-        public_header.extend([
-            f"namespace {public_namespace} {{",
-            f"[[nodiscard]] inline ::HE::Ecs::Result<{public_result_type}> {query_name}({', '.join(public_arguments)}) {{",
-            "    try {",
-            f"        return ::HE::Generated::{module}::{name}({', '.join(forwarded_arguments)});",
-            "    } catch (const std::exception& exception) {",
-            "        return ::HE::Ecs::Error{::HE::Ecs::ErrorCode::ConstructionFailed, \"GeneratedQuery\", exception.what()};",
-            "    } catch (...) {",
-            "        return ::HE::Ecs::Error{::HE::Ecs::ErrorCode::ConstructionFailed, \"GeneratedQuery\", \"Query argument transfer failed\"};",
-            "    }",
-            "}", "}", "",
-        ])
-        source.extend(["", declaration + " {", "    try {", "    auto& context = world.Context();", "    if (!context.IsMainThread()) return Ecs::Error{Ecs::ErrorCode::WrongThread, \"GeneratedQuery\", \"Submission requires the Context owner thread\"};", "    Ecs::QuerySpec spec;"])
-        component_names = [parameter["component_type"] for parameter in parameters if parameter["category"] not in {"value", "commands", "resource_read", "resource_write", "entity", "output"}]
-        for filter_name in ("without", "required", "tag", "changed", "shared"):
-            component_names.extend(filters.get(filter_name, []))
-        type_variables = {value_type: f"type_{index}" for index, value_type in enumerate(dict.fromkeys(component_names))}
-        for value_type, variable in type_variables.items():
-            source.extend([f"    const auto* {variable} = context.Types().Find<{value_type}>();", f"    if (!{variable}) return Ecs::Error{{Ecs::ErrorCode::InvalidType, \"GeneratedQuery\", {cpp_string('Unregistered Query component: ' + value_type)}}};"])
-        column_arguments: Dict[int, int] = {}
-        for index, parameter in enumerate(parameters):
-            category = parameter["category"]
-            value_type = parameter.get("component_type", "")
-            access = "Write" if category.endswith("write") else "Read"
-            if category.startswith("required_") or category.startswith("optional_"):
-                column_arguments[index] = len(column_arguments)
-                presence = "Optional" if category.startswith("optional_") else "Required"
-                source.append(f"    spec.Columns.push_back({{{type_variables[value_type]}->Id, Ecs::Presence::{presence}, Ecs::AccessMode::{access}}});")
-            elif category.startswith("random_"):
-                source.extend([f"    if (&arg_{index}.Context() != &context) return Ecs::Error{{Ecs::ErrorCode::InvalidArgument, \"GeneratedQuery\", \"Random target belongs to another Context\"}};", f"    spec.RandomAccesses.push_back({{&arg_{index}, {type_variables[value_type]}->Id, Ecs::AccessMode::{access}}});"])
-            elif category.startswith("resource_"):
-                source.extend([f"    const auto* resource_{index} = context.Resources().Find(arg_{index});", f"    if (!resource_{index} || resource_{index}->NativeKey != Ecs::NativeTypeKey<{value_type}>()) return Ecs::Error{{Ecs::ErrorCode::InvalidType, \"GeneratedQuery\", \"Resource binding has the wrong Context or native type\"}};", f"    spec.ResourceAccesses.push_back({{arg_{index}, Ecs::AccessMode::{access}}});"])
-        for field, member in (("without", "Exclude"), ("required", "Required"), ("tag", "Required"), ("changed", "ChangedTypes")):
-            for value_type in filters.get(field, []):
-                source.append(f"    spec.{member}.push_back({type_variables[value_type]}->Id);")
-        for index, value_type in enumerate(filters.get("shared", [])):
-            source.extend([f"    spec.SharedBindings.push_back({{{type_variables[value_type]}->Id, shared_{index}}});", f"    spec.ResourceAccesses.push_back({{shared_{index}, Ecs::AccessMode::Read}});"])
-        source.extend([f"    spec.IncludeDisabledEntities = {cpp_bool(filters.get('include_disabled', False))};", f"    spec.IgnoreComponentEnabled = {cpp_bool(filters.get('ignore_component_enabled', False))};", f"    auto query = context.FindOrCreateGeneratedQuery({cpp_string(module + '::' + query['qualified_name'])}, std::move(spec));", "    if (!query) return query.GetError();"])
-        if output_type:
-            source.append(f"    auto output = std::make_shared<Ecs::Detail::GeneratedOutputState<{output_type}>>();")
-            captures.append("output")
-        submission = "auto submitted = " if output_type else "return "
-        source.extend([f"    {submission}timeline.Submit(*query.Value(), world, [{', '.join(captures)}](Ecs::TaskBatch& task) -> Ecs::Result<void> {{", "        auto& batch = task.View();"])
-        if output_type:
-            source.append(f"        std::vector<{output_type}> batchOutput;")
-        call_arguments: List[str] = []
-        for index, parameter in enumerate(parameters):
-            category = parameter["category"]
-            value_type = parameter.get("component_type", "")
-            const_type = "const " + value_type if category.endswith("read") else value_type
-            if index in column_arguments:
-                source.extend([f"        auto column_{index} = batch.Column<{const_type}>({column_arguments[index]});", f"        if (!column_{index}) return column_{index}.GetError();"])
-                if category.startswith("optional_"):
-                    call_arguments.append(f"column_{index}.Value().TryGet(row)")
-                else:
-                    source.append(f"        auto span_{index} = column_{index}.Value().TryAsSpan();")
-                    call_arguments.append(f"(span_{index} ? (*span_{index})[row] : column_{index}.Value().At(row))")
-            elif category == "value":
-                call_arguments.append(f"Ecs::Value<{value_type}>(payload_{index})")
-            elif category.startswith("random_"):
-                source.extend([f"        auto random_{index} = batch.Random<{const_type}>(world_{index});", f"        if (!random_{index}) return random_{index}.GetError();"])
-                wrapper = "RandomRead" if category.endswith("read") else "RandomWrite"
-                call_arguments.append(f"Ecs::{wrapper}<{value_type}>(random_{index}.Value())")
-            elif category.startswith("resource_"):
-                source.extend([f"        auto resource_view_{index} = batch.Resource<{const_type}>(resource_{index});", f"        if (!resource_view_{index}) return resource_view_{index}.GetError();"])
-                wrapper = "ResourceRead" if category.endswith("read") else "ResourceWrite"
-                call_arguments.append(f"Ecs::{wrapper}<{value_type}>(resource_view_{index}.Value().get())")
-            elif category == "commands":
-                call_arguments.append("task.Commands()")
-            elif category == "entity":
-                call_arguments.append("batch.Entity(row)")
-            elif category == "output":
-                call_arguments.append(f"Ecs::BatchOutput<{value_type}>(batchOutput)")
-        source.extend(["        const size_t batchRows = batch.Size();", "        for (size_t row = 0; row < batchRows; ++row) {", "            if (!batch.Valid()) return Ecs::Error{Ecs::ErrorCode::InvalidState, \"GeneratedQuery\", \"The query batch expired\"};", f"            ::{query['qualified_name']}({', '.join(call_arguments)});", "        }", "        if (!batch.Valid()) return Ecs::Error{Ecs::ErrorCode::InvalidState, \"GeneratedQuery\", \"The query batch expired\"};"])
-        source.append("        return output->Publish(task.BatchIndex(), std::move(batchOutput));" if output_type else "        return {};")
-        source.append("    }, " + ("&changed" if has_changed else "nullptr") + ");")
-        if output_type:
-            source.extend(["    if (!submitted) return submitted.GetError();", f"    return Ecs::GeneratedOutputTask<{output_type}>(std::move(submitted).Value(), std::move(output));"])
-        source.extend(["    } catch (const std::exception& exception) {", "        return Ecs::Error{Ecs::ErrorCode::ConstructionFailed, \"GeneratedQuery\", exception.what()};", "    } catch (...) {", "        return Ecs::Error{Ecs::ErrorCode::ConstructionFailed, \"GeneratedQuery\", \"Query payload construction failed\"};", "    }", "}"])
-    header.extend(["}", ""])
-    source.extend(["}", ""])
-    return {"GeneratedQueries.h": "\n".join(header), "GeneratedQueries.cpp": "\n".join(source),
-            "Queries.h": "\n".join(public_header)}
-
-
 def render_files(manifest: Dict[str, Any]) -> Dict[str, str]:
-    result = render_reflection(manifest)
-    result.update(render_queries(manifest))
-    return result
+    return render_reflection(manifest)
 
 
 def write_generated_files(manifest: Dict[str, Any], out_dir: Path) -> List[Path]:
     result = render_files(manifest)
+    for name in ("GeneratedQueries.h", "GeneratedQueries.cpp", "Queries.h"):
+        (out_dir / name).unlink(missing_ok=True)
     for name, content in result.items():
         write_if_changed(out_dir / name, content)
     return [out_dir / name for name in result]
@@ -784,7 +633,7 @@ def validate_module_set(modules: List[Dict[str, Any]]) -> None:
     for manifest in modules:
         module = manifest["module"]
         keys = [("module", module)]
-        for item in manifest["types"] + manifest["enums"] + manifest["queries"]:
+        for item in manifest["types"] + manifest["enums"]:
             keys.append(("qualified_name", item["qualified_name"]))
             if item.get("kind") == "component":
                 keys.append(("Guid", item["guid"].replace("-", "").lower()))

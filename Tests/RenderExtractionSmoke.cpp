@@ -1,6 +1,6 @@
 #include "ECSTestSupport.h"
 #include "HuaEngine/Scene/Scene.h"
-#include "Module/Rendering/RenderQueries.h"
+#include "Module/Rendering/RenderJobs.h"
 
 #include <algorithm>
 #include <map>

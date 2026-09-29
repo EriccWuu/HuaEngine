@@ -1,6 +1,5 @@
 #include "Fixtures/ComponentModule.h"
 #include <Test/GeneratedReflection.h>
-#include <Test/Queries.h>
 #include "HuaEngine/ECS/Runtime/Timeline.h"
 #if defined(HUA_META_ENGINE_INTEGRATION)
 #include "HuaEngine/Serialization/Serialization.h"
@@ -54,20 +53,20 @@ namespace {
         World first(context), second(context);
         QuerySpec spec;
         spec.Columns.push_back({Id<PlainComponent>(context), Presence::Required, AccessMode::Read});
-        auto* original = Take(context.FindOrCreateGeneratedQuery("binding", spec));
-        Require(Take(context.FindOrCreateGeneratedQuery("binding", spec)) == original, "Identical generated cache bindings must reuse the entry");
+        auto* original = Take(context.FindOrCreateQuery("binding", spec));
+        Require(Take(context.FindOrCreateQuery("binding", spec)) == original, "Identical Job cache bindings must reuse the entry");
         auto different = spec;
         different.Columns[0].Access = AccessMode::Write;
-        Require(Take(context.FindOrCreateGeneratedQuery("binding", different)) != original, "Access permissions must be part of the cache key");
-        Require(Take(context.FindOrCreateGeneratedQuery(std::string_view("binding\0tail", 12), spec)) != original,
+        Require(Take(context.FindOrCreateQuery("binding", different)) != original, "Access permissions must be part of the cache key");
+        Require(Take(context.FindOrCreateQuery(std::string_view("binding\0tail", 12), spec)) != original,
             "Declaration keys must compare their entire length");
         spec.RandomAccesses.push_back({&first, Id<ReadComponent>(context), AccessMode::Read});
-        auto* boundFirst = Take(context.FindOrCreateGeneratedQuery("random", spec));
+        auto* boundFirst = Take(context.FindOrCreateQuery("random", spec));
         spec.RandomAccesses[0].Target = &second;
-        Require(Take(context.FindOrCreateGeneratedQuery("random", spec)) != boundFirst, "Target World identity must be part of the cache key");
+        Require(Take(context.FindOrCreateQuery("random", spec)) != boundFirst, "Target World identity must be part of the cache key");
         QuerySpec otherSpec;
         otherSpec.Columns.push_back({Id<PlainComponent>(other), Presence::Required, AccessMode::Read});
-        Require(Take(other.FindOrCreateGeneratedQuery("binding", otherSpec)) != original, "Generated cache entries must remain Context-local");
+        Require(Take(other.FindOrCreateQuery("binding", otherSpec)) != original, "Job cache entries must remain Context-local");
     }
 
 #if defined(HUA_META_ENGINE_INTEGRATION)
@@ -89,70 +88,12 @@ namespace {
     }
 #endif
 
-    void AllParameters(TimelineMode mode) {
-        EcsContext context({.WorkerCount = 2});
-        Check(HE::Generated::Test::RegisterComponents(context.Types()));
-        World world(context), randomWorld(context);
-        const auto target = Take(randomWorld.CreateEmpty());
-        Check(randomWorld.Emplace<ReadComponent>(target, ReadComponent{11}));
-        Check(randomWorld.Emplace<OptionalWrite>(target, OptionalWrite{20}));
-        const auto shared = Take(context.Resources().Register(std::make_shared<SharedComponent>(SharedComponent{8})));
-        const auto amount = Take(context.Resources().Register(std::make_shared<int>(13)));
-        auto totalValue = std::make_shared<int>(0);
-        const auto total = Take(context.Resources().Register(totalValue));
-        const auto make = [&](int initial) {
-            const auto entity = Take(world.CreateEmpty());
-            Check(world.Emplace<PlainComponent>(entity, PlainComponent{"fixture", initial}));
-            Check(world.Emplace<ReadComponent>(entity, ReadComponent{2}));
-            Check(world.SetTag(entity, Id<Active>(context)));
-            Check(world.SetShared(entity, {Id<SharedComponent>(context), shared}));
-            return entity;
-        };
-        const auto normal = make(0), optionalMissing = make(10), excluded = make(20), disabled = make(30);
-        Check(world.Emplace<OptionalRead>(normal, OptionalRead{3}));
-        Check(world.Emplace<OptionalWrite>(normal, OptionalWrite{4}));
-        Check(world.SetTag(excluded, Id<Excluded>(context)));
-        Check(world.SetEnabled(disabled, false));
-        ChangedState changed;
-        Timeline timeline(context, {.Mode = mode});
-        const auto submit = [&] {
-            return P6Fixture::Queries::AllArguments(timeline, world, target,
-                randomWorld, randomWorld, amount, total, shared, changed);
-        };
-        Take(submit());
-        Check(timeline.Finish());
-        Require(*totalValue == 2 && world.TryGet<PlainComponent>(normal)->Value == 29 &&
-            world.TryGet<PlainComponent>(optionalMissing)->Value == 36, "Required, optional, random and resource parameters must use their declared bindings");
-        Require(world.TryGet<OptionalWrite>(normal)->Value == 5 && randomWorld.TryGet<OptionalWrite>(target)->Value == 24,
-            "Optional and random writable views must refer to the correct Worlds");
-        Require(world.TryGet<PlainComponent>(excluded)->Value == 20 && world.TryGet<PlainComponent>(disabled)->Value == 30,
-            "Tag, exclusion and enabled filters must restrict generated queries");
-        Take(submit());
-        Check(timeline.Finish());
-        Require(*totalValue == 2, "Changed observers must acknowledge the successful generated round");
-        Check(timeline.CommitCommands());
-        Require(world.EntityCount() == 6, "Generated Commands must remain deferred until commit");
-        Check(world.SetComponentEnabled(normal, Id<PlainComponent>(context), false));
-        Take(P6Fixture::Queries::IncludeAll(timeline, world));
-        Check(timeline.Finish());
-        Require(world.TryGet<PlainComponent>(normal)->Value == 129 && world.TryGet<PlainComponent>(disabled)->Value == 130,
-            "Generated explicit enabled-mask overrides must apply to entity and component masks");
-        EcsContext other({.WorkerCount = 1});
-        Check(HE::Generated::Test::RegisterComponents(other.Types()));
-        World foreign(other);
-        Require(!P6Fixture::Queries::AllArguments(timeline, world, target,
-            foreign, randomWorld, amount, total, shared, changed), "Generated random bindings must reject a foreign Context");
-        Require(!P6Fixture::Queries::AllArguments(timeline, world, target,
-            randomWorld, randomWorld, shared, total, shared, changed), "Generated resource bindings must reject the wrong native type");
-    }
 }
 
-void RunGeneratedContracts() {
+void RunMetaGeneratedContracts() {
 #if defined(HUA_META_ENGINE_INTEGRATION)
     GeneratedSerialization();
 #endif
     Capabilities();
     CacheBindings();
-    AllParameters(TimelineMode::Serial);
-    AllParameters(TimelineMode::Parallel);
 }

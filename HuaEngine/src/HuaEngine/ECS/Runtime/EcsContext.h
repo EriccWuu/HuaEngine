@@ -16,7 +16,7 @@ namespace HE::Ecs {
 	class WorldAccessScope;
 	namespace Detail {
 		struct QueryCacheState;
-		struct GeneratedQueryCache;
+		struct QueryInstanceCache;
 		class WorkerPool;
 		// The Context leases this control state across World destruction and scopes.
 		class TimelineControl {
@@ -43,8 +43,8 @@ namespace HE::Ecs {
 		[[nodiscard]] bool IsMainThread() const noexcept { return std::this_thread::get_id() == m_MainThread; }
 		[[nodiscard]] bool HasScheduledWork() const noexcept { return m_ScheduledWork.load(std::memory_order_acquire) != 0 || m_ClosingTimeline.load(std::memory_order_acquire); }
 		[[nodiscard]] size_t WorkerCount() const noexcept { return m_WorkerCount; }
-		// Generated declarations reuse one Query per complete binding in this Context.
-		[[nodiscard]] Result<Query*> FindOrCreateGeneratedQuery(std::string_view declaration, QuerySpec spec);
+		// Jobs reuse one Query per complete binding in this Context.
+		[[nodiscard]] Result<Query*> FindOrCreateQuery(std::string_view declaration, QuerySpec spec);
 
 	private:
 		friend class Query;
@@ -55,7 +55,7 @@ namespace HE::Ecs {
 		ResourceRegistry m_Resources;
 		std::thread::id m_MainThread = std::this_thread::get_id();
 		std::shared_ptr<Detail::QueryCacheState> m_QueryCache;
-		std::unique_ptr<Detail::GeneratedQueryCache> m_GeneratedQueryCache;
+		std::unique_ptr<Detail::QueryInstanceCache> m_QueryInstanceCache;
 		mutable std::mutex m_TimelineMutex;
 		std::shared_ptr<Detail::TimelineControl> m_TimelineControl;
 		std::atomic<bool> m_ClosingTimeline{false};

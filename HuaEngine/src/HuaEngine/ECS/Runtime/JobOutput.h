@@ -27,7 +27,7 @@ namespace HE::Ecs {
 
     namespace Detail {
         template<typename T>
-        struct GeneratedOutputState final {
+        struct JobOutputState final {
             std::mutex Mutex;
             std::map<size_t, std::vector<T>> Batches;
             bool Collected = false;
@@ -35,7 +35,7 @@ namespace HE::Ecs {
             [[nodiscard]] Result<void> Publish(size_t batch, std::vector<T>&& values) {
                 std::lock_guard lock(Mutex);
                 if (Collected || Batches.contains(batch))
-                    return Error{ErrorCode::InvalidState, "GeneratedOutput", "The output batch was already published or consumed"};
+                    return Error{ErrorCode::InvalidState, "JobOutput", "The output batch was already published or consumed"};
                 Batches.emplace(batch, std::move(values));
                 return {};
             }
@@ -47,7 +47,7 @@ namespace HE::Ecs {
     template<typename T>
     class OutputTask final {
     public:
-        OutputTask(TaskHandle task, std::shared_ptr<Detail::GeneratedOutputState<T>> output)
+        OutputTask(TaskHandle task, std::shared_ptr<Detail::JobOutputState<T>> output)
             : m_Task(std::move(task)), m_Output(std::move(output)) {}
         OutputTask(const OutputTask&) = delete;
         OutputTask& operator=(const OutputTask&) = delete;
@@ -59,16 +59,16 @@ namespace HE::Ecs {
             // Waiting can invoke user code that destroys the public task object.
             auto output = m_Output;
             auto task = m_Task;
-            if (!output) return Error{ErrorCode::InvalidState, "GeneratedOutput", "The output task was moved from"};
+            if (!output) return Error{ErrorCode::InvalidState, "JobOutput", "The output task was moved from"};
             auto completion = timeline.Wait(task);
             if (!completion) return completion.GetError();
             if (task.Status() != TaskStatus::Succeeded)
-                return Error{ErrorCode::InvalidState, "GeneratedOutput", "Only a successful task can produce output"};
+                return Error{ErrorCode::InvalidState, "JobOutput", "Only a successful task can produce output"};
             std::map<size_t, std::vector<T>> batches;
             {
                 std::lock_guard lock(output->Mutex);
                 if (output->Collected)
-                    return Error{ErrorCode::InvalidState, "GeneratedOutput", "Output can only be collected once"};
+                    return Error{ErrorCode::InvalidState, "JobOutput", "Output can only be collected once"};
                 output->Collected = true;
                 batches.swap(output->Batches);
             }
@@ -77,7 +77,7 @@ namespace HE::Ecs {
                 size_t total = 0;
                 for (const auto& [index, values] : batches) {
                     if (values.size() > result.max_size() - total)
-                        throw std::length_error("Generated output exceeds the vector capacity");
+                        throw std::length_error("Job output exceeds the vector capacity");
                     total += values.size();
                 }
                 result.reserve(total);
@@ -85,67 +85,13 @@ namespace HE::Ecs {
                     for (auto& value : values) result.push_back(std::move(value));
                 return result;
             } catch (const std::exception& exception) {
-                return Error{ErrorCode::ConstructionFailed, "GeneratedOutput", exception.what()};
+                return Error{ErrorCode::ConstructionFailed, "JobOutput", exception.what()};
             } catch (...) {
-                return Error{ErrorCode::ConstructionFailed, "GeneratedOutput", "Output collection failed"};
+                return Error{ErrorCode::ConstructionFailed, "JobOutput", "Output collection failed"};
             }
         }
     private:
         TaskHandle m_Task;
-        std::shared_ptr<Detail::GeneratedOutputState<T>> m_Output;
-    };
-
-    template<typename T>
-    using GeneratedOutputTask = OutputTask<T>;
-
-    template<typename T>
-    class Value final {
-    public:
-        explicit Value(const T& value) noexcept : m_Value(std::addressof(value)) {}
-        [[nodiscard]] const T& Get() const noexcept { return *m_Value; }
-        [[nodiscard]] const T& operator*() const noexcept { return Get(); }
-        [[nodiscard]] const T* operator->() const noexcept { return m_Value; }
-    private:
-        const T* m_Value;
-    };
-
-    template<typename T>
-    class RandomRead final {
-    public:
-        explicit RandomRead(RandomView<const T> view) : m_View(std::move(view)) {}
-        [[nodiscard]] Result<const T*> TryGet(EntityId entity) const { return m_View.TryGet(entity); }
-    private:
-        RandomView<const T> m_View;
-    };
-
-    template<typename T>
-    class RandomWrite final {
-    public:
-        explicit RandomWrite(RandomView<T> view) : m_View(std::move(view)) {}
-        [[nodiscard]] Result<T*> TryGet(EntityId entity) const { return m_View.TryGet(entity); }
-    private:
-        RandomView<T> m_View;
-    };
-
-    template<typename T>
-    class ResourceRead final {
-    public:
-        explicit ResourceRead(const T& value) noexcept : m_Value(std::addressof(value)) {}
-        [[nodiscard]] const T& Get() const noexcept { return *m_Value; }
-        [[nodiscard]] const T& operator*() const noexcept { return Get(); }
-        [[nodiscard]] const T* operator->() const noexcept { return m_Value; }
-    private:
-        const T* m_Value;
-    };
-
-    template<typename T>
-    class ResourceWrite final {
-    public:
-        explicit ResourceWrite(T& value) noexcept : m_Value(std::addressof(value)) {}
-        [[nodiscard]] T& Get() const noexcept { return *m_Value; }
-        [[nodiscard]] T& operator*() const noexcept { return Get(); }
-        [[nodiscard]] T* operator->() const noexcept { return m_Value; }
-    private:
-        T* m_Value;
+        std::shared_ptr<Detail::JobOutputState<T>> m_Output;
     };
 }

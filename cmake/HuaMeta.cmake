@@ -130,19 +130,17 @@ set(HUA_META_SCAN_${META_NAME}_RUNTIME [==[$<TARGET_GENEX_EVAL:${META_TARGET},$<
         DEPFILE "${depfile}"
         COMMENT "Scan ${META_NAME} $<CONFIG> with locked Clang"
         VERBATIM)
-    set(outputs "${output_root}/GeneratedReflection.h" "${output_root}/GeneratedReflection.cpp"
-        "${output_root}/GeneratedQueries.h" "${output_root}/GeneratedQueries.cpp"
-        "${output_root}/Queries.h")
+    set(outputs "${output_root}/GeneratedReflection.h" "${output_root}/GeneratedReflection.cpp")
     add_custom_command(OUTPUT ${outputs}
         BYPRODUCTS "${output_root}/generation-stamp.json"
         COMMAND "${CMAKE_COMMAND}" "-DMODE=generate" "-DMETA_CONFIG=${config}"
             -P "${HUAENGINE_SOURCE_ROOT}/cmake/RunMeta.cmake"
         DEPENDS "${manifest}" "${config}" "${generator}" "${HUAENGINE_SOURCE_ROOT}/cmake/RunMeta.cmake"
-        COMMENT "Generate ${META_NAME} $<CONFIG> reflection and Query entry points"
+        COMMENT "Generate ${META_NAME} $<CONFIG> component registration and reflection"
         VERBATIM)
     add_custom_target(HuaMeta${META_NAME} DEPENDS ${outputs})
     add_dependencies(${META_TARGET} HuaMeta${META_NAME})
-    target_sources(${META_TARGET} PRIVATE "${output_root}/GeneratedReflection.cpp" "${output_root}/GeneratedQueries.cpp")
+    target_sources(${META_TARGET} PRIVATE "${output_root}/GeneratedReflection.cpp")
     target_include_directories(${META_TARGET} BEFORE PUBLIC "${CMAKE_BINARY_DIR}/generated/$<CONFIG>")
     set_property(GLOBAL APPEND PROPERTY HUA_META_MODULES "${META_NAME}")
     set_property(GLOBAL APPEND PROPERTY HUA_META_MANIFESTS "${manifest}")

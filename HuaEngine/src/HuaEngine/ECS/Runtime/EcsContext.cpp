@@ -9,7 +9,7 @@
 
 namespace HE::Ecs {
 	namespace Detail {
-		struct GeneratedQueryCache {
+		struct QueryInstanceCache {
 			struct Entry {
 				std::unique_ptr<Query> Instance;
 				std::vector<std::weak_ptr<const WorldLifetime>> RandomWorlds;
@@ -22,7 +22,7 @@ namespace HE::Ecs {
 			const unsigned logical = std::thread::hardware_concurrency();
 			return logical > 1 ? static_cast<size_t>(logical - 1) : 1;
 		}
-		std::string GeneratedQueryKey(std::string_view declaration, const QuerySpec& spec) {
+		std::string QueryInstanceKey(std::string_view declaration, const QuerySpec& spec) {
 			std::string key;
 			key.reserve(declaration.size() + 128);
 			const auto number = [&](uint64_t value) { key += std::to_string(value); key += ';'; };
@@ -70,19 +70,19 @@ namespace HE::Ecs {
 	EcsContext::EcsContext(EcsContextOptions options)
 		: m_WorkerCount(options.WorkerCount ? options.WorkerCount : DefaultWorkerCount()) {}
 	EcsContext::~EcsContext() = default;
-	Result<Query*> EcsContext::FindOrCreateGeneratedQuery(std::string_view declaration, QuerySpec spec) {
-		if (!IsMainThread()) return Error{ErrorCode::WrongThread, "GeneratedQuery", "Query construction requires the Context owner thread"};
-		if (declaration.empty()) return Error{ErrorCode::InvalidArgument, "GeneratedQuery", "The declaration identity is empty"};
+	Result<Query*> EcsContext::FindOrCreateQuery(std::string_view declaration, QuerySpec spec) {
+		if (!IsMainThread()) return Error{ErrorCode::WrongThread, "Query", "Query construction requires the Context owner thread"};
+		if (declaration.empty()) return Error{ErrorCode::InvalidArgument, "Query", "The declaration identity is empty"};
 		try {
-			if (!m_GeneratedQueryCache) m_GeneratedQueryCache = std::make_unique<Detail::GeneratedQueryCache>();
-			auto& entries = m_GeneratedQueryCache->Entries;
+			if (!m_QueryInstanceCache) m_QueryInstanceCache = std::make_unique<Detail::QueryInstanceCache>();
+			auto& entries = m_QueryInstanceCache->Entries;
 			std::erase_if(entries, [](const auto& pair) {
 				return std::any_of(pair.second.RandomWorlds.begin(), pair.second.RandomWorlds.end(), [](const auto& weak) {
 					const auto lifetime = weak.lock();
 					return !lifetime || !lifetime->Owner.load(std::memory_order_acquire);
 				});
 			});
-			const auto key = GeneratedQueryKey(declaration, spec);
+			const auto key = QueryInstanceKey(declaration, spec);
 			if (const auto found = entries.find(key); found != entries.end()) return found->second.Instance.get();
 			std::vector<std::weak_ptr<const Detail::WorldLifetime>> randomWorlds;
 			randomWorlds.reserve(spec.RandomAccesses.size());
@@ -94,11 +94,11 @@ namespace HE::Ecs {
 			if (!created) return created.GetError();
 			auto instance = std::make_unique<Query>(std::move(created).Value());
 			auto* result = instance.get();
-			entries.emplace(key, Detail::GeneratedQueryCache::Entry{std::move(instance), std::move(randomWorlds)});
+			entries.emplace(key, Detail::QueryInstanceCache::Entry{std::move(instance), std::move(randomWorlds)});
 			return result;
 		}
 		catch (const std::exception& exception) {
-			return Error{ErrorCode::ConstructionFailed, "GeneratedQuery", exception.what()};
+			return Error{ErrorCode::ConstructionFailed, "Query", exception.what()};
 		}
 	}
 	Detail::WorkerPool& EcsContext::Workers() {

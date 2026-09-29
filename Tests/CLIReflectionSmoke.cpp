@@ -254,15 +254,13 @@ namespace {
 		const std::string& config) {
 		const auto manifest = ConfiguredPath(config, "manifest");
 		const auto output = ConfiguredPath(config, "output_dir");
-		const std::array<std::filesystem::path, 6> artifacts{
+		const std::array<std::filesystem::path, 4> artifacts{
 			manifest,
 			output / "GeneratedReflection.h",
 			output / "GeneratedReflection.cpp",
-			output / "GeneratedQueries.h",
-			output / "GeneratedQueries.cpp",
 			output / "generation-stamp.json"
 		};
-		std::array<FileFingerprint, 6> before;
+		std::array<FileFingerprint, 4> before;
 		for (size_t index = 0; index < artifacts.size(); ++index) {
 			before[index] = Fingerprint(artifacts[index]);
 		}
@@ -309,7 +307,7 @@ int main(int argc, char** argv) {
 		{ "reflection", "generate", "--meta-config", Utf8PathArgument(fixtureConfig), "--out", Utf8PathArgument(fixtureManifest),
 			"--out-dir", Utf8PathArgument(fixtureGenerated) }, workingDirectory), "reflection.generate");
 	Expect(std::filesystem::is_regular_file(fixtureGenerated / "GeneratedReflection.cpp"), "CLI must generate reflection source");
-	Expect(std::filesystem::is_regular_file(fixtureGenerated / "GeneratedQueries.cpp"), "CLI must generate query source");
+	Expect(std::filesystem::is_regular_file(fixtureGenerated / "GeneratedReflection.h"), "CLI must generate component traits");
 
 	ValidateWithoutWriting(cliExecutable, workingDirectory, configPath, config);
 

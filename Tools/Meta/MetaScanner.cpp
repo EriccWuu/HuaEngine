@@ -16,7 +16,6 @@
 
 #include "clang/AST/ASTConsumer.h"
 #include "clang/AST/DeclCXX.h"
-#include "clang/AST/QualTypeNames.h"
 #include "clang/AST/RecursiveASTVisitor.h"
 #include "clang/Basic/Diagnostic.h"
 #include "clang/Frontend/CompilerInstance.h"
@@ -176,7 +175,7 @@ namespace {
         return std::all_of(value.begin(), value.end(), [](unsigned char ch) { return std::isxdigit(ch); });
     }
 
-    enum class MarkerKind { Component, Field, Enum, Query };
+    enum class MarkerKind { Component, Field, Enum };
     struct Marker {
         MarkerKind Kind;
         clang::FileID File;
@@ -188,30 +187,15 @@ namespace {
         bool Used = false;
     };
 
-    struct QueryRecord {
-        llvm::json::Object Value;
-        std::string RawFilter;
-        std::vector<std::string> ComponentTypes;
-        std::string QualifiedName;
-        std::string Source;
-        unsigned Line = 0;
-        unsigned Column = 0;
-    };
-
     struct State {
         explicit State(const ScanOptions& options) : Options(options), Entry(Identity(Utf8Path(options.EntryHeader))) {}
         const ScanOptions& Options;
         std::string Entry;
         std::vector<Marker> Markers;
         std::set<std::string> Files;
-        std::map<std::string, std::string> ReflectedComponents;
-        std::map<std::string, std::set<std::string>> ExactTypes;
         std::map<std::string, std::string> GuidOwners;
-        std::map<std::string, unsigned> FunctionCounts;
-        std::set<const clang::FunctionDecl*> SeenFunctions;
         llvm::json::Array Types;
         llvm::json::Array Enums;
-        std::vector<QueryRecord> Queries;
         llvm::json::Array Diagnostics;
         bool Failed = false;
 
@@ -249,7 +233,6 @@ namespace {
             if (name == "HE_REFLECT_COMPONENT") kind = MarkerKind::Component;
             else if (name == "HE_REFLECT_FIELD") kind = MarkerKind::Field;
             else if (name == "HE_REFLECT_ENUM") kind = MarkerKind::Enum;
-            else if (name == "HE_ECS_QUERY") kind = MarkerKind::Query;
             else return;
             auto& source = Preprocessor.getSourceManager();
             const auto begin = source.getExpansionLoc(range.getBegin());
@@ -279,10 +262,8 @@ namespace {
         bool VisitCXXRecordDecl(clang::CXXRecordDecl* declaration) {
             if (!declaration->isThisDeclarationADefinition() || declaration->isImplicit() || !declaration->getIdentifier()) return true;
             const auto qualified = declaration->getQualifiedNameAsString();
-            Data.ExactTypes[qualified].insert(qualified);
             auto* marker = Associate(*declaration, MarkerKind::Component);
             if (!marker) return true;
-            Data.ReflectedComponents.emplace(qualified, marker->Source);
             const auto meta = Metadata(marker->Raw);
             auto guid = MetadataValue(meta, "Guid");
             guid.erase(std::remove(guid.begin(), guid.end(), '-'), guid.end());
@@ -358,7 +339,6 @@ namespace {
         bool VisitEnumDecl(clang::EnumDecl* declaration) {
             if (!declaration->isCompleteDefinition() || !declaration->getIdentifier()) return true;
             const auto qualified = declaration->getQualifiedNameAsString();
-            Data.ExactTypes[qualified].insert(qualified);
             auto* marker = Associate(*declaration, MarkerKind::Enum);
             if (!marker || !Data.InEntry(Context.getSourceManager(), declaration->getLocation())) return true;
             const auto meta = Metadata(marker->Raw);
@@ -378,68 +358,7 @@ namespace {
             return true;
         }
 
-        bool VisitTypedefNameDecl(clang::TypedefNameDecl* declaration) {
-            if (declaration->isImplicit() || !declaration->getIdentifier()) return true;
-            const auto type = declaration->getUnderlyingType().getCanonicalType();
-            const auto* record = type->getAsCXXRecordDecl();
-            if (!record) return true;
-            const auto resolved = record->getQualifiedNameAsString();
-            Data.ExactTypes[declaration->getQualifiedNameAsString()].insert(resolved);
-            return true;
-        }
-
-        bool VisitFunctionDecl(clang::FunctionDecl* declaration) {
-            if (declaration->isImplicit() || !Data.InEntry(Context.getSourceManager(), declaration->getLocation())) return true;
-            const auto qualified = declaration->getQualifiedNameAsString();
-            if (Data.SeenFunctions.insert(declaration->getCanonicalDecl()).second) ++Data.FunctionCounts[qualified];
-            auto* marker = Associate(*declaration, MarkerKind::Query);
-            if (!marker) return true;
-            if (llvm::isa<clang::CXXMethodDecl>(declaration) || declaration->getDescribedFunctionTemplate() ||
-                declaration->isFunctionTemplateSpecialization() || declaration->isVariadic() ||
-                !declaration->getReturnType()->isVoidType()) {
-                Data.Error("query.invalid_signature", "Query must be an ordinary non-template, non-member, non-variadic void function", marker->Source, marker->Line, marker->Column);
-                return true;
-            }
-            QueryRecord query;
-            query.QualifiedName = qualified;
-            query.Source = marker->Source;
-            query.Line = marker->Line;
-            query.Column = marker->Column;
-            query.RawFilter = marker->Raw;
-            llvm::json::Array parameters;
-            unsigned outputCount = 0;
-            for (const auto* parameter : declaration->parameters()) {
-                const auto classified = Classify(*parameter);
-                if (!classified) {
-                    Data.Error("query.invalid_parameter", "Unsupported query parameter: " + parameter->getType().getAsString(),
-                        marker->Source, marker->Line, marker->Column);
-                    continue;
-                }
-                if (classified->Category == "output" && ++outputCount > 1) {
-                    Data.Error("query.multiple_outputs", "A query may declare only one BatchOutput parameter",
-                        marker->Source, marker->Line, marker->Column);
-                }
-                if (classified->Category == "required_read" || classified->Category == "required_write" ||
-                    classified->Category == "optional_read" || classified->Category == "optional_write") {
-                    query.ComponentTypes.push_back(classified->ComponentType);
-                }
-                parameters.push_back(llvm::json::Object{
-                    {"name", parameter->getNameAsString()}, {"type", parameter->getType().getAsString()},
-                    {"canonical_type", parameter->getType().getCanonicalType().getAsString()},
-                    {"category", classified->Category}, {"component_type", classified->ComponentType},
-                });
-            }
-            query.Value = llvm::json::Object{
-                {"name", declaration->getNameAsString()}, {"qualified_name", qualified},
-                {"source", marker->Source}, {"line", marker->Line}, {"column", marker->Column},
-                {"parameters", std::move(parameters)},
-            };
-            Data.Queries.push_back(std::move(query));
-            return true;
-        }
-
     private:
-        struct ClassifiedParameter { std::string Category; std::string ComponentType; };
 
         Marker* Associate(const clang::Decl& declaration, MarkerKind kind) {
             auto& source = Context.getSourceManager();
@@ -463,48 +382,6 @@ namespace {
             const auto text = clang::Lexer::getSourceText(clang::CharSourceRange::getTokenRange(info->getTypeLoc().getSourceRange()),
                 Context.getSourceManager(), Context.getLangOpts());
             return Trim(text.str());
-        }
-
-        static std::string RecordName(clang::QualType type) {
-            type = type.getCanonicalType().getUnqualifiedType();
-            if (const auto* declaration = type->getAsCXXRecordDecl()) return declaration->getQualifiedNameAsString();
-            return {};
-        }
-
-        std::optional<ClassifiedParameter> Classify(const clang::ParmVarDecl& parameter) const {
-            const auto type = parameter.getType();
-            if (!type->isReferenceType() && !type->isPointerType() && RecordName(type) == "HE::EntityId")
-                return ClassifiedParameter{"entity", "HE::EntityId"};
-            if (type->isLValueReferenceType() || type->isPointerType()) {
-                const auto referred = type->getPointeeType();
-                const auto name = RecordName(referred);
-                if (name == "HE::Ecs::CommandBuffer" && type->isLValueReferenceType() && !referred.isConstQualified()) {
-                    return ClassifiedParameter{"commands", ""};
-                }
-                if (name.empty()) return std::nullopt;
-                const bool read = referred.isConstQualified();
-                return ClassifiedParameter{type->isPointerType() ? (read ? "optional_read" : "optional_write") :
-                    (read ? "required_read" : "required_write"), name};
-            }
-            if (type->isReferenceType()) return std::nullopt;
-            const auto* record = type.getCanonicalType()->getAsCXXRecordDecl();
-            const auto* specialization = llvm::dyn_cast_or_null<clang::ClassTemplateSpecializationDecl>(record);
-            if (!specialization || specialization->getTemplateArgs().size() != 1 ||
-                specialization->getTemplateArgs()[0].getKind() != clang::TemplateArgument::Type) return std::nullopt;
-            const auto wrapper = specialization->getSpecializedTemplate()->getQualifiedNameAsString();
-            static const std::map<std::string, std::string> categories{
-                {"HE::Ecs::Value", "value"}, {"HE::Ecs::RandomRead", "random_read"},
-                {"HE::Ecs::RandomWrite", "random_write"}, {"HE::Ecs::ResourceRead", "resource_read"},
-                {"HE::Ecs::ResourceWrite", "resource_write"},
-                {"HE::Ecs::BatchOutput", "output"},
-            };
-            const auto found = categories.find(wrapper);
-            if (found == categories.end()) return std::nullopt;
-            const auto argument = specialization->getTemplateArgs()[0].getAsType();
-            auto policy = Context.getPrintingPolicy();
-            policy.SuppressTagKeyword = true;
-            const auto name = clang::TypeName::getFullyQualifiedName(argument, Context, policy);
-            return ClassifiedParameter{found->second, name};
         }
 
         clang::ASTContext& Context;
@@ -561,97 +438,6 @@ namespace {
     private:
         State& Data;
     };
-
-    std::optional<std::string> ResolveType(State& state, std::string name,
-                                           const QueryRecord& query) {
-        name = Trim(std::move(name));
-        const bool absolute = name.starts_with("::");
-        if (absolute) name.erase(0, 2);
-        auto found = state.ExactTypes.end();
-        if (!absolute) {
-            std::string scope = query.QualifiedName;
-            const auto end = scope.rfind("::");
-            if (end != std::string::npos) scope.resize(end);
-            else scope.clear();
-            while (!scope.empty()) {
-                found = state.ExactTypes.find(scope + "::" + name);
-                if (found != state.ExactTypes.end()) break;
-                const auto parent = scope.rfind("::");
-                if (parent == std::string::npos) scope.clear();
-                else scope.resize(parent);
-            }
-        }
-        if (found == state.ExactTypes.end()) found = state.ExactTypes.find(name);
-        if (found == state.ExactTypes.end() || found->second.empty()) {
-            state.Error("query.unknown_filter_type", "Unknown filter type: " + name, query.Source, query.Line, query.Column);
-            return std::nullopt;
-        }
-        if (found->second.size() != 1) {
-            state.Error("query.ambiguous_filter_type", "Ambiguous filter type: " + name, query.Source, query.Line, query.Column);
-            return std::nullopt;
-        }
-        const auto result = *found->second.begin();
-        if (!state.ReflectedComponents.contains(result)) {
-            state.Error("query.unregistered_filter_type", "Filter type is not a reflected component: " + result,
-                query.Source, query.Line, query.Column);
-            return std::nullopt;
-        }
-        return result;
-    }
-
-    void FinalizeQueries(State& state) {
-        for (auto& query : state.Queries) {
-            if (state.FunctionCounts[query.QualifiedName] != 1) {
-                state.Error("query.overloaded", "Marked query functions must not be overloaded: " + query.QualifiedName,
-                    query.Source, query.Line, query.Column);
-            }
-            for (const auto& component : query.ComponentTypes) {
-                if (!state.ReflectedComponents.contains(component)) {
-                    state.Error("query.unregistered_component", "Query component is not registered: " + component,
-                        query.Source, query.Line, query.Column);
-                }
-            }
-            std::map<std::string, llvm::json::Array> filterLists;
-            for (auto key : {"without", "required", "tag", "changed", "shared"}) filterLists.emplace(key, llvm::json::Array{});
-            bool includeDisabled = false;
-            bool ignoreComponentEnabled = false;
-            for (auto token : MacroArguments(query.RawFilter)) {
-                token = Trim(std::move(token));
-                if (token == "IncludeDisabled") { includeDisabled = true; continue; }
-                if (token == "IgnoreComponentEnabled") { ignoreComponentEnabled = true; continue; }
-                const auto open = token.find('(');
-                const auto close = token.rfind(')');
-                if (open == std::string::npos || close != token.size() - 1 || close <= open) {
-                    state.Error("query.invalid_filter", "Invalid query filter: " + token, query.Source, query.Line, query.Column);
-                    continue;
-                }
-                const auto filter = Trim(token.substr(0, open));
-                std::string key;
-                if (filter == "Without") key = "without";
-                else if (filter == "Required") key = "required";
-                else if (filter == "Tag") key = "tag";
-                else if (filter == "Changed") key = "changed";
-                else if (filter == "Shared") key = "shared";
-                else {
-                    state.Error("query.unknown_filter", "Unknown query filter: " + filter, query.Source, query.Line, query.Column);
-                    continue;
-                }
-                auto arguments = SplitArguments(std::string_view(token).substr(open + 1, close - open - 1));
-                if (arguments.empty()) {
-                    state.Error("query.empty_filter", "Query filter has no types: " + filter, query.Source, query.Line, query.Column);
-                    continue;
-                }
-                for (auto& argument : arguments) {
-                    if (const auto resolved = ResolveType(state, std::move(argument), query)) filterLists[key].push_back(*resolved);
-                }
-            }
-            llvm::json::Object filters;
-            for (auto& [name, values] : filterLists) filters[name] = std::move(values);
-            filters["include_disabled"] = includeDisabled;
-            filters["ignore_component_enabled"] = ignoreComponentEnabled;
-            query.Value["filters"] = std::move(filters);
-        }
-    }
 
     void SortByName(llvm::json::Array& values) {
         std::sort(values.begin(), values.end(), [](const llvm::json::Value& left, const llvm::json::Value& right) {
@@ -713,16 +499,10 @@ int Scan(const clang::tooling::CompilationDatabase& database,
     }
     for (const auto& marker : state.Markers) {
         if (marker.Used || Identity(Utf8Path(options.RepositoryRoot) / Utf8Path(marker.Source)) != state.Entry) continue;
-        state.Error("marker.unbound", "A reflection or query marker has no matching declaration", marker.Source, marker.Line, marker.Column);
+        state.Error("marker.unbound", "A reflection marker has no matching declaration", marker.Source, marker.Line, marker.Column);
     }
-    FinalizeQueries(state);
     SortByName(state.Types);
     SortByName(state.Enums);
-    std::sort(state.Queries.begin(), state.Queries.end(), [](const auto& left, const auto& right) {
-        return left.QualifiedName < right.QualifiedName;
-    });
-    llvm::json::Array queries;
-    for (auto& query : state.Queries) queries.push_back(std::move(query.Value));
     llvm::json::Array dependencies;
     for (const auto& file : state.Files) {
         if (const auto hash = FileHash(file)) {
@@ -736,7 +516,7 @@ int Scan(const clang::tooling::CompilationDatabase& database,
         {"translation_unit", SourceName(sourcePaths.front(), options)},
         {"compile_fingerprint", Hash(fingerprint)}, {"dependencies", std::move(dependencies)},
         {"types", std::move(state.Types)}, {"enums", std::move(state.Enums)},
-        {"queries", std::move(queries)}, {"diagnostics", std::move(state.Diagnostics)},
+        {"queries", llvm::json::Array{}}, {"diagnostics", std::move(state.Diagnostics)},
     };
     const std::string output = llvm::formatv("{0:2}\n", llvm::json::Value(std::move(report))).str();
     if (!WriteIfChanged(options.Output, output)) {

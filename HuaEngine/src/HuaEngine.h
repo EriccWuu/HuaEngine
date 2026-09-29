@@ -31,7 +31,7 @@
 #include "HuaEngine/ECS/Components.h"
 #include "HuaEngine/ECS/Runtime/Commands.h"
 #include "HuaEngine/ECS/Runtime/EcsContext.h"
-#include "HuaEngine/ECS/Runtime/GeneratedQuery.h"
+#include "HuaEngine/ECS/Runtime/Job.h"
 #include "HuaEngine/ECS/Runtime/Query.h"
 #include "HuaEngine/ECS/Runtime/Timeline.h"
 #include "HuaEngine/ECS/Runtime/World.h"
