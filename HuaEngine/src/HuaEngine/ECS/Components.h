@@ -10,13 +10,12 @@
 #include "HuaEngine/Reflection/ReflectionMarkers.h"
 
 namespace HE {
-	HE_REFLECT_COMPONENT(Guid="4f745e86ab69460db41dac991f79c001", DisplayName="Transform", Category="Core")
-	struct TransformComponent {
-		HE_REFLECT_FIELD()
+	struct [[sattr(guid="4f745e86ab69460db41dac991f79c001"; reflect=@marked; flags=["Component"]; attrs=["DisplayName=Transform","Category=Core"])]] TransformComponent {
+		[[sattr()]]
 		glm::vec3 Position = {0.0f, 0.0f, 0.0f};
-		HE_REFLECT_FIELD()
+		[[sattr()]]
 		glm::vec3 Rotation = {0.0f, 0.0f, 0.0f};
-		HE_REFLECT_FIELD()
+		[[sattr()]]
 		glm::vec3 Scale = {1.0f, 1.0f, 1.0f};
 
 		TransformComponent() = default;

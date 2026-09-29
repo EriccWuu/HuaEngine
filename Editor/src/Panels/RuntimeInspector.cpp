@@ -3,8 +3,10 @@
 
 #include <algorithm>
 #include <array>
+#include <charconv>
 #include <cmath>
 #include <cstring>
+#include <optional>
 #include <utility>
 
 #include "glm/glm.hpp"
@@ -71,6 +73,20 @@ namespace HE::Editor {
 			}
 		}
 
+		std::optional<std::pair<float, float>> FloatEditorRange(const Refl::RuntimeFieldDescriptor& field) {
+			const auto* minimum = Refl::FindRuntimeAttribute(field.Attributes, "Editor.Min");
+			const auto* maximum = Refl::FindRuntimeAttribute(field.Attributes, "Editor.Max");
+			if (!minimum || !maximum) return std::nullopt;
+			float lower = 0.0f;
+			float upper = 0.0f;
+			const auto low = std::from_chars(minimum->Value.data(), minimum->Value.data() + minimum->Value.size(), lower);
+			const auto high = std::from_chars(maximum->Value.data(), maximum->Value.data() + maximum->Value.size(), upper);
+			if (low.ec != std::errc{} || low.ptr != minimum->Value.data() + minimum->Value.size() ||
+				high.ec != std::errc{} || high.ptr != maximum->Value.data() + maximum->Value.size() ||
+				!std::isfinite(lower) || !std::isfinite(upper) || lower >= upper) return std::nullopt;
+			return std::pair{lower, upper};
+		}
+
 		bool DrawRuntimeEnumField(const Refl::RuntimeFieldDescriptor& field, void* component) {
 			if (field.EnumType == nullptr) {
 				ImGui::TextDisabled("Enum metadata unavailable");
@@ -107,6 +123,7 @@ namespace HE::Editor {
 		}
 
 		AssetGuid* GetAssetRefGuid(const Refl::RuntimeFieldDescriptor& field, void* value) {
+			if (value == nullptr) return nullptr;
 			if (field.Type == "MeshAssetRef") {
 				return &static_cast<MeshAssetRef*>(value)->Reference.Guid;
 			}
@@ -203,20 +220,20 @@ namespace HE::Editor {
 		bool DrawRuntimeAssetRefField(
 			const Refl::RuntimeFieldDescriptor& field,
 			void* value,
-			RuntimeInspectorContext context) {
+			RuntimeInspectorContext& context) {
 			AssetGuid* guid = GetAssetRefGuid(field, value);
 			if (guid == nullptr) {
 				ImGui::TextDisabled("Unsupported asset ref: %.*s", static_cast<int>(field.Type.size()), field.Type.data());
 				return false;
 			}
-			if (field.Type == "MeshAssetRef" || field.Type == "MaterialAssetRef") {
-				const AssetKind kind = field.Type == "MeshAssetRef" ? AssetKind::Mesh : AssetKind::Material;
-				if (kind == AssetKind::Material && context.CommitMaterialReference) {
-					auto editedGuid = *guid;
-					if (!DrawAssetRefField(editedGuid, kind, context.GetAssetOptions(kind))) return false;
-					context.CommitMaterialReference(editedGuid);
-					return true;
-				}
+			const auto* assetKind = Refl::FindRuntimeAttribute(field.Attributes, "Editor.AssetKind");
+			const AssetKind kind = assetKind ? AssetKindFromString(assetKind->Value) : AssetKind::Unknown;
+			if (assetKind && kind == AssetKind::Unknown) {
+				ImGui::TextDisabled("Unknown asset kind: %.*s",
+					static_cast<int>(assetKind->Value.size()), assetKind->Value.data());
+				return false;
+			}
+			if (kind != AssetKind::Unknown) {
 				return DrawAssetRefField(*guid, kind, context.GetAssetOptions(kind));
 			}
 
@@ -233,13 +250,73 @@ namespace HE::Editor {
 			return changed;
 		}
 
-		bool DrawMaterialOverrides(void* component, RuntimeInspectorContext context) {
-			auto& material = *static_cast<Rendering::MaterialComponent*>(component);
-			if (material.Material.Reference.Guid.empty()) { ImGui::TextDisabled("Missing Material"); return false; }
+		const Refl::RuntimeFieldDescriptor* FindField(
+			const Refl::RuntimeTypeDescriptor& type,
+			std::string_view name) {
+			for (const auto& field : type.Fields) {
+				if (field.Name == name) return &field;
+			}
+			return nullptr;
+		}
+
+		bool DrawMaterialReference(
+			const Refl::RuntimeFieldDescriptor& field,
+			const Refl::RuntimeTypeDescriptor& type,
+			void* object,
+			void* value,
+			RuntimeInspectorContext& context) {
+			AssetGuid* guid = GetAssetRefGuid(field, value);
+			if (field.Type != "MaterialAssetRef" || guid == nullptr) {
+				ImGui::TextDisabled("Material reference unavailable");
+				return false;
+			}
+			const auto* reconcileAttribute = Refl::FindRuntimeAttribute(field.Attributes, "Editor.ReconcileField");
+			const auto* reconcileField = reconcileAttribute ? FindField(type, reconcileAttribute->Value) : nullptr;
+			if (!reconcileField || reconcileField->Type != "MaterialOverrideSet" ||
+				Refl::IsRuntimeFieldReadOnly(*reconcileField) ||
+				Refl::GetRuntimeFieldMutable(*reconcileField, object) == nullptr) {
+				ImGui::TextDisabled("Material override field unavailable");
+				return false;
+			}
+
+			AssetGuid nextGuid = *guid;
+			const auto* assetKind = Refl::FindRuntimeAttribute(field.Attributes, "Editor.AssetKind");
+			const AssetKind kind = assetKind ? AssetKindFromString(assetKind->Value) : AssetKind::Unknown;
+			if (kind != AssetKind::Material) {
+				ImGui::TextDisabled("Material asset kind unavailable");
+				return false;
+			}
+			if (!DrawAssetRefField(nextGuid, kind, context.GetAssetOptions(kind))) {
+				return false;
+			}
+			return SetRuntimeMaterialReference(field, type, object, nextGuid, context);
+		}
+
+		bool DrawMaterialOverrides(
+			const Refl::RuntimeFieldDescriptor& field,
+			const Refl::RuntimeTypeDescriptor& type,
+			void* object,
+			void* value,
+			RuntimeInspectorContext& context) {
+			if (field.Type != "MaterialOverrideSet") {
+				ImGui::TextDisabled("Material overrides unavailable");
+				return false;
+			}
+			const auto* sourceAttribute = Refl::FindRuntimeAttribute(field.Attributes, "Editor.SourceField");
+			const auto* sourceField = sourceAttribute ? FindField(type, sourceAttribute->Value) : nullptr;
+			if (!sourceField || sourceField->Type != "MaterialAssetRef") {
+				ImGui::TextDisabled("Material reference unavailable");
+				return false;
+			}
+			const auto* source = static_cast<const MaterialAssetRef*>(Refl::GetRuntimeFieldConst(*sourceField, object));
+			if (!source) { ImGui::TextDisabled("Material reference unavailable"); return false; }
+			const AssetGuid& materialGuid = source->Reference.Guid;
+			auto& overrides = *static_cast<Rendering::MaterialOverrideSet*>(value);
+			if (materialGuid.empty()) { ImGui::TextDisabled("Missing Material"); return false; }
 			if (!context.ResolveMaterialDefinition) { ImGui::TextDisabled("Material definition unavailable"); return false; }
 			Rendering::MaterialDefinition definition;
 			AssetImportHealth importHealth;
-			if (!context.ResolveMaterialDefinition(material.Material.Reference.Guid, definition, importHealth).Succeeded()) {
+			if (!context.ResolveMaterialDefinition(materialGuid, definition, importHealth).Succeeded()) {
 				ImGui::TextDisabled(importHealth.State == AssetImportHealthState::Missing
 					? "Material or shader artifact missing"
 					: "Reimport required");
@@ -257,29 +334,28 @@ namespace HE::Editor {
 				ImGui::TextUnformatted(parameter.DisplayName.empty() ? parameter.Name.c_str() : parameter.DisplayName.c_str());
 				ImGui::SameLine();
 				if (parameter.Type == Rendering::ShaderValueType::Texture2D) {
-					auto textureOverride = material.Overrides.TextureParameters.find(parameter.Name);
-					bool hasOverride = textureOverride != material.Overrides.TextureParameters.end();
+					auto textureOverride = overrides.TextureParameters.find(parameter.Name);
+					bool hasOverride = textureOverride != overrides.TextureParameters.end();
 					if (hasOverride && ImGui::SmallButton("Reset")) {
-						auto next = material.Overrides; next.TextureParameters.erase(parameter.Name);
-						if (context.CommitMaterialOverrides) context.CommitMaterialOverrides(next); else material.Overrides = std::move(next);
+						overrides.TextureParameters.erase(parameter.Name);
 						changed = true;
 						hasOverride = false;
 					}
-					AssetGuid guid = hasOverride ? textureOverride->second : std::get<std::string>(parameter.CurrentValue);
+					const auto* defaultTexture = std::get_if<std::string>(&parameter.CurrentValue);
+					AssetGuid guid = hasOverride ? textureOverride->second :
+						(defaultTexture ? *defaultTexture : AssetGuid{});
 					if (DrawAssetRefField(guid, AssetKind::Texture2D, context.TextureAssets)) {
-						auto next = material.Overrides;
-						if (guid.empty()) next.TextureParameters.erase(parameter.Name); else next.TextureParameters[parameter.Name] = std::move(guid);
-						if (context.CommitMaterialOverrides) context.CommitMaterialOverrides(next); else material.Overrides = std::move(next);
+						if (guid.empty()) overrides.TextureParameters.erase(parameter.Name);
+						else overrides.TextureParameters[parameter.Name] = std::move(guid);
 						changed = true;
 					}
 					ImGui::PopID();
 					continue;
 				}
-				auto override = material.Overrides.Parameters.find(parameter.Name);
-				bool overridden = override != material.Overrides.Parameters.end();
+				auto override = overrides.Parameters.find(parameter.Name);
+				bool overridden = override != overrides.Parameters.end();
 				if (overridden && ImGui::SmallButton("Reset")) {
-					auto next = material.Overrides; next.Parameters.erase(parameter.Name);
-					if (context.CommitMaterialOverrides) context.CommitMaterialOverrides(next); else material.Overrides = std::move(next);
+					overrides.Parameters.erase(parameter.Name);
 					changed = true; overridden = false;
 				}
 				auto value = overridden ? override->second : Rendering::MaterialParameterValue{};
@@ -309,8 +385,7 @@ namespace HE::Editor {
 				else if (auto* vector = std::get_if<glm::vec4>(&value)) edited = parameter.Editor == Rendering::ShaderEditorKind::Color ? ImGui::ColorEdit4("##Value", &(*vector)[0]) : ImGui::DragFloat4("##Value", &(*vector)[0], numericOptions.Speed, minimum, maximum);
 				else ImGui::TextDisabled("Unsupported parameter type");
 				if (edited) {
-					auto next = material.Overrides; next.Parameters[parameter.Name] = std::move(value);
-					if (context.CommitMaterialOverrides) context.CommitMaterialOverrides(next); else material.Overrides = std::move(next);
+					overrides.Parameters[parameter.Name] = std::move(value);
 					changed = true;
 				}
 				if (!parameter.Tooltip.empty() && ImGui::IsItemHovered()) ImGui::SetTooltip("%s", parameter.Tooltip.c_str());
@@ -321,20 +396,30 @@ namespace HE::Editor {
 
 		bool DrawRuntimeFieldEditorRow(
 			const Refl::RuntimeFieldDescriptor& field,
-			void* component,
-			RuntimeInspectorContext context) {
+			const Refl::RuntimeTypeDescriptor& type,
+			void* object,
+			const RuntimeFieldDrawerRegistry& drawers,
+			RuntimeInspectorContext& context) {
 			ImGui::TableNextRow();
 			ImGui::TableSetColumnIndex(0);
 			ImGui::AlignTextToFramePadding();
 			ImGui::TextUnformatted(FieldLabel(field));
 			ImGui::TableSetColumnIndex(1);
 
-			if (component == nullptr || field.GetMutable == nullptr) {
+			if (object == nullptr || field.GetMutable == nullptr) {
 				ImGui::TextDisabled("Unavailable");
 				return false;
 			}
-
-			void* value = field.GetMutable(component);
+			if (Refl::IsRuntimeFieldReadOnly(field)) {
+				ImGui::TextDisabled("Read only");
+				return false;
+			}
+			const auto* namedDrawer = Refl::FindRuntimeAttribute(field.Attributes, "Inspector.Drawer");
+			if (!namedDrawer && !Refl::IsRuntimeFieldEditable(field)) {
+				ImGui::TextDisabled("Unavailable");
+				return false;
+			}
+			void* value = Refl::GetRuntimeFieldMutable(field, object);
 			if (value == nullptr) {
 				ImGui::TextDisabled("Unavailable");
 				return false;
@@ -342,77 +427,124 @@ namespace HE::Editor {
 
 			ImGui::PushID(field.Name.data());
 			ImGui::SetNextItemWidth(-1.0f);
+			const RuntimeFieldDrawer* drawer = drawers.Resolve(field);
 			bool changed = false;
-			switch (Refl::GetRuntimeFieldValueKind(field)) {
-			case Refl::RuntimeFieldValueKind::Bool:
-				changed = ImGui::Checkbox("##Value", static_cast<bool*>(value));
-				break;
-			case Refl::RuntimeFieldValueKind::SignedInteger:
-				changed = ImGui::DragScalar("##Value", ScalarTypeForSignedField(field), value, 1.0f);
-				break;
-			case Refl::RuntimeFieldValueKind::UnsignedInteger:
-				changed = ImGui::DragScalar("##Value", ScalarTypeForUnsignedField(field), value, 1.0f);
-				break;
-			case Refl::RuntimeFieldValueKind::Float:
-				changed = ImGui::DragFloat("##Value", static_cast<float*>(value), 0.1f);
-				break;
-			case Refl::RuntimeFieldValueKind::Double:
-				changed = ImGui::DragScalar("##Value", ImGuiDataType_Double, value, 0.1f);
-				break;
-			case Refl::RuntimeFieldValueKind::String: {
-				auto& text = *static_cast<std::string*>(value);
-				changed = ImGui::InputText(
-					"##Value",
-					text.data(),
-					text.capacity() + 1,
-					ImGuiInputTextFlags_CallbackResize,
-					&ResizeStringInputCallback,
-					&text);
-				break;
+			if (drawer) {
+				changed = (*drawer)(field, type, object, value, context);
 			}
-			case Refl::RuntimeFieldValueKind::Float2:
-				changed = ImGui::DragFloat2("##Value", static_cast<float*>(value), 0.1f);
-				break;
-			case Refl::RuntimeFieldValueKind::Float3:
-				changed = ImGui::DragFloat3("##Value", static_cast<float*>(value), 0.1f);
-				break;
-			case Refl::RuntimeFieldValueKind::Float4:
-				changed = ImGui::DragFloat4("##Value", static_cast<float*>(value), 0.1f);
-				break;
-			case Refl::RuntimeFieldValueKind::Enum:
-				changed = DrawRuntimeEnumField(field, component);
-				break;
-			case Refl::RuntimeFieldValueKind::AssetRef:
-				changed = DrawRuntimeAssetRefField(field, value, context);
-				break;
-			case Refl::RuntimeFieldValueKind::Unsupported:
-			case Refl::RuntimeFieldValueKind::Object:
-				if (field.Type == "MaterialOverrideSet") changed = DrawMaterialOverrides(component, context);
-				else
-					ImGui::TextDisabled("Unsupported: %.*s", static_cast<int>(field.Type.size()), field.Type.data());
-				break;
-			default:
+			else if (namedDrawer) {
+				ImGui::TextDisabled("Drawer unavailable: %.*s",
+					static_cast<int>(namedDrawer->Value.size()), namedDrawer->Value.data());
+			}
+			else {
 				ImGui::TextDisabled("Unsupported: %.*s", static_cast<int>(field.Type.size()), field.Type.data());
-				break;
 			}
 			ImGui::PopID();
 			return changed;
 		}
 	}
 
-	void RuntimeComponentEditorOverrideRegistry::RegisterOverride(
-		std::string_view qualifiedName,
-		RuntimeComponentEditorOverride editor) {
-		if (qualifiedName.empty() || !editor) {
-			return;
+	bool SetRuntimeMaterialReference(
+		const Refl::RuntimeFieldDescriptor& field,
+		const Refl::RuntimeTypeDescriptor& type,
+		void* object,
+		const AssetGuid& nextGuid,
+		RuntimeInspectorContext& context) {
+		if (field.Type != "MaterialAssetRef" || Refl::IsRuntimeFieldReadOnly(field)) return false;
+		auto* guid = GetAssetRefGuid(field, Refl::GetRuntimeFieldMutable(field, object));
+		const auto* reconcileAttribute = Refl::FindRuntimeAttribute(field.Attributes, "Editor.ReconcileField");
+		const auto* reconcileField = reconcileAttribute ? FindField(type, reconcileAttribute->Value) : nullptr;
+		if (!guid || !reconcileField || reconcileField->Type != "MaterialOverrideSet" ||
+			Refl::IsRuntimeFieldReadOnly(*reconcileField)) return false;
+		auto* overrides = static_cast<Rendering::MaterialOverrideSet*>(
+			Refl::GetRuntimeFieldMutable(*reconcileField, object));
+		if (!overrides || *guid == nextGuid) return false;
+		*guid = nextGuid;
+
+		if (context.ResolveMaterialDefinition && !guid->empty()) {
+			Rendering::MaterialDefinition definition;
+			AssetImportHealth health;
+			if (context.ResolveMaterialDefinition(*guid, definition, health).Succeeded() &&
+				Rendering::ReconcileMaterialOverrides(*overrides, definition) && context.DeferredEvents) {
+				auto warning = ResultEnvelope::Success(
+					"editor.material_overrides.reconciled", *guid, "Incompatible material overrides were removed");
+				warning.AddDetail({DiagnosticSeverity::Warning, "editor.material_overrides.removed",
+					"The selected material does not define one or more previous overrides", *guid});
+				context.DeferredEvents->push_back(std::move(warning));
+			}
 		}
-		m_Overrides[std::string(qualifiedName)] = std::move(editor);
+		return true;
 	}
 
-	const RuntimeComponentEditorOverride* RuntimeComponentEditorOverrideRegistry::FindOverride(
-		std::string_view qualifiedName) const {
-		const auto iterator = m_Overrides.find(std::string(qualifiedName));
-		return iterator != m_Overrides.end() ? &iterator->second : nullptr;
+	RuntimeFieldDrawerRegistry::RuntimeFieldDrawerRegistry() {
+		RegisterKind(Refl::RuntimeFieldValueKind::Bool,
+			[](const auto&, const auto&, void*, void* value, auto&) {
+				return ImGui::Checkbox("##Value", static_cast<bool*>(value));
+			});
+		RegisterKind(Refl::RuntimeFieldValueKind::SignedInteger,
+			[](const auto& field, const auto&, void*, void* value, auto&) {
+				return ImGui::DragScalar("##Value", ScalarTypeForSignedField(field), value, 1.0f);
+			});
+		RegisterKind(Refl::RuntimeFieldValueKind::UnsignedInteger,
+			[](const auto& field, const auto&, void*, void* value, auto&) {
+				return ImGui::DragScalar("##Value", ScalarTypeForUnsignedField(field), value, 1.0f);
+			});
+		RegisterKind(Refl::RuntimeFieldValueKind::Float,
+			[](const auto& field, const auto&, void*, void* value, auto&) {
+				const auto range = FloatEditorRange(field);
+				return ImGui::DragFloat("##Value", static_cast<float*>(value), 0.1f,
+					range ? range->first : 0.0f, range ? range->second : 0.0f, "%.3f",
+					range ? ImGuiSliderFlags_AlwaysClamp : ImGuiSliderFlags_None);
+			});
+		RegisterKind(Refl::RuntimeFieldValueKind::Double,
+			[](const auto&, const auto&, void*, void* value, auto&) {
+				return ImGui::DragScalar("##Value", ImGuiDataType_Double, value, 0.1f);
+			});
+		RegisterKind(Refl::RuntimeFieldValueKind::String,
+			[](const auto&, const auto&, void*, void* value, auto&) {
+				auto& text = *static_cast<std::string*>(value);
+				return ImGui::InputText("##Value", text.data(), text.capacity() + 1,
+					ImGuiInputTextFlags_CallbackResize, &ResizeStringInputCallback, &text);
+			});
+		RegisterKind(Refl::RuntimeFieldValueKind::Float2,
+			[](const auto&, const auto&, void*, void* value, auto&) {
+				return ImGui::DragFloat2("##Value", static_cast<float*>(value), 0.1f);
+			});
+		RegisterKind(Refl::RuntimeFieldValueKind::Float3,
+			[](const auto&, const auto&, void*, void* value, auto&) {
+				return ImGui::DragFloat3("##Value", static_cast<float*>(value), 0.1f);
+			});
+		RegisterKind(Refl::RuntimeFieldValueKind::Float4,
+			[](const auto&, const auto&, void*, void* value, auto&) {
+				return ImGui::DragFloat4("##Value", static_cast<float*>(value), 0.1f);
+			});
+		RegisterKind(Refl::RuntimeFieldValueKind::Enum,
+			[](const auto& field, const auto&, void* object, void*, auto&) {
+				return DrawRuntimeEnumField(field, object);
+			});
+		RegisterKind(Refl::RuntimeFieldValueKind::AssetRef,
+			[](const auto& field, const auto&, void*, void* value, auto& context) {
+				return DrawRuntimeAssetRefField(field, value, context);
+			});
+		RegisterNamed("MaterialReference", DrawMaterialReference);
+		RegisterNamed("MaterialOverrides", DrawMaterialOverrides);
+	}
+
+	void RuntimeFieldDrawerRegistry::RegisterNamed(std::string_view name, RuntimeFieldDrawer drawer) {
+		if (!name.empty() && drawer) m_Named[std::string(name)] = std::move(drawer);
+	}
+
+	void RuntimeFieldDrawerRegistry::RegisterKind(Refl::RuntimeFieldValueKind kind, RuntimeFieldDrawer drawer) {
+		if (drawer) m_ByKind[kind] = std::move(drawer);
+	}
+
+	const RuntimeFieldDrawer* RuntimeFieldDrawerRegistry::Resolve(const Refl::RuntimeFieldDescriptor& field) const {
+		if (const auto* attribute = Refl::FindRuntimeAttribute(field.Attributes, "Inspector.Drawer")) {
+			const auto found = m_Named.find(attribute->Value);
+			return found == m_Named.end() ? nullptr : &found->second;
+		}
+		const auto found = m_ByKind.find(Refl::GetRuntimeFieldValueKind(field));
+		return found == m_ByKind.end() ? nullptr : &found->second;
 	}
 
 	bool IsRuntimeFieldEditable(const Refl::RuntimeFieldDescriptor& field) {
@@ -443,41 +575,27 @@ namespace HE::Editor {
 		return options;
 	}
 
-	bool DrawRuntimeFieldEditor(
-		const Refl::RuntimeFieldDescriptor& field,
-		void* component,
-		RuntimeInspectorContext context) {
-		ImGui::PushID(field.Name.data());
-		if (!BeginRuntimeFieldTable("##RuntimeField")) {
-			ImGui::PopID();
-			return false;
-		}
-		const bool changed = DrawRuntimeFieldEditorRow(field, component, context);
-		ImGui::EndTable();
-		ImGui::PopID();
-		return changed;
-	}
-
-	bool DrawRuntimeComponentInspector(
+	bool DrawRuntimeFields(
 		const Refl::RuntimeTypeDescriptor& type,
-		void* component,
-		const RuntimeComponentEditorOverrideRegistry& overrides,
+		void* object,
+		const RuntimeFieldDrawerRegistry& drawers,
 		RuntimeInspectorContext context) {
-		if (component == nullptr) {
-			return false;
-		}
-
-		if (const RuntimeComponentEditorOverride* editor = overrides.FindOverride(type.QualifiedName)) {
-			return (*editor)(type, component);
-		}
+		if (object == nullptr) return false;
 
 		if (!BeginRuntimeFieldTable("##RuntimeFields")) {
 			return false;
 		}
 
 		bool changed = false;
+		std::string_view currentCategory;
 		for (const Refl::RuntimeFieldDescriptor& field : type.Fields) {
-			changed |= DrawRuntimeFieldEditorRow(field, component, context);
+			if (!field.Category.empty() && field.Category != currentCategory) {
+				ImGui::TableNextRow();
+				ImGui::TableSetColumnIndex(0);
+				ImGui::TextDisabled("%.*s", static_cast<int>(field.Category.size()), field.Category.data());
+			}
+			currentCategory = field.Category;
+			changed |= DrawRuntimeFieldEditorRow(field, type, object, drawers, context);
 		}
 		ImGui::EndTable();
 		return changed;

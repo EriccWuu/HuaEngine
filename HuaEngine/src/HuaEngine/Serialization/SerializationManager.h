@@ -30,9 +30,9 @@ namespace HE::Serialization {
 
         // Convenience methods for common operations
         template<typename T>
-        std::string SerializeToString(const T& object, SerializationFormat format, const Ecs::TypeRegistry* types = nullptr) {
+        std::string SerializeToString(const T& object, SerializationFormat format, const Refl::Registry* types = nullptr) {
             auto backend = CreateBackend(format);
-            if (backend) backend->SetTypeRegistry(types);
+            if (backend) backend->SetReflectionRegistry(types);
             if (!backend) return "";
 
             backend->Reset();
@@ -41,9 +41,9 @@ namespace HE::Serialization {
         }
 
         template<typename T>
-        bool DeserializeFromString(const std::string& data, T& object, SerializationFormat format, const Ecs::TypeRegistry* types = nullptr) {
+        bool DeserializeFromString(const std::string& data, T& object, SerializationFormat format, const Refl::Registry* types = nullptr) {
             auto backend = CreateBackend(format);
-            if (backend) backend->SetTypeRegistry(types);
+            if (backend) backend->SetReflectionRegistry(types);
             if (!backend) return false;
 
             try {
@@ -55,9 +55,9 @@ namespace HE::Serialization {
         }
 
         template<typename T>
-        bool SerializeToFile(const T& object, const std::string& filename, SerializationFormat format, const Ecs::TypeRegistry* types = nullptr) {
+        bool SerializeToFile(const T& object, const std::string& filename, SerializationFormat format, const Refl::Registry* types = nullptr) {
             auto backend = CreateBackend(format);
-            if (backend) backend->SetTypeRegistry(types);
+            if (backend) backend->SetReflectionRegistry(types);
             if (!backend) return false;
 
             try {
@@ -71,9 +71,9 @@ namespace HE::Serialization {
         }
 
         template<typename T>
-        bool DeserializeFromFile(const std::string& filename, T& object, SerializationFormat format, const Ecs::TypeRegistry* types = nullptr) {
+        bool DeserializeFromFile(const std::string& filename, T& object, SerializationFormat format, const Refl::Registry* types = nullptr) {
             auto backend = CreateBackend(format);
-            if (backend) backend->SetTypeRegistry(types);
+            if (backend) backend->SetReflectionRegistry(types);
             if (!backend) return false;
 
             try {
@@ -86,11 +86,11 @@ namespace HE::Serialization {
 
         // Ref<T> support methods
         template<typename T>
-        std::string SerializeToString(const Ref<T>& object, SerializationFormat format, const Ecs::TypeRegistry* types = nullptr) {
+        std::string SerializeToString(const Ref<T>& object, SerializationFormat format, const Refl::Registry* types = nullptr) {
             if (!object) return "";
             
             auto backend = CreateBackend(format);
-            if (backend) backend->SetTypeRegistry(types);
+            if (backend) backend->SetReflectionRegistry(types);
             if (!backend) return "";
 
             backend->Reset();
@@ -99,9 +99,9 @@ namespace HE::Serialization {
         }
 
         template<typename T>
-        bool DeserializeFromString(const std::string& data, Ref<T>& object, SerializationFormat format, const Ecs::TypeRegistry* types = nullptr) {
+        bool DeserializeFromString(const std::string& data, Ref<T>& object, SerializationFormat format, const Refl::Registry* types = nullptr) {
             auto backend = CreateBackend(format);
-            if (backend) backend->SetTypeRegistry(types);
+            if (backend) backend->SetReflectionRegistry(types);
             if (!backend) return false;
 
             try {
@@ -119,11 +119,11 @@ namespace HE::Serialization {
         }
 
         template<typename T>
-        bool SerializeToFile(const Ref<T>& object, const std::string& filename, SerializationFormat format, const Ecs::TypeRegistry* types = nullptr) {
+        bool SerializeToFile(const Ref<T>& object, const std::string& filename, SerializationFormat format, const Refl::Registry* types = nullptr) {
             if (!object) return false;
             
             auto backend = CreateBackend(format);
-            if (backend) backend->SetTypeRegistry(types);
+            if (backend) backend->SetReflectionRegistry(types);
             if (!backend) return false;
 
             try {
@@ -137,9 +137,9 @@ namespace HE::Serialization {
         }
 
         template<typename T>
-        bool DeserializeFromFile(const std::string& filename, Ref<T>& object, SerializationFormat format, const Ecs::TypeRegistry* types = nullptr) {
+        bool DeserializeFromFile(const std::string& filename, Ref<T>& object, SerializationFormat format, const Refl::Registry* types = nullptr) {
             auto backend = CreateBackend(format);
-            if (backend) backend->SetTypeRegistry(types);
+            if (backend) backend->SetReflectionRegistry(types);
             if (!backend) return false;
 
             try {

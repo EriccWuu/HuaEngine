@@ -140,8 +140,8 @@ void SortSceneValues(std::vector<SceneValue>& values) {
 }
 
 template<typename T>
-std::string ComponentText(const T* value, const HE::Ecs::TypeRegistry& types) {
-	return value ? HE::Serialization::ToJson(*value, types) : std::string{};
+std::string ComponentText(const T* value, const HE::Refl::Registry& reflection) {
+    return value ? HE::Serialization::ToJson(*value, reflection) : std::string{};
 }
 
 std::vector<SceneValue> SnapshotScene(HE::Scene& scene) {
@@ -149,10 +149,10 @@ std::vector<SceneValue> SnapshotScene(HE::Scene& scene) {
     const auto& world = scene.GetWorld();
     for (const auto id : world.Entities()) {
         values.push_back({world.Uuid(id), std::string(world.Name(id)), {
-            ComponentText(world.TryGet<HE::TransformComponent>(id), world.Types()),
-            ComponentText(world.TryGet<HE::Rendering::MeshComponent>(id), world.Types()),
-            ComponentText(world.TryGet<HE::Rendering::MaterialComponent>(id), world.Types()),
-            ComponentText(world.TryGet<HE::Rendering::CameraComponent>(id), world.Types())}});
+            ComponentText(world.TryGet<HE::TransformComponent>(id), world.Context().Reflection()),
+            ComponentText(world.TryGet<HE::Rendering::MeshComponent>(id), world.Context().Reflection()),
+            ComponentText(world.TryGet<HE::Rendering::MaterialComponent>(id), world.Context().Reflection()),
+            ComponentText(world.TryGet<HE::Rendering::CameraComponent>(id), world.Context().Reflection())}});
     }
     SortSceneValues(values);
     return values;
@@ -162,10 +162,10 @@ std::vector<SceneValue> SnapshotRuntime(const HE::Ecs::World& world) {
 	std::vector<SceneValue> values;
 	for (const auto id : world.Entities()) {
 		values.push_back({world.Uuid(id), std::string(world.Name(id)), {
-			ComponentText(world.TryGet<HE::TransformComponent>(id), world.Types()),
-			ComponentText(world.TryGet<HE::Rendering::MeshComponent>(id), world.Types()),
-			ComponentText(world.TryGet<HE::Rendering::MaterialComponent>(id), world.Types()),
-			ComponentText(world.TryGet<HE::Rendering::CameraComponent>(id), world.Types())}});
+			ComponentText(world.TryGet<HE::TransformComponent>(id), world.Context().Reflection()),
+			ComponentText(world.TryGet<HE::Rendering::MeshComponent>(id), world.Context().Reflection()),
+			ComponentText(world.TryGet<HE::Rendering::MaterialComponent>(id), world.Context().Reflection()),
+			ComponentText(world.TryGet<HE::Rendering::CameraComponent>(id), world.Context().Reflection())}});
 	}
 	SortSceneValues(values);
 	return values;

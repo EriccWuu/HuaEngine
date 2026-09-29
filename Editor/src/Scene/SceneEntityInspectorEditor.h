@@ -35,7 +35,7 @@ namespace HE::Editor {
 		EditorWorkbenchState* m_WorkbenchState = nullptr;
 		std::function<void(EditorInspectableComponent)> m_AddComponentCallback;
 		std::function<void(EditorInspectableComponent)> m_RemoveComponentCallback;
-		RuntimeComponentEditorOverrideRegistry m_RuntimeOverrides;
+		RuntimeFieldDrawerRegistry m_FieldDrawers;
 		bool m_ShowAddComponentWindow = false;
 	};
 }

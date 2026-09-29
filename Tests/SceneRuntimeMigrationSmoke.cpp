@@ -2,7 +2,7 @@
 #include "HuaEngine/ECS/Components.h"
 #include "HuaEngine/ECS/Runtime/Timeline.h"
 #include "HuaEngine/ECS/Runtime/WorldScope.h"
-#include "HuaEngine/Generated/GeneratedReflection.h"
+#include "HuaEngine/Generated/GeneratedEcs.h"
 #include "HuaEngine/Scene/Scene.h"
 
 #include <memory>

@@ -2,12 +2,28 @@
 #include "HuaEngine/Serialization/SerializationCore.h"
 
 namespace HE::Refl {
+    const RuntimeEnumValueDescriptor* FindRuntimeEnumValueByName(
+        const RuntimeEnumDescriptor& enumType, std::string_view name) {
+        for (const auto& value : enumType.Values) {
+            if (value.Name == name) return &value;
+        }
+        return nullptr;
+    }
+
+    const RuntimeEnumValueDescriptor* FindRuntimeEnumValueByValue(
+        const RuntimeEnumDescriptor& enumType, int64_t sought) {
+        for (const auto& value : enumType.Values) {
+            if (value.Value == sought) return &value;
+        }
+        return nullptr;
+    }
+
     void SerializeRuntimeObject(const RuntimeTypeDescriptor& type,
         Serialization::SerializationBackend& backend, const std::string& name, const void* object) {
         backend.BeginObject(name);
         for (const RuntimeFieldDescriptor& field : type.Fields) {
             if (HasRuntimeFieldFlag(field.Flags, RuntimeFieldFlags::Serializable) && field.Serialize) {
-                field.Serialize(backend, std::string(field.Name), object);
+                field.Serialize(field, backend, std::string(field.Name), object);
             }
         }
         backend.EndObject();
@@ -22,7 +38,7 @@ namespace HE::Refl {
         for (const RuntimeFieldDescriptor& field : type.Fields) {
             if (!HasRuntimeFieldFlag(field.Flags, RuntimeFieldFlags::Serializable) || !field.Deserialize) { continue; }
             const std::string fieldName(field.Name);
-            if (backend.HasField(fieldName) && !field.Deserialize(backend, fieldName, object)) { success = false; }
+            if (backend.HasField(fieldName) && !field.Deserialize(field, backend, fieldName, object)) { success = false; }
         }
         backend.EndObject();
         return success;

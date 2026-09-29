@@ -1,5 +1,7 @@
 #pragma once
 
-#define HE_REFLECT_COMPONENT(...)
-#define HE_REFLECT_FIELD(...)
-#define HE_REFLECT_ENUM(...)
+#if defined(HE_META_SCANNING) && defined(__clang__)
+#define sattr(...) clang::annotate("hua.sattr:" #__VA_ARGS__)
+#else
+#define sattr(...)
+#endif

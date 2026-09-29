@@ -5,7 +5,8 @@
 #include <string_view>
 
 #include "HuaEngine/ECS/Components.h"
-#include "HuaEngine/Generated/GeneratedReflection.h"
+#include "HuaEngine/ECS/Runtime/EcsContext.h"
+#include "HuaEngine/Generated/GeneratedEcs.h"
 #include "HuaEngine/Reflection/Reflection.h"
 #include "HuaEngine/Serialization/Serialization.h"
 
@@ -32,14 +33,24 @@ namespace {
 }
 
 int main() {
-	const HE::Refl::RuntimeTypeDescriptor* transformType = HE::Refl::FindRuntimeType("HE::TransformComponent");
+	HE::Ecs::EcsContext context;
+	Require(HE::Generated::RegisterGeneratedComponents(context.Types()).HasValue(), "Expected reflected component registration");
+	const auto* registered = context.Types().FindByQualifiedName("HE::TransformComponent");
+	const HE::Refl::RuntimeTypeDescriptor* transformType = registered ? registered->Descriptor.Reflection : nullptr;
 	Require(transformType != nullptr, "Expected runtime descriptor for HE::TransformComponent");
 	Require(transformType->Name == "TransformComponent", "Expected TransformComponent runtime descriptor name");
 	Require(transformType->Kind == "component", "Expected TransformComponent runtime descriptor kind");
 	Require(transformType->DisplayName == "Transform", "Expected TransformComponent runtime display name");
 	Require(transformType->Category == "Core", "Expected TransformComponent runtime category");
-	Require(transformType->MakeEcsType && transformType->MakeEcsType().Guid == HE::Ecs::ComponentTraits<HE::TransformComponent>::Guid,
-		"Expected the generated runtime descriptor to preserve the stable component Guid");
+	Require(registered->Descriptor.Guid == HE::Ecs::ComponentTraits<HE::TransformComponent>::Guid,
+		"Expected the registered component to preserve its stable Guid");
+	Require(transformType->Guid == registered->Descriptor.Guid &&
+		context.Reflection().FindType(transformType->Guid) == transformType,
+		"Expected reflection and ECS to resolve the same stable type identity");
+	Require(HE::Refl::HasRuntimeFlag(transformType->Flags, "Component"),
+		"Expected component metadata to retain its declared flag");
+	const auto* category = HE::Refl::FindRuntimeAttribute(transformType->Attributes, "Category");
+	Require(category && category->Value == "Core", "Expected extensible type attributes in the runtime registry");
 	Require(transformType->Size == sizeof(HE::TransformComponent), "Expected TransformComponent runtime size");
 	Require(transformType->Fields.size() == 3, "Expected TransformComponent runtime descriptor to expose three fields");
 	Require(HasRuntimeField(transformType->Fields, "Position", "glm::vec3"), "Expected runtime Position field");

@@ -7,6 +7,8 @@
 #include <vector>
 
 #include "HuaEngine.h"
+#include "HuaEngine/Generated/GeneratedEcs.h"
+#include "Module/Rendering/RenderingComponent.h"
 #include "Selection.h"
 #include "Selection/EditorSelectionService.h"
 #include "Assets/AssetPickerCatalog.h"
@@ -146,13 +148,11 @@ int main() {
         "Expected Inspector to borrow the active World's Context registry");
     {
         HE::Ecs::EcsContext alternateContext;
-        const auto reflectedTypes = HE::Refl::GetRuntimeTypes();
-        for (auto iterator = reflectedTypes.rbegin(); iterator != reflectedTypes.rend(); ++iterator) {
-            if (iterator->Kind != "component") continue;
-            Require(iterator->MakeEcsType != nullptr, "Expected a shared ECS component descriptor factory");
-            Require(alternateContext.Types().Register(iterator->MakeEcsType()).HasValue(),
-                "Expected reverse component registration for Inspector Context switching");
-        }
+        Require(alternateContext.Types().Register<HE::Rendering::MeshComponent>().HasValue() &&
+            alternateContext.Types().Register<HE::Rendering::MaterialComponent>().HasValue() &&
+            alternateContext.Types().Register<HE::Rendering::CameraComponent>().HasValue() &&
+            alternateContext.Types().Register<HE::TransformComponent>().HasValue(),
+            "Expected component registration in the alternate Inspector Context");
         HE::SceneDocument alternateDocument;
         alternateDocument.SceneRef = HE::CreateRef<HE::Scene>(alternateContext, "Alternate Inspector Scene");
         interactionHost.Bind(&workbenchState, &projectSession, &alternateDocument);
@@ -245,6 +245,26 @@ int main() {
     Require(ECSTestSupport::Get<HE::Rendering::MaterialComponent>(scene->GetWorld(), firstEntity).Overrides.Parameters.contains("u_Color"), "Expected material override command to apply");
     Require(interactionHost.Undo().Succeeded() && ECSTestSupport::Get<HE::Rendering::MaterialComponent>(scene->GetWorld(), firstEntity).Overrides.Empty(), "Expected material override undo to restore the prior value");
     Require(interactionHost.Redo().Succeeded() && ECSTestSupport::Get<HE::Rendering::MaterialComponent>(scene->GetWorld(), firstEntity).Overrides.Parameters.contains("u_Color"), "Expected material override redo to reapply the value");
+
+    const auto previousMaterialGuid = ECSTestSupport::Get<HE::Rendering::MaterialComponent>(scene->GetWorld(), firstEntity).Material.Reference.Guid;
+    const auto* materialType = scene->GetWorld().Types().Find<HE::Rendering::MaterialComponent>();
+    auto beforeMaterial = ECSTestSupport::Take(HE::Ecs::OwnedValue::Copy(*materialType,
+        scene->GetWorld().TryGet<HE::Rendering::MaterialComponent>(firstEntity)));
+    auto afterMaterial = ECSTestSupport::Take(beforeMaterial.Clone());
+    auto* editedMaterial = static_cast<HE::Rendering::MaterialComponent*>(afterMaterial.Data());
+    editedMaterial->Material.Reference.Guid = "replacement-material";
+    editedMaterial->Overrides.Parameters.clear();
+    Require(interactionHost.ExecuteCommand(HE::CreateSetComponentValueCommand(scene, firstEntity,
+        std::move(beforeMaterial), std::move(afterMaterial))).Succeeded(),
+        "Expected a material reference and its overrides to commit together");
+    Require(ECSTestSupport::Get<HE::Rendering::MaterialComponent>(scene->GetWorld(), firstEntity).Material.Reference.Guid == "replacement-material" &&
+        ECSTestSupport::Get<HE::Rendering::MaterialComponent>(scene->GetWorld(), firstEntity).Overrides.Empty(),
+        "Expected both material fields to change in one command");
+    Require(interactionHost.Undo().Succeeded(), "Expected the material edit to undo");
+    Require(ECSTestSupport::Get<HE::Rendering::MaterialComponent>(scene->GetWorld(), firstEntity).Material.Reference.Guid == previousMaterialGuid &&
+        ECSTestSupport::Get<HE::Rendering::MaterialComponent>(scene->GetWorld(), firstEntity).Overrides.Parameters.contains("u_Color"),
+        "Expected material undo to restore both fields");
+    Require(interactionHost.Redo().Succeeded(), "Expected the material edit to redo");
 
     const auto firstIdentity = scene->GetWorld().Uuid(firstEntity);
     const auto* transformType = scene->GetWorld().Types().Find<HE::TransformComponent>();

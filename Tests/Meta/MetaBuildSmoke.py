@@ -70,19 +70,18 @@ nested = source / "Nested.h"
 nested.write_text("#pragma once\nusing FieldType = int;\n", encoding="utf-8")
 entry = source / "Entry.h"
 body = '''#pragma once
-#include "Nested.h"
 #include "HuaEngine/Reflection/ReflectionMarkers.h"
-HE_REFLECT_COMPONENT(Guid="b6000000000000000000000000000001", DisplayName="Build fixture", Category="Tests")
-struct BuildComponent {
-    HE_REFLECT_FIELD() FieldType Value = 0;
+#include "Nested.h"
+struct [[sattr(guid="b6000000000000000000000000000001"; reflect=@marked; flags=["Component"]; attrs=["DisplayName=Build fixture","Category=Tests"])]] BuildComponent {
+    [[sattr(attrs=["Editor.Unit=meters"])]] FieldType Value = 0;
 #if FIXTURE_EXTRA
-    HE_REFLECT_FIELD() int Extra = 0;
+    [[sattr(attrs=["DisplayName=Extra"])]] int Extra = 0;
 #endif
 };
 '''
 entry.write_text(body, encoding="utf-8")
 (source / "Second.h").write_text(body.replace("BuildComponent", "SecondComponent").replace("0001", "0002"), encoding="utf-8")
-(source / "consumer.cpp").write_text('#include <BuildA/GeneratedReflection.h>\nint GeneratedConsumer() { return 7; }\n', encoding="utf-8")
+(source / "consumer.cpp").write_text('#include <BuildA/GeneratedReflection.h>\n#include <BuildA/GeneratedEcs.h>\nint GeneratedConsumer() { return 7; }\n', encoding="utf-8")
 cmake_text = '''cmake_minimum_required(VERSION 3.24)
 project(MetaBuildFixture LANGUAGES CXX)
 set(HUAENGINE_SOURCE_ROOT "@REPO@" CACHE INTERNAL "Repository")
@@ -90,7 +89,7 @@ include("@REPO@/cmake/HuaMeta.cmake")
 hua_meta_initialize()
 add_library(MetaBuildFixture STATIC consumer.cpp)
 target_compile_features(MetaBuildFixture PRIVATE cxx_std_20)
-target_compile_definitions(MetaBuildFixture PRIVATE HUA_META_NO_LEGACY HE_PLATFORM_WINDOWS _CRT_SECURE_NO_WARNINGS
+target_compile_definitions(MetaBuildFixture PRIVATE HE_PLATFORM_WINDOWS _CRT_SECURE_NO_WARNINGS
     FIXTURE_EXTRA=${FIXTURE_EXTRA} $<$<CONFIG:Debug>:HE_DEBUG> $<$<CONFIG:Release>:HE_RELEASE>)
 target_compile_options(MetaBuildFixture PRIVATE /utf-8)
 set_property(TARGET MetaBuildFixture PROPERTY MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>")
@@ -114,8 +113,22 @@ configure = [args.cmake, "-S", str(source), "-B", str(build), "-G", "Visual Stud
 compile_command = [args.cmake, "--build", str(build), "--config", configuration, "--target", "MetaBuildFixture", "--parallel", "2"]
 run(configure + ["-DFIXTURE_EXTRA=0", "-DFIXTURE_SECOND=OFF"])
 require(not (build / "generated" / configuration / "BuildA" / "GeneratedReflection.h").exists(), "Cold build starts without a generated module header")
-require(not (repo / "HuaEngine/src/HuaEngine/Generated/GeneratedReflection.h").exists(), "Old source generated headers must not be available as fallback")
+require(not (build / "generated" / configuration / "BuildA" / "GeneratedEcs.h").exists(), "Cold build starts without a generated ECS adapter")
+require(not (repo / "HuaEngine/src/HuaEngine/Generated/GeneratedEcs.h").exists(), "Source generated headers must not be available as fallback")
 run(compile_command)
+for name in ("GeneratedReflection.h", "GeneratedReflection.cpp", "GeneratedEcs.h", "GeneratedEcs.cpp"):
+    require((build / "generated" / configuration / "BuildA" / name).is_file(), f"Cold build must generate {name}")
+require((build / "generated" / configuration / "HuaEngine/Generated/GeneratedEcs.cpp").is_file(),
+        "Cold build must generate the ECS module umbrella")
+manifest = json.loads((build / "meta" / configuration / "BuildA" / "manifest.json").read_text(encoding="utf-8"))
+reflected = manifest["types"][0]
+require(reflected["guid"] == "b6000000000000000000000000000001" and
+        reflected["reflection_scope"] == "marked" and "Component" in reflected["flags"] and
+        {"name": "Editor.Unit", "value": "meters"} in reflected["fields"][0]["attributes"],
+        "A clean build must carry sattr GUID, scope, flags and attributes through the Clang manifest")
+generated_reflection = (build / "generated" / configuration / "BuildA" / "GeneratedReflection.cpp").read_text(encoding="utf-8")
+require('"Editor.Unit", "meters"' in generated_reflection and "TypeGuid_0" in generated_reflection,
+        "A clean build must materialize sattr metadata in generated descriptors")
 case("cold_build", 0, initially_missing_generated_header=True)
 case("source_fallback_absent", 0, source_generated_header_absent=True)
 before = snapshot()
@@ -141,7 +154,9 @@ case("compile_definition_change", start, ast_extra_field=True)
 start = len(commands)
 run(configure + ["-DFIXTURE_EXTRA=1", "-DFIXTURE_SECOND=ON"])
 run(compile_command)
-require((build / "generated" / configuration / "BuildB" / "GeneratedReflection.h").is_file(), "Adding an explicit module must create its generated output")
+for name in ("GeneratedReflection.h", "GeneratedReflection.cpp", "GeneratedEcs.h", "GeneratedEcs.cpp"):
+    require((build / "generated" / configuration / "BuildB" / name).is_file(),
+            f"Adding an explicit module must create {name}")
 case("module_list_change", start, modules=["BuildA", "BuildB"])
 
 previous = sha(manifest_path)
@@ -215,6 +230,8 @@ run(special_configure + ["-DFIXTURE_EXTRA=1", "-DFIXTURE_SECOND=ON"])
 run(special_compile)
 require((special_build / "generated" / configuration / "BuildA" / "GeneratedReflection.h").is_file(),
         "A real Unicode and shell-special path must complete generation and MSVC compilation")
+require((special_build / "generated" / configuration / "BuildA" / "GeneratedEcs.cpp").is_file(),
+        "A real Unicode and shell-special path must compile the generated ECS adapter")
 case("special_path_build", start, path=str(special_root),
      failure_path_constraint="Negative MSBuild builds use ASCII paths because Windows CMD corrupts generated batch labels under the active non-UTF-8 code page.")
 (root / "results.json").write_text(json.dumps({"passed": True, "configuration": configuration,

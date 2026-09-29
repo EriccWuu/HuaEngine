@@ -475,7 +475,18 @@ CLI 里有两张表，职责不同，不能混用：
 
 ## 12. Reflection 命令
 
-Reflection 命令用于把源码里的反射标记转换成机器可消费的 manifest，并在需要时生成 C++ 反射元数据文件。CLI 只负责参数解析、结果包装和调用正式 operation；具体扫描、生成和校验逻辑由 `ReflectionToolService` 封装 `Tools/Reflection/reflection_tool.py` 完成。
+Reflection 命令使用 CMake 为指定模块和构建配置生成的 `meta-config.json`，通过 Clang AST 扫描 `[[sattr(...)]]` 声明，生成 manifest v2 和 C++ 反射元数据。CLI 负责参数解析、结果包装和调用正式 operation；扫描与生成由 `ReflectionToolService` 调用 `Tools/Reflection/reflection_tool.py` 完成。先配置 CMake，再选择对应配置和模块的 `meta-config.json`；manifest 与生成文件默认位于构建目录。
+
+普通类型、组件和枚举共用反射层的稳定 GUID。组件仅通过 `Component` 标志表明 ECS 身份，反射本身不依赖 ECS。`HE_REFLECT_COMPONENT`、`HE_REFLECT_TYPE`、`HE_REFLECT_FIELD` 和 `HE_REFLECT_ENUM` 不再作为扫描标记。`reflect=@marked` 只收录带标记的字段，`reflect=@full` 收录全部可访问字段，`reflect=@disable` 不收录字段。`flags` 是可扩展标志列表，`attrs` 是可扩展的键值属性列表；Inspector、序列化和脚本可以各自读取所需属性。
+
+```cpp
+#include "HuaEngine/Reflection/ReflectionMarkers.h"
+
+struct [[sattr(guid="4f745e86ab69460db41dac991f79c002"; reflect=@marked; flags=["Component"]; attrs=["DisplayName=Camera","Category=Rendering"])]] CameraComponent {
+    [[sattr(attrs=["Editor.Min=1","Editor.Max=179","Editor.Unit=degrees"])]]
+    float VerticalFovDegrees = 60.0f;
+};
+```
 
 当前命令会通过 `ApplicationOperations` 调用以下正式 operation：
 
@@ -486,60 +497,55 @@ Reflection 命令用于把源码里的反射标记转换成机器可消费的 ma
 ### 12.1 `reflection scan`
 
 ```powershell
-<CLI> reflection scan --root D:/Workspace/HuaEngine
-<CLI> reflection scan --root D:/Workspace/HuaEngine --out D:/Workspace/HuaEngine/Tools/Reflection/reflection_manifest.json
+<CLI> reflection scan --meta-config <build>/meta/Debug/Core/meta-config.json
+<CLI> reflection scan --meta-config <build>/meta/Debug/Core/meta-config.json --out <project-workspace>/tmp/core-manifest.json
 ```
 
 参数：
 
-- `--root <path>`
-  - 必填，仓库根目录。
-  - `ReflectionToolService` 会在该目录下查找 `Tools/Reflection/reflection_tool.py`。
+- `--meta-config <path>`
+  - 必填，CMake 生成的模块与配置对应的扫描配置。
 - `--out <manifest>`
-  - 可选，manifest 输出路径。
-  - 未指定时默认写入 `<root>/Tools/Reflection/reflection_manifest.json`。
+  - 可选，manifest 输出路径；未指定时使用配置中的路径。
 
 作用：
 
-- 扫描源码中的 `HE_REFLECT_COMPONENT` 和 `HE_REFLECT_FIELD` 标记。
-- 写出 reflection manifest。
+- 使用配置指定的 Clang 编译命令扫描模块入口头文件中的 `[[sattr(...)]]` 标记。
+- 写出包含类型、枚举、字段、GUID、标志和属性的 manifest v2。
 - 返回 payload 中常用字段：`root`、`manifest`、`output_directory`、`reflected_type_count`、`tool_output`。
 
 ### 12.2 `reflection generate`
 
 ```powershell
-<CLI> reflection generate --root D:/Workspace/HuaEngine
-<CLI> reflection generate --root D:/Workspace/HuaEngine --out-dir D:/Workspace/HuaEngine/HuaEngine/src/HuaEngine/Generated
-<CLI> reflection generate --root D:/Workspace/HuaEngine --out D:/Workspace/HuaEngine/Tools/Reflection/reflection_manifest.json --out-dir D:/Workspace/HuaEngine/HuaEngine/src/HuaEngine/Generated
+<CLI> reflection generate --meta-config <build>/meta/Debug/Core/meta-config.json
+<CLI> reflection generate --meta-config <build>/meta/Debug/Core/meta-config.json --out-dir <project-workspace>/tmp/core-generated
 ```
 
 参数：
 
-- `--root <path>`
-  - 必填，仓库根目录。
+- `--meta-config <path>`
+  - 必填，CMake 生成的模块与配置对应的扫描配置。
 - `--out <manifest>`
-  - 可选，扫描阶段使用的 manifest 路径。
-  - 未指定时默认写入 `<root>/Tools/Reflection/reflection_manifest.json`。
+  - 可选，扫描阶段使用的 manifest 路径；未指定时使用配置中的路径。
 - `--out-dir <path>`
-  - 可选，生成的 C++ 文件输出目录。
-  - 未指定时默认写入 `<root>/HuaEngine/src/HuaEngine/Generated`。
+  - 可选，生成的 C++ 文件输出目录；未指定时使用配置中的路径。
 
 作用：
 
 - 先执行 scan，得到最新 manifest。
-- 再调用 Python 工具的 generate 子命令生成 `GeneratedReflection.h` 和 `GeneratedReflection.cpp`。
+- 再调用 Python 工具的 generate 子命令生成 `GeneratedReflection.h`、`GeneratedReflection.cpp`；含 ECS 组件的模块还生成对应的组件注册代码。
 - 如果 scan 阶段发现 error diagnostic，生成流程会失败并返回 failure。
 
 ### 12.3 `reflection validate`
 
 ```powershell
-<CLI> reflection validate --root D:/Workspace/HuaEngine
+<CLI> reflection validate --meta-config <build>/meta/Debug/Core/meta-config.json
 ```
 
 参数：
 
-- `--root <path>`
-  - 必填，仓库根目录。
+- `--meta-config <path>`
+  - 必填，CMake 生成的模块与配置对应的扫描配置。
 
 作用：
 
@@ -547,4 +553,4 @@ Reflection 命令用于把源码里的反射标记转换成机器可消费的 ma
 - 不写生成文件。
 - 适合在 smoke、CI 或提交前检查反射标记是否仍能被工具解析。
 
-脚本消费时建议同时检查进程退出码、`result.status` 和 `payload.reflected_type_count`。当前 smoke 期望仓库内可反射类型数量为 `5`。
+脚本消费时建议同时检查进程退出码、`result.status` 和 `payload.reflected_type_count`。该数量取决于所选模块，不代表整个仓库的反射类型总数。

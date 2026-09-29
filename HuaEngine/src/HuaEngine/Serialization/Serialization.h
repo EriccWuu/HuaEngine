@@ -9,8 +9,6 @@
 #include "YamlSerializationBackend.h"
 
 #include "GLMSerializer.h"
-#include "HuaEngine/Scene/SceneSerializer.h"
-#include "HuaEngine/Rendering/Material/MaterialSerializer.h"
 
 namespace HE::Serialization {
 
@@ -69,42 +67,42 @@ namespace HE::Serialization {
 
 
     template<typename T>
-    std::string ToJson(const T& object, const Ecs::TypeRegistry& types) {
+    std::string ToJson(const T& object, const Refl::Registry& types) {
         return SerializationManager::Instance().SerializeToString(object, SerializationFormat::JSON, &types);
     }
 
     template<typename T>
-    bool FromJson(const std::string& data, T& object, const Ecs::TypeRegistry& types) {
+    bool FromJson(const std::string& data, T& object, const Refl::Registry& types) {
         return SerializationManager::Instance().DeserializeFromString(data, object, SerializationFormat::JSON, &types);
     }
 
     template<typename T>
-    std::string ToYaml(const T& object, const Ecs::TypeRegistry& types) {
+    std::string ToYaml(const T& object, const Refl::Registry& types) {
         return SerializationManager::Instance().SerializeToString(object, SerializationFormat::YAML, &types);
     }
 
     template<typename T>
-    bool FromYaml(const std::string& data, T& object, const Ecs::TypeRegistry& types) {
+    bool FromYaml(const std::string& data, T& object, const Refl::Registry& types) {
         return SerializationManager::Instance().DeserializeFromString(data, object, SerializationFormat::YAML, &types);
     }
 
     template<typename T>
-    bool SaveAsJson(const T& object, const std::string& path, const Ecs::TypeRegistry& types) {
+    bool SaveAsJson(const T& object, const std::string& path, const Refl::Registry& types) {
         return SerializationManager::Instance().SerializeToFile(object, path, SerializationFormat::JSON, &types);
     }
 
     template<typename T>
-    bool LoadFromJson(const std::string& path, T& object, const Ecs::TypeRegistry& types) {
+    bool LoadFromJson(const std::string& path, T& object, const Refl::Registry& types) {
         return SerializationManager::Instance().DeserializeFromFile(path, object, SerializationFormat::JSON, &types);
     }
 
     template<typename T>
-    bool SaveAsYaml(const T& object, const std::string& path, const Ecs::TypeRegistry& types) {
+    bool SaveAsYaml(const T& object, const std::string& path, const Refl::Registry& types) {
         return SerializationManager::Instance().SerializeToFile(object, path, SerializationFormat::YAML, &types);
     }
 
     template<typename T>
-    bool LoadFromYaml(const std::string& path, T& object, const Ecs::TypeRegistry& types) {
+    bool LoadFromYaml(const std::string& path, T& object, const Refl::Registry& types) {
         return SerializationManager::Instance().DeserializeFromFile(path, object, SerializationFormat::YAML, &types);
     }
 

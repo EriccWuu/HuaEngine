@@ -104,38 +104,21 @@ namespace HE::Editor {
                 if (!reflection) ImGui::TextDisabled("Runtime descriptor is not available.");
                 else if (!edit.After) ImGui::TextDisabled("This component does not support editable value snapshots.");
                 else if (!removeRequested && world.IsAlive(entity) && world.Has(entity, edit.Type->Id)) {
-                    bool requested = false;
-                    bool overridesRemoved = false;
-                    AssetGuid changedMaterial;
-                    auto* material = edit.Type->Descriptor.NativeKey == Ecs::NativeTypeKey<Rendering::MaterialComponent>()
-                        ? static_cast<Rendering::MaterialComponent*>(edit.After.Data()) : nullptr;
-                    const bool fieldChanged = DrawRuntimeComponentInspector(*reflection, edit.After.Data(), m_RuntimeOverrides, {
+                    std::vector<ResultEnvelope> deferredEvents;
+                    const bool fieldChanged = DrawRuntimeFields(*reflection, edit.After.Data(), m_FieldDrawers, {
                         .MeshAssets = m_PickerCatalog.Get(AssetKind::Mesh),
                         .MaterialAssets = m_PickerCatalog.Get(AssetKind::Material),
                         .TextureAssets = m_PickerCatalog.Get(AssetKind::Texture2D),
                         .ResolveMaterialDefinition = [](const AssetGuid& guid, Rendering::MaterialDefinition& definition, AssetImportHealth& health) {
                             return Application::GetInstance().GetOperations().GetMaterialDefinition(guid, definition, &health);
                         },
-                        .CommitMaterialOverrides = [&](const Rendering::MaterialOverrideSet& overrides) {
-                            if (material) { material->Overrides = overrides; requested = true; }
-                        },
-                        .CommitMaterialReference = [&](const AssetGuid& guid) {
-                            if (!material) return;
-                            material->Material.Reference.Guid = guid;
-                            Rendering::MaterialDefinition definition;
-                            overridesRemoved = Application::GetInstance().GetOperations().GetMaterialDefinition(guid, definition).Succeeded() &&
-                                Rendering::ReconcileMaterialOverrides(material->Overrides, definition);
-                            changedMaterial = guid;
-                            requested = true;
-                        }
+                        .DeferredEvents = &deferredEvents
                     });
-                    if (fieldChanged || requested) {
+                    if (fieldChanged) {
                         auto result = m_InteractionHost->ExecuteCommand(CreateSetComponentValueCommand(scene, entity, std::move(edit.Before), std::move(edit.After)));
                         changed |= result.Succeeded();
-                        if (result.Succeeded() && overridesRemoved && m_WorkbenchState) {
-                            auto warning = ResultEnvelope::Success("editor.material_overrides.reconciled", changedMaterial, "Incompatible material overrides were removed");
-                            warning.AddDetail({DiagnosticSeverity::Warning, "editor.material_overrides.removed", "The selected material does not define one or more previous overrides", changedMaterial});
-                            m_WorkbenchState->RecordEvent(warning, "Inspector");
+                        if (result.Succeeded() && m_WorkbenchState) {
+                            for (const auto& event : deferredEvents) m_WorkbenchState->RecordEvent(event, "Inspector");
                         }
                     }
                 }

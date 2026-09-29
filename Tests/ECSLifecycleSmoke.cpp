@@ -97,10 +97,13 @@ namespace {
 			Require(registry.FindByName("Fixture.InvalidLayout") == nullptr && registry.All().size() == count,
 				"Expected malformed descriptor rejection without partial registration");
 		}
-		auto copiedHandle = first;
-		Require(!registry.Owns(copiedHandle), "Expected copied metadata not to become a registered ownership handle");
-		ExpectError(OwnedValue::Construct<PlainValue>(copiedHandle), ErrorCode::InvalidType,
-			"Expected owned construction to reject an unregistered metadata copy");
+		RegisteredType detachedHandle;
+		detachedHandle.Id = first.Id;
+		detachedHandle.Descriptor = first.Descriptor;
+		detachedHandle.Owner = first.Owner;
+		Require(!registry.Owns(detachedHandle), "Expected matching metadata not to become a registered ownership handle");
+		ExpectError(OwnedValue::Construct<PlainValue>(detachedHandle), ErrorCode::InvalidType,
+			"Expected owned construction to reject an unregistered metadata handle");
 
 		// Distinct opaque native keys exercise growth without thousands of template instantiations.
 		std::array<unsigned char, 4096> nativeKeys{};

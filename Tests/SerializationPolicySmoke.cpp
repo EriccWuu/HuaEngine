@@ -121,7 +121,9 @@ namespace {
 	void VerifyTransformRuntimeDeserializeRejectsPositionWithoutMutation(
 		const std::string& json,
 		const std::string& message) {
-		const HE::Refl::RuntimeTypeDescriptor* transformDescriptor = HE::Refl::FindRuntimeType("HE::TransformComponent");
+		HE::Scene scene;
+		const auto* transform = scene.GetWorld().Types().FindByQualifiedName("HE::TransformComponent");
+		const HE::Refl::RuntimeTypeDescriptor* transformDescriptor = transform ? transform->Descriptor.Reflection : nullptr;
 		Require(transformDescriptor != nullptr, "Expected TransformComponent runtime descriptor");
 
 		const glm::vec3 sentinelPosition = { 9.0f, 9.0f, 9.0f };
@@ -158,7 +160,9 @@ namespace {
 	}
 
 	void VerifyUnknownEnumStringFailsWithoutMutation() {
-		const auto* materialDescriptor = HE::Refl::FindRuntimeType("HE::Rendering::MaterialComponent");
+		HE::Scene scene;
+		const auto* materialType = scene.GetWorld().Types().FindByQualifiedName("HE::Rendering::MaterialComponent");
+		const auto* materialDescriptor = materialType ? materialType->Descriptor.Reflection : nullptr;
 		Require(materialDescriptor != nullptr, "Expected MaterialComponent runtime descriptor");
 
 		HE::Rendering::MaterialComponent material;

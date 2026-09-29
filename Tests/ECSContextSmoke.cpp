@@ -4,17 +4,23 @@
 #include "HuaEngine/Scene/Scene.h"
 #include "HuaEngine/Scene/SceneSerializer.h"
 #include "Module/Rendering/RenderingComponent.h"
-#include "HuaEngine/Generated/GeneratedReflection.h"
+#include "HuaEngine/Generated/GeneratedEcs.h"
 
 #include <cstdlib>
+#include <array>
 #include <filesystem>
 #include <fstream>
 #include <iostream>
 #include <string>
+#include <thread>
+#include <utility>
 #include <variant>
 #include <vector>
 
 namespace {
+	enum class ProbeEnum : int { First = 1 };
+	struct ProbeComponent { ProbeEnum Mode = ProbeEnum::First; };
+
 	void Require(bool condition, const std::string& message) {
 		if (!condition) {
 			std::cerr << "[ECSContextSmoke] " << message << std::endl;
@@ -38,8 +44,10 @@ namespace {
 			noArguments.Value() == first.Value() && explicitIdentity.Value() == first.Value() && explicitName.Value() == first.Value(),
 			"Expected no-argument, explicit Guid and explicit name registration to be idempotent");
 		Require(registry.All().size() == count && registry.Find<T>() == registered &&
-			registered->Descriptor.Reflection == canonical.Reflection && registered->Descriptor.QualifiedName == canonical.QualifiedName,
-			"Expected every registration path to preserve the canonical descriptor and reflection address");
+			registered->Descriptor.Reflection != canonical.Reflection &&
+			registered->Descriptor.Reflection->QualifiedName == canonical.Reflection->QualifiedName &&
+			registered == registry.FindByQualifiedName(canonical.QualifiedName),
+			"Expected every registration path to preserve one Context-owned reflection descriptor");
 		const auto wrongGuid = registry.Register<T>(HE::Ecs::TypeGuid::FromName("Fixture.WrongGeneratedIdentity"), canonical.Name);
 		const auto wrongName = registry.Register<T>(canonical.Guid, "Fixture.WrongGeneratedName");
 		const auto wrongStableName = registry.Register<T>("Fixture.WrongGeneratedName");
@@ -68,46 +76,66 @@ namespace {
 			const auto count = context.Types().All().size();
 			const bool hadRenderer = context.Types().Find<HE::Rendering::RendererComponent>() != nullptr;
 			const auto* transform = context.Types().Find<HE::TransformComponent>();
+			const auto* blendMode = context.Types().FindEnum("HE::Rendering::MaterialBlendMode");
+			Require(blendMode != nullptr, "Expected typed registration to provide enum dependencies");
 			HE::Scene registrationScene(context);
 			Require(HE::Generated::RegisterGeneratedComponents(context.Types()).HasValue(), "Expected module registration after typed registration");
-			Require(context.Types().All().size() == count + (hadRenderer ? 0 : 1) && context.Types().Find<HE::TransformComponent>() == transform,
-				"Expected World and module registration to preserve existing typed descriptors");
+			Require(context.Types().All().size() == count + (hadRenderer ? 0 : 1) &&
+				context.Types().Find<HE::TransformComponent>() == transform &&
+				context.Types().FindEnum("HE::Rendering::MaterialBlendMode") == blendMode,
+				"Expected World and module registration to preserve component and enum descriptors");
 			VerifyTypedRegistration<HE::TransformComponent>(context.Types(), (order + 1) % 3);
 		}
 		HE::Ecs::EcsContext empty;
 		const auto invalid = empty.Types().Register<HE::TransformComponent>(HE::Ecs::TypeGuid::FromName("Fixture.IncorrectTransform"), "TransformComponent");
 		Require(!invalid.HasValue() && invalid.GetError().Code == HE::Ecs::ErrorCode::InvalidType && empty.Types().All().empty(),
 			"Expected invalid explicit generated identity to fail before publishing any descriptor");
+		HE::Ecs::EcsContext wrongThread;
+		bool rejectedWithoutMutation = false;
+		std::thread worker([&] {
+			const auto typed = wrongThread.Types().Register<HE::TransformComponent>();
+			const auto module = HE::Generated::RegisterGeneratedComponents(wrongThread.Types());
+			rejectedWithoutMutation = !typed.HasValue() && typed.GetError().Code == HE::Ecs::ErrorCode::WrongThread &&
+				!module.HasValue() && module.GetError().Code == HE::Ecs::ErrorCode::WrongThread;
+		});
+		worker.join();
+		Require(rejectedWithoutMutation && wrongThread.Types().All().empty() &&
+			wrongThread.Reflection().AllTypes().empty() && wrongThread.Reflection().AllEnums().empty(),
+			"Wrong-thread component registration must not publish reflection metadata");
 
 	}
 
-	std::vector<const HE::Refl::RuntimeTypeDescriptor*> ComponentDescriptors() {
-		std::vector<const HE::Refl::RuntimeTypeDescriptor*> descriptors;
-		for (const auto& descriptor : HE::Refl::GetRuntimeTypes()) {
-			if (descriptor.Kind != "component") continue;
-			Require(descriptor.MakeEcsType != nullptr, "Expected reflected components to provide the shared ECS descriptor factory");
-			descriptors.push_back(&descriptor);
-		}
-		Require(descriptors.size() >= 4, "Expected the existing reflected scene components");
-		return descriptors;
-	}
-
-	void RegisterDescriptor(HE::Ecs::EcsContext& context, const HE::Refl::RuntimeTypeDescriptor& descriptor) {
-		const auto result = context.Types().Register(descriptor.MakeEcsType());
-		Require(result.HasValue(), "Expected reflected component registration in its Context");
+	std::vector<HE::Ecs::TypeDescriptor> ComponentDescriptors() {
+		return {
+			HE::Ecs::ComponentTraits<HE::TransformComponent>::Describe(),
+			HE::Ecs::ComponentTraits<HE::Rendering::CameraComponent>::Describe(),
+			HE::Ecs::ComponentTraits<HE::Rendering::MaterialComponent>::Describe(),
+			HE::Ecs::ComponentTraits<HE::Rendering::MeshComponent>::Describe(),
+		};
 	}
 
 	void VerifyContextMetadata(HE::Ecs::EcsContext& context, HE::Ecs::World& world) {
         Require(&world.Context() == &context && &world.Types() == &context.Types(),
             "Expected World to borrow its supplied Context and registry");
-        for (const auto* reflected : ComponentDescriptors()) {
-            const auto descriptor = reflected->MakeEcsType();
+		for (const auto& descriptor : ComponentDescriptors()) {
             const auto* local = context.Types().Find(descriptor.Guid);
-            Require(local && local == context.Types().FindByName(descriptor.Name) && local->Owner == &context.Types(),
+			Require(local && local == context.Types().FindByName(descriptor.Name) &&
+				local == context.Types().FindByQualifiedName(descriptor.QualifiedName) && local->Owner == &context.Types(),
                 "Expected stable Guid and name to resolve a Context-owned descriptor");
-            Require(local->Descriptor.Reflection == reflected,
-                "Expected ECS registration and reflection to share canonical metadata");
+			Require(local->Descriptor.Reflection && local->Descriptor.Reflection != descriptor.Reflection &&
+				local->Descriptor.Reflection->QualifiedName == descriptor.Reflection->QualifiedName,
+				"Expected ECS registration to own its reflection descriptor in the Context");
         }
+		const auto* material = context.Types().Find<HE::Rendering::MaterialComponent>();
+		const auto* blend = context.Types().FindEnum("HE::Rendering::MaterialBlendMode");
+		Require(material && blend, "Expected material and blend metadata in the Context");
+		for (const auto& field : material->Descriptor.Reflection->Fields) {
+			if (field.Name == "BlendMode") {
+				Require(field.EnumType == blend, "Expected the material field to refer to its Context enum");
+				return;
+			}
+		}
+		Require(false, "Expected MaterialComponent BlendMode field");
     }
 
 	void VerifyEntity(HE::Scene& scene, HE::EntityUuid uuid, const glm::vec3& position) {
@@ -146,24 +174,91 @@ namespace {
 		Require(component != nullptr && HE::Refl::SetRuntimeFieldValue(*positionField, component, position),
 			"Expected reflection editing to use the component resolved through the selected World");
 	}
+
+	void VerifyEnumRegistration() {
+		HE::Ecs::EcsContext first;
+		HE::Ecs::EcsContext second;
+		const std::array values{HE::Refl::RuntimeEnumValueDescriptor{"First", 1, "First"}};
+		const HE::Refl::RuntimeEnumDescriptor source{"ProbeEnum", "Fixture::ProbeEnum", "int", values};
+		const std::array fields{HE::Refl::RuntimeFieldDescriptor{
+			.Name = "Mode", .Type = "ProbeEnum", .Offset = offsetof(ProbeComponent, Mode),
+			.Size = sizeof(ProbeEnum), .EnumQualifiedName = "Fixture::ProbeEnum"}};
+		HE::Refl::RuntimeTypeDescriptor reflected{
+			.Name = "ProbeComponent", .QualifiedName = "Fixture::ProbeComponent", .Kind = "component",
+			.Size = sizeof(ProbeComponent), .Fields = fields};
+		auto descriptor = HE::Ecs::MakeTypeDescriptor<ProbeComponent>(
+			HE::Ecs::TypeGuid::FromName("Fixture::ProbeComponent"), "ProbeComponent");
+		descriptor.QualifiedName = "Fixture::ProbeComponent";
+		descriptor.Reflection = &reflected;
+		const auto missing = first.Types().Register(descriptor);
+		Require(!missing.HasValue() && missing.GetError().Code == HE::Ecs::ErrorCode::InvalidType &&
+			first.Types().All().empty(), "Expected a missing enum to reject the component without publishing it");
+		Require(first.Types().RegisterEnum(source).HasValue() && second.Types().RegisterEnum(source).HasValue(),
+			"Expected enum registration in separate Contexts");
+		const auto* firstEnum = first.Types().FindEnum(source.QualifiedName);
+		const auto* secondEnum = second.Types().FindEnum(source.QualifiedName);
+		Require(firstEnum && secondEnum && firstEnum != secondEnum && firstEnum != &source && secondEnum != &source,
+			"Expected each Context to own its enum descriptor");
+		Require(first.Types().RegisterEnum(source).HasValue() && first.Types().FindEnum(source.QualifiedName) == firstEnum &&
+			first.Types().AllEnums().size() == 1, "Expected identical enum registration to be idempotent");
+		const std::array conflictValues{HE::Refl::RuntimeEnumValueDescriptor{"First", 2, "First"}};
+		const HE::Refl::RuntimeEnumDescriptor conflict{"ProbeEnum", "Fixture::ProbeEnum", "int", conflictValues};
+		const auto conflicting = first.Types().RegisterEnum(conflict);
+		Require(!conflicting.HasValue() && conflicting.GetError().Code == HE::Ecs::ErrorCode::DuplicateType &&
+			first.Types().FindEnum(source.QualifiedName) == firstEnum,
+			"Expected conflicting enum registration to preserve the first descriptor");
+		const auto registered = first.Types().Register(descriptor);
+		Require(registered.HasValue(), "Expected component registration after its enum is available");
+		const auto* component = first.Types().Find(registered.Value());
+		Require(component && component->Descriptor.Reflection &&
+			component->Descriptor.Reflection->Fields[0].EnumType == firstEnum,
+			"Expected the Context-owned field to bind its Context enum");
+		HE::Ecs::EcsContext preRegistered;
+		Require(preRegistered.Types().RegisterEnum(source).HasValue() &&
+			!preRegistered.Reflection().RegisterType<ProbeComponent>(reflected),
+			"Expected standalone reflection metadata before component registration");
+		auto componentOnly = HE::Ecs::MakeTypeDescriptor<ProbeComponent>(
+			HE::Ecs::TypeGuid::FromName("Fixture::ProbeComponent"), "ProbeComponent");
+		const auto linked = preRegistered.Types().Register(std::move(componentOnly));
+		Require(linked.HasValue(), "Expected ECS registration to resolve existing reflection metadata");
+		const auto* linkedType = preRegistered.Types().Find(linked.Value());
+		Require(linkedType && linkedType->Descriptor.Reflection == preRegistered.Reflection().Find<ProbeComponent>() &&
+			linkedType->Descriptor.Reflection->Fields[0].EnumType == preRegistered.Types().FindEnum(source.QualifiedName),
+			"Expected the component to reuse its Context-owned reflected type and enum");
+		reflected.DisplayName = "Changed";
+		const auto changedSource = first.Types().Register(descriptor);
+		Require(!changedSource.HasValue() && changedSource.GetError().Code == HE::Ecs::ErrorCode::DuplicateType &&
+			component->Descriptor.Reflection->DisplayName.empty(),
+			"A changed source descriptor must not replace registered Context metadata");
+	}
 }
 
 int main() {
 	HE::Serialization::InitializeSerialization();
+	VerifyEnumRegistration();
 	VerifyGeneratedRegistrationOrders();
 	HE::Ecs::EcsContext forward;
 	HE::Ecs::EcsContext reverse;
 	const auto descriptors = ComponentDescriptors();
-	for (const auto* descriptor : descriptors) RegisterDescriptor(forward, *descriptor);
-	for (auto iterator = descriptors.rbegin(); iterator != descriptors.rend(); ++iterator) RegisterDescriptor(reverse, **iterator);
+	Require(forward.Types().Register<HE::TransformComponent>().HasValue() &&
+		forward.Types().Register<HE::Rendering::CameraComponent>().HasValue() &&
+		forward.Types().Register<HE::Rendering::MaterialComponent>().HasValue() &&
+		forward.Types().Register<HE::Rendering::MeshComponent>().HasValue(),
+		"Expected generated component registration in forward order");
+	Require(reverse.Types().Register<HE::Rendering::MeshComponent>().HasValue() &&
+		reverse.Types().Register<HE::Rendering::MaterialComponent>().HasValue() &&
+		reverse.Types().Register<HE::Rendering::CameraComponent>().HasValue() &&
+		reverse.Types().Register<HE::TransformComponent>().HasValue(),
+		"Expected generated component registration in reverse order");
 	bool observedDifferentLocalIds = false;
-	for (const auto* descriptor : descriptors) {
-		const auto stable = descriptor->MakeEcsType();
-		const auto* first = forward.Types().Find(stable.Guid);
-		const auto* second = reverse.Types().Find(stable.Guid);
+	for (const auto& descriptor : descriptors) {
+		const auto* first = forward.Types().Find(descriptor.Guid);
+		const auto* second = reverse.Types().Find(descriptor.Guid);
 		Require(first != nullptr && second != nullptr && first->Descriptor.Name == second->Descriptor.Name,
 			"Expected stable Guid and TypeName identity across registration orders");
-		Require(first != second && !reverse.Types().Owns(*first), "Expected Context ownership of registered handles");
+		Require(first != second && !reverse.Types().Owns(*first) &&
+			first->Descriptor.Reflection != second->Descriptor.Reflection,
+			"Expected Context ownership of component and reflection handles");
 		if (first->Id != second->Id) {
 			observedDifferentLocalIds = true;
 			Require(reverse.Types().Find(first->Id)->Descriptor.Guid != first->Descriptor.Guid,

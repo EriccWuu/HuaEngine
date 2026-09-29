@@ -7,7 +7,7 @@
 #include <functional>
 #include <cstdint>
 #include <stdexcept>
-#include "HuaEngine/ECS/Runtime/TypeRegistry.h"
+#include "HuaEngine/Reflection/ReflectionRegistry.h"
 #include "HuaEngine/Core/Core.h"
 #include "HuaEngine/Core/Log.h"
 #include "HuaEngine/Asset/AssetTypes.h"
@@ -97,25 +97,25 @@ namespace HE::Serialization {
         virtual bool IsReading() const = 0;
         virtual bool IsWriting() const = 0;
 
-        [[nodiscard]] const Ecs::TypeRegistry* GetTypeRegistry() const noexcept { return m_TypeRegistry; }
-        void SetTypeRegistry(const Ecs::TypeRegistry* types) noexcept { m_TypeRegistry = types; }
+        [[nodiscard]] const Refl::Registry* GetReflectionRegistry() const noexcept { return m_ReflectionRegistry; }
+        void SetReflectionRegistry(const Refl::Registry* registry) noexcept { m_ReflectionRegistry = registry; }
 
     protected:
         bool m_IsReading = false;
     private:
-        const Ecs::TypeRegistry* m_TypeRegistry = nullptr;
+        const Refl::Registry* m_ReflectionRegistry = nullptr;
     };
 
-    class TypeRegistryScope final {
+    class ReflectionRegistryScope final {
     public:
-        TypeRegistryScope(SerializationBackend& backend, const Ecs::TypeRegistry& types) noexcept
-            : m_Backend(backend), m_Previous(backend.GetTypeRegistry()) { backend.SetTypeRegistry(&types); }
-        ~TypeRegistryScope() { m_Backend.SetTypeRegistry(m_Previous); }
-        TypeRegistryScope(const TypeRegistryScope&) = delete;
-        TypeRegistryScope& operator=(const TypeRegistryScope&) = delete;
+        ReflectionRegistryScope(SerializationBackend& backend, const Refl::Registry& registry) noexcept
+            : m_Backend(backend), m_Previous(backend.GetReflectionRegistry()) { backend.SetReflectionRegistry(&registry); }
+        ~ReflectionRegistryScope() { m_Backend.SetReflectionRegistry(m_Previous); }
+        ReflectionRegistryScope(const ReflectionRegistryScope&) = delete;
+        ReflectionRegistryScope& operator=(const ReflectionRegistryScope&) = delete;
     private:
         SerializationBackend& m_Backend;
-        const Ecs::TypeRegistry* m_Previous;
+        const Refl::Registry* m_Previous;
     };
 
     // Type traits for serialization
@@ -257,12 +257,10 @@ namespace HE::Serialization {
                 SerializeValue(backend, name, obj);
             }
             else {
-                if (const auto* types = backend.GetTypeRegistry()) {
-                    if (const auto* type = types->Find<T>()) {
-                        if (type->Descriptor.Reflection) {
-                            Refl::SerializeRuntimeObject(*type->Descriptor.Reflection, backend, name, &obj);
-                            return;
-                        }
+                if (const auto* registry = backend.GetReflectionRegistry()) {
+                    if (const auto* type = registry->FindNative(Refl::NativeTypeKey<T>())) {
+                        Refl::SerializeRuntimeObject(*type, backend, name, &obj);
+                        return;
                     }
                 }
                 if constexpr (!Refl::has_fields_v<Refl::type_info<std::remove_cv_t<T>>>) {
@@ -291,11 +289,9 @@ namespace HE::Serialization {
                 return DeserializeValue(backend, name, obj);
             }
             else {
-                if (const auto* types = backend.GetTypeRegistry()) {
-                    if (const auto* type = types->Find<T>()) {
-                        if (type->Descriptor.Reflection) {
-                            return Refl::DeserializeRuntimeObject(*type->Descriptor.Reflection, backend, name, &obj);
-                        }
+                if (const auto* registry = backend.GetReflectionRegistry()) {
+                    if (const auto* type = registry->FindNative(Refl::NativeTypeKey<T>())) {
+                        return Refl::DeserializeRuntimeObject(*type, backend, name, &obj);
                     }
                 }
                 if constexpr (!Refl::has_fields_v<Refl::type_info<std::remove_cv_t<T>>>) { return false; }

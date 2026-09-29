@@ -1,15 +1,16 @@
 #pragma once
 
 #include <functional>
+#include <map>
 #include <span>
 #include <string>
 #include <string_view>
-#include <unordered_map>
+#include <vector>
 
 #include "HuaEngine/Reflection/Reflection.h"
 #include "Assets/AssetPickerModel.h"
+#include "HuaEngine/Core/ResultEnvelope.h"
 #include "HuaEngine/Rendering/Material/MaterialDefinition.h"
-#include "Module/Rendering/RenderingComponent.h"
 
 namespace HE {
 	struct AssetImportHealth;
@@ -28,8 +29,7 @@ namespace HE::Editor {
 		std::span<const AssetPickerOption> MaterialAssets;
 		std::span<const AssetPickerOption> TextureAssets;
 		std::function<ResultEnvelope(const AssetGuid&, Rendering::MaterialDefinition&, AssetImportHealth&)> ResolveMaterialDefinition;
-		std::function<void(const Rendering::MaterialOverrideSet&)> CommitMaterialOverrides;
-		std::function<void(const AssetGuid&)> CommitMaterialReference;
+		std::vector<ResultEnvelope>* DeferredEvents = nullptr;
 
 		[[nodiscard]] std::span<const AssetPickerOption> GetAssetOptions(AssetKind kind) const {
 			switch (kind) {
@@ -47,30 +47,39 @@ namespace HE::Editor {
 		}
 	};
 
-	using RuntimeComponentEditorOverride =
-		std::function<bool(const Refl::RuntimeTypeDescriptor&, void*)>;
+	using RuntimeFieldDrawer = std::function<bool(
+		const Refl::RuntimeFieldDescriptor&,
+		const Refl::RuntimeTypeDescriptor&,
+		void* object,
+		void* value,
+		RuntimeInspectorContext&)>;
 
-	class RuntimeComponentEditorOverrideRegistry {
+	class RuntimeFieldDrawerRegistry {
 	public:
-		void RegisterOverride(std::string_view qualifiedName, RuntimeComponentEditorOverride editor);
-		[[nodiscard]] const RuntimeComponentEditorOverride* FindOverride(std::string_view qualifiedName) const;
+		RuntimeFieldDrawerRegistry();
+		void RegisterNamed(std::string_view name, RuntimeFieldDrawer drawer);
+		void RegisterKind(Refl::RuntimeFieldValueKind kind, RuntimeFieldDrawer drawer);
+		[[nodiscard]] const RuntimeFieldDrawer* Resolve(const Refl::RuntimeFieldDescriptor& field) const;
 
 	private:
-		std::unordered_map<std::string, RuntimeComponentEditorOverride> m_Overrides;
+		std::map<std::string, RuntimeFieldDrawer, std::less<>> m_Named;
+		std::map<Refl::RuntimeFieldValueKind, RuntimeFieldDrawer> m_ByKind;
 	};
 
 	[[nodiscard]] bool IsRuntimeFieldEditable(const Refl::RuntimeFieldDescriptor& field);
 	[[nodiscard]] std::string GetRuntimeComponentDisplayName(const Refl::RuntimeTypeDescriptor& type);
 	[[nodiscard]] MaterialNumericEditorOptions GetMaterialNumericEditorOptions(
 		const Rendering::MaterialParameterDefinition& parameter);
-
-	bool DrawRuntimeFieldEditor(
+	bool SetRuntimeMaterialReference(
 		const Refl::RuntimeFieldDescriptor& field,
-		void* component,
-		RuntimeInspectorContext context = {});
-	bool DrawRuntimeComponentInspector(
 		const Refl::RuntimeTypeDescriptor& type,
-		void* component,
-		const RuntimeComponentEditorOverrideRegistry& overrides,
+		void* object,
+		const AssetGuid& nextGuid,
+		RuntimeInspectorContext& context);
+
+	bool DrawRuntimeFields(
+		const Refl::RuntimeTypeDescriptor& type,
+		void* object,
+		const RuntimeFieldDrawerRegistry& drawers,
 		RuntimeInspectorContext context = {});
 }

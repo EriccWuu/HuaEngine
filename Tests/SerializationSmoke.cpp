@@ -1,4 +1,4 @@
-#include "HuaEngine/Generated/GeneratedReflection.h"
+#include "HuaEngine/Generated/GeneratedEcs.h"
 #include "ECSTestSupport.h"
 #include <cstdlib>
 #include <filesystem>
@@ -70,66 +70,66 @@ namespace {
 		static const HE::Refl::RuntimeFieldDescriptor runtimeFields[] = {
 			{ .Name = "Count", .Type = "int32_t", .Offset = offsetof(PlainRuntimeValue, Count), .Size = sizeof(int32_t),
 				.Flags = HE::Refl::RuntimeFieldFlags::Serializable,
-				.Serialize = [](HE::Serialization::SerializationBackend& backend, const std::string& name, const void* value) {
+				.Serialize = [](const HE::Refl::RuntimeFieldDescriptor&, HE::Serialization::SerializationBackend& backend, const std::string& name, const void* value) {
 					HE::Serialization::SerializeValue(backend, name, static_cast<const PlainRuntimeValue*>(value)->Count);
 				},
-				.Deserialize = [](HE::Serialization::SerializationBackend& backend, const std::string& name, void* value) {
+				.Deserialize = [](const HE::Refl::RuntimeFieldDescriptor&, HE::Serialization::SerializationBackend& backend, const std::string& name, void* value) {
 					return HE::Serialization::DeserializeValue(backend, name, static_cast<PlainRuntimeValue*>(value)->Count);
 				} },
 			{ .Name = "Label", .Type = "std::string", .Offset = offsetof(PlainRuntimeValue, Label), .Size = sizeof(std::string),
 				.Flags = HE::Refl::RuntimeFieldFlags::Serializable,
-				.Serialize = [](HE::Serialization::SerializationBackend& backend, const std::string& name, const void* value) {
+				.Serialize = [](const HE::Refl::RuntimeFieldDescriptor&, HE::Serialization::SerializationBackend& backend, const std::string& name, const void* value) {
 					HE::Serialization::SerializeValue(backend, name, static_cast<const PlainRuntimeValue*>(value)->Label);
 				},
-				.Deserialize = [](HE::Serialization::SerializationBackend& backend, const std::string& name, void* value) {
+				.Deserialize = [](const HE::Refl::RuntimeFieldDescriptor&, HE::Serialization::SerializationBackend& backend, const std::string& name, void* value) {
 					return HE::Serialization::DeserializeValue(backend, name, static_cast<PlainRuntimeValue*>(value)->Label);
 				} }
 		};
 		static const HE::Refl::RuntimeTypeDescriptor reflected{
-			.Name = "PlainRuntimeValue", .QualifiedName = "HE::PlainRuntimeValue", .Kind = "component",
-			.Size = sizeof(PlainRuntimeValue), .Fields = runtimeFields
+			.Name = "PlainRuntimeValue", .QualifiedName = "HE::PlainRuntimeValue", .Kind = "type",
+			.Size = sizeof(PlainRuntimeValue), .Fields = runtimeFields,
+			.Guid = HE::Refl::TypeGuid{ 0xbdd824a5693e4511ULL, 0xbbcab9a274cfb8f3ULL }
 		};
 		HE::Ecs::EcsContext context;
-		auto descriptor = HE::Ecs::MakeTypeDescriptor<PlainRuntimeValue>(
-			HE::Ecs::TypeGuid{ 0xbdd824a5693e4511ULL, 0xbbcab9a274cfb8f3ULL }, "PlainRuntimeValue");
-		descriptor.Reflection = &reflected;
-		Require(context.Types().Register(descriptor).HasValue(), "Expected ordinary runtime-reflected struct registration");
+		Require(!context.Reflection().RegisterType<PlainRuntimeValue>(reflected).has_value(),
+			"Expected ordinary runtime-reflected struct registration");
 		const PlainRuntimeValue source{ 42, "runtime-only value" };
-		const std::string json = HE::Serialization::ToJson(source, context.Types());
-		const std::string yaml = HE::Serialization::ToYaml(source, context.Types());
+		const std::string json = HE::Serialization::ToJson(source, context.Reflection());
+		const std::string yaml = HE::Serialization::ToYaml(source, context.Reflection());
 		Require(json.find("runtime-only value") != std::string::npos && yaml.find("runtime-only value") != std::string::npos,
 			"Expected a plain runtime descriptor to serialize fields rather than an empty object");
 		PlainRuntimeValue jsonValue;
 		PlainRuntimeValue yamlValue;
-		Require(HE::Serialization::FromJson(json, jsonValue, context.Types()) &&
-			HE::Serialization::FromYaml(yaml, yamlValue, context.Types()), "Expected plain runtime JSON and YAML round-trip");
+		Require(HE::Serialization::FromJson(json, jsonValue, context.Reflection()) &&
+			HE::Serialization::FromYaml(yaml, yamlValue, context.Reflection()), "Expected plain runtime JSON and YAML round-trip");
 		Require(jsonValue.Count == 42 && yamlValue.Count == 42 && jsonValue.Label == source.Label && yamlValue.Label == source.Label,
 			"Expected ordinary non-POD field values to round-trip through the owning Context");
 
 		HE::Ecs::EcsContext wrongContext;
 		Require(wrongContext.Types().Register<int32_t>("Fixture.Unrelated").HasValue(), "Expected an unrelated type in the wrong Context");
 		HE::Ecs::EcsContext withoutReflection;
-		descriptor.Reflection = nullptr;
+		auto descriptor = HE::Ecs::MakeTypeDescriptor<PlainRuntimeValue>(
+			reflected.Guid, "PlainRuntimeValue");
 		Require(withoutReflection.Types().Register(descriptor).HasValue(), "Expected registration alone to remain distinct from serialization capability");
-		const HE::Ecs::TypeRegistry* unavailableTypes[] = { nullptr, &wrongContext.Types(), &withoutReflection.Types() };
-		for (const auto* types : unavailableTypes) {
+		const HE::Refl::Registry* unavailableRegistries[] = { nullptr, &wrongContext.Reflection(), &withoutReflection.Reflection() };
+		for (const auto* reflection : unavailableRegistries) {
 			RequireLogicError([&] {
-				(void)(types ? HE::Serialization::ToJson(source, *types) : HE::Serialization::ToJson(source));
+				(void)(reflection ? HE::Serialization::ToJson(source, *reflection) : HE::Serialization::ToJson(source));
 			}, "Expected missing runtime metadata to reject JSON output explicitly");
 			RequireLogicError([&] {
-				(void)(types ? HE::Serialization::ToYaml(source, *types) : HE::Serialization::ToYaml(source));
+				(void)(reflection ? HE::Serialization::ToYaml(source, *reflection) : HE::Serialization::ToYaml(source));
 			}, "Expected missing runtime metadata to reject YAML output explicitly");
 			PlainRuntimeValue unchanged;
-			Require(!(types ? HE::Serialization::FromJson(json, unchanged, *types) : HE::Serialization::FromJson(json, unchanged)),
+			Require(!(reflection ? HE::Serialization::FromJson(json, unchanged, *reflection) : HE::Serialization::FromJson(json, unchanged)),
 				"Expected missing runtime metadata to reject JSON input");
 			Require(unchanged.Count == 7 && unchanged.Label == "unchanged", "Expected rejected JSON to preserve the destination");
-			Require(!(types ? HE::Serialization::FromYaml(yaml, unchanged, *types) : HE::Serialization::FromYaml(yaml, unchanged)),
+			Require(!(reflection ? HE::Serialization::FromYaml(yaml, unchanged, *reflection) : HE::Serialization::FromYaml(yaml, unchanged)),
 				"Expected missing runtime metadata to reject YAML input");
 			Require(unchanged.Count == 7 && unchanged.Label == "unchanged", "Expected rejected YAML to preserve the destination");
 		}
 		const auto failedJson = (std::filesystem::temp_directory_path() / "plain-rejected.json").string();
 		const auto failedYaml = (std::filesystem::temp_directory_path() / "plain-rejected.yaml").string();
-		Require(!HE::Serialization::SaveAsJson(source, failedJson) && !HE::Serialization::SaveAsYaml(source, failedYaml, wrongContext.Types()),
+		Require(!HE::Serialization::SaveAsJson(source, failedJson) && !HE::Serialization::SaveAsYaml(source, failedYaml, wrongContext.Reflection()),
 			"Expected file helpers to return false for missing reflection instead of writing an empty object");
 		Require(!std::filesystem::exists(failedJson) && !std::filesystem::exists(failedYaml), "Expected rejected serialization not to create files");
 		std::cout << "Plain runtime struct serialization rejects missing or wrong Contexts" << std::endl;
@@ -154,11 +154,11 @@ int main() {
 	player.Transform.Position = { 1.0f, 2.0f, 3.0f };
 	player.Inventory = { "sword", "shield", "potion" };
 
-	const std::string playerJson = HE::Serialization::ToJson(player, registry);
+	const std::string playerJson = HE::Serialization::ToJson(player, registry.Reflection());
 	Require(playerJson.find("\"Name\"") != std::string::npos, "Expected reflected player serialization to use current field names");
 
 	HE::SmokePlayerComponent loadedPlayer;
-	Require(HE::Serialization::FromJson(playerJson, loadedPlayer, registry), "Expected reflected player JSON to deserialize");
+	Require(HE::Serialization::FromJson(playerJson, loadedPlayer, registry.Reflection()), "Expected reflected player JSON to deserialize");
 	Require(loadedPlayer.Name == "Hero", "Expected player name to round-trip");
 	Require(loadedPlayer.Level == 10, "Expected player level to round-trip");
 	Require(loadedPlayer.Inventory.size() == 3, "Expected player inventory to round-trip");
@@ -166,14 +166,14 @@ int main() {
 
 	const std::string bomPlayerJson = std::string("\xEF\xBB\xBF") + playerJson;
 	HE::SmokePlayerComponent loadedBomPlayer;
-	Require(HE::Serialization::FromJson(bomPlayerJson, loadedBomPlayer, registry), "Expected JSON with UTF-8 BOM to deserialize");
+	Require(HE::Serialization::FromJson(bomPlayerJson, loadedBomPlayer, registry.Reflection()), "Expected JSON with UTF-8 BOM to deserialize");
 	Require(loadedBomPlayer.Name == "Hero", "Expected BOM JSON player name to round-trip");
 
-	const std::string playerYamlFromHelper = HE::Serialization::ToYaml(player, registry);
+	const std::string playerYamlFromHelper = HE::Serialization::ToYaml(player, registry.Reflection());
 	Require(playerYamlFromHelper.find("Name: Hero") != std::string::npos, "Expected reflected player YAML helper to emit YAML mapping style");
 	Require(playerYamlFromHelper.find("\"Name\"") == std::string::npos, "Expected reflected player YAML helper not to emit JSON object syntax");
 	HE::SmokePlayerComponent loadedYamlPlayer;
-	Require(HE::Serialization::FromYaml(playerYamlFromHelper, loadedYamlPlayer, registry), "Expected reflected player YAML to deserialize");
+	Require(HE::Serialization::FromYaml(playerYamlFromHelper, loadedYamlPlayer, registry.Reflection()), "Expected reflected player YAML to deserialize");
 	Require(loadedYamlPlayer.Name == "Hero", "Expected player YAML name to round-trip");
 
 	const HE::Ecs::RegisteredType* transformMetadata = registry.FindByName("TransformComponent");
@@ -192,7 +192,7 @@ int main() {
 	sourceTransform.Scale = { 7.0f, 8.0f, 9.0f };
 
 	HE::Serialization::JsonSerializationBackend transformWriteBackend;
-	HE::Serialization::TypeRegistryScope transformWriteScope(transformWriteBackend, registry);
+	HE::Serialization::ReflectionRegistryScope transformWriteScope(transformWriteBackend, registry.Reflection());
 	HE::Refl::SerializeRuntimeObject(*transformMetadata->Descriptor.Reflection, transformWriteBackend, transformMetadata->Descriptor.Name, &sourceTransform);
 	const std::string transformMetadataJson = transformWriteBackend.SaveToString();
 	Require(transformMetadataJson.find("\"Position\"") != std::string::npos, "Expected metadata serialization to emit Position");
@@ -201,7 +201,7 @@ int main() {
 
 	HE::TransformComponent loadedMetadataTransform;
 	HE::Serialization::JsonSerializationBackend transformReadBackend;
-	HE::Serialization::TypeRegistryScope transformReadScope(transformReadBackend, registry);
+	HE::Serialization::ReflectionRegistryScope transformReadScope(transformReadBackend, registry.Reflection());
 	transformReadBackend.LoadFromString(transformMetadataJson);
 	Require(
 		HE::Refl::DeserializeRuntimeObject(*transformMetadata->Descriptor.Reflection, transformReadBackend, transformMetadata->Descriptor.Name, &loadedMetadataTransform),
@@ -215,9 +215,9 @@ int main() {
 	transforms[1].Position = { 0.0f, 1.0f, 0.0f };
 	transforms[2].Position = { 0.0f, 0.0f, 1.0f };
 
-	const std::string transformsJson = HE::Serialization::ToJson(transforms, registry);
+	const std::string transformsJson = HE::Serialization::ToJson(transforms, registry.Reflection());
 	std::vector<HE::TransformComponent> loadedTransforms;
-	Require(HE::Serialization::FromJson(transformsJson, loadedTransforms, registry), "Expected vector JSON to deserialize");
+	Require(HE::Serialization::FromJson(transformsJson, loadedTransforms, registry.Reflection()), "Expected vector JSON to deserialize");
 	Require(loadedTransforms.size() == 3, "Expected vector size to round-trip");
 	Require(loadedTransforms[2].Position.z == 1.0f, "Expected vector element payload to round-trip");
 

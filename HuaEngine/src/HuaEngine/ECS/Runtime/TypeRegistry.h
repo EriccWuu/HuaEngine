@@ -1,8 +1,8 @@
 #pragma once
 
 #include "HuaEngine/ECS/Runtime/Result.h"
+#include "HuaEngine/Reflection/ReflectionRegistry.h"
 
-#include <compare>
 #include <cstddef>
 #include <cstdint>
 #include <memory>
@@ -17,47 +17,18 @@
 #include <utility>
 #include <vector>
 
-namespace HE::Refl { struct RuntimeTypeDescriptor; }
-
 namespace HE::Ecs {
     using TypeId = uint32_t;
     inline constexpr TypeId InvalidTypeId = 0;
-
-    struct TypeGuid {
-        uint64_t High = 0;
-        uint64_t Low = 0;
-        constexpr explicit operator bool() const noexcept { return High != 0 || Low != 0; }
-        constexpr auto operator<=>(const TypeGuid&) const = default;
-        static TypeGuid FromString(std::string_view text) noexcept;
-        // Explicit names are useful for manually registered, non-generated types.
-        static constexpr TypeGuid FromName(std::string_view name) noexcept {
-            uint64_t high = 14695981039346656037ULL;
-            uint64_t low = 7809847782465536322ULL;
-            for (const unsigned char value : name) {
-                high = (high ^ value) * 1099511628211ULL;
-                low = (low ^ value) * 14029467366897019727ULL;
-            }
-            return name.empty() ? TypeGuid{} : TypeGuid{high, low};
-        }
-    };
-    [[nodiscard]] std::string ToString(TypeGuid guid);
-
-    struct TypeGuidHash {
-        size_t operator()(TypeGuid guid) const noexcept {
-            const uint64_t mixed = guid.High ^ (guid.Low + 0x9e3779b97f4a7c15ULL + (guid.High << 6) + (guid.High >> 2));
-            if constexpr (sizeof(size_t) < sizeof(uint64_t)) return static_cast<size_t>(mixed ^ (mixed >> 32));
-            return static_cast<size_t>(mixed);
-        }
-    };
+    using TypeGuid = Refl::TypeGuid;
+    using TypeGuidHash = Refl::TypeGuidHash;
+    using Refl::ToString;
 
     enum class StorageKind { Direct, Indirect, Tag };
 
-    namespace Detail {
-        template<typename T> inline unsigned char NativeTypeToken = 0;
-    }
     template<typename T>
     const void* NativeTypeKey() noexcept {
-        return &Detail::NativeTypeToken<std::remove_cvref_t<T>>;
+        return Refl::NativeTypeKey<T>();
     }
 
     struct TypeDescriptor {
@@ -144,6 +115,10 @@ namespace HE::Ecs {
 
     class TypeRegistry;
     struct RegisteredType {
+        RegisteredType();
+        ~RegisteredType();
+        RegisteredType(const RegisteredType&) = delete;
+        RegisteredType& operator=(const RegisteredType&) = delete;
         TypeId Id = InvalidTypeId;
         TypeDescriptor Descriptor;
         const TypeRegistry* Owner = nullptr;
@@ -151,21 +126,29 @@ namespace HE::Ecs {
 
     class TypeRegistry {
     public:
-        TypeRegistry() = default;
+        TypeRegistry();
+        ~TypeRegistry();
         TypeRegistry(const TypeRegistry&) = delete;
         TypeRegistry& operator=(const TypeRegistry&) = delete;
         TypeRegistry(TypeRegistry&&) = delete;
         TypeRegistry& operator=(TypeRegistry&&) = delete;
 
         [[nodiscard]] Result<TypeId> Register(TypeDescriptor descriptor);
+        [[nodiscard]] Result<void> RegisterEnum(const Refl::RuntimeEnumDescriptor& descriptor);
         template<typename T>
         [[nodiscard]] Result<TypeId> Register(TypeGuid guid, std::string name, bool tag = false) {
+            if (!IsOwnerThread())
+                return Error{ErrorCode::WrongThread, "Register", "Types must be registered on the Context owner thread"};
             using Traits = ComponentTraits<std::remove_cvref_t<T>>;
             if constexpr (requires { Traits::Describe(); }) {
                 auto descriptor = Traits::Describe();
                 if (descriptor.Guid != guid || descriptor.Name != name ||
                     (descriptor.Storage == StorageKind::Tag) != tag) {
                     return Error{ErrorCode::InvalidType, "Register", "Explicit identity differs from the generated component descriptor"};
+                }
+                if constexpr (requires { Traits::RegisterDependencies(*this); }) {
+                    auto dependencies = Traits::RegisterDependencies(*this);
+                    if (!dependencies) return dependencies.GetError();
                 }
                 return Register(std::move(descriptor));
             }
@@ -175,11 +158,17 @@ namespace HE::Ecs {
         }
         template<typename T>
         [[nodiscard]] Result<TypeId> Register(std::string stableName) {
+            if (!IsOwnerThread())
+                return Error{ErrorCode::WrongThread, "Register", "Types must be registered on the Context owner thread"};
             using Traits = ComponentTraits<std::remove_cvref_t<T>>;
             if constexpr (requires { Traits::Describe(); }) {
                 auto descriptor = Traits::Describe();
                 if (descriptor.Name != stableName) {
                     return Error{ErrorCode::InvalidType, "Register", "Explicit name differs from the generated component descriptor"};
+                }
+                if constexpr (requires { Traits::RegisterDependencies(*this); }) {
+                    auto dependencies = Traits::RegisterDependencies(*this);
+                    if (!dependencies) return dependencies.GetError();
                 }
                 return Register(std::move(descriptor));
             }
@@ -190,8 +179,14 @@ namespace HE::Ecs {
         }
         template<typename T>
         [[nodiscard]] Result<TypeId> Register() {
+            if (!IsOwnerThread())
+                return Error{ErrorCode::WrongThread, "Register", "Types must be registered on the Context owner thread"};
             using Traits = ComponentTraits<std::remove_cvref_t<T>>;
             if constexpr (requires { Traits::Describe(); }) {
+                if constexpr (requires { Traits::RegisterDependencies(*this); }) {
+                    auto dependencies = Traits::RegisterDependencies(*this);
+                    if (!dependencies) return dependencies.GetError();
+                }
                 return Register(Traits::Describe());
             }
             else {
@@ -201,21 +196,28 @@ namespace HE::Ecs {
         [[nodiscard]] const RegisteredType* Find(TypeId id) const;
         [[nodiscard]] const RegisteredType* Find(TypeGuid guid) const;
         [[nodiscard]] const RegisteredType* FindByName(std::string_view name) const;
+        [[nodiscard]] const RegisteredType* FindByQualifiedName(std::string_view name) const;
         [[nodiscard]] const RegisteredType* FindNative(const void* key) const;
+        [[nodiscard]] const Refl::RuntimeEnumDescriptor* FindEnum(std::string_view qualifiedName) const;
+        [[nodiscard]] Refl::Registry& Reflection() noexcept { return m_Reflection; }
+        [[nodiscard]] const Refl::Registry& Reflection() const noexcept { return m_Reflection; }
         template<typename T>
         [[nodiscard]] const RegisteredType* Find() const { return FindNative(NativeTypeKey<T>()); }
         [[nodiscard]] bool Owns(const RegisteredType& type) const;
         // Enumeration is for the owner thread, outside concurrent registration.
         [[nodiscard]] std::span<const RegisteredType* const> All() const noexcept { return m_All; }
+        [[nodiscard]] std::span<const Refl::RuntimeEnumDescriptor* const> AllEnums() const noexcept { return m_Reflection.AllEnums(); }
         [[nodiscard]] bool IsOwnerThread() const noexcept { return m_OwnerThread == std::this_thread::get_id(); }
 
     private:
+        Refl::Registry m_Reflection;
         const std::thread::id m_OwnerThread = std::this_thread::get_id();
         mutable std::shared_mutex m_Mutex;
         std::vector<std::unique_ptr<RegisteredType>> m_Types;
         std::vector<const RegisteredType*> m_All;
         std::unordered_map<TypeGuid, TypeId, TypeGuidHash> m_ByGuid;
         std::unordered_map<std::string_view, TypeId> m_ByName;
+        std::unordered_map<std::string_view, TypeId> m_ByQualifiedName;
         std::unordered_map<const void*, TypeId> m_ByNative;
     };
 }

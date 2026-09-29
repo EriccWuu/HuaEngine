@@ -18,36 +18,9 @@
 #include "FieldTraits.h"
 #include "misc.h"
 #include "ConstStr.h"
-
-namespace HE::Ecs { struct TypeDescriptor; }
+#include "TypeGuid.h"
 
 namespace HE {
-
-namespace Generated {
-    struct ReflectedFieldInfo {
-        std::string_view Name;
-        std::string_view Type;
-    };
-    struct ReflectedTypeInfo {
-        std::string_view Name;
-        std::string_view QualifiedName;
-        std::string_view Kind;
-        std::string_view DisplayName;
-        std::string_view Category;
-        std::span<const ReflectedFieldInfo> Fields;
-    };
-    struct ReflectedEnumValueInfo {
-        std::string_view Name;
-        int64_t Value;
-        std::string_view DisplayName;
-    };
-    struct ReflectedEnumInfo {
-        std::string_view Name;
-        std::string_view QualifiedName;
-        std::string_view UnderlyingType;
-        std::span<const ReflectedEnumValueInfo> Values;
-    };
-}
 
 namespace Serialization {
     class SerializationBackend;
@@ -63,6 +36,26 @@ namespace Refl {
 // --------------------------------------------------------------------------------
 //                              Runtime descriptors
 // --------------------------------------------------------------------------------
+
+struct RuntimeAttribute {
+    std::string_view Name;
+    std::string_view Value;
+};
+
+[[nodiscard]] inline bool HasRuntimeFlag(std::span<const std::string_view> flags, std::string_view name) noexcept {
+    for (std::string_view flag : flags) {
+        if (flag == name) return true;
+    }
+    return false;
+}
+
+[[nodiscard]] inline const RuntimeAttribute* FindRuntimeAttribute(
+    std::span<const RuntimeAttribute> attributes, std::string_view name) noexcept {
+    for (const auto& attribute : attributes) {
+        if (attribute.Name == name) return &attribute;
+    }
+    return nullptr;
+}
 
 enum class RuntimeFieldValueKind {
     Unsupported,
@@ -84,6 +77,8 @@ struct RuntimeEnumValueDescriptor {
     std::string_view Name;
     int64_t Value;
     std::string_view DisplayName;
+    std::span<const std::string_view> Flags{};
+    std::span<const RuntimeAttribute> Attributes{};
 };
 
 struct RuntimeEnumDescriptor {
@@ -91,6 +86,9 @@ struct RuntimeEnumDescriptor {
     std::string_view QualifiedName;
     std::string_view UnderlyingType;
     std::span<const RuntimeEnumValueDescriptor> Values;
+    TypeGuid Guid{};
+    std::span<const std::string_view> Flags{};
+    std::span<const RuntimeAttribute> Attributes{};
 };
 
 enum class RuntimeFieldFlags : uint32_t {
@@ -98,7 +96,6 @@ enum class RuntimeFieldFlags : uint32_t {
     Serializable = 1u << 0,
     Editable = 1u << 1,
     ReadOnly = 1u << 2,
-    ComponentField = 1u << 3,
 };
 
 inline constexpr RuntimeFieldFlags operator|(RuntimeFieldFlags lhs, RuntimeFieldFlags rhs) {
@@ -125,9 +122,12 @@ struct RuntimeFieldDescriptor {
     RuntimeFieldFlags Flags;
     const void* (*GetConst)(const void*);
     void* (*GetMutable)(void*);
-    void (*Serialize)(Serialization::SerializationBackend&, const std::string&, const void*);
-    bool (*Deserialize)(Serialization::SerializationBackend&, const std::string&, void*);
+    void (*Serialize)(const RuntimeFieldDescriptor&, Serialization::SerializationBackend&, const std::string&, const void*);
+    bool (*Deserialize)(const RuntimeFieldDescriptor&, Serialization::SerializationBackend&, const std::string&, void*);
     const RuntimeEnumDescriptor* EnumType;
+    std::string_view EnumQualifiedName{};
+    std::span<const std::string_view> MetadataFlags{};
+    std::span<const RuntimeAttribute> Attributes{};
 };
 
 struct RuntimeTypeDescriptor {
@@ -143,13 +143,11 @@ struct RuntimeTypeDescriptor {
     void* (*Copy)(const void*);
     void (*Serialize)(Serialization::SerializationBackend&, const std::string&, const void*);
     bool (*Deserialize)(Serialization::SerializationBackend&, const std::string&, void*);
-    Ecs::TypeDescriptor (*MakeEcsType)() = nullptr;
+    TypeGuid Guid{};
+    std::span<const std::string_view> Flags{};
+    std::span<const RuntimeAttribute> Attributes{};
 };
 
-std::span<const RuntimeTypeDescriptor> GetRuntimeTypes();
-const RuntimeTypeDescriptor* FindRuntimeType(std::string_view qualifiedName);
-std::span<const RuntimeEnumDescriptor> GetRuntimeEnums();
-const RuntimeEnumDescriptor* FindRuntimeEnum(std::string_view qualifiedName);
 const RuntimeEnumValueDescriptor* FindRuntimeEnumValueByName(
     const RuntimeEnumDescriptor& enumType,
     std::string_view name);
@@ -403,6 +401,7 @@ namespace Detail {
 
     template<typename T, size_t Index>
     void SerializeStaticRuntimeField(
+        const RuntimeFieldDescriptor&,
         Serialization::SerializationBackend& backend,
         const std::string& name,
         const void* object) {
@@ -412,6 +411,7 @@ namespace Detail {
 
     template<typename T, size_t Index>
     bool DeserializeStaticRuntimeField(
+        const RuntimeFieldDescriptor&,
         Serialization::SerializationBackend& backend,
         const std::string& name,
         void* object) {

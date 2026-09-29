@@ -4,9 +4,9 @@
 #include <string>
 #include <string_view>
 
-#include "HuaEngine/ECS/Runtime/TypeRegistry.h"
+#include "HuaEngine/ECS/Runtime/EcsContext.h"
 #include "HuaEngine/ECS/Components.h"
-#include "HuaEngine/Generated/GeneratedReflection.h"
+#include "HuaEngine/Generated/GeneratedEcs.h"
 #include "HuaEngine/Reflection/Reflection.h"
 #include "HuaEngine/Serialization/Serialization.h"
 #include "Module/Rendering/RenderingComponent.h"
@@ -17,16 +17,6 @@ namespace {
 			std::cerr << "[ReflectionGeneratedSmoke] " << message << std::endl;
 			std::exit(1);
 		}
-	}
-
-	bool HasField(std::span<const HE::Generated::ReflectedFieldInfo> fields, std::string_view name) {
-		for (const HE::Generated::ReflectedFieldInfo& field : fields) {
-			if (field.Name == name) {
-				return true;
-			}
-		}
-
-		return false;
 	}
 
 	const HE::Refl::RuntimeFieldDescriptor* FindRuntimeField(
@@ -43,17 +33,15 @@ namespace {
 }
 
 int main() {
-	const std::span<const HE::Generated::ReflectedTypeInfo> types = HE::Generated::GetReflectedTypes();
-	Require(types.size() == 4, "Expected four reflected component types");
-	Require(HE::Generated::FindReflectedType("HE::NameComponent") == nullptr, "Expected NameComponent reflection to be removed");
+	HE::Ecs::EcsContext context;
+	auto& registry = context.Types();
+	Require(HE::Generated::RegisterGeneratedComponents(registry).HasValue(), "Expected component metadata registration");
+	Require(registry.All().size() == 4, "Expected four reflected component types");
+	Require(registry.FindByQualifiedName("HE::NameComponent") == nullptr, "Expected NameComponent reflection to be absent");
 
-	const HE::Generated::ReflectedTypeInfo* transform = HE::Generated::FindReflectedType("HE::TransformComponent");
-	Require(transform != nullptr, "Expected to find HE::TransformComponent");
-	Require(HasField(transform->Fields, "Position"), "Expected TransformComponent Position field");
-	Require(HasField(transform->Fields, "Rotation"), "Expected TransformComponent Rotation field");
-	Require(HasField(transform->Fields, "Scale"), "Expected TransformComponent Scale field");
-
-	const auto* transformRuntime = HE::Refl::FindRuntimeType("HE::TransformComponent");
+	const auto* transformMetadata = registry.FindByQualifiedName("HE::TransformComponent");
+	Require(transformMetadata != nullptr, "Expected to find HE::TransformComponent");
+	const auto* transformRuntime = transformMetadata->Descriptor.Reflection;
 	Require(transformRuntime != nullptr, "Expected runtime reflection descriptor for TransformComponent");
 	Require(transformRuntime->Fields.size() == 3, "Expected TransformComponent runtime fields");
 	Require(transformRuntime->Serialize == nullptr, "Expected TransformComponent to use generic runtime serialization");
@@ -65,7 +53,6 @@ int main() {
 	Require(positionField->Offset == offsetof(HE::TransformComponent, Position), "Expected Position runtime offset");
 	Require(positionField->Size == sizeof(glm::vec3), "Expected Position runtime field size");
 	Require(HE::Refl::HasRuntimeFieldFlag(positionField->Flags, HE::Refl::RuntimeFieldFlags::Serializable), "Expected Position to be serializable");
-	Require(HE::Refl::HasRuntimeFieldFlag(positionField->Flags, HE::Refl::RuntimeFieldFlags::ComponentField), "Expected Position to be a component field");
 	Require(positionField->GetConst != nullptr, "Expected Position const accessor");
 	Require(positionField->GetMutable != nullptr, "Expected Position mutable accessor");
 	Require(positionField->Serialize != nullptr, "Expected Position runtime field serializer");
@@ -76,20 +63,28 @@ int main() {
 	Require(HE::Refl::IsRuntimeFieldSerializable(*positionField), "Expected Position to be serializable through helper");
 	Require(HE::Refl::IsRuntimeFieldEditable(*positionField), "Expected Position to be editable through helper");
 
-	const HE::Generated::ReflectedTypeInfo* mesh = HE::Generated::FindReflectedType("HE::Rendering::MeshComponent");
-	Require(mesh != nullptr, "Expected to find HE::Rendering::MeshComponent");
-	Require(HasField(mesh->Fields, "Mesh"), "Expected MeshComponent Mesh field");
-	Require(!HasField(mesh->Fields, "MeshAssetName"), "Expected MeshAssetName to be removed");
-	Require(!HasField(mesh->Fields, "m_CachedVertexArray"), "Expected MeshComponent cache field to be omitted");
+	const auto* mesh = registry.FindByQualifiedName("HE::Rendering::MeshComponent");
+	Require(mesh && mesh->Descriptor.Reflection, "Expected MeshComponent runtime reflection");
+	Require(FindRuntimeField(mesh->Descriptor.Reflection->Fields, "Mesh") != nullptr, "Expected MeshComponent Mesh field");
+	Require(FindRuntimeField(mesh->Descriptor.Reflection->Fields, "MeshAssetName") == nullptr, "Expected MeshAssetName to be absent");
+	Require(FindRuntimeField(mesh->Descriptor.Reflection->Fields, "m_CachedVertexArray") == nullptr,
+		"Expected MeshComponent cache field to be omitted");
+	const auto* camera = registry.FindByQualifiedName("HE::Rendering::CameraComponent");
+	Require(camera && camera->Descriptor.Reflection &&
+		camera->Descriptor.Guid == camera->Descriptor.Reflection->Guid,
+		"Expected camera reflection and ECS to share one stable Guid");
+	const auto* fov = FindRuntimeField(camera->Descriptor.Reflection->Fields, "VerticalFovDegrees");
+	const auto* minimum = fov ? HE::Refl::FindRuntimeAttribute(fov->Attributes, "Editor.Min") : nullptr;
+	const auto* maximum = fov ? HE::Refl::FindRuntimeAttribute(fov->Attributes, "Editor.Max") : nullptr;
+	Require(minimum && minimum->Value == "1" && maximum && maximum->Value == "179",
+		"Expected camera editor bounds in extensible field attributes");
 
-	const HE::Generated::ReflectedTypeInfo* material = HE::Generated::FindReflectedType("HE::Rendering::MaterialComponent");
-	Require(material != nullptr, "Expected to find HE::Rendering::MaterialComponent");
-	Require(HasField(material->Fields, "Material"), "Expected MaterialComponent Material field");
-	Require(HasField(material->Fields, "Overrides"), "Expected MaterialComponent Overrides field");
-	Require(!HasField(material->Fields, "MaterialInstance"), "Expected MaterialInstance field to be removed");
-
-	HE::Ecs::TypeRegistry registry;
-	Require(HE::Generated::RegisterGeneratedComponents(registry).HasValue(), "Expected canonical module registration");
+	const auto* material = registry.FindByQualifiedName("HE::Rendering::MaterialComponent");
+	Require(material && material->Descriptor.Reflection, "Expected MaterialComponent runtime reflection");
+	Require(FindRuntimeField(material->Descriptor.Reflection->Fields, "Material") != nullptr, "Expected MaterialComponent Material field");
+	Require(FindRuntimeField(material->Descriptor.Reflection->Fields, "Overrides") != nullptr, "Expected MaterialComponent Overrides field");
+	Require(FindRuntimeField(material->Descriptor.Reflection->Fields, "MaterialInstance") == nullptr,
+		"Expected MaterialInstance field to be absent");
 
 	constexpr std::string_view expectedNames[] = {
 		"TransformComponent",
@@ -102,8 +97,7 @@ int main() {
 	}
 	Require(registry.FindByName("NameComponent") == nullptr, "Expected NameComponent not to be registered");
 
-	const HE::Ecs::RegisteredType* transformMetadata = registry.FindByName("TransformComponent");
-	Require(transformMetadata != nullptr, "Expected TransformComponent metadata to be registered");
+	Require(transformMetadata == registry.FindByName("TransformComponent"), "Expected one Context type identity");
 	Require(transformMetadata->Descriptor.Size == sizeof(HE::TransformComponent), "Expected TransformComponent metadata size to match component size");
 	Require(transformMetadata->Descriptor.Reflection == transformRuntime, "Expected TransformComponent metadata to reference runtime type");
 
@@ -141,8 +135,11 @@ int main() {
 		"Expected generic runtime set to write Position");
 	Require(loadedTransform.Position == updatedPosition, "Expected generic runtime set to update Position");
 
-	const auto* blendModeEnum = HE::Refl::FindRuntimeEnum("HE::Rendering::MaterialBlendMode");
+	const auto* blendModeEnum = registry.FindEnum("HE::Rendering::MaterialBlendMode");
 	Require(blendModeEnum != nullptr, "Expected MaterialBlendMode runtime enum");
+	Require(blendModeEnum->Guid == HE::Refl::TypeGuid::FromString("4f745e86ab69460db41dac991f79c005") &&
+		context.Reflection().FindEnum(blendModeEnum->Guid) == blendModeEnum,
+		"Expected stable enum identity in the reflection registry");
 	Require(blendModeEnum->Values.size() == 3, "Expected three MaterialBlendMode values");
 	Require(
 		HE::Refl::FindRuntimeEnumValueByName(*blendModeEnum, "Transparent") != nullptr,
@@ -151,11 +148,7 @@ int main() {
 		HE::Refl::FindRuntimeEnumValueByValue(*blendModeEnum, static_cast<int64_t>(HE::Rendering::MaterialBlendMode::Masked)) != nullptr,
 		"Expected Masked enum value by integer value");
 
-	const HE::Generated::ReflectedEnumInfo* generatedBlendMode =
-		HE::Generated::FindReflectedEnum("HE::Rendering::MaterialBlendMode");
-	Require(generatedBlendMode != nullptr, "Expected generated MaterialBlendMode enum info");
-
-	const auto* materialRuntime = HE::Refl::FindRuntimeType("HE::Rendering::MaterialComponent");
+	const auto* materialRuntime = material->Descriptor.Reflection;
 	Require(materialRuntime != nullptr, "Expected MaterialComponent runtime descriptor");
 	Require(FindRuntimeField(materialRuntime->Fields, "Material") != nullptr, "Expected MaterialComponent runtime Material field");
 	Require(FindRuntimeField(materialRuntime->Fields, "Overrides") != nullptr, "Expected MaterialComponent runtime Overrides field");

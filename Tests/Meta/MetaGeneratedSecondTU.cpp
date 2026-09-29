@@ -1,5 +1,5 @@
 #include "Fixtures/ComponentModule.h"
-#include <Test/GeneratedReflection.h>
+#include <Test/GeneratedEcs.h>
 
 #include "HuaEngine/ECS/Runtime/EcsContext.h"
 

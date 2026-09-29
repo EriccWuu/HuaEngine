@@ -64,9 +64,33 @@ endif()
 
 hua_add_meta_module(NAME Test TARGET MetaGeneratedSmoke
     ENTRY_HEADER "${CMAKE_CURRENT_SOURCE_DIR}/Fixtures/ComponentModule.h")
+hua_add_meta_module(NAME FixtureEnums TARGET MetaGeneratedSmoke
+    ENTRY_HEADER "${CMAKE_CURRENT_SOURCE_DIR}/Fixtures/FixtureEnums.h")
 if(HUA_META_STANDALONE)
-    hua_add_meta_umbrella(MetaGeneratedSmoke Test)
+    hua_add_meta_umbrella(MetaGeneratedSmoke Test FixtureEnums)
 endif()
+
+add_executable(MetaReflectionOnlySmoke
+    "${CMAKE_CURRENT_SOURCE_DIR}/MetaReflectionOnlySmoke.cpp"
+    "${HUAENGINE_SOURCE_ROOT}/HuaEngine/src/HuaEngine/Reflection/ReflectionRegistry.cpp"
+    "${HUAENGINE_SOURCE_ROOT}/HuaEngine/src/HuaEngine/Reflection/RuntimeReflection.cpp"
+    "${HUA_META_FixtureEnums_OUTPUT}/GeneratedReflection.cpp")
+target_compile_features(MetaReflectionOnlySmoke PRIVATE cxx_std_20)
+set_target_properties(MetaReflectionOnlySmoke PROPERTIES DISABLE_PRECOMPILE_HEADERS ON)
+target_include_directories(MetaReflectionOnlySmoke PRIVATE
+    "$<TARGET_PROPERTY:MetaGeneratedSmoke,INCLUDE_DIRECTORIES>")
+target_compile_definitions(MetaReflectionOnlySmoke PRIVATE
+    "$<TARGET_PROPERTY:MetaGeneratedSmoke,COMPILE_DEFINITIONS>")
+if(MSVC)
+    target_compile_options(MetaReflectionOnlySmoke PRIVATE /utf-8)
+    set_property(TARGET MetaReflectionOnlySmoke PROPERTY MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>")
+endif()
+hua_add_meta_module(NAME PlainReflection TARGET MetaReflectionOnlySmoke REFLECTION_ONLY
+    ENTRY_HEADER "${CMAKE_CURRENT_SOURCE_DIR}/Fixtures/PlainReflection.h")
+add_dependencies(MetaReflectionOnlySmoke HuaMetaFixtureEnums)
+add_test(NAME MetaReflectionOnlySmoke COMMAND "$<TARGET_FILE:MetaReflectionOnlySmoke>")
+set_tests_properties(MetaReflectionOnlySmoke PROPERTIES LABELS "reflection;meta" TIMEOUT 60)
+
 add_test(NAME MetaGeneratedSmoke COMMAND "$<TARGET_FILE:MetaGeneratedSmoke>")
 set_tests_properties(MetaGeneratedSmoke PROPERTIES LABELS "ecs;reflection;meta;integration" TIMEOUT 60)
 if(HUA_META_ASAN)

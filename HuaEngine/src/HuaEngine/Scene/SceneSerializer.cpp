@@ -66,7 +66,7 @@ namespace HE::Serialization {
         auto scope = Ecs::WorldReadScope::Acquire(const_cast<Scene&>(scene).GetWorld());
         if (!scope) throw std::runtime_error(scope.GetError().Operation + ": " + scope.GetError().Message);
         const auto& world = scope.Value().Get();
-        TypeRegistryScope types(backend, world.Types());
+        ReflectionRegistryScope reflection(backend, world.Context().Reflection());
         if (!name.empty()) backend.BeginObject(name);
         backend.Serialize("name", scene.GetName().empty() ? "Untitled Scene" : scene.GetName());
         backend.Serialize("version", 3);
@@ -85,7 +85,7 @@ namespace HE::Serialization {
         auto scope = Ecs::WorldEditScope::Acquire(scene.GetWorld());
         if (!scope) return false;
         auto& world = scope.Value().Get();
-        TypeRegistryScope types(backend, world.Types());
+        ReflectionRegistryScope reflection(backend, world.Context().Reflection());
         if (!world.Clear()) return false;
         if (!name.empty()) backend.BeginObject(name);
         std::string sceneName;

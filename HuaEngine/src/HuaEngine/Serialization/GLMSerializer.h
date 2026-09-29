@@ -1,6 +1,6 @@
 #pragma once
 
-#include "Serialization.h"
+#include "SerializationCore.h"
 #include "glm/glm.hpp"
 
 namespace HE::Serialization {

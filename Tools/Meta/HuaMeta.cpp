@@ -21,7 +21,7 @@ namespace {
 int main(int argc, const char** argv) {
     llvm::InitLLVM llvm(argc, argv);
     if (argc == 2 && std::string(argv[1]) == "--version") {
-        llvm::outs() << "HuaMeta 23.1.2-p6 manifest v2\n";
+        llvm::outs() << "HuaMeta 23.1.2-p10 manifest v2\n";
         return 0;
     }
     auto parsed = clang::tooling::CommonOptionsParser::create(argc, argv, Options);

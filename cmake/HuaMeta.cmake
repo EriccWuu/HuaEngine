@@ -34,21 +34,19 @@ endfunction()
 
 function(hua_add_meta_umbrella target)
     set(HUA_META_UMBRELLA_INCLUDES "")
-    set(HUA_META_APPEND_REFLECTED_TYPES "")
-    set(HUA_META_APPEND_REFLECTED_ENUMS "")
-    set(HUA_META_APPEND_RUNTIME_TYPES "")
-    set(HUA_META_APPEND_RUNTIME_ENUMS "")
+    set(HUA_META_REGISTER_COMPONENTS "")
     set(validation_arguments "")
     set(validation_dependencies "")
     foreach(module IN LISTS ARGN)
+        get_property(reflection_only GLOBAL PROPERTY HUA_META_${module}_REFLECTION_ONLY)
+        if(reflection_only)
+            message(FATAL_ERROR "Reflection-only module ${module} cannot register ECS components")
+        endif()
         get_property(module_config GLOBAL PROPERTY HUA_META_${module}_CONFIG)
         list(APPEND validation_arguments --meta-config "${module_config}")
         list(APPEND validation_dependencies HuaMeta${module})
-        string(APPEND HUA_META_UMBRELLA_INCLUDES "#include <${module}/GeneratedReflection.h>\n")
-        string(APPEND HUA_META_APPEND_REFLECTED_TYPES "            Append(result, ${module}::ReflectedTypes());\n")
-        string(APPEND HUA_META_APPEND_REFLECTED_ENUMS "            Append(result, ${module}::ReflectedEnums());\n")
-        string(APPEND HUA_META_APPEND_RUNTIME_TYPES "            Append(result.Types, Generated::${module}::RuntimeTypes());\n")
-        string(APPEND HUA_META_APPEND_RUNTIME_ENUMS "            Append(result, Generated::${module}::RuntimeEnums());\n")
+        string(APPEND HUA_META_UMBRELLA_INCLUDES "#include <${module}/GeneratedEcs.h>\n")
+        string(APPEND HUA_META_REGISTER_COMPONENTS "        if (auto result = ${module}::RegisterComponents(registry); !result) return result.GetError();\n")
     endforeach()
     add_custom_target(${target}MetaValidation
         COMMAND "${HUAENGINE_PYTHON_EXECUTABLE}" "${HUAENGINE_META_GENERATOR}"
@@ -61,14 +59,14 @@ function(hua_add_meta_umbrella target)
     foreach(extension h cpp)
         file(READ "${HUAENGINE_SOURCE_ROOT}/cmake/MetaUmbrella.${extension}.in" template)
         string(CONFIGURE "${template}" configured @ONLY)
-        file(GENERATE OUTPUT "${umbrella}/GeneratedReflection.${extension}" CONTENT "${configured}")
+        file(GENERATE OUTPUT "${umbrella}/GeneratedEcs.${extension}" CONTENT "${configured}")
     endforeach()
-    target_sources(${target} PRIVATE "${umbrella}/GeneratedReflection.cpp")
+    target_sources(${target} PRIVATE "${umbrella}/GeneratedEcs.cpp")
     target_include_directories(${target} BEFORE PUBLIC "${CMAKE_BINARY_DIR}/generated/$<CONFIG>")
 endfunction()
 
 function(hua_add_meta_module)
-    cmake_parse_arguments(META "" "NAME;TARGET;ENTRY_HEADER" "" ${ARGN})
+    cmake_parse_arguments(META "REFLECTION_ONLY" "NAME;TARGET;ENTRY_HEADER" "" ${ARGN})
     if(NOT META_NAME MATCHES "^[A-Za-z_][A-Za-z0-9_]*$" OR NOT TARGET "${META_TARGET}" OR NOT EXISTS "${META_ENTRY_HEADER}")
         message(FATAL_ERROR "hua_add_meta_module requires NAME, TARGET and an existing ENTRY_HEADER")
     endif()
@@ -81,6 +79,11 @@ function(hua_add_meta_module)
     set(manifest "${module_root}/manifest.json")
     set(depfile "${module_root}/manifest.d")
     set(generator "${HUAENGINE_META_GENERATOR}")
+    if(META_REFLECTION_ONLY)
+        set(reflection_only true)
+    else()
+        set(reflection_only false)
+    endif()
 
     file(GENERATE OUTPUT "${scan_tu}" CONTENT "#include \"${META_ENTRY_HEADER}\"\n")
     file(GENERATE OUTPUT "${settings}" CONTENT
@@ -96,6 +99,7 @@ set(HUA_META_SCAN_${META_NAME}_RUNTIME [==[$<TARGET_GENEX_EVAL:${META_TARGET},$<
   \"config_version\": 1,
   \"module\": \"${META_NAME}\",
   \"configuration\": \"$<CONFIG>\",
+  \"reflection_only\": ${reflection_only},
   \"repository_root\": \"${HUAENGINE_SOURCE_ROOT}\",
   \"compile_database\": \"${scan_root}\",
   \"translation_unit\": \"${scan_tu}\",
@@ -131,20 +135,27 @@ set(HUA_META_SCAN_${META_NAME}_RUNTIME [==[$<TARGET_GENEX_EVAL:${META_TARGET},$<
         COMMENT "Scan ${META_NAME} $<CONFIG> with locked Clang"
         VERBATIM)
     set(outputs "${output_root}/GeneratedReflection.h" "${output_root}/GeneratedReflection.cpp")
+    if(NOT META_REFLECTION_ONLY)
+        list(APPEND outputs "${output_root}/GeneratedEcs.h" "${output_root}/GeneratedEcs.cpp")
+    endif()
     add_custom_command(OUTPUT ${outputs}
         BYPRODUCTS "${output_root}/generation-stamp.json"
         COMMAND "${CMAKE_COMMAND}" "-DMODE=generate" "-DMETA_CONFIG=${config}"
             -P "${HUAENGINE_SOURCE_ROOT}/cmake/RunMeta.cmake"
         DEPENDS "${manifest}" "${config}" "${generator}" "${HUAENGINE_SOURCE_ROOT}/cmake/RunMeta.cmake"
-        COMMENT "Generate ${META_NAME} $<CONFIG> component registration and reflection"
+        COMMENT "Generate ${META_NAME} $<CONFIG> metadata"
         VERBATIM)
     add_custom_target(HuaMeta${META_NAME} DEPENDS ${outputs})
     add_dependencies(${META_TARGET} HuaMeta${META_NAME})
     target_sources(${META_TARGET} PRIVATE "${output_root}/GeneratedReflection.cpp")
+    if(NOT META_REFLECTION_ONLY)
+        target_sources(${META_TARGET} PRIVATE "${output_root}/GeneratedEcs.cpp")
+    endif()
     target_include_directories(${META_TARGET} BEFORE PUBLIC "${CMAKE_BINARY_DIR}/generated/$<CONFIG>")
     set_property(GLOBAL APPEND PROPERTY HUA_META_MODULES "${META_NAME}")
     set_property(GLOBAL APPEND PROPERTY HUA_META_MANIFESTS "${manifest}")
     set_property(GLOBAL PROPERTY HUA_META_${META_NAME}_CONFIG "${config}")
+    set_property(GLOBAL PROPERTY HUA_META_${META_NAME}_REFLECTION_ONLY "${META_REFLECTION_ONLY}")
     set(HUA_META_${META_NAME}_CONFIG "${config}" PARENT_SCOPE)
     set(HUA_META_${META_NAME}_OUTPUT "${output_root}" PARENT_SCOPE)
 endfunction()

@@ -15,26 +15,24 @@
 #include <unordered_map>
 
 namespace HE::Rendering {
-	HE_REFLECT_ENUM(DisplayName="Material Blend Mode")
-	enum class MaterialBlendMode {
+	enum class [[sattr(guid="4f745e86ab69460db41dac991f79c005"; reflect=@full; attrs=["DisplayName=Material Blend Mode"])]] MaterialBlendMode {
 		Opaque,
 		Masked,
 		Transparent
 	};
 
-	HE_REFLECT_COMPONENT(Guid="4f745e86ab69460db41dac991f79c002", DisplayName="Camera", Category="Rendering")
-	struct CameraComponent {
-		HE_REFLECT_FIELD()
+	struct [[sattr(guid="4f745e86ab69460db41dac991f79c002"; reflect=@marked; flags=["Component"]; attrs=["DisplayName=Camera","Category=Rendering"])]] CameraComponent {
+		[[sattr()]]
 		bool Primary = true;
-		HE_REFLECT_FIELD()
+		[[sattr()]]
 		bool FixedAspectRatio = false;
-		HE_REFLECT_FIELD()
+		[[sattr(attrs=["Editor.Min=1","Editor.Max=179","Editor.Unit=degrees"])]]
 		float VerticalFovDegrees = 45.0f;
-		HE_REFLECT_FIELD()
+		[[sattr()]]
 		float NearClip = 0.1f;
-		HE_REFLECT_FIELD()
+		[[sattr()]]
 		float FarClip = 100.0f;
-		HE_REFLECT_FIELD()
+		[[sattr()]]
 		float AspectRatio = 16.0f / 9.0f;
 	};
 
@@ -60,17 +58,16 @@ namespace HE::Rendering {
 	};
 
 	// Material component
-	HE_REFLECT_COMPONENT(Guid="4f745e86ab69460db41dac991f79c003", DisplayName="Material", Category="Rendering")
-	struct MaterialComponent {
+	struct [[sattr(guid="4f745e86ab69460db41dac991f79c003"; reflect=@marked; flags=["Component"]; attrs=["DisplayName=Material","Category=Rendering"])]] MaterialComponent {
 		MaterialComponent() = default;
 		explicit MaterialComponent(const MaterialAssetRef& material)
 			: Material(material) {}
 
-		HE_REFLECT_FIELD()
+		[[sattr(attrs=["Inspector.Drawer=MaterialReference","Editor.AssetKind=material","Editor.ReconcileField=Overrides"])]]
 		MaterialAssetRef Material;
-		HE_REFLECT_FIELD()
+		[[sattr(attrs=["Inspector.Drawer=MaterialOverrides","Editor.SourceField=Material"])]]
 		MaterialOverrideSet Overrides;
-		HE_REFLECT_FIELD()
+		[[sattr()]]
 		MaterialBlendMode BlendMode = MaterialBlendMode::Opaque;
 	};
 
@@ -84,13 +81,12 @@ namespace HE::Rendering {
 		Ref<HE::Rendering::TextureResource> Texture;
 	};
 
-	HE_REFLECT_COMPONENT(Guid="4f745e86ab69460db41dac991f79c004", DisplayName="Mesh", Category="Rendering")
-	struct MeshComponent {
+	struct [[sattr(guid="4f745e86ab69460db41dac991f79c004"; reflect=@marked; flags=["Component"]; attrs=["DisplayName=Mesh","Category=Rendering"])]] MeshComponent {
 		MeshComponent() = default;
 		explicit MeshComponent(const MeshAssetRef& mesh)
 			: Mesh(mesh) {}
 
-		HE_REFLECT_FIELD()
+		[[sattr(attrs=["Editor.AssetKind=mesh"])]]
 		MeshAssetRef Mesh;
 	};
 }

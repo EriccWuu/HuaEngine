@@ -38,6 +38,8 @@ namespace HE::Ecs {
 
 		[[nodiscard]] TypeRegistry& Types() { return m_Types; }
 		[[nodiscard]] const TypeRegistry& Types() const { return m_Types; }
+		[[nodiscard]] Refl::Registry& Reflection() noexcept { return m_Types.Reflection(); }
+		[[nodiscard]] const Refl::Registry& Reflection() const noexcept { return m_Types.Reflection(); }
 		[[nodiscard]] ResourceRegistry& Resources() { return m_Resources; }
 		[[nodiscard]] const ResourceRegistry& Resources() const { return m_Resources; }
 		[[nodiscard]] bool IsMainThread() const noexcept { return std::this_thread::get_id() == m_MainThread; }
