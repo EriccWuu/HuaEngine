@@ -9,6 +9,9 @@
 #include <utility>
 
 namespace HE::Ecs {
+    template<typename T> class OutputTask;
+    class AccessBuilder;
+    class TaskContext;
     enum class TimelineMode { Serial, Parallel };
     struct TimelineOptions {
         TimelineMode Mode = TimelineMode::Parallel;
@@ -73,6 +76,12 @@ namespace HE::Ecs {
             catch (const std::exception& exception) { return Error{ErrorCode::ConstructionFailed, "Submit", exception.what()}; }
             catch (...) { return Error{ErrorCode::ConstructionFailed, "Submit", "Callback ownership construction failed"}; }
         }
+        template<typename Job>
+            requires (!requires { typename std::remove_cvref_t<Job>::Output; })
+        [[nodiscard]] Result<TaskHandle> Dispatch(World& world, Job&& job);
+        template<typename Job>
+            requires requires { typename std::remove_cvref_t<Job>::Output; }
+        [[nodiscard]] Result<OutputTask<typename std::remove_cvref_t<Job>::Output>> Dispatch(World& world, Job&& job);
         [[nodiscard]] Result<void> Wait(const TaskHandle& task);
         [[nodiscard]] Result<void> Finish();
         [[nodiscard]] Result<void> CommitCommands();

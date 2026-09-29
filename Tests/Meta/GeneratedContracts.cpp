@@ -1,6 +1,6 @@
 #include "Fixtures/ComponentModule.h"
 #include <Test/GeneratedReflection.h>
-#include <Test/GeneratedQueries.h>
+#include <Test/Queries.h>
 #include "HuaEngine/ECS/Runtime/Timeline.h"
 #if defined(HUA_META_ENGINE_INTEGRATION)
 #include "HuaEngine/Serialization/Serialization.h"
@@ -116,7 +116,7 @@ namespace {
         ChangedState changed;
         Timeline timeline(context, {.Mode = mode});
         const auto submit = [&] {
-            return HE::Generated::Test::Submit_P6Fixture__AllArguments(timeline, world, target,
+            return P6Fixture::Queries::AllArguments(timeline, world, target,
                 randomWorld, randomWorld, amount, total, shared, changed);
         };
         Take(submit());
@@ -133,16 +133,16 @@ namespace {
         Check(timeline.CommitCommands());
         Require(world.EntityCount() == 6, "Generated Commands must remain deferred until commit");
         Check(world.SetComponentEnabled(normal, Id<PlainComponent>(context), false));
-        Take(HE::Generated::Test::Submit_P6Fixture__IncludeAll(timeline, world));
+        Take(P6Fixture::Queries::IncludeAll(timeline, world));
         Check(timeline.Finish());
         Require(world.TryGet<PlainComponent>(normal)->Value == 129 && world.TryGet<PlainComponent>(disabled)->Value == 130,
             "Generated explicit enabled-mask overrides must apply to entity and component masks");
         EcsContext other({.WorkerCount = 1});
         Check(HE::Generated::Test::RegisterComponents(other.Types()));
         World foreign(other);
-        Require(!HE::Generated::Test::Submit_P6Fixture__AllArguments(timeline, world, target,
+        Require(!P6Fixture::Queries::AllArguments(timeline, world, target,
             foreign, randomWorld, amount, total, shared, changed), "Generated random bindings must reject a foreign Context");
-        Require(!HE::Generated::Test::Submit_P6Fixture__AllArguments(timeline, world, target,
+        Require(!P6Fixture::Queries::AllArguments(timeline, world, target,
             randomWorld, randomWorld, shared, total, shared, changed), "Generated resource bindings must reject the wrong native type");
     }
 }

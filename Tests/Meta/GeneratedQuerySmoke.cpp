@@ -1,6 +1,6 @@
 #include "Fixtures/ComponentModule.h"
 #include <Test/GeneratedReflection.h>
-#include <Test/GeneratedQueries.h>
+#include <Test/Queries.h>
 
 #include "HuaEngine/ECS/Runtime/Timeline.h"
 
@@ -46,13 +46,13 @@ namespace {
             entities.push_back(entity);
         }
         Timeline timeline(context, {.Mode = mode});
-        const auto first = Take(HE::Generated::Test::Submit_P6Fixture__AddValue(timeline, world, 5));
+        const auto first = Take(P6Fixture::Queries::AddValue(timeline, world, 5));
         int amount = 7;
-        const auto second = Take(HE::Generated::Test::Submit_P6Fixture__AddValue(timeline, world, amount));
+        const auto second = Take(P6Fixture::Queries::AddValue(timeline, world, amount));
         amount = 999;
         std::string text = ":owned";
         auto number = std::make_unique<int>(3);
-        const auto third = Take(HE::Generated::Test::Submit_P6Fixture__OwnedValues(timeline, world, std::move(text), std::move(number)));
+        const auto third = Take(P6Fixture::Queries::OwnedValues(timeline, world, std::move(text), std::move(number)));
         text = "changed";
         Require(!number, "Expected move-only Value ownership to transfer at submission");
         Check(timeline.Finish());
@@ -78,7 +78,7 @@ namespace {
         Timeline timeline(context, {.Mode = mode});
         auto control = std::make_shared<P6Fixture::DestructionControl>();
         control->Target = &world;
-        const auto task = Take(HE::Generated::Test::Submit_P6Fixture__DestroyWorldAfterFirst(timeline, *world, control));
+        const auto task = Take(P6Fixture::Queries::DestroyWorldAfterFirst(timeline, *world, control));
         const auto finished = timeline.Finish();
         Require(!finished && finished.GetError().Code == ErrorCode::InvalidState,
             "Destroying a World during a generated batch must report invalid state");
@@ -111,12 +111,12 @@ namespace {
         for (size_t index = 23; index < entities.size(); index += 23) Check(world.SetComponentEnabled(entities[index], plainType, false));
         Timeline timeline(context, {.Mode = mode});
         auto control = std::make_shared<P6Fixture::OutputControl>();
-        auto pending = Take(HE::Generated::Test::Submit_P6Fixture__ExtractOutput(timeline, world, 10, control));
-        auto second = Take(HE::Generated::Test::Submit_P6Fixture__ExtractOutput(timeline, world, 20, nullptr));
+        auto pending = Take(P6Fixture::Queries::ExtractOutput(timeline, world, 10, control));
+        auto second = Take(P6Fixture::Queries::ExtractOutput(timeline, world, 20, nullptr));
         auto moved = std::move(pending);
         Require(!pending.Collect(timeline), "Moved-from output task must reject collection");
         // Drop a return object before execution; the callback must own its collector.
-        { auto ignored = Take(HE::Generated::Test::Submit_P6Fixture__ExtractOutput(timeline, world, 30, nullptr)); }
+        { auto ignored = Take(P6Fixture::Queries::ExtractOutput(timeline, world, 30, nullptr)); }
         Check(timeline.Finish());
         auto output = Take(moved.Collect(timeline));
         auto secondOutput = Take(second.Collect(timeline));
@@ -148,14 +148,14 @@ namespace {
         Require(sawReplacement, "Expected injected replacement entity identity");
 
         World empty(context);
-        auto emptyTask = Take(HE::Generated::Test::Submit_P6Fixture__ExtractOutput(timeline, empty, 0, nullptr));
+        auto emptyTask = Take(P6Fixture::Queries::ExtractOutput(timeline, empty, 0, nullptr));
         Require(Take(emptyTask.Collect(timeline)).empty(), "A successful zero-chunk task must collect an empty vector");
         auto noEmission = Take(empty.CreateEmpty());
         Check(empty.Emplace<P6Fixture::PlainComponent>(noEmission, P6Fixture::PlainComponent{"none", 1}));
-        auto noOutput = Take(HE::Generated::Test::Submit_P6Fixture__ExtractOutput(timeline, empty, 0, nullptr));
+        auto noOutput = Take(P6Fixture::Queries::ExtractOutput(timeline, empty, 0, nullptr));
         Require(Take(noOutput.Collect(timeline)).empty(), "A successful batch may intentionally emit no values");
 
-        auto throwing = Take(HE::Generated::Test::Submit_P6Fixture__ExtractThrowing(timeline, empty));
+        auto throwing = Take(P6Fixture::Queries::ExtractThrowing(timeline, empty));
         Check(timeline.Finish());
         Require(P6Fixture::ThrowingOutput::Live.load() == 1, "A completed collector must own its output until consumed");
         P6Fixture::ThrowingOutput::ThrowOnMove = true;
@@ -166,8 +166,8 @@ namespace {
         Require(!throwing.Collect(timeline), "A failed collection consumes the output exactly once");
 
         auto failureControl = std::make_shared<P6Fixture::OutputControl>();
-        auto failed = Take(HE::Generated::Test::Submit_P6Fixture__FailOutput(timeline, world, failureControl));
-        auto cancelled = Take(HE::Generated::Test::Submit_P6Fixture__ExtractOutput(timeline, world, 0, nullptr));
+        auto failed = Take(P6Fixture::Queries::FailOutput(timeline, world, failureControl));
+        auto cancelled = Take(P6Fixture::Queries::ExtractOutput(timeline, world, 0, nullptr));
         failureControl->Release = true;
         Require(!timeline.Finish(), "An output callback exception must fail the timeline");
         auto failedResult = failed.Collect(timeline);

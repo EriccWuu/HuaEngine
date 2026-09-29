@@ -1,6 +1,6 @@
 #pragma once
 
-#include "HuaEngine/ECS/Runtime/GeneratedQuery.h"
+#include "HuaEngine/ECS/Runtime/Job.h"
 #include "Module/Rendering/RenderingComponent.h"
 
 namespace HE::Rendering {
@@ -18,12 +18,20 @@ namespace HE::Rendering {
         MaterialOverrideSet Overrides;
     };
 
-    HE_ECS_QUERY()
-    void ExtractPrimaryCamera(EntityId entity, const TransformComponent& transform,
-        const CameraComponent& camera, Ecs::BatchOutput<CameraCandidate> output);
+    struct ExtractPrimaryCamera final {
+        using Output = CameraCandidate;
+        Ecs::ComponentView<const TransformComponent> transforms;
+        Ecs::ComponentView<const CameraComponent> cameras;
+        void build(Ecs::AccessBuilder& access) const;
+        [[nodiscard]] Ecs::Result<void> run(Ecs::TaskContext& context, Ecs::BatchOutput<Output>& output) const;
+    };
 
-    HE_ECS_QUERY()
-    void ExtractRenderItem(EntityId entity, const TransformComponent& transform,
-        const MeshComponent& mesh, const MaterialComponent& material,
-        Ecs::BatchOutput<RenderSnapshot> output);
+    struct ExtractRenderItem final {
+        using Output = RenderSnapshot;
+        Ecs::ComponentView<const TransformComponent> transforms;
+        Ecs::ComponentView<const MeshComponent> meshes;
+        Ecs::ComponentView<const MaterialComponent> materials;
+        void build(Ecs::AccessBuilder& access) const;
+        [[nodiscard]] Ecs::Result<void> run(Ecs::TaskContext& context, Ecs::BatchOutput<Output>& output) const;
+    };
 }

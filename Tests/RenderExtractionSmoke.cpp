@@ -1,7 +1,6 @@
 #include "ECSTestSupport.h"
 #include "HuaEngine/Scene/Scene.h"
 #include "Module/Rendering/RenderQueries.h"
-#include <RenderingQueries/GeneratedQueries.h>
 
 #include <algorithm>
 #include <map>
@@ -21,11 +20,11 @@ struct Captured {
 
 Captured Extract(World& world, TimelineMode mode) {
     Timeline timeline(world.Context(), {.Mode = mode});
-    auto render = Take(HE::Generated::RenderingQueries::Submit_HE__Rendering__ExtractRenderItem(timeline, world));
-    auto cameras = Take(HE::Generated::RenderingQueries::Submit_HE__Rendering__ExtractPrimaryCamera(timeline, world));
+    auto render = Take(timeline.Dispatch(world, ExtractRenderItem{}));
+    auto cameras = Take(timeline.Dispatch(world, ExtractPrimaryCamera{}));
     Check(timeline.Finish());
     Captured captured{Take(render.Collect(timeline)), Take(cameras.Collect(timeline))};
-    Require(!render.Collect(timeline), "Expected generated task output to be consumed exactly once");
+    Require(!render.Collect(timeline), "Expected task output to be consumed exactly once");
     return captured;
 }
 }
@@ -37,7 +36,7 @@ int main() {
     std::map<uint32_t, HE::EntityId> expectedRender;
     std::set<uint32_t> expectedCamera;
     {
-        HE::Scene scene(context, "Generated extraction");
+        HE::Scene scene(context, "Job extraction");
         auto& world = scene.GetWorld();
         Take(context.Types().Register<Fragment>("Extraction.Fragment"));
         const auto cameraType = context.Types().Find<CameraComponent>()->Id;
@@ -76,7 +75,7 @@ int main() {
         serial = Extract(world, TimelineMode::Serial);
         parallel = Extract(world, TimelineMode::Parallel);
         Require(serial.Items.size() == expectedRender.size() && serial.Cameras.size() == expectedCamera.size(),
-            "Expected generated queries to honor entity and required component enable masks");
+            "Expected Jobs to honor entity and required component enable masks");
         Require(parallel.Items.size() == serial.Items.size() && parallel.Cameras.size() == serial.Cameras.size(),
             "Expected equal Serial and Parallel extraction cardinality");
         for (size_t row = 0; row < serial.Items.size(); ++row) {
@@ -84,7 +83,7 @@ int main() {
             const auto& second = parallel.Items[row];
             Require(first.Entity == second.Entity && first.Transform == second.Transform &&
                 first.Mesh.Reference.Guid == second.Mesh.Reference.Guid && first.Material.Reference.Guid == second.Material.Reference.Guid,
-                "Expected identical stable generated batch output in both timeline modes");
+                "Expected identical stable Job output in both timeline modes");
             Require(expectedRender.erase(first.Entity.Index) == 1 && world.IsAlive(first.Entity),
                 "Expected exactly one full-generation identity per renderable row");
         }
@@ -93,7 +92,7 @@ int main() {
                 serial.Cameras[row].Camera.VerticalFovDegrees == parallel.Cameras[row].Camera.VerticalFovDegrees,
                 "Expected stable camera identity and value output");
             Require(expectedCamera.erase(serial.Cameras[row].Entity.Index) == 1,
-                "Expected only active primary cameras in generated output");
+                "Expected only active primary cameras in Job output");
         }
         Require(expectedRender.empty() && expectedCamera.empty(), "Expected complete extraction without duplicate rows");
         const auto firstId = serial.Items.front().Entity;
@@ -106,6 +105,6 @@ int main() {
             item.Overrides.Parameters.contains("u_Color") && item.Overrides.TextureParameters.at("u_Texture").starts_with("texture-"),
             "Expected owning resource references and overrides to survive source World destruction");
     }
-    Require(!context.HasScheduledWork(), "Expected generated extraction to release every task and borrow");
+    Require(!context.HasScheduledWork(), "Expected Job extraction to release every task and borrow");
     std::cout << "RenderExtractionSmoke passed\n";
 }

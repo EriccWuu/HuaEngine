@@ -17,7 +17,7 @@ from typing import Any, Dict, List, Optional
 
 SCHEMA_VERSION = 2
 CONFIG_VERSION = 1
-OUTPUT_NAMES = ("GeneratedReflection.h", "GeneratedReflection.cpp", "GeneratedQueries.h", "GeneratedQueries.cpp")
+OUTPUT_NAMES = ("GeneratedReflection.h", "GeneratedReflection.cpp", "GeneratedQueries.h", "GeneratedQueries.cpp", "Queries.h")
 PARAMETER_CATEGORIES = {"required_read", "required_write", "optional_read", "optional_write", "value", "random_read", "random_write", "resource_read", "resource_write", "commands", "entity", "output"}
 
 
@@ -548,6 +548,7 @@ def render_queries(manifest: Dict[str, Any]) -> Dict[str, str]:
     header.extend(f'#include "{path}"' for path in sorted({generated_include_for_source(query["source"]) for query in manifest["queries"]}))
     header.extend(["", f"namespace HE::Generated::{module} {{"])
     source = ['#include "GeneratedQueries.h"', "#include <utility>", "", f"namespace HE::Generated::{module} {{"]
+    public_header = ["#pragma once", "", '#include "GeneratedQueries.h"', "#include <exception>", "#include <utility>", ""]
     for query in manifest["queries"]:
         parameters = query["parameters"]
         outputs = [parameter for parameter in parameters if parameter["category"] == "output"]
@@ -557,27 +558,54 @@ def render_queries(manifest: Dict[str, Any]) -> Dict[str, str]:
         filters = query.get("filters", {})
         name = "Submit_" + cpp_identifier(query["qualified_name"])
         arguments = ["Ecs::Timeline& timeline", "Ecs::World& world"]
+        public_arguments = ["::HE::Ecs::Timeline& timeline", "::HE::Ecs::World& world"]
+        forwarded_arguments = ["timeline", "world"]
         captures: List[str] = []
         for index, parameter in enumerate(parameters):
             category = parameter["category"]
             value_type = parameter.get("component_type", "")
             if category == "value":
                 arguments.append(f"{value_type} arg_{index}")
+                public_arguments.append(f"{value_type} arg_{index}")
+                forwarded_arguments.append(f"std::move(arg_{index})")
                 captures.append(f"payload_{index} = std::move(arg_{index})")
             elif category.startswith("random_"):
                 arguments.append(f"Ecs::World& arg_{index}")
+                public_arguments.append(f"::HE::Ecs::World& arg_{index}")
+                forwarded_arguments.append(f"arg_{index}")
                 captures.append(f"world_{index} = arg_{index}.Id()")
             elif category.startswith("resource_"):
                 arguments.append(f"Ecs::ResourceHandle arg_{index}")
+                public_arguments.append(f"::HE::Ecs::ResourceHandle arg_{index}")
+                forwarded_arguments.append(f"arg_{index}")
                 captures.append(f"resource_{index} = arg_{index}")
         for index, _ in enumerate(filters.get("shared", [])):
             arguments.append(f"Ecs::ResourceHandle shared_{index}")
+            public_arguments.append(f"::HE::Ecs::ResourceHandle shared_{index}")
+            forwarded_arguments.append(f"shared_{index}")
         has_changed = bool(filters.get("changed"))
         if has_changed:
             arguments.append("Ecs::ChangedState& changed")
+            public_arguments.append("::HE::Ecs::ChangedState& changed")
+            forwarded_arguments.append("changed")
         result_type = f"Ecs::GeneratedOutputTask<{output_type}>" if output_type else "Ecs::TaskHandle"
         declaration = f"Ecs::Result<{result_type}> {name}({', '.join(arguments)})"
         header.append("[[nodiscard]] " + declaration + ";")
+        query_namespace, _, query_name = query["qualified_name"].rpartition("::")
+        public_namespace = f"{query_namespace}::Queries" if query_namespace else "Queries"
+        public_result_type = result_type.replace("Ecs::", "::HE::Ecs::", 1)
+        public_header.extend([
+            f"namespace {public_namespace} {{",
+            f"[[nodiscard]] inline ::HE::Ecs::Result<{public_result_type}> {query_name}({', '.join(public_arguments)}) {{",
+            "    try {",
+            f"        return ::HE::Generated::{module}::{name}({', '.join(forwarded_arguments)});",
+            "    } catch (const std::exception& exception) {",
+            "        return ::HE::Ecs::Error{::HE::Ecs::ErrorCode::ConstructionFailed, \"GeneratedQuery\", exception.what()};",
+            "    } catch (...) {",
+            "        return ::HE::Ecs::Error{::HE::Ecs::ErrorCode::ConstructionFailed, \"GeneratedQuery\", \"Query argument transfer failed\"};",
+            "    }",
+            "}", "}", "",
+        ])
         source.extend(["", declaration + " {", "    try {", "    auto& context = world.Context();", "    if (!context.IsMainThread()) return Ecs::Error{Ecs::ErrorCode::WrongThread, \"GeneratedQuery\", \"Submission requires the Context owner thread\"};", "    Ecs::QuerySpec spec;"])
         component_names = [parameter["component_type"] for parameter in parameters if parameter["category"] not in {"value", "commands", "resource_read", "resource_write", "entity", "output"}]
         for filter_name in ("without", "required", "tag", "changed", "shared"):
@@ -647,7 +675,8 @@ def render_queries(manifest: Dict[str, Any]) -> Dict[str, str]:
         source.extend(["    } catch (const std::exception& exception) {", "        return Ecs::Error{Ecs::ErrorCode::ConstructionFailed, \"GeneratedQuery\", exception.what()};", "    } catch (...) {", "        return Ecs::Error{Ecs::ErrorCode::ConstructionFailed, \"GeneratedQuery\", \"Query payload construction failed\"};", "    }", "}"])
     header.extend(["}", ""])
     source.extend(["}", ""])
-    return {"GeneratedQueries.h": "\n".join(header), "GeneratedQueries.cpp": "\n".join(source)}
+    return {"GeneratedQueries.h": "\n".join(header), "GeneratedQueries.cpp": "\n".join(source),
+            "Queries.h": "\n".join(public_header)}
 
 
 def render_files(manifest: Dict[str, Any]) -> Dict[str, str]:

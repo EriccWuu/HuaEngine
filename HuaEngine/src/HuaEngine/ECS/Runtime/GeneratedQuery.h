@@ -45,14 +45,14 @@ namespace HE::Ecs {
     // Output belongs to this submission. Collect submissions in submission order
     // when joining several tasks; each task merges its batches in BatchIndex order.
     template<typename T>
-    class GeneratedOutputTask final {
+    class OutputTask final {
     public:
-        GeneratedOutputTask(TaskHandle task, std::shared_ptr<Detail::GeneratedOutputState<T>> output)
+        OutputTask(TaskHandle task, std::shared_ptr<Detail::GeneratedOutputState<T>> output)
             : m_Task(std::move(task)), m_Output(std::move(output)) {}
-        GeneratedOutputTask(const GeneratedOutputTask&) = delete;
-        GeneratedOutputTask& operator=(const GeneratedOutputTask&) = delete;
-        GeneratedOutputTask(GeneratedOutputTask&&) noexcept = default;
-        GeneratedOutputTask& operator=(GeneratedOutputTask&&) noexcept = default;
+        OutputTask(const OutputTask&) = delete;
+        OutputTask& operator=(const OutputTask&) = delete;
+        OutputTask(OutputTask&&) noexcept = default;
+        OutputTask& operator=(OutputTask&&) noexcept = default;
         [[nodiscard]] const TaskHandle& Task() const noexcept { return m_Task; }
 
         [[nodiscard]] Result<std::vector<T>> Collect(Timeline& timeline) {
@@ -94,6 +94,9 @@ namespace HE::Ecs {
         TaskHandle m_Task;
         std::shared_ptr<Detail::GeneratedOutputState<T>> m_Output;
     };
+
+    template<typename T>
+    using GeneratedOutputTask = OutputTask<T>;
 
     template<typename T>
     class Value final {

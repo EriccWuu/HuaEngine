@@ -7,8 +7,6 @@
 #include <utility>
 #include <vector>
 
-#include <RenderingQueries/GeneratedQueries.h>
-
 #include "HuaEngine/ECS/Runtime/Timeline.h"
 #include "HuaEngine/Rendering/RenderCamera.h"
 #include "HuaEngine/Rendering/RenderPipeline/ForwardRenderPipeline.h"
@@ -42,7 +40,7 @@ namespace HE {
         m_Impl->ActiveCameraEntity = {};
         if (!m_Impl->Target)
             return Ecs::Error{Ecs::ErrorCode::InvalidState, "RenderActiveCamera", "A render target is required"};
-        auto submitted = Generated::RenderingQueries::Submit_HE__Rendering__ExtractPrimaryCamera(timeline, world);
+        auto submitted = timeline.Dispatch(world, Rendering::ExtractPrimaryCamera{});
         if (!submitted) return submitted.GetError();
         auto candidates = submitted.Value().Collect(timeline);
         if (!candidates) return candidates.GetError();
@@ -73,7 +71,7 @@ namespace HE {
         if (!m_Impl->Target)
             return Ecs::Error{Ecs::ErrorCode::InvalidState, "RenderSingleCamera", "A render target is required"};
 
-        auto submitted = Generated::RenderingQueries::Submit_HE__Rendering__ExtractRenderItem(timeline, world);
+        auto submitted = timeline.Dispatch(world, Rendering::ExtractRenderItem{});
         if (!submitted) return submitted.GetError();
         auto snapshots = submitted.Value().Collect(timeline);
         if (!snapshots) return snapshots.GetError();

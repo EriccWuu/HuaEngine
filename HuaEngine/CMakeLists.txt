@@ -112,6 +112,4 @@ hua_add_meta_module(NAME Core TARGET HuaEngine
     ENTRY_HEADER "${CMAKE_CURRENT_SOURCE_DIR}/src/HuaEngine/ECS/Components.h")
 hua_add_meta_module(NAME Rendering TARGET HuaEngine
     ENTRY_HEADER "${CMAKE_CURRENT_SOURCE_DIR}/src/Module/Rendering/RenderingComponent.h")
-hua_add_meta_module(NAME RenderingQueries TARGET HuaEngine
-    ENTRY_HEADER "${CMAKE_CURRENT_SOURCE_DIR}/src/Module/Rendering/RenderQueries.h")
-hua_add_meta_umbrella(HuaEngine Core Rendering RenderingQueries)
+hua_add_meta_umbrella(HuaEngine Core Rendering)

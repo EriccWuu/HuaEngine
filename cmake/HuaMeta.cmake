@@ -131,7 +131,8 @@ set(HUA_META_SCAN_${META_NAME}_RUNTIME [==[$<TARGET_GENEX_EVAL:${META_TARGET},$<
         COMMENT "Scan ${META_NAME} $<CONFIG> with locked Clang"
         VERBATIM)
     set(outputs "${output_root}/GeneratedReflection.h" "${output_root}/GeneratedReflection.cpp"
-        "${output_root}/GeneratedQueries.h" "${output_root}/GeneratedQueries.cpp")
+        "${output_root}/GeneratedQueries.h" "${output_root}/GeneratedQueries.cpp"
+        "${output_root}/Queries.h")
     add_custom_command(OUTPUT ${outputs}
         BYPRODUCTS "${output_root}/generation-stamp.json"
         COMMAND "${CMAKE_COMMAND}" "-DMODE=generate" "-DMETA_CONFIG=${config}"

@@ -2,16 +2,31 @@
 #include "RenderQueries.h"
 
 namespace HE::Rendering {
-    void ExtractPrimaryCamera(EntityId entity, const TransformComponent& transform,
-        const CameraComponent& camera, Ecs::BatchOutput<CameraCandidate> output) {
-        if (!camera.Primary) return;
-        output.Emit(CameraCandidate{entity, transform.GetTransformMat(), camera});
+    void ExtractPrimaryCamera::build(Ecs::AccessBuilder& access) const {
+        access.read(&ExtractPrimaryCamera::transforms).read(&ExtractPrimaryCamera::cameras);
     }
 
-    void ExtractRenderItem(EntityId entity, const TransformComponent& transform,
-        const MeshComponent& mesh, const MaterialComponent& material,
-        Ecs::BatchOutput<RenderSnapshot> output) {
-        output.Emit(RenderSnapshot{entity, transform.GetTransformMat(), mesh.Mesh,
-            material.Material, material.Overrides});
+    Ecs::Result<void> ExtractPrimaryCamera::run(Ecs::TaskContext& context, Ecs::BatchOutput<Output>& output) const {
+        for (size_t row = 0; row < context.size(); ++row) {
+            const auto& camera = cameras[row];
+            if (camera.Primary)
+                output.Emit(CameraCandidate{context.entity(row), transforms[row].GetTransformMat(), camera});
+        }
+        return {};
+    }
+
+    void ExtractRenderItem::build(Ecs::AccessBuilder& access) const {
+        access.read(&ExtractRenderItem::transforms)
+            .read(&ExtractRenderItem::meshes)
+            .read(&ExtractRenderItem::materials);
+    }
+
+    Ecs::Result<void> ExtractRenderItem::run(Ecs::TaskContext& context, Ecs::BatchOutput<Output>& output) const {
+        for (size_t row = 0; row < context.size(); ++row) {
+            const auto& material = materials[row];
+            output.Emit(RenderSnapshot{context.entity(row), transforms[row].GetTransformMat(),
+                meshes[row].Mesh, material.Material, material.Overrides});
+        }
+        return {};
     }
 }

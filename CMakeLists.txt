@@ -286,7 +286,7 @@ if(WIN32)
 endif()
 configure_smoke_target(ECSBackendSmoke)
 
-foreach(ecs_smoke ECSLifecycleSmoke ECSContextSmoke ECSStorageSmoke ECSStorageIntegrationSmoke ECSQueryRuntimeSmoke ECSTimelineSmoke ECSParallelSmoke ECSCompactionSmoke SceneRuntimeMigrationSmoke RenderExtractionSmoke)
+foreach(ecs_smoke ECSLifecycleSmoke ECSContextSmoke ECSStorageSmoke ECSStorageIntegrationSmoke ECSQueryRuntimeSmoke ECSTimelineSmoke ECSJobSmoke ECSParallelSmoke ECSCompactionSmoke SceneRuntimeMigrationSmoke RenderExtractionSmoke)
     add_executable(${ecs_smoke} Tests/${ecs_smoke}.cpp)
     target_include_directories(${ecs_smoke} PRIVATE
         ${CMAKE_SOURCE_DIR}/HuaEngine/src
