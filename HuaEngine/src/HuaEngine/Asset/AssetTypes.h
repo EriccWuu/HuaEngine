@@ -4,6 +4,9 @@
 #include <string>
 #include <string_view>
 
+#include "HuaEngine/Reflection/ReflectionMarkers.h"
+#include "HuaEngine/Reflection/TypeGuid.h"
+
 namespace HE {
 	using AssetGuid = std::string;
 	using AssetHandle = uint64_t;
@@ -37,25 +40,33 @@ namespace HE {
 		Sphere
 	};
 
-	struct AssetReference {
+	namespace AssetReferenceTypeGuids {
+		inline constexpr Refl::TypeGuid Base{0x4f745e86ab69460dULL, 0xb41dac991f79c006ULL};
+		inline constexpr Refl::TypeGuid Mesh{0x4f745e86ab69460dULL, 0xb41dac991f79c007ULL};
+		inline constexpr Refl::TypeGuid Material{0x4f745e86ab69460dULL, 0xb41dac991f79c008ULL};
+		inline constexpr Refl::TypeGuid Texture{0x4f745e86ab69460dULL, 0xb41dac991f79c009ULL};
+		inline constexpr Refl::TypeGuid Shader{0x4f745e86ab69460dULL, 0xb41dac991f79c00aULL};
+	}
+
+	struct [[sattr(guid="4f745e86ab69460db41dac991f79c006"; reflect=@marked)]] AssetReference {
 		AssetGuid Guid;
 
 		[[nodiscard]] bool IsValid() const { return !Guid.empty(); }
 	};
 
-	struct MeshAssetRef {
+	struct [[sattr(guid="4f745e86ab69460db41dac991f79c007"; reflect=@marked)]] MeshAssetRef {
 		AssetReference Reference;
 	};
 
-	struct MaterialAssetRef {
+	struct [[sattr(guid="4f745e86ab69460db41dac991f79c008"; reflect=@marked)]] MaterialAssetRef {
 		AssetReference Reference;
 	};
 
-	struct TextureAssetRef {
+	struct [[sattr(guid="4f745e86ab69460db41dac991f79c009"; reflect=@marked)]] TextureAssetRef {
 		AssetReference Reference;
 	};
 
-	struct ShaderAssetRef {
+	struct [[sattr(guid="4f745e86ab69460db41dac991f79c00a"; reflect=@marked)]] ShaderAssetRef {
 		AssetReference Reference;
 	};
 

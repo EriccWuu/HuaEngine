@@ -388,6 +388,7 @@ namespace {
                 std::string type = SpelledType(*field);
                 if (type.empty()) type = field->getType().getAsString();
                 std::string enumType;
+                std::string valueTypeGuid;
                 llvm::json::Object enumMetadata;
                 if (const auto* enumeration = field->getType().getCanonicalType()->getAs<clang::EnumType>()) {
                     enumType = enumeration->getDecl()->getQualifiedNameAsString();
@@ -395,6 +396,15 @@ namespace {
                         if (const auto enumMarker = Marked(*definition)) {
                             ValidateEnum(*definition, *enumMarker);
                             enumMetadata = DescribeEnum(*definition, *enumMarker);
+                            valueTypeGuid = enumMarker->Metadata.Guid;
+                            if (!NormalizeGuid(valueTypeGuid)) valueTypeGuid.clear();
+                        }
+                    }
+                } else if (const auto* record = field->getType().getCanonicalType()->getAsCXXRecordDecl()) {
+                    if (const auto* definition = record->getDefinition()) {
+                        if (const auto recordMarker = Marked(*definition)) {
+                            valueTypeGuid = recordMarker->Metadata.Guid;
+                            if (!NormalizeGuid(valueTypeGuid)) valueTypeGuid.clear();
                         }
                     }
                 }
@@ -425,6 +435,7 @@ namespace {
                     {"name", field->getNameAsString()}, {"type", std::move(type)},
                     {"canonical_type", field->getType().getCanonicalType().getAsString()},
                     {"enum_type", std::move(enumType)}, {"enum_metadata", std::move(enumMetadata)},
+                    {"value_type_guid", std::move(valueTypeGuid)},
                     {"runtime_type", std::move(runtimeType)},
                     {"source", fieldMarker->Source}, {"line", fieldMarker->Line}, {"column", fieldMarker->Column},
                     {"display_name", AttributeValue(fieldMarker->Metadata, "DisplayName")},

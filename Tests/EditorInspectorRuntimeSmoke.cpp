@@ -5,6 +5,7 @@
 #include <vector>
 
 #include "HuaEngine/ECS/Runtime/TypeRegistry.h"
+#include "HuaEngine/Asset/AssetReferenceCapability.h"
 #include "HuaEngine/ECS/Components.h"
 #include "HuaEngine/Generated/GeneratedEcs.h"
 #include "HuaEngine/Reflection/Reflection.h"
@@ -83,28 +84,37 @@ int main() {
 	Require(mesh != nullptr, "Expected MeshComponent metadata");
 	const auto* meshAsset = FindField(mesh->Descriptor.Reflection->Fields, "Mesh");
 	Require(meshAsset != nullptr, "Expected MeshComponent Mesh field");
-	Require(
-		HE::Refl::GetRuntimeFieldValueKind(*meshAsset) == HE::Refl::RuntimeFieldValueKind::AssetRef,
-		"Expected Mesh to use AssetRef runtime editor");
+	Require(meshAsset->ValueTypeGuid == HE::AssetReferenceTypeGuids::Mesh,
+		"Expected Mesh field to retain its value type Guid");
 	Require(HE::Editor::IsRuntimeFieldEditable(*meshAsset), "Expected Mesh asset ref to be runtime editable");
 	Require(drawers.Resolve(*meshAsset) != nullptr, "Expected a mesh asset field drawer");
-	const auto* meshKind = HE::Refl::FindRuntimeAttribute(meshAsset->Attributes, "Editor.AssetKind");
-	Require(meshKind != nullptr && meshKind->Value == "mesh", "Expected the mesh asset catalog to come from field metadata");
+	const auto* meshCapability = HE::FindAssetReferenceCapability(meshAsset->ValueTypeGuid);
+	Require(meshCapability != nullptr && meshCapability->Kind == HE::AssetKind::Mesh,
+		"Expected Mesh asset kind to come from its value type capability");
+	const auto* reflectedMeshRef = registry.Reflection().FindType(meshAsset->ValueTypeGuid);
+	Require(reflectedMeshRef != nullptr && reflectedMeshRef->Guid == HE::AssetReferenceTypeGuids::Mesh,
+		"Expected asset value type Guid to resolve in reflection");
 	Require(FindField(mesh->Descriptor.Reflection->Fields, "MeshAssetName") == nullptr, "Expected MeshAssetName field to be removed");
 
 	const HE::Ecs::RegisteredType* material = registry.Find<HE::Rendering::MaterialComponent>();
 	Require(material != nullptr, "Expected MaterialComponent metadata");
 	const auto* materialAsset = FindField(material->Descriptor.Reflection->Fields, "Material");
 	Require(materialAsset != nullptr, "Expected MaterialComponent Material field");
-	Require(
-		HE::Refl::GetRuntimeFieldValueKind(*materialAsset) == HE::Refl::RuntimeFieldValueKind::AssetRef,
-		"Expected Material to use AssetRef runtime field kind");
+	Require(materialAsset->ValueTypeGuid == HE::AssetReferenceTypeGuids::Material,
+		"Expected Material field to retain its value type Guid");
 	Require(HE::Editor::IsRuntimeFieldEditable(*materialAsset), "Expected Material asset ref to be runtime editable");
-	const auto* materialDrawer = HE::Refl::FindRuntimeAttribute(materialAsset->Attributes, "Inspector.Drawer");
-	Require(materialDrawer != nullptr && materialDrawer->Value == "MaterialReference",
-		"Expected the material reference field drawer metadata");
-	Require(drawers.Resolve(*materialAsset) != nullptr && drawers.Resolve(*materialAsset) != drawers.Resolve(*meshAsset),
-		"Expected material reference to override the shared asset field drawer");
+	Require(drawers.Resolve(*materialAsset) == drawers.Resolve(*meshAsset),
+		"Expected material and mesh references to share the asset field drawer");
+	Require(HE::FindAssetReferenceCapability(materialAsset->ValueTypeGuid)->Kind == HE::AssetKind::Material,
+		"Expected Material asset kind from the value type capability");
+	auto misleadingAssetField = *meshAsset;
+	misleadingAssetField.Type = "ShaderAssetRef";
+	Require(drawers.Resolve(misleadingAssetField) == drawers.Resolve(*meshAsset),
+		"Expected asset drawer selection to use value type Guid rather than type spelling");
+	misleadingAssetField.ValueTypeGuid = {};
+	Require(drawers.Resolve(misleadingAssetField) == nullptr &&
+		!HE::Editor::IsRuntimeFieldEditable(misleadingAssetField),
+		"Expected an unregistered value type to have no asset drawer");
 	const auto* reconcileField = HE::Refl::FindRuntimeAttribute(materialAsset->Attributes, "Editor.ReconcileField");
 	Require(reconcileField != nullptr && reconcileField->Value == "Overrides",
 		"Expected material reconciliation to name its sibling field");
@@ -129,6 +139,47 @@ int main() {
 	Require(HE::Editor::IsRuntimeFieldEditable(*blendMode), "Expected BlendMode to be runtime editable");
 	Require(blendMode->EnumType != nullptr, "Expected BlendMode enum metadata");
 	Require(drawers.Resolve(*blendMode) != nullptr, "Expected an enum field drawer");
+	HE::MeshAssetRef meshReference;
+	Require(meshCapability->WriteGuid(&meshReference, "mesh-guid") &&
+		*meshCapability->ReadGuid(&meshReference) == "mesh-guid",
+		"Expected asset reference capability to read and write Mesh Guid");
+	HE::AssetReference untypedReference;
+	const auto* baseCapability = HE::FindAssetReferenceCapability(HE::AssetReferenceTypeGuids::Base);
+	Require(baseCapability != nullptr && baseCapability->Kind == HE::AssetKind::Unknown &&
+		baseCapability->WriteGuid(&untypedReference, "untyped-guid") &&
+		*baseCapability->ReadGuid(&untypedReference) == "untyped-guid",
+		"Expected untyped asset references to expose Guid access");
+	HE::MaterialAssetRef materialReference;
+	const auto* materialCapability = HE::FindAssetReferenceCapability(HE::AssetReferenceTypeGuids::Material);
+	Require(materialCapability != nullptr && materialCapability->Kind == HE::AssetKind::Material &&
+		materialCapability->WriteGuid(&materialReference, "material-guid") &&
+		*materialCapability->ReadGuid(&materialReference) == "material-guid",
+		"Expected asset reference capability to read and write Material Guid");
+	HE::TextureAssetRef textureReference;
+	const auto* textureCapability = HE::FindAssetReferenceCapability(HE::AssetReferenceTypeGuids::Texture);
+	Require(textureCapability != nullptr && textureCapability->Kind == HE::AssetKind::Texture2D &&
+		textureCapability->WriteGuid(&textureReference, "texture-guid") &&
+		*textureCapability->ReadGuid(&textureReference) == "texture-guid",
+		"Expected asset reference capability to read and write Texture Guid");
+	HE::ShaderAssetRef shaderReference;
+	const auto* shaderCapability = HE::FindAssetReferenceCapability(HE::AssetReferenceTypeGuids::Shader);
+	Require(shaderCapability != nullptr && shaderCapability->Kind == HE::AssetKind::Shader &&
+		shaderCapability->WriteGuid(&shaderReference, "shader-guid") &&
+		*shaderCapability->ReadGuid(&shaderReference) == "shader-guid",
+		"Expected asset reference capability to read and write Shader Guid");
+	Require(registry.Reflection().FindType(HE::AssetReferenceTypeGuids::Shader) != nullptr,
+		"Expected Shader reference type to be reflected");
+	for (const auto valueTypeGuid : {HE::AssetReferenceTypeGuids::Mesh,
+		HE::AssetReferenceTypeGuids::Material, HE::AssetReferenceTypeGuids::Texture,
+		HE::AssetReferenceTypeGuids::Shader}) {
+		const auto* reflectedType = registry.Reflection().FindType(valueTypeGuid);
+		const auto* capability = HE::FindAssetReferenceCapability(valueTypeGuid);
+		Require(reflectedType != nullptr && capability != nullptr && capability->Kind != HE::AssetKind::Unknown,
+			"Expected each reflected asset reference type to have an asset access capability");
+	}
+	Require(HE::FindAssetReferenceCapability({}) == nullptr && !shaderCapability->WriteGuid(nullptr, "shader-guid") &&
+		shaderCapability->ReadGuid(nullptr) == nullptr,
+		"Expected unknown type and null values to reject asset reference access");
 
 	const std::array<HE::Refl::RuntimeAttribute, 1> customAttributes = {{{"Inspector.Drawer", "Test.Float"}}};
 	auto customField = *fov;

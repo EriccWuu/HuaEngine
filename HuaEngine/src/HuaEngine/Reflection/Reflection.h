@@ -70,7 +70,6 @@ enum class RuntimeFieldValueKind {
     Float4,
     Enum,
     Object,
-    AssetRef,
 };
 
 struct RuntimeEnumValueDescriptor {
@@ -128,6 +127,7 @@ struct RuntimeFieldDescriptor {
     std::string_view EnumQualifiedName{};
     std::span<const std::string_view> MetadataFlags{};
     std::span<const RuntimeAttribute> Attributes{};
+    TypeGuid ValueTypeGuid{};
 };
 
 struct RuntimeTypeDescriptor {
@@ -215,11 +215,7 @@ inline RuntimeFieldValueKind GetRuntimeFieldValueKind(const RuntimeFieldDescript
     if (field.Type == "glm::vec4") {
         return RuntimeFieldValueKind::Float4;
     }
-    if (field.Type.rfind("Ref<", 0) == 0 ||
-        IsAnyRuntimeTypeName(field.Type, { "MeshAssetRef", "MaterialAssetRef", "TextureAssetRef" })) {
-        return RuntimeFieldValueKind::AssetRef;
-    }
-    if (field.Type == "MaterialOverrideSet") {
+    if (field.ValueTypeGuid) {
         return RuntimeFieldValueKind::Object;
     }
     return RuntimeFieldValueKind::Unsupported;
@@ -239,10 +235,6 @@ inline bool IsRuntimeFieldEditable(const RuntimeFieldDescriptor& field) {
     }
 
     const RuntimeFieldValueKind kind = GetRuntimeFieldValueKind(field);
-    if (kind == RuntimeFieldValueKind::AssetRef) {
-        return IsRuntimeFieldSerializable(field);
-    }
-
     return HasRuntimeFieldFlag(field.Flags, RuntimeFieldFlags::Editable) &&
            kind != RuntimeFieldValueKind::Unsupported &&
            kind != RuntimeFieldValueKind::Object;

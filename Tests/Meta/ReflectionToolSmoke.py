@@ -46,6 +46,14 @@ for path in (args.core, args.rendering):
         types = {item["qualified_name"]: item for item in manifest["types"]}
         fields = {item["name"]: item for item in types["HE::TransformComponent"]["fields"]}
         require(fields["Position"]["runtime_type"] == "glm::vec3", "Clang aliases must preserve supported editable glm vector semantics")
+    if config["module"] == "Rendering":
+        types = {item["qualified_name"]: item for item in manifest["types"]}
+        material_fields = {item["name"]: item for item in types["HE::Rendering::MaterialComponent"]["fields"]}
+        mesh_fields = {item["name"]: item for item in types["HE::Rendering::MeshComponent"]["fields"]}
+        require(mesh_fields["Mesh"]["value_type_guid"] == "4f745e86ab69460db41dac991f79c007" and
+                material_fields["Material"]["value_type_guid"] == "4f745e86ab69460db41dac991f79c008" and
+                material_fields["Overrides"]["value_type_guid"] == "4f745e86ab69460db41dac991f79c00b",
+                "Clang must resolve reflected field value type Guids across included declarations")
     database = read(Path(config["compile_database"]) / "compile_commands.json")
     command = database[0]["command"]
     require("/Yu" not in command and "cmake_pch" not in command, "The actual scan compile command must not use PCH")
@@ -100,6 +108,23 @@ generated = backend["render_files"](probe)
 reflection = generated["GeneratedReflection.cpp"]
 ecs_header = generated["GeneratedEcs.h"]
 ecs_source = generated["GeneratedEcs.cpp"]
+typed_field = copy.deepcopy(probe)
+typed_field["types"][0]["fields"].append(
+    {"name": "Nested", "type": "Probe::Component", "runtime_type": "Probe::Component",
+     "value_type_guid": probe["types"][1]["guid"]}
+)
+backend["verify_manifest"](typed_field)
+typed_reflection = backend["render_files"](typed_field)["GeneratedReflection.cpp"]
+require("Refl::TypeGuid{0x1100000000000000ULL, 0x0000000000000002ULL}" in typed_reflection,
+        "A reflected record field must generate its value type Guid")
+invalid_field_guid = copy.deepcopy(typed_field)
+invalid_field_guid["types"][0]["fields"][1]["value_type_guid"] = "not-a-guid"
+try:
+    backend["verify_manifest"](invalid_field_guid)
+except ValueError as error:
+    require("Invalid reflection Guid" in str(error), "A malformed field value type Guid must be diagnosed")
+else:
+    raise AssertionError("A malformed field value type Guid must fail validation")
 require("inline constexpr Refl::TypeGuid TypeGuid_0" in generated["GeneratedReflection.h"] and
         "TypeGuid_0" in reflection and "Refl::TypeGuid{0x1100000000000000ULL, 0x0000000000000001ULL}" in generated["GeneratedReflection.h"],
         "Ordinary reflected types must generate stable GUIDs without ECS")
@@ -145,11 +170,24 @@ consumer["types"] = [{"name": "Holder", "qualified_name": "Consumer::Holder", "k
                       "guid": "11000000000000000000000000000004",
                       "reflection_scope": "marked",
                       "fields": [{"name": "Mode", "type": "Probe::Mode", "enum_type": "Probe::Mode",
+                                  "value_type_guid": probe["enums"][0]["guid"],
                                   "enum_metadata": copy.deepcopy(probe["enums"][0])}]}]
 consumer["enums"] = []
 consumer["types"][0]["fields"][0]["enum_metadata"]["source"] = "Consumer/FixtureEnums.h"
 backend["verify_manifest"](consumer)
 backend["validate_module_set"]([probe, consumer])
+require("Refl::TypeGuid{0x1100000000000000ULL, 0x0000000000000003ULL}" in
+        backend["render_files"](consumer)["GeneratedReflection.cpp"],
+        "A cross-module reflected enum field must generate its value type Guid")
+conflicting_enum_guid = copy.deepcopy(consumer)
+conflicting_enum_guid["types"][0]["fields"][0]["value_type_guid"] = probe["types"][1]["guid"]
+try:
+    backend["verify_manifest"](conflicting_enum_guid)
+except ValueError as error:
+    require("conflicting value type Guid" in str(error),
+            "A reflected enum field must use the enum declaration's Guid")
+else:
+    raise AssertionError("A reflected enum field with an inconsistent Guid must fail validation")
 for change in ("value", "flag", "attribute"):
     conflicting = copy.deepcopy(consumer)
     metadata = conflicting["types"][0]["fields"][0]["enum_metadata"]

@@ -147,7 +147,7 @@ def verify_manifest(manifest: Dict[str, Any], config: Optional[Dict[str, Any]] =
     seen_guids: Dict[str, str] = {}
     guids_by_name: Dict[str, str] = {}
     registered_names: set[str] = set()
-    declared_enums = {item["qualified_name"] for item in manifest["enums"]}
+    declared_enums = {item["qualified_name"]: item for item in manifest["enums"]}
 
     def check_metadata(item: Dict[str, Any], label: str, require_scope: bool = False) -> None:
         flags = item.get("flags", [])
@@ -195,10 +195,16 @@ def verify_manifest(manifest: Dict[str, Any], config: Optional[Dict[str, Any]] =
                 raise ValueError(f"Tag component cannot declare stored fields: {name}")
         for field in item.get("fields", []):
             check_metadata(field, f"{name}.{field.get('name', '<unnamed>')}")
+            value_type_guid = field.get("value_type_guid")
+            if value_type_guid is not None:
+                value_type_guid = normalized_guid(value_type_guid)
             enum_type = field.get("enum_type", "")
             if not enum_type:
                 continue
             metadata = field.get("enum_metadata")
+            expected_enum = metadata if isinstance(metadata, dict) and metadata.get("qualified_name") == enum_type else declared_enums.get(enum_type)
+            if expected_enum and value_type_guid and value_type_guid != normalized_guid(expected_enum.get("guid")):
+                raise ValueError(f"Reflected enum field {name}.{field.get('name', '<unnamed>')} has a conflicting value type Guid")
             if isinstance(metadata, dict) and metadata.get("qualified_name") == enum_type and isinstance(metadata.get("values"), list):
                 check_metadata(metadata, enum_type, require_scope=True)
                 check_guid(metadata, enum_type)
@@ -453,6 +459,7 @@ def render_reflection(manifest: Dict[str, Any]) -> Dict[str, str]:
                 serialize_field = f"&Serialize_{field_identifier}" if field.get("serializable", True) else "nullptr"
                 deserialize_field = f"&Deserialize_{field_identifier}" if field.get("serializable", True) and not field.get("read_only", False) else "nullptr"
                 metadata_flags, attributes = metadata_spans(field, f"RuntimeType{type_index}Field{field_index}")
+                value_type_guid = field.get("value_type_guid")
                 lines.append(
                     "    {"
                     + ", ".join(
@@ -472,6 +479,7 @@ def render_reflection(manifest: Dict[str, Any]) -> Dict[str, str]:
                             cpp_string(field.get("enum_type", "")),
                             metadata_flags,
                             attributes,
+                            cpp_guid(value_type_guid) if value_type_guid else "{}",
                         ]
                     )
                     + "},"

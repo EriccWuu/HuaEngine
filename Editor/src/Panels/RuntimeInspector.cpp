@@ -12,6 +12,7 @@
 #include "glm/glm.hpp"
 #include "imgui.h"
 #include "HuaEngine/Asset/AssetService.h"
+#include "HuaEngine/Asset/AssetReferenceCapability.h"
 #include "HuaEngine/Asset/AssetTypes.h"
 
 namespace HE::Editor {
@@ -122,20 +123,6 @@ namespace HE::Editor {
 			return changed;
 		}
 
-		AssetGuid* GetAssetRefGuid(const Refl::RuntimeFieldDescriptor& field, void* value) {
-			if (value == nullptr) return nullptr;
-			if (field.Type == "MeshAssetRef") {
-				return &static_cast<MeshAssetRef*>(value)->Reference.Guid;
-			}
-			if (field.Type == "MaterialAssetRef") {
-				return &static_cast<MaterialAssetRef*>(value)->Reference.Guid;
-			}
-			if (field.Type == "TextureAssetRef") {
-				return &static_cast<TextureAssetRef*>(value)->Reference.Guid;
-			}
-			return nullptr;
-		}
-
 		const char* AssetKindDisplayName(AssetKind kind) {
 			switch (kind) {
 			case AssetKind::Mesh:
@@ -219,35 +206,34 @@ namespace HE::Editor {
 
 		bool DrawRuntimeAssetRefField(
 			const Refl::RuntimeFieldDescriptor& field,
+			const Refl::RuntimeTypeDescriptor& type,
+			void* object,
 			void* value,
 			RuntimeInspectorContext& context) {
-			AssetGuid* guid = GetAssetRefGuid(field, value);
-			if (guid == nullptr) {
+			const AssetReferenceCapability* capability = FindAssetReferenceCapability(field.ValueTypeGuid);
+			const AssetGuid* guid = capability && capability->ReadGuid ? capability->ReadGuid(value) : nullptr;
+			if (!guid || !capability->WriteGuid) {
 				ImGui::TextDisabled("Unsupported asset ref: %.*s", static_cast<int>(field.Type.size()), field.Type.data());
 				return false;
 			}
-			const auto* assetKind = Refl::FindRuntimeAttribute(field.Attributes, "Editor.AssetKind");
-			const AssetKind kind = assetKind ? AssetKindFromString(assetKind->Value) : AssetKind::Unknown;
-			if (assetKind && kind == AssetKind::Unknown) {
-				ImGui::TextDisabled("Unknown asset kind: %.*s",
-					static_cast<int>(assetKind->Value.size()), assetKind->Value.data());
-				return false;
-			}
+			const AssetKind kind = capability->Kind;
+			AssetGuid nextGuid = *guid;
+			bool changed = false;
 			if (kind != AssetKind::Unknown) {
-				return DrawAssetRefField(*guid, kind, context.GetAssetOptions(kind));
+				changed = DrawAssetRefField(nextGuid, kind, context.GetAssetOptions(kind));
 			}
-
-			std::array<char, 256> editedGuid{};
-			const size_t copyLength = std::min(guid->size(), editedGuid.size() - 1);
-			std::memcpy(editedGuid.data(), guid->data(), copyLength);
-			const bool changed = ImGui::InputText(
-				"##Value",
-				editedGuid.data(),
-				editedGuid.size());
-			if (changed) {
-				*guid = editedGuid.data();
+			else {
+				std::array<char, 256> editedGuid{};
+				const size_t copyLength = std::min(guid->size(), editedGuid.size() - 1);
+				std::memcpy(editedGuid.data(), guid->data(), copyLength);
+				changed = ImGui::InputText("##Value", editedGuid.data(), editedGuid.size());
+				if (changed) nextGuid = editedGuid.data();
 			}
-			return changed;
+			if (!changed || nextGuid == *guid) return false;
+			if (Refl::FindRuntimeAttribute(field.Attributes, "Editor.ReconcileField")) {
+				return SetRuntimeMaterialReference(field, type, object, nextGuid, context);
+			}
+			return capability->WriteGuid(value, nextGuid);
 		}
 
 		const Refl::RuntimeFieldDescriptor* FindField(
@@ -257,39 +243,6 @@ namespace HE::Editor {
 				if (field.Name == name) return &field;
 			}
 			return nullptr;
-		}
-
-		bool DrawMaterialReference(
-			const Refl::RuntimeFieldDescriptor& field,
-			const Refl::RuntimeTypeDescriptor& type,
-			void* object,
-			void* value,
-			RuntimeInspectorContext& context) {
-			AssetGuid* guid = GetAssetRefGuid(field, value);
-			if (field.Type != "MaterialAssetRef" || guid == nullptr) {
-				ImGui::TextDisabled("Material reference unavailable");
-				return false;
-			}
-			const auto* reconcileAttribute = Refl::FindRuntimeAttribute(field.Attributes, "Editor.ReconcileField");
-			const auto* reconcileField = reconcileAttribute ? FindField(type, reconcileAttribute->Value) : nullptr;
-			if (!reconcileField || reconcileField->Type != "MaterialOverrideSet" ||
-				Refl::IsRuntimeFieldReadOnly(*reconcileField) ||
-				Refl::GetRuntimeFieldMutable(*reconcileField, object) == nullptr) {
-				ImGui::TextDisabled("Material override field unavailable");
-				return false;
-			}
-
-			AssetGuid nextGuid = *guid;
-			const auto* assetKind = Refl::FindRuntimeAttribute(field.Attributes, "Editor.AssetKind");
-			const AssetKind kind = assetKind ? AssetKindFromString(assetKind->Value) : AssetKind::Unknown;
-			if (kind != AssetKind::Material) {
-				ImGui::TextDisabled("Material asset kind unavailable");
-				return false;
-			}
-			if (!DrawAssetRefField(nextGuid, kind, context.GetAssetOptions(kind))) {
-				return false;
-			}
-			return SetRuntimeMaterialReference(field, type, object, nextGuid, context);
 		}
 
 		bool DrawMaterialOverrides(
@@ -304,19 +257,21 @@ namespace HE::Editor {
 			}
 			const auto* sourceAttribute = Refl::FindRuntimeAttribute(field.Attributes, "Editor.SourceField");
 			const auto* sourceField = sourceAttribute ? FindField(type, sourceAttribute->Value) : nullptr;
-			if (!sourceField || sourceField->Type != "MaterialAssetRef") {
+			const auto* capability = sourceField
+				? FindAssetReferenceCapability(sourceField->ValueTypeGuid) : nullptr;
+			if (!capability || capability->Kind != AssetKind::Material) {
 				ImGui::TextDisabled("Material reference unavailable");
 				return false;
 			}
-			const auto* source = static_cast<const MaterialAssetRef*>(Refl::GetRuntimeFieldConst(*sourceField, object));
-			if (!source) { ImGui::TextDisabled("Material reference unavailable"); return false; }
-			const AssetGuid& materialGuid = source->Reference.Guid;
+			const AssetGuid* materialGuid = capability->ReadGuid(
+				Refl::GetRuntimeFieldConst(*sourceField, object));
+			if (!materialGuid) { ImGui::TextDisabled("Material reference unavailable"); return false; }
 			auto& overrides = *static_cast<Rendering::MaterialOverrideSet*>(value);
-			if (materialGuid.empty()) { ImGui::TextDisabled("Missing Material"); return false; }
+			if (materialGuid->empty()) { ImGui::TextDisabled("Missing Material"); return false; }
 			if (!context.ResolveMaterialDefinition) { ImGui::TextDisabled("Material definition unavailable"); return false; }
 			Rendering::MaterialDefinition definition;
 			AssetImportHealth importHealth;
-			if (!context.ResolveMaterialDefinition(materialGuid, definition, importHealth).Succeeded()) {
+			if (!context.ResolveMaterialDefinition(*materialGuid, definition, importHealth).Succeeded()) {
 				ImGui::TextDisabled(importHealth.State == AssetImportHealthState::Missing
 					? "Material or shader artifact missing"
 					: "Reimport required");
@@ -415,7 +370,7 @@ namespace HE::Editor {
 				return false;
 			}
 			const auto* namedDrawer = Refl::FindRuntimeAttribute(field.Attributes, "Inspector.Drawer");
-			if (!namedDrawer && !Refl::IsRuntimeFieldEditable(field)) {
+			if (!namedDrawer && !HE::Editor::IsRuntimeFieldEditable(field)) {
 				ImGui::TextDisabled("Unavailable");
 				return false;
 			}
@@ -450,8 +405,11 @@ namespace HE::Editor {
 		void* object,
 		const AssetGuid& nextGuid,
 		RuntimeInspectorContext& context) {
-		if (field.Type != "MaterialAssetRef" || Refl::IsRuntimeFieldReadOnly(field)) return false;
-		auto* guid = GetAssetRefGuid(field, Refl::GetRuntimeFieldMutable(field, object));
+		if (Refl::IsRuntimeFieldReadOnly(field)) return false;
+		const auto* capability = FindAssetReferenceCapability(field.ValueTypeGuid);
+		if (!capability || capability->Kind != AssetKind::Material) return false;
+		void* value = Refl::GetRuntimeFieldMutable(field, object);
+		const AssetGuid* guid = capability->ReadGuid(value);
 		const auto* reconcileAttribute = Refl::FindRuntimeAttribute(field.Attributes, "Editor.ReconcileField");
 		const auto* reconcileField = reconcileAttribute ? FindField(type, reconcileAttribute->Value) : nullptr;
 		if (!guid || !reconcileField || reconcileField->Type != "MaterialOverrideSet" ||
@@ -459,7 +417,7 @@ namespace HE::Editor {
 		auto* overrides = static_cast<Rendering::MaterialOverrideSet*>(
 			Refl::GetRuntimeFieldMutable(*reconcileField, object));
 		if (!overrides || *guid == nextGuid) return false;
-		*guid = nextGuid;
+		if (!capability->WriteGuid(value, nextGuid)) return false;
 
 		if (context.ResolveMaterialDefinition && !guid->empty()) {
 			Rendering::MaterialDefinition definition;
@@ -522,11 +480,9 @@ namespace HE::Editor {
 			[](const auto& field, const auto&, void* object, void*, auto&) {
 				return DrawRuntimeEnumField(field, object);
 			});
-		RegisterKind(Refl::RuntimeFieldValueKind::AssetRef,
-			[](const auto& field, const auto&, void*, void* value, auto& context) {
-				return DrawRuntimeAssetRefField(field, value, context);
-			});
-		RegisterNamed("MaterialReference", DrawMaterialReference);
+		m_AssetReference = [](const auto& field, const auto& type, void* object, void* value, auto& context) {
+			return DrawRuntimeAssetRefField(field, type, object, value, context);
+		};
 		RegisterNamed("MaterialOverrides", DrawMaterialOverrides);
 	}
 
@@ -543,11 +499,16 @@ namespace HE::Editor {
 			const auto found = m_Named.find(attribute->Value);
 			return found == m_Named.end() ? nullptr : &found->second;
 		}
+		if (FindAssetReferenceCapability(field.ValueTypeGuid)) return &m_AssetReference;
 		const auto found = m_ByKind.find(Refl::GetRuntimeFieldValueKind(field));
 		return found == m_ByKind.end() ? nullptr : &found->second;
 	}
 
 	bool IsRuntimeFieldEditable(const Refl::RuntimeFieldDescriptor& field) {
+		if (FindAssetReferenceCapability(field.ValueTypeGuid)) {
+			return Refl::IsRuntimeFieldSerializable(field) && !Refl::IsRuntimeFieldReadOnly(field) &&
+				field.GetMutable != nullptr;
+		}
 		return Refl::IsRuntimeFieldEditable(field);
 	}
 

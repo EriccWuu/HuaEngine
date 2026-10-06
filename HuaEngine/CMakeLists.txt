@@ -108,8 +108,10 @@ set_target_properties(HuaEngine PROPERTIES
     ARCHIVE_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/bin/$<CONFIG>-${CMAKE_SYSTEM_NAME}-${ARCHITECTURE}/HuaEngine"
 )
 
+hua_add_meta_module(NAME Asset TARGET HuaEngine
+    ENTRY_HEADER "${CMAKE_CURRENT_SOURCE_DIR}/src/HuaEngine/Asset/AssetTypes.h")
 hua_add_meta_module(NAME Core TARGET HuaEngine
     ENTRY_HEADER "${CMAKE_CURRENT_SOURCE_DIR}/src/HuaEngine/ECS/Components.h")
 hua_add_meta_module(NAME Rendering TARGET HuaEngine
     ENTRY_HEADER "${CMAKE_CURRENT_SOURCE_DIR}/src/Module/Rendering/RenderingComponent.h")
-hua_add_meta_umbrella(HuaEngine Core Rendering)
+hua_add_meta_umbrella(HuaEngine Asset Core Rendering)

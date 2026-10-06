@@ -399,6 +399,17 @@ namespace HE::Serialization {
         }
     };
 
+    template<>
+    struct Serializer<ShaderAssetRef> {
+        static void Serialize(SerializationBackend& backend, const std::string& name, const ShaderAssetRef& reference) {
+            Serializer<AssetReference>::Serialize(backend, name, reference.Reference);
+        }
+
+        static bool Deserialize(SerializationBackend& backend, const std::string& name, ShaderAssetRef& reference) {
+            return Serializer<AssetReference>::Deserialize(backend, name, reference.Reference);
+        }
+    };
+
     // Specialization for Ref<T> (shared_ptr<T>)
     template<typename T>
     struct Serializer<Ref<T>> {

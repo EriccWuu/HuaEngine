@@ -105,6 +105,26 @@ namespace {
 
 	}
 
+	void VerifyFieldValueTypeIdentity() {
+		HE::Ecs::TypeRegistry registry;
+		Require(HE::Generated::RegisterGeneratedComponents(registry).HasValue(),
+			"Expected generated metadata registration");
+		const auto* registered = registry.Find<HE::Rendering::MeshComponent>();
+		Require(registered && registered->Descriptor.Reflection &&
+			!registered->Descriptor.Reflection->Fields.empty(),
+			"Expected a reflected Mesh field");
+		auto changed = registered->Descriptor;
+		auto reflection = *changed.Reflection;
+		std::vector<HE::Refl::RuntimeFieldDescriptor> fieldCopies(reflection.Fields.begin(), reflection.Fields.end());
+		fieldCopies.front().ValueTypeGuid = HE::Refl::TypeGuid::FromName("Fixture.DifferentAssetReference");
+		reflection.Fields = fieldCopies;
+		changed.Reflection = &reflection;
+		const auto duplicate = registry.Register(std::move(changed));
+		Require(!duplicate.HasValue() && duplicate.GetError().Code == HE::Ecs::ErrorCode::DuplicateType &&
+			registered->Descriptor.Reflection->Fields.front().ValueTypeGuid == HE::AssetReferenceTypeGuids::Mesh,
+			"Expected component re-registration to reject a changed field value type Guid");
+	}
+
 	std::vector<HE::Ecs::TypeDescriptor> ComponentDescriptors() {
 		return {
 			HE::Ecs::ComponentTraits<HE::TransformComponent>::Describe(),
@@ -237,6 +257,7 @@ int main() {
 	HE::Serialization::InitializeSerialization();
 	VerifyEnumRegistration();
 	VerifyGeneratedRegistrationOrders();
+	VerifyFieldValueTypeIdentity();
 	HE::Ecs::EcsContext forward;
 	HE::Ecs::EcsContext reverse;
 	const auto descriptors = ComponentDescriptors();

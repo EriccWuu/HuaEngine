@@ -50,6 +50,8 @@ int main() {
 
     const auto& modeField = firstType->Fields[1];
     Require(modeField.EnumType == firstEnum, "Expected the field enum to belong to its reflection registry");
+    Require(modeField.ValueTypeGuid == expectedEnumGuid,
+        "Expected a reflected enum field to retain its value type Guid");
     P6Fixture::IndependentValue value;
     Require(HE::Refl::SetRuntimeEnumFieldValueByName(modeField, &value, "Active") &&
         value.Mode == P6Fixture::SharedMode::Active,
@@ -95,6 +97,7 @@ int main() {
 		fields[0].Type = "int";
 		fields[0].Size = sizeof(int);
 		fields[0].EnumQualifiedName = fieldEnumName;
+		fields[0].ValueTypeGuid = manualEnumGuid;
 		fields[0].MetadataFlags = fieldFlags;
 		fields[0].Attributes = fieldAttributes;
 		std::array<std::string_view, 1> flags{flag};
@@ -143,9 +146,16 @@ int main() {
 		? HE::Refl::FindRuntimeAttribute(owned->Fields[0].Attributes, "Serialization.Alias") : nullptr;
 	Require(owned && owned->Fields.size() == 1 && owned->Fields[0].Name == "Mode" &&
 		owned->Fields[0].EnumQualifiedName == "Test::TransientEnum" && owned->Fields[0].EnumType == ownedEnum &&
+		owned->Fields[0].ValueTypeGuid == manualEnumGuid &&
 		HE::Refl::HasRuntimeFlag(owned->Fields[0].MetadataFlags, "ScriptVisible") &&
 		fieldAlias && fieldAlias->Value == "PreviousMode",
 		"Expected copied field metadata and enum binding to outlive their source");
+	std::array changedFields{owned->Fields[0]};
+	changedFields[0].ValueTypeGuid = expectedTypeGuid;
+	auto changedType = *owned;
+	changedType.Fields = changedFields;
+	Require(manual.RegisterType(changedType).has_value(),
+		"A field value type Guid change must conflict with the registered descriptor");
 	HE::Refl::RuntimeEnumDescriptor collision{};
 	collision.Name = "Collision";
 	collision.QualifiedName = "Test::Collision";

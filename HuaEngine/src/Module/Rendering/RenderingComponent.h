@@ -36,7 +36,7 @@ namespace HE::Rendering {
 		float AspectRatio = 16.0f / 9.0f;
 	};
 
-	struct MaterialOverrideSet {
+	struct [[sattr(guid="4f745e86ab69460db41dac991f79c00b"; reflect=@marked)]] MaterialOverrideSet {
 		std::unordered_map<std::string, HE::Rendering::MaterialParameterValue> Parameters;
 		std::unordered_map<std::string, AssetGuid> TextureParameters;
 
@@ -63,7 +63,7 @@ namespace HE::Rendering {
 		explicit MaterialComponent(const MaterialAssetRef& material)
 			: Material(material) {}
 
-		[[sattr(attrs=["Inspector.Drawer=MaterialReference","Editor.AssetKind=material","Editor.ReconcileField=Overrides"])]]
+		[[sattr(attrs=["Editor.ReconcileField=Overrides"])]]
 		MaterialAssetRef Material;
 		[[sattr(attrs=["Inspector.Drawer=MaterialOverrides","Editor.SourceField=Material"])]]
 		MaterialOverrideSet Overrides;
@@ -86,7 +86,7 @@ namespace HE::Rendering {
 		explicit MeshComponent(const MeshAssetRef& mesh)
 			: Mesh(mesh) {}
 
-		[[sattr(attrs=["Editor.AssetKind=mesh"])]]
+		[[sattr()]]
 		MeshAssetRef Mesh;
 	};
 }

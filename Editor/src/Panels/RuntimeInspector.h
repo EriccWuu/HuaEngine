@@ -28,6 +28,7 @@ namespace HE::Editor {
 		std::span<const AssetPickerOption> MeshAssets;
 		std::span<const AssetPickerOption> MaterialAssets;
 		std::span<const AssetPickerOption> TextureAssets;
+		std::span<const AssetPickerOption> ShaderAssets;
 		std::function<ResultEnvelope(const AssetGuid&, Rendering::MaterialDefinition&, AssetImportHealth&)> ResolveMaterialDefinition;
 		std::vector<ResultEnvelope>* DeferredEvents = nullptr;
 
@@ -40,6 +41,7 @@ namespace HE::Editor {
 			case AssetKind::Texture2D:
 				return TextureAssets;
 			case AssetKind::Shader:
+					return ShaderAssets;
 			case AssetKind::Unknown:
 			default:
 				return {};
@@ -64,6 +66,7 @@ namespace HE::Editor {
 	private:
 		std::map<std::string, RuntimeFieldDrawer, std::less<>> m_Named;
 		std::map<Refl::RuntimeFieldValueKind, RuntimeFieldDrawer> m_ByKind;
+		RuntimeFieldDrawer m_AssetReference;
 	};
 
 	[[nodiscard]] bool IsRuntimeFieldEditable(const Refl::RuntimeFieldDescriptor& field);

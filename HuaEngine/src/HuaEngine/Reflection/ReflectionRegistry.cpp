@@ -56,7 +56,7 @@ namespace {
             const auto& b = right.Fields[index];
             if (a.Name != b.Name || a.Type != b.Type || a.DisplayName != b.DisplayName ||
                 a.Category != b.Category || a.Offset != b.Offset || a.Size != b.Size ||
-                a.Flags != b.Flags ||
+                a.Flags != b.Flags || a.ValueTypeGuid != b.ValueTypeGuid ||
                 !EquivalentMetadata(a.MetadataFlags, a.Attributes, b.MetadataFlags, b.Attributes) ||
                 a.GetConst != b.GetConst || a.GetMutable != b.GetMutable ||
                 a.Serialize != b.Serialize || a.Deserialize != b.Deserialize || EnumName(a) != EnumName(b)) return false;

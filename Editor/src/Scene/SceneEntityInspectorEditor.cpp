@@ -109,6 +109,7 @@ namespace HE::Editor {
                         .MeshAssets = m_PickerCatalog.Get(AssetKind::Mesh),
                         .MaterialAssets = m_PickerCatalog.Get(AssetKind::Material),
                         .TextureAssets = m_PickerCatalog.Get(AssetKind::Texture2D),
+                        .ShaderAssets = m_PickerCatalog.Get(AssetKind::Shader),
                         .ResolveMaterialDefinition = [](const AssetGuid& guid, Rendering::MaterialDefinition& definition, AssetImportHealth& health) {
                             return Application::GetInstance().GetOperations().GetMaterialDefinition(guid, definition, &health);
                         },
