@@ -58,6 +58,14 @@ namespace HE::Editor {
 		return editor != nullptr && editor->IsDirty();
 	}
 
+	const AssetGuid& AssetInspectorEditor::GetEditingAssetGuid() const {
+		return m_Host.GetSession().GetGuid();
+	}
+
+	void AssetInspectorEditor::Reload(const AssetGuid& guid) {
+		QueueReload(guid);
+	}
+
 	void AssetInspectorEditor::QueueReload(const AssetGuid& guid) {
 		m_PendingReloadGuid = guid;
 	}
@@ -97,9 +105,12 @@ namespace HE::Editor {
 		if (auto* editor = m_Host.GetEditor()) editor->Revert();
 	}
 
-	bool AssetInspectorEditor::RequestDirtyResolution(std::function<void()> continuation) {
+	bool AssetInspectorEditor::RequestDirtyResolution(
+		std::function<void()> continuation,
+		std::function<void()> cancellation) {
 		if (!HasDirtyEdit()) return false;
 		m_DirtyContinuation = std::move(continuation);
+		m_DirtyCancellation = std::move(cancellation);
 		m_OpenDirtyPopup = true;
 		return true;
 	}
@@ -116,6 +127,7 @@ namespace HE::Editor {
 		m_Host.Close();
 		m_PendingReloadGuid.reset();
 		m_DirtyContinuation = {};
+		m_DirtyCancellation = {};
 		m_OpenDirtyPopup = false;
 	}
 
@@ -137,6 +149,7 @@ namespace HE::Editor {
 			(void)Apply(&state);
 			if (IsAssetAuthoringDataSaved(state)) {
 				auto continuation = std::move(m_DirtyContinuation);
+				m_DirtyCancellation = {};
 				ImGui::CloseCurrentPopup();
 				if (continuation) continuation();
 			}
@@ -145,13 +158,16 @@ namespace HE::Editor {
 		if (ImGui::Button("Discard and Continue")) {
 			Revert();
 			auto continuation = std::move(m_DirtyContinuation);
+			m_DirtyCancellation = {};
 			ImGui::CloseCurrentPopup();
 			if (continuation) continuation();
 		}
 		ImGui::SameLine();
 		if (ImGui::Button("Cancel")) {
 			m_DirtyContinuation = {};
+			auto cancellation = std::move(m_DirtyCancellation);
 			ImGui::CloseCurrentPopup();
+			if (cancellation) cancellation();
 		}
 		ImGui::EndPopup();
 	}

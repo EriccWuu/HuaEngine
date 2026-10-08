@@ -13,6 +13,10 @@
 #include <unordered_set>
 #include <variant>
 
+#ifdef HE_PLATFORM_WINDOWS
+#include <Windows.h>
+#endif
+
 namespace {
 	struct JsonValue {
 		using Object = std::map<std::string, JsonValue>;
@@ -336,6 +340,25 @@ namespace {
 		return result;
 	}
 
+	bool ReplaceFileAtomically(
+		const std::filesystem::path& temporaryPath,
+		const std::filesystem::path& finalPath,
+		std::error_code& outError) {
+#ifdef HE_PLATFORM_WINDOWS
+		if (::MoveFileExW(
+			temporaryPath.c_str(),
+			finalPath.c_str(),
+			MOVEFILE_REPLACE_EXISTING | MOVEFILE_WRITE_THROUGH) != FALSE) {
+			return true;
+		}
+		outError = std::error_code(static_cast<int>(::GetLastError()), std::system_category());
+		return false;
+#else
+		std::filesystem::rename(temporaryPath, finalPath, outError);
+		return !outError;
+#endif
+	}
+
 	const JsonValue::Object* AsObject(const JsonValue& value) {
 		return std::get_if<JsonValue::Object>(&value.Data);
 	}
@@ -569,6 +592,42 @@ namespace HE {
 		return true;
 	}
 
+	bool AssetManifest::ReplaceByGuid(AssetManifestRecord record) {
+		if (record.Guid.empty() || record.AssetId.empty()) {
+			return false;
+		}
+
+		const auto guidIt = m_GuidIndex.find(record.Guid);
+		if (guidIt == m_GuidIndex.end()) {
+			return false;
+		}
+
+		const size_t index = guidIt->second;
+		const auto assetIt = m_AssetIdIndex.find(record.AssetId);
+		if (assetIt != m_AssetIdIndex.end() && assetIt->second != index) {
+			return false;
+		}
+
+		m_AssetIdIndex.erase(m_Records[index].AssetId);
+		m_Records[index] = std::move(record);
+		m_AssetIdIndex[m_Records[index].AssetId] = index;
+		return true;
+	}
+
+	bool AssetManifest::EraseByGuid(const AssetGuid& guid) {
+		const auto guidIt = m_GuidIndex.find(guid);
+		if (guidIt == m_GuidIndex.end()) return false;
+
+		m_Records.erase(m_Records.begin() + static_cast<std::ptrdiff_t>(guidIt->second));
+		m_GuidIndex.clear();
+		m_AssetIdIndex.clear();
+		for (size_t index = 0; index < m_Records.size(); ++index) {
+			m_GuidIndex[m_Records[index].Guid] = index;
+			m_AssetIdIndex[m_Records[index].AssetId] = index;
+		}
+		return true;
+	}
+
 	std::filesystem::path GetAssetManifestPath(const ProjectContext& context) {
 		return context.RootPath / ".huaengine" / "assets.json";
 	}
@@ -704,6 +763,8 @@ namespace HE {
 
 	ResultEnvelope SaveAssetManifest(const ProjectContext& context, const AssetManifest& manifest) {
 		const auto manifestPath = GetAssetManifestPath(context);
+		auto temporaryPath = manifestPath;
+		temporaryPath += ".tmp";
 		std::error_code errorCode;
 		std::filesystem::create_directories(manifestPath.parent_path(), errorCode);
 		if (errorCode) {
@@ -712,10 +773,17 @@ namespace HE {
 			return result;
 		}
 
-		std::ofstream stream(manifestPath, std::ios::out | std::ios::binary | std::ios::trunc);
+		std::filesystem::remove(temporaryPath, errorCode);
+		if (errorCode) {
+			auto result = ResultEnvelope::Failure("asset.manifest.save", manifestPath.generic_string(), "Asset manifest staging file could not be prepared");
+			result.AddDetail({ DiagnosticSeverity::Error, "asset.manifest.staging_cleanup_failed", errorCode.message(), temporaryPath.generic_string() });
+			return result;
+		}
+
+		std::ofstream stream(temporaryPath, std::ios::out | std::ios::binary | std::ios::trunc);
 		if (!stream.good()) {
 			auto result = ResultEnvelope::Failure("asset.manifest.save", manifestPath.generic_string(), "Asset manifest file could not be opened");
-			result.AddDetail({ DiagnosticSeverity::Error, "asset.manifest.open_failed", "Failed to open .huaengine/assets.json for writing", manifestPath.generic_string() });
+			result.AddDetail({ DiagnosticSeverity::Error, "asset.manifest.open_failed", "Failed to open the temporary asset manifest for writing", temporaryPath.generic_string() });
 			return result;
 		}
 
@@ -744,6 +812,33 @@ namespace HE {
 		stream << "\n";
 		stream << "  ]\n";
 		stream << "}\n";
+		stream.flush();
+		if (!stream.good()) {
+			stream.close();
+			std::filesystem::remove(temporaryPath, errorCode);
+			auto result = ResultEnvelope::Failure("asset.manifest.save", manifestPath.generic_string(), "Asset manifest staging file could not be written");
+			result.AddDetail({ DiagnosticSeverity::Error, "asset.manifest.write_failed", "Failed to flush the complete asset manifest", temporaryPath.generic_string() });
+			return result;
+		}
+		stream.close();
+		if (stream.fail()) {
+			std::filesystem::remove(temporaryPath, errorCode);
+			auto result = ResultEnvelope::Failure("asset.manifest.save", manifestPath.generic_string(), "Asset manifest staging file could not be closed");
+			result.AddDetail({ DiagnosticSeverity::Error, "asset.manifest.close_failed", "Failed to close the complete asset manifest", temporaryPath.generic_string() });
+			return result;
+		}
+
+		if (!ReplaceFileAtomically(temporaryPath, manifestPath, errorCode)) {
+			const auto replaceError = errorCode;
+			std::error_code cleanupError;
+			std::filesystem::remove(temporaryPath, cleanupError);
+			auto result = ResultEnvelope::Failure("asset.manifest.save", manifestPath.generic_string(), "Asset manifest could not be committed atomically");
+			result.AddDetail({ DiagnosticSeverity::Error, "asset.manifest.replace_failed", replaceError.message(), manifestPath.generic_string() });
+			if (cleanupError) {
+				result.AddDetail({ DiagnosticSeverity::Warning, "asset.manifest.staging_cleanup_failed", cleanupError.message(), temporaryPath.generic_string() });
+			}
+			return result;
+		}
 
 		return ResultEnvelope::Success("asset.manifest.save", manifestPath.generic_string(), "Asset manifest saved");
 	}

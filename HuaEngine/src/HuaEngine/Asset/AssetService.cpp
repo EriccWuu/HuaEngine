@@ -67,6 +67,30 @@ namespace {
 		return relativePath.is_absolute() || IsEscapingAssetRoot(relativePath);
 	}
 
+	bool IsValidAssetBaseName(std::string_view name) {
+		if (name.empty() || name == "." || name == ".." || name.back() == ' ' || name.back() == '.') {
+			return false;
+		}
+
+		for (unsigned char character : name) {
+			if (character < 32 || character == '<' || character == '>' || character == ':' || character == '"' ||
+				character == '/' || character == '\\' || character == '|' || character == '?' || character == '*') {
+				return false;
+			}
+		}
+
+		std::string deviceName(name.substr(0, name.find('.')));
+		std::transform(deviceName.begin(), deviceName.end(), deviceName.begin(), [](unsigned char character) {
+			return static_cast<char>(std::toupper(character));
+		});
+		static const std::unordered_set<std::string> reservedNames = {
+			"CON", "PRN", "AUX", "NUL",
+			"COM1", "COM2", "COM3", "COM4", "COM5", "COM6", "COM7", "COM8", "COM9",
+			"LPT1", "LPT2", "LPT3", "LPT4", "LPT5", "LPT6", "LPT7", "LPT8", "LPT9"
+		};
+		return !reservedNames.contains(deviceName);
+	}
+
 	bool TryResolveReimportTarget(
 		const HE::ProjectContext& context,
 		const std::filesystem::path& targetPath,
@@ -623,9 +647,31 @@ namespace HE {
 		if (existing && (existing->Kind != AssetKind::Scene || existing->Source != AssetSource::File)) {
 			return ResultEnvelope::Failure("asset.scene.register", normalizedPath.AssetId, "Existing asset metadata conflicts with the scene source");
 		}
+		const AssetManifest previousManifest = m_Manifest;
+		const AssetRegistry previousRegistry = m_Registry;
+		const auto metaPath = GetAssetMetaPath(normalizedPath.AbsolutePath);
+		bool createdMeta = false;
+		auto rollback = [&](ResultEnvelope failure) {
+			m_Manifest = previousManifest;
+			m_Registry = previousRegistry;
+			if (!createdMeta) return failure;
+
+			std::error_code cleanupError;
+			std::filesystem::remove(metaPath, cleanupError);
+			if (!cleanupError) return failure;
+
+			auto result = ResultEnvelope::ManualIntervention(
+				"asset.scene.register",
+				normalizedPath.AssetId,
+				"Scene registration failed and newly created metadata could not be removed");
+			result.Details = std::move(failure.Details);
+			result.AddDetail({ DiagnosticSeverity::Error, "asset.scene.register.rollback_failed", cleanupError.message(), metaPath.generic_string() });
+			return result;
+		};
+
 		AssetMeta meta;
 		std::error_code metaError;
-		if (std::filesystem::is_regular_file(GetAssetMetaPath(normalizedPath.AbsolutePath), metaError) && !metaError) {
+		if (std::filesystem::is_regular_file(metaPath, metaError) && !metaError) {
 			auto loadMetaResult = LoadAssetMeta(normalizedPath.AbsolutePath, meta);
 			if (!loadMetaResult.Succeeded()) return loadMetaResult;
 			if (meta.ImporterId != "scene.native" || (existing && existing->Guid != meta.Guid)) return ResultEnvelope::Failure("asset.meta.guid_conflict", normalizedPath.AssetId, "Scene metadata conflicts with the existing identity");
@@ -634,6 +680,7 @@ namespace HE {
 			meta.Guid = existing ? existing->Guid : GetExistingGuidOrGenerate(m_Registry, m_Manifest, normalizedPath.AssetId);
 			meta.ImporterId = "scene.native";
 			if (auto saveMetaResult = SaveAssetMeta(normalizedPath.AbsolutePath, meta); !saveMetaResult.Succeeded()) return saveMetaResult;
+			createdMeta = true;
 		}
 		AssetManifestRecord manifestRecord{
 			.Guid = meta.Guid,
@@ -643,14 +690,314 @@ namespace HE {
 			.RelativePath = normalizedPath.RelativePath,
 			.ImportState = AssetImportState::Registered
 		};
-		if (!m_Manifest.Upsert(manifestRecord)) return ResultEnvelope::Failure("asset.scene.register", normalizedPath.AssetId, "Asset manifest rejected the scene source");
+		if (!m_Manifest.Upsert(manifestRecord)) {
+			return rollback(ResultEnvelope::Failure("asset.scene.register", normalizedPath.AssetId, "Asset manifest rejected the scene source"));
+		}
 		auto record = MakeRegistryRecord(context, manifestRecord);
 		record.Handle = m_Registry.Upsert(record);
-		if (record.Handle == 0) return ResultEnvelope::Failure("asset.scene.register", normalizedPath.AssetId, "Asset registry rejected the scene source");
+		if (record.Handle == 0) {
+			return rollback(ResultEnvelope::Failure("asset.scene.register", normalizedPath.AssetId, "Asset registry rejected the scene source"));
+		}
 		auto saveResult = SaveAssetManifest(context, m_Manifest);
-		if (!saveResult.Succeeded()) return saveResult;
+		if (!saveResult.Succeeded()) return rollback(std::move(saveResult));
 		if (outGuid) *outGuid = record.Guid;
 		return MakeRegistrationResult("asset.scene.register", record, "Scene asset registered");
+	}
+
+	ResultEnvelope AssetService::RenameAsset(
+		const ProjectContext& context,
+		const AssetGuid& guid,
+		std::string_view newBaseName,
+		AssetRecord* outRecord) {
+		if (!context.IsLoaded()) {
+			return ResultEnvelope::Failure("asset.rename", guid, "A loaded project context is required");
+		}
+		if (!IsValidAssetBaseName(newBaseName)) {
+			auto result = ResultEnvelope::Failure("asset.rename", guid, "Asset name is invalid");
+			result.AddDetail({ DiagnosticSeverity::Error, "asset.rename.name_invalid", "Use a non-reserved file name without path separators or invalid characters", std::string(newBaseName) });
+			return result;
+		}
+		if (m_Manifest.Empty()) {
+			auto loadResult = LoadOrCreateManifestInternal(context, false);
+			if (!loadResult.Succeeded()) return loadResult;
+		}
+
+		const auto* manifestRecord = m_Manifest.FindByGuid(guid);
+		const auto* registryRecord = m_Registry.FindByGuid(guid);
+		if (!manifestRecord || !registryRecord) {
+			return MakeResolveFailure("asset.rename", guid, "Asset metadata could not be resolved");
+		}
+		if (manifestRecord->Source != AssetSource::File || registryRecord->Source != AssetSource::File) {
+			auto result = ResultEnvelope::Failure("asset.rename", guid, "Only project file assets can be renamed");
+			result.AddDetail({ DiagnosticSeverity::Error, "asset.rename.source_unsupported", "Builtin and runtime-only assets cannot be renamed", registryRecord->AssetId });
+			return result;
+		}
+
+		NormalizedAssetPath oldPath;
+		ResultEnvelope pathError;
+		if (!TryNormalizeAssetPath(context, manifestRecord->RelativePath.generic_string(), oldPath, pathError)) return pathError;
+		std::error_code errorCode;
+		if (!std::filesystem::is_regular_file(oldPath.AbsolutePath, errorCode) || errorCode) {
+			auto result = ResultEnvelope::Failure("asset.rename", registryRecord->AssetId, "Asset source file does not exist");
+			result.AddDetail({ DiagnosticSeverity::Error, "asset.rename.source_missing", errorCode ? errorCode.message() : "Source file was not found", oldPath.AbsolutePath.generic_string() });
+			return result;
+		}
+
+		const auto oldMetaPath = GetAssetMetaPath(oldPath.AbsolutePath);
+		errorCode.clear();
+		if (!std::filesystem::is_regular_file(oldMetaPath, errorCode) || errorCode) {
+			auto result = ResultEnvelope::Failure("asset.rename", registryRecord->AssetId, "Asset metadata file does not exist");
+			result.AddDetail({ DiagnosticSeverity::Error, "asset.rename.meta_missing", errorCode ? errorCode.message() : "Metadata sidecar was not found", oldMetaPath.generic_string() });
+			return result;
+		}
+
+		const auto targetRelativePath = oldPath.RelativePath.parent_path() /
+			(std::string(newBaseName) + oldPath.RelativePath.extension().string());
+		NormalizedAssetPath targetPath;
+		if (!TryNormalizeAssetPath(context, targetRelativePath.generic_string(), targetPath, pathError)) return pathError;
+		if (targetPath.AbsolutePath == oldPath.AbsolutePath) {
+			if (outRecord) *outRecord = *registryRecord;
+			auto result = MakeRegistrationResult("asset.rename", *registryRecord, "Asset name is unchanged");
+			result.SetPayloadValue("old_asset_id", registryRecord->AssetId);
+			result.SetPayloadValue("old_asset_path", oldPath.AbsolutePath.generic_string());
+			return result;
+		}
+
+		const auto targetMetaPath = GetAssetMetaPath(targetPath.AbsolutePath);
+		errorCode.clear();
+		if (std::filesystem::exists(targetPath.AbsolutePath, errorCode) || std::filesystem::exists(targetMetaPath, errorCode)) {
+			auto result = ResultEnvelope::Failure("asset.rename", targetPath.AssetId, "Rename target already exists");
+			result.AddDetail({ DiagnosticSeverity::Error, "asset.rename.target_exists", "Rename never overwrites an existing source or metadata file", targetPath.AbsolutePath.generic_string() });
+			return result;
+		}
+		if (errorCode) {
+			auto result = ResultEnvelope::Failure("asset.rename", targetPath.AssetId, "Rename target could not be inspected");
+			result.AddDetail({ DiagnosticSeverity::Error, "asset.rename.target_inspection_failed", errorCode.message(), targetPath.AbsolutePath.generic_string() });
+			return result;
+		}
+
+		const AssetManifest previousManifest = m_Manifest;
+		const AssetRegistry previousRegistry = m_Registry;
+		bool sourceMoved = false;
+		bool metaMoved = false;
+		auto rollback = [&]() {
+			m_Manifest = previousManifest;
+			m_Registry = previousRegistry;
+			std::error_code rollbackError;
+			if (metaMoved) {
+				std::filesystem::rename(targetMetaPath, oldMetaPath, rollbackError);
+				if (rollbackError) return rollbackError;
+			}
+			if (sourceMoved) {
+				std::filesystem::rename(targetPath.AbsolutePath, oldPath.AbsolutePath, rollbackError);
+			}
+			return rollbackError;
+		};
+
+		errorCode.clear();
+		std::filesystem::rename(oldPath.AbsolutePath, targetPath.AbsolutePath, errorCode);
+		if (errorCode) {
+			auto result = ResultEnvelope::Failure("asset.rename", targetPath.AssetId, "Failed to move asset source");
+			result.AddDetail({ DiagnosticSeverity::Error, "asset.rename.source_move_failed", errorCode.message(), oldPath.AbsolutePath.generic_string() });
+			return result;
+		}
+		sourceMoved = true;
+
+		errorCode.clear();
+		std::filesystem::rename(oldMetaPath, targetMetaPath, errorCode);
+		if (errorCode) {
+			const auto rollbackError = rollback();
+			auto result = rollbackError
+				? ResultEnvelope::ManualIntervention("asset.rename", targetPath.AssetId, "Asset metadata move failed and rollback was incomplete")
+				: ResultEnvelope::Failure("asset.rename", targetPath.AssetId, "Failed to move asset metadata");
+			result.AddDetail({ DiagnosticSeverity::Error, "asset.rename.meta_move_failed", errorCode.message(), oldMetaPath.generic_string() });
+			if (rollbackError) result.AddDetail({ DiagnosticSeverity::Error, "asset.rename.rollback_failed", rollbackError.message(), oldPath.AbsolutePath.generic_string() });
+			return result;
+		}
+		metaMoved = true;
+
+		auto updatedManifestRecord = *manifestRecord;
+		updatedManifestRecord.AssetId = targetPath.AssetId;
+		updatedManifestRecord.RelativePath = targetPath.RelativePath;
+		auto updatedRegistryRecord = *registryRecord;
+		updatedRegistryRecord.AssetId = targetPath.AssetId;
+		updatedRegistryRecord.RelativePath = targetPath.RelativePath;
+		updatedRegistryRecord.AbsolutePath = targetPath.AbsolutePath;
+		updatedRegistryRecord.ExistsOnDisk = true;
+
+		if (!m_Manifest.ReplaceByGuid(updatedManifestRecord) || !m_Registry.ReplaceByGuid(updatedRegistryRecord)) {
+			const auto rollbackError = rollback();
+			auto result = rollbackError
+				? ResultEnvelope::ManualIntervention("asset.rename", targetPath.AssetId, "Asset index update failed and rollback was incomplete")
+				: ResultEnvelope::Failure("asset.rename", targetPath.AssetId, "Asset index rejected the renamed record");
+			if (rollbackError) result.AddDetail({ DiagnosticSeverity::Error, "asset.rename.rollback_failed", rollbackError.message(), oldPath.AbsolutePath.generic_string() });
+			return result;
+		}
+
+		auto saveResult = SaveAssetManifest(context, m_Manifest);
+		if (!saveResult.Succeeded()) {
+			const auto rollbackError = rollback();
+			if (rollbackError) {
+				auto result = ResultEnvelope::ManualIntervention("asset.rename", targetPath.AssetId, "Manifest save failed and rollback was incomplete");
+				result.AddDetail({ DiagnosticSeverity::Error, "asset.rename.manifest_save_failed", saveResult.Summary, GetAssetManifestPath(context).generic_string() });
+				result.AddDetail({ DiagnosticSeverity::Error, "asset.rename.rollback_failed", rollbackError.message(), oldPath.AbsolutePath.generic_string() });
+				return result;
+			}
+			saveResult.Operation = "asset.rename";
+			return saveResult;
+		}
+
+		const auto* committedRecord = m_Registry.FindByGuid(guid);
+		if (outRecord && committedRecord) *outRecord = *committedRecord;
+		auto result = MakeRegistrationResult("asset.rename", *committedRecord, "Asset renamed");
+		result.SetPayloadValue("old_asset_id", oldPath.AssetId);
+		result.SetPayloadValue("old_asset_path", oldPath.AbsolutePath.generic_string());
+		return result;
+	}
+
+	ResultEnvelope AssetService::DeleteAsset(const ProjectContext& context, const AssetGuid& guid) {
+		if (!context.IsLoaded()) {
+			return ResultEnvelope::Failure("asset.delete", guid, "A loaded project context is required");
+		}
+		if (m_Manifest.Empty()) {
+			auto loadResult = LoadOrCreateManifestInternal(context, false);
+			if (!loadResult.Succeeded()) return loadResult;
+		}
+
+		const auto* manifestRecord = m_Manifest.FindByGuid(guid);
+		const auto* registryRecord = m_Registry.FindByGuid(guid);
+		if (!manifestRecord || !registryRecord) {
+			return MakeResolveFailure("asset.delete", guid, "Asset metadata could not be resolved");
+		}
+		const auto deletingManifestRecord = *manifestRecord;
+		const auto deletingRegistryRecord = *registryRecord;
+		if (deletingManifestRecord.Source != AssetSource::File || deletingRegistryRecord.Source != AssetSource::File) {
+			auto result = ResultEnvelope::Failure("asset.delete", guid, "Only project file assets can be deleted");
+			result.AddDetail({ DiagnosticSeverity::Error, "asset.delete.source_unsupported", "Builtin and runtime-only assets cannot be deleted", deletingRegistryRecord.AssetId });
+			return result;
+		}
+
+		NormalizedAssetPath sourcePath;
+		ResultEnvelope pathError;
+		if (!TryNormalizeAssetPath(context, deletingManifestRecord.RelativePath.generic_string(), sourcePath, pathError)) return pathError;
+		const auto metaPath = GetAssetMetaPath(sourcePath.AbsolutePath);
+		std::error_code errorCode;
+		if (!std::filesystem::is_regular_file(sourcePath.AbsolutePath, errorCode) || errorCode) {
+			auto result = ResultEnvelope::Failure("asset.delete", deletingRegistryRecord.AssetId, "Asset source file does not exist");
+			result.AddDetail({ DiagnosticSeverity::Error, "asset.delete.source_missing", errorCode ? errorCode.message() : "Source file was not found", sourcePath.AbsolutePath.generic_string() });
+			return result;
+		}
+		errorCode.clear();
+		if (!std::filesystem::is_regular_file(metaPath, errorCode) || errorCode) {
+			auto result = ResultEnvelope::Failure("asset.delete", deletingRegistryRecord.AssetId, "Asset metadata file does not exist");
+			result.AddDetail({ DiagnosticSeverity::Error, "asset.delete.meta_missing", errorCode ? errorCode.message() : "Metadata sidecar was not found", metaPath.generic_string() });
+			return result;
+		}
+
+		const auto stagingRoot = context.RootPath / ".huaengine" / "DeleteStaging";
+		std::filesystem::create_directories(stagingRoot, errorCode);
+		if (errorCode) {
+			auto result = ResultEnvelope::Failure("asset.delete", deletingRegistryRecord.AssetId, "Asset delete staging directory could not be created");
+			result.AddDetail({ DiagnosticSeverity::Error, "asset.delete.staging_failed", errorCode.message(), stagingRoot.generic_string() });
+			return result;
+		}
+		const auto stagingSourcePath = stagingRoot / (std::to_string(deletingRegistryRecord.Handle) + ".source");
+		const auto stagingMetaPath = stagingRoot / (std::to_string(deletingRegistryRecord.Handle) + ".meta");
+		if (std::filesystem::exists(stagingSourcePath, errorCode) || std::filesystem::exists(stagingMetaPath, errorCode)) {
+			auto result = ResultEnvelope::ManualIntervention("asset.delete", deletingRegistryRecord.AssetId, "Previous delete staging files require cleanup");
+			result.AddDetail({ DiagnosticSeverity::Error, "asset.delete.staging_occupied", "Delete staging paths already exist", stagingRoot.generic_string() });
+			return result;
+		}
+
+		const AssetManifest previousManifest = m_Manifest;
+		const AssetRegistry previousRegistry = m_Registry;
+		bool sourceMoved = false;
+		bool metaMoved = false;
+		bool manifestCommitted = false;
+		auto rollback = [&]() {
+			m_Manifest = previousManifest;
+			m_Registry = previousRegistry;
+			std::error_code rollbackError;
+			if (manifestCommitted) {
+				auto restoreManifest = SaveAssetManifest(context, m_Manifest);
+				if (!restoreManifest.Succeeded()) return std::make_error_code(std::errc::io_error);
+			}
+			if (metaMoved) {
+				std::filesystem::rename(stagingMetaPath, metaPath, rollbackError);
+				if (rollbackError) return rollbackError;
+			}
+			if (sourceMoved) std::filesystem::rename(stagingSourcePath, sourcePath.AbsolutePath, rollbackError);
+			return rollbackError;
+		};
+
+		std::filesystem::rename(sourcePath.AbsolutePath, stagingSourcePath, errorCode);
+		if (errorCode) {
+			auto result = ResultEnvelope::Failure("asset.delete", deletingRegistryRecord.AssetId, "Asset source could not be staged for deletion");
+			result.AddDetail({ DiagnosticSeverity::Error, "asset.delete.source_stage_failed", errorCode.message(), sourcePath.AbsolutePath.generic_string() });
+			return result;
+		}
+		sourceMoved = true;
+		errorCode.clear();
+		std::filesystem::rename(metaPath, stagingMetaPath, errorCode);
+		if (errorCode) {
+			const auto rollbackError = rollback();
+			auto result = rollbackError
+				? ResultEnvelope::ManualIntervention("asset.delete", deletingRegistryRecord.AssetId, "Asset metadata staging failed and rollback was incomplete")
+				: ResultEnvelope::Failure("asset.delete", deletingRegistryRecord.AssetId, "Asset metadata could not be staged for deletion");
+			result.AddDetail({ DiagnosticSeverity::Error, "asset.delete.meta_stage_failed", errorCode.message(), metaPath.generic_string() });
+			if (rollbackError) result.AddDetail({ DiagnosticSeverity::Error, "asset.delete.rollback_failed", rollbackError.message(), sourcePath.AbsolutePath.generic_string() });
+			return result;
+		}
+		metaMoved = true;
+
+		if (!m_Manifest.EraseByGuid(guid) || !m_Registry.EraseByGuid(guid)) {
+			const auto rollbackError = rollback();
+			auto result = rollbackError
+				? ResultEnvelope::ManualIntervention("asset.delete", deletingRegistryRecord.AssetId, "Asset index removal failed and rollback was incomplete")
+				: ResultEnvelope::Failure("asset.delete", deletingRegistryRecord.AssetId, "Asset indexes rejected deletion");
+			if (rollbackError) result.AddDetail({ DiagnosticSeverity::Error, "asset.delete.rollback_failed", rollbackError.message(), sourcePath.AbsolutePath.generic_string() });
+			return result;
+		}
+		auto manifestResult = SaveAssetManifest(context, m_Manifest);
+		if (!manifestResult.Succeeded()) {
+			const auto rollbackError = rollback();
+			if (rollbackError) {
+				auto result = ResultEnvelope::ManualIntervention("asset.delete", deletingRegistryRecord.AssetId, "Manifest update failed and delete rollback was incomplete");
+				result.AddDetail({ DiagnosticSeverity::Error, "asset.delete.manifest_save_failed", manifestResult.Summary, GetAssetManifestPath(context).generic_string() });
+				result.AddDetail({ DiagnosticSeverity::Error, "asset.delete.rollback_failed", rollbackError.message(), sourcePath.AbsolutePath.generic_string() });
+				return result;
+			}
+			manifestResult.Operation = "asset.delete";
+			return manifestResult;
+		}
+		manifestCommitted = true;
+
+		auto libraryResult = m_Library.RemoveAsset(guid);
+		if (!libraryResult.Succeeded()) {
+			const auto rollbackError = rollback();
+			if (rollbackError) {
+				auto result = ResultEnvelope::ManualIntervention("asset.delete", deletingRegistryRecord.AssetId, "Library update failed and delete rollback was incomplete");
+				result.AddDetail({ DiagnosticSeverity::Error, "asset.delete.library_failed", libraryResult.Summary, m_Library.GetCatalogPath().generic_string() });
+				result.AddDetail({ DiagnosticSeverity::Error, "asset.delete.rollback_failed", rollbackError.message(), sourcePath.AbsolutePath.generic_string() });
+				return result;
+			}
+			libraryResult.Operation = "asset.delete";
+			return libraryResult;
+		}
+
+		m_RuntimeCache.Invalidate(guid);
+		m_LastImportFailures.erase(guid);
+		auto result = ResultEnvelope::Success("asset.delete", deletingRegistryRecord.AssetId, "Asset deleted");
+		result.SetPayloadValue("asset_guid", guid);
+		result.SetPayloadValue("asset_id", deletingRegistryRecord.AssetId);
+		result.SetPayloadValue("asset_path", sourcePath.AbsolutePath.generic_string());
+		for (const auto& detail : libraryResult.Details) result.AddDetail(detail);
+		for (const auto& stagedPath : { stagingSourcePath, stagingMetaPath }) {
+			errorCode.clear();
+			std::filesystem::remove(stagedPath, errorCode);
+			if (errorCode) result.AddDetail({ DiagnosticSeverity::Warning, "asset.delete.staging_cleanup_failed", errorCode.message(), stagedPath.generic_string() });
+		}
+		return result;
 	}
 
 	bool AssetService::CanImportSource(const std::filesystem::path& sourcePath) const {

@@ -29,6 +29,8 @@ namespace HE {
 		[[nodiscard]] AssetManifestRecord* FindMutableByGuid(const AssetGuid& guid);
 		[[nodiscard]] const AssetManifestRecord* FindByAssetId(std::string_view assetId) const;
 		[[nodiscard]] bool Upsert(AssetManifestRecord record);
+		[[nodiscard]] bool ReplaceByGuid(AssetManifestRecord record);
+		[[nodiscard]] bool EraseByGuid(const AssetGuid& guid);
 
 		template<typename Callback>
 		void ForEachRecord(Callback&& callback) const {

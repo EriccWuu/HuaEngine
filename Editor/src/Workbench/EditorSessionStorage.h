@@ -1,6 +1,7 @@
 #pragma once
 
 #include <filesystem>
+#include <algorithm>
 #include <string>
 #include <string_view>
 #include <vector>
@@ -39,6 +40,25 @@ namespace HE {
 				}
 			}
 			SceneCameraPoses.push_back(std::move(pose));
+		}
+
+		void RenameScenePath(const std::filesystem::path& oldPath, const std::filesystem::path& newPath) {
+			const auto oldKey = oldPath.lexically_normal().generic_string();
+			const auto newKey = newPath.lexically_normal().generic_string();
+			if (oldKey.empty() || newKey.empty() || oldKey == newKey) return;
+
+			if (LastScenePath == oldKey) LastScenePath = newKey;
+			auto oldPose = std::find_if(SceneCameraPoses.begin(), SceneCameraPoses.end(), [&](const PersistedSceneCameraPose& pose) {
+				return pose.ScenePath == oldKey;
+			});
+			if (oldPose == SceneCameraPoses.end()) return;
+
+			PersistedSceneCameraPose migratedPose = *oldPose;
+			migratedPose.ScenePath = newKey;
+			SceneCameraPoses.erase(std::remove_if(SceneCameraPoses.begin(), SceneCameraPoses.end(), [&](const PersistedSceneCameraPose& pose) {
+				return pose.ScenePath == oldKey || pose.ScenePath == newKey;
+			}), SceneCameraPoses.end());
+			SceneCameraPoses.push_back(std::move(migratedPose));
 		}
 
 		[[nodiscard]] bool HasProject() const {

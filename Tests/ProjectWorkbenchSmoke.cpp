@@ -72,9 +72,11 @@ int main() {
 	session.LastStatus = status;
 	session.Loaded = true;
 
+	const auto scenePath = context.GetAssetRootPath() / "workbench_scene.scene";
+	HE::AssetGuid sceneGuid;
+	Require(operations.CreateSceneAsset(context, scenePath, &sceneGuid).Succeeded(), "Expected persisted scene asset creation");
 	HE::Ref<HE::Scene> scene;
-	auto createScene = operations.CreateScene("WorkbenchScene", scene);
-	Require(createScene.Succeeded() && scene, "Expected scene.create to succeed");
+	Require(operations.LoadScene(scenePath, scene).Succeeded() && scene, "Expected created scene asset to load");
 
 	auto entity = ECSTestSupport::Take(scene->CreateEntity());
 	auto& transform = ECSTestSupport::Get<HE::TransformComponent>(scene->GetWorld(), entity);
@@ -82,15 +84,22 @@ int main() {
 
 	HE::SceneDocument document;
 	document.SceneRef = scene;
+	document.ScenePath = scenePath;
 	document.DisplayName = "WorkbenchScene";
 	document.MarkDirty();
-	Require(document.Dirty, "Expected a new document to be markable as dirty");
+	Require(document.IsLoaded() && document.Dirty, "Expected a persisted document to be markable as dirty");
 
-	const auto scenePath = context.GetAssetRootPath() / "workbench_scene.scene";
 	auto saveScene = operations.SaveScene(*scene, scenePath);
 	Require(saveScene.Succeeded(), "Expected scene.save to succeed for the initial document");
 	document.MarkSaved(scenePath);
 	session.LastOpenedScenePath = scenePath;
+	const auto documentRenamePath = context.GetAssetRootPath() / "document_renamed.scene";
+	document.MarkDirty();
+	document.RenamePath(documentRenamePath);
+	Require(document.ScenePath == documentRenamePath, "Expected scene document path migration");
+	Require(document.DisplayName == "document_renamed", "Expected renamed scene document display name");
+	Require(document.Dirty, "Expected scene document rename to preserve dirty state");
+	document.RenamePath(scenePath);
 
 	HE::PersistedEditorSession persisted;
 	persisted.LastProjectRoot = context.RootPath.generic_string();
@@ -116,6 +125,12 @@ int main() {
 	Require(loadedCameraPose->PositionZ == 3.75f, "Expected persisted scene camera position parity");
 	Require(loadedCameraPose->Yaw == -0.5f, "Expected persisted scene camera orientation parity");
 	Require(loadedSession.FindSceneCameraPose("secondary.scene") != nullptr, "Expected multiple scene camera poses to persist");
+
+	const auto renamedScenePath = context.GetAssetRootPath() / "renamed_workbench_scene.scene";
+	loadedSession.RenameScenePath(scenePath, renamedScenePath);
+	Require(loadedSession.LastScenePath == renamedScenePath.generic_string(), "Expected persisted last scene path migration");
+	Require(loadedSession.FindSceneCameraPose(renamedScenePath.generic_string()) != nullptr, "Expected persisted camera pose path migration");
+	Require(loadedSession.FindSceneCameraPose(scenePath.generic_string()) == nullptr, "Expected old persisted camera pose path removal");
 
 	HE::Ref<HE::Scene> reopenedScene;
 	auto loadScene = operations.LoadScene(session.LastOpenedScenePath, reopenedScene);

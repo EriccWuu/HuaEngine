@@ -322,7 +322,11 @@ namespace HE::HostSmoke {
         }
         if (!requested) {
             Log::Init();
-            auto app = create(args, {}); app->Start(); app->Run(); return 0;
+            auto app = create(args, {});
+            if (!app) return 0;
+            app->Start();
+            app->Run();
+            return 0;
         }
         auto smoke = std::make_shared<Session>();
         smoke->Host = std::move(host);

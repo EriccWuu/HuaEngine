@@ -2,7 +2,6 @@
 #include "EditorLayer.h"
 
 #include <algorithm>
-#include <cctype>
 #include <cstring>
 #include <filesystem>
 #include <optional>
@@ -15,6 +14,7 @@
 #include "HuaEngine/Core/HostLaunch.h"
 #include "HuaEngine/Asset/Import/ShaderDescriptor.h"
 #include "HuaEngine/Rendering/RHI/RenderHardwareInterface.h"
+#include "Panels/ProjectAssetNaming.h"
 #include "Input/EditorInputBindingStorage.h"
 #include "Interaction/EditorSceneCommands.h"
 #include "Workbench/EcsHostSmoke.h"
@@ -26,14 +26,6 @@
 
 namespace HE {
     namespace {
-        const char* ToString(SceneDocumentSource source) {
-            switch (source) {
-                case SceneDocumentSource::NewScene: return "new";
-                case SceneDocumentSource::LoadedFromDisk: return "loaded";
-                default: return "unknown";
-            }
-        }
-
         void CopyToBuffer(std::string_view value, char* buffer, size_t size) {
             if (!buffer || size == 0) {
                 return;
@@ -65,23 +57,6 @@ namespace HE {
             return absolutePath.lexically_normal();
         }
 
-        std::string MakeSceneFileName(std::string_view sceneName) {
-            std::string fileName = sceneName.empty() ? std::string("untitled_scene") : std::string(sceneName);
-            for (char& character : fileName) {
-                if (std::isalnum(static_cast<unsigned char>(character)) != 0) {
-                    character = static_cast<char>(std::tolower(static_cast<unsigned char>(character)));
-                } else {
-                    character = '_';
-                }
-            }
-
-            if (!fileName.ends_with(".scene")) {
-                fileName += ".scene";
-            }
-
-            return fileName;
-        }
-
         uint32_t DecodeObjectId(Rendering::RenderTargetPixelRGBA8 pixel) {
             return static_cast<uint32_t>(pixel.R)
                 | (static_cast<uint32_t>(pixel.G) << 8u)
@@ -96,6 +71,7 @@ namespace HE {
         m_EditorCameraController = CreateRef<Editor::EditorCameraController>();
         m_ProjectPanel.reset(new ProjectPanel());
         m_ProjectPanel->SetWorkbenchState(&m_WorkbenchState);
+		m_ProjectPanel->SetCreationRegistry(&m_AssetCreationRegistry);
 		m_ProjectPanel->SetCanReimportCallback([](const std::filesystem::path& sourcePath) {
 			return Application::GetInstance().GetOperations().CanImportAssetSource(sourcePath);
 		});
@@ -104,6 +80,25 @@ namespace HE {
 		m_AssetInspectorEditor->SetOpenSceneCallback([this](const std::filesystem::path& path) {
 			RequestWorkbenchAction({ WorkbenchActionType::OpenScene, path });
 		});
+		(void)m_AssetCreationRegistry.Register({ "scene", AssetKind::Scene, "Scene", "New Scene", ".scene" });
+		(void)m_AssetWorkspaceController.RegisterCreator("scene", [this](const std::filesystem::path& path, AssetGuid* outGuid) {
+			if (!m_ProjectSession.IsLoaded()) {
+				return ResultEnvelope::Failure("asset.scene.create", path.generic_string(), "A loaded project is required");
+			}
+			return Application::GetInstance().GetOperations().CreateSceneAsset(m_ProjectSession.Context, path, outGuid);
+		});
+		m_AssetWorkspaceController.SetRenameHandler([this](const AssetGuid& guid, std::string_view newBaseName, AssetRecord* outRecord) {
+			if (!m_ProjectSession.IsLoaded()) {
+				return ResultEnvelope::Failure("asset.rename", guid, "A loaded project is required");
+			}
+			return Application::GetInstance().GetOperations().RenameAsset(m_ProjectSession.Context, guid, newBaseName, outRecord);
+		});
+		m_AssetWorkspaceController.SetDeleteHandler([this](const AssetGuid& guid) {
+			if (!m_ProjectSession.IsLoaded()) {
+				return ResultEnvelope::Failure("asset.delete", guid, "A loaded project is required");
+			}
+			return Application::GetInstance().GetOperations().DeleteAsset(m_ProjectSession.Context, guid);
+		});
 		m_SceneEntityInspectorEditor = CreateRef<Editor::SceneEntityInspectorEditor>(m_AssetPickerCatalog);
 		m_SceneEntityInspectorEditor->SetWorkbenchState(&m_WorkbenchState);
         m_Inspector.reset(new InspectorPanel(*m_AssetInspectorEditor, *m_SceneEntityInspectorEditor));
@@ -111,7 +106,6 @@ namespace HE {
         m_Concole->SetWorkbenchState(&m_WorkbenchState);
         m_InteractionHost.SetStateChangedCallback([this]() {
             SyncSceneDocumentState();
-            RefreshCommandInputs();
         });
     }
 
@@ -169,7 +163,9 @@ namespace HE {
         smoke.Snapshots["project_path"] = NormalizePath(m_ProjectSession.Context.RootPath).generic_string();
         smoke.Event("project_opened");
         const auto scenePath = m_ProjectSession.Context.GetAssetRootPath() / "host.scene";
-        HostSmoke::Require(SaveActiveSceneDocumentAs(scenePath) && OpenSceneDocument(scenePath),
+        AssetGuid sceneGuid;
+        CaptureOperationResult(Application::GetInstance().GetOperations().CreateSceneAsset(m_ProjectSession.Context, scenePath, &sceneGuid));
+        HostSmoke::Require(m_LastOperationResult.Succeeded() && RefreshAssetPickerCatalog() && OpenSceneDocument(scenePath),
             "Cannot create and load the smoke scene: " + m_LastOperationResult.Summary);
         smoke.Snapshots["scene_path"] = NormalizePath(scenePath).generic_string();
         smoke.Event("scene_loaded");
@@ -282,7 +278,6 @@ namespace HE {
 
         CopyToBuffer(m_WorkbenchRootPath.generic_string(), m_ProjectHubPathInput.data(), m_ProjectHubPathInput.size());
         CopyToBuffer(m_Specification.WorkbenchProjectName, m_ProjectHubNameInput.data(), m_ProjectHubNameInput.size());
-        CopyToBuffer(m_Specification.InitialSceneName, m_NewSceneNameInput.data(), m_NewSceneNameInput.size());
 
         PersistedEditorSession persistedSession;
         if (EditorSessionStorage::Load(persistedSession) && persistedSession.HasProject()) {
@@ -302,7 +297,6 @@ namespace HE {
             m_HasPersistedSession = false;
         }
 
-        RefreshCommandInputs();
         return true;
     }
 
@@ -375,7 +369,7 @@ namespace HE {
         }
 
         if (!restoredScene && seedInitialScene) {
-            if (!CreateNewSceneDocument(m_Specification.InitialSceneName)) {
+			if (!CreateInitialSceneAsset()) {
                 CloseProjectSession(true, "Initial scene creation failed");
                 return false;
             }
@@ -409,10 +403,9 @@ namespace HE {
         }
     }
 
-    void EditorLayer::SetSceneDocument(const Ref<Scene>& scene, const std::filesystem::path& scenePath, SceneDocumentSource source) {
+	void EditorLayer::SetSceneDocument(const Ref<Scene>& scene, const std::filesystem::path& scenePath) {
         m_SceneDocument.SceneRef = scene;
         m_SceneDocument.ScenePath = scenePath;
-        m_SceneDocument.Source = source;
         m_SceneDocument.Dirty = false;
         m_SceneDocument.DisplayName = !scenePath.empty()
             ? scenePath.stem().string()
@@ -421,7 +414,6 @@ namespace HE {
         SyncSceneDocumentState();
         RefreshInteractionHost();
         m_InteractionHost.ResetCommandHistory(true);
-        RefreshCommandInputs();
         if (m_ProjectPanel) {
             m_ProjectPanel->SetCurrentScenePath(scenePath);
         }
@@ -464,7 +456,6 @@ namespace HE {
         SyncWorkbenchSessionState();
         SyncSceneDocumentState();
         RefreshInteractionHost();
-        RefreshCommandInputs();
         if (m_ProjectPanel) {
             m_ProjectPanel->SetProjectRoot(m_ProjectSession.Context.RootPath);
             m_ProjectPanel->SetCurrentScenePath(m_SceneDocument.ScenePath);
@@ -486,7 +477,6 @@ namespace HE {
         SyncWorkbenchSessionState();
         SyncSceneDocumentState();
         RefreshInteractionHost();
-        RefreshCommandInputs();
         EnterProjectHub();
 
         if (m_HasPersistedSession && preserveResumeState) {
@@ -530,7 +520,7 @@ namespace HE {
         summary.Dirty = m_SceneDocument.Dirty;
         summary.DisplayName = m_SceneDocument.DisplayName;
         summary.ScenePath = m_SceneDocument.ScenePath.generic_string();
-        summary.Source = ToString(m_SceneDocument.Source);
+		summary.Source = "asset";
         if (m_SceneDocument.SceneRef) {
             summary.EntityCount = static_cast<uint32_t>(m_SceneDocument.SceneRef->GetWorld().EntityCount());
         }
@@ -553,15 +543,9 @@ namespace HE {
 		registerCommand({ "editor.entity.create", "New Entity", "Scene", [this]() { return m_InteractionHost.HasActiveScene(); }, [this]() { CreateEntityFromHierarchy(); } });
 		registerCommand({ "editor.entity.delete", "Delete Selected", "Scene", []() { return Selection::HasSelection(); }, [this]() { DeleteSelectedEntities(); } });
 		registerCommand({
-			"editor.scene.save", "Save", "Scene",
-			[this]() { return m_SceneDocument.IsLoaded() || (Selection::HasAssetSelection() && m_AssetInspectorEditor->HasDirtyEdit()); },
-			[this]() {
-				if (Selection::HasAssetSelection() && m_AssetInspectorEditor->HasDirtyEdit()) {
-					(void)m_AssetInspectorEditor->Apply();
-					return;
-				}
-				SaveActiveSceneDocument();
-			}
+			"editor.document.save_all", "Save All", "File",
+			[this]() { return (m_SceneDocument.IsLoaded() && m_SceneDocument.Dirty) || m_AssetInspectorEditor->HasDirtyEdit(); },
+			[this]() { (void)SaveAllDocuments(); }
 		});
 		registerCommand({ "editor.project.resume", "Resume Last Project", "Project", [this]() { return m_HasPersistedSession && !m_ProjectSession.IsLoaded(); }, [this]() { ResumePersistedProjectSession(); } });
 		registerCommand({ "editor.project.close", "Close Project", "Project", [this]() { return m_ProjectSession.IsLoaded(); }, [this]() { RequestWorkbenchAction({ WorkbenchActionType::CloseProject }); } });
@@ -578,20 +562,12 @@ namespace HE {
 				}
 			}
 		});
-		registerCommand({ "editor.scene.new", "New Scene...", "Scene", [this]() { return m_ProjectSession.IsLoaded(); }, [this]() { CopyToBuffer(m_Specification.InitialSceneName, m_NewSceneNameInput.data(), m_NewSceneNameInput.size()); m_RequestNewScenePopup = true; } });
-		registerCommand({ "editor.scene.open", "Open Scene...", "Scene", [this]() { return m_ProjectSession.IsLoaded(); }, [this]() { m_RequestOpenScenePopup = true; } });
-		registerCommand({ "editor.scene.save_as", "Save Scene As...", "Scene", [this]() { return m_SceneDocument.IsLoaded(); }, [this]() { m_RequestSaveSceneAsPopup = true; } });
-		registerCommand({
-			"editor.scene.validate", "Validate Scene", "Scene", [this]() { return m_SceneDocument.IsLoaded(); },
-			[this]() {
-				CaptureOperationResult(Application::GetInstance().GetOperations().ValidateScene(*m_SceneDocument.SceneRef));
-				RefreshWorkbenchValidation();
-			}
-		});
 		registerCommand({ "editor.gizmo.translate", "Translate Tool", "Scene", []() { return true; }, [this]() { m_GizmoOperation = ImGuizmo::TRANSLATE; } });
 		registerCommand({ "editor.gizmo.rotate", "Rotate Tool", "Scene", []() { return true; }, [this]() { m_GizmoOperation = ImGuizmo::ROTATE; } });
 		registerCommand({ "editor.gizmo.scale", "Scale Tool", "Scene", []() { return true; }, [this]() { m_GizmoOperation = ImGuizmo::SCALE; } });
 		registerCommand({ "editor.hierarchy.focus_filter", "Focus Hierarchy Filter", "Hierarchy", [this]() { return m_HierarchyPanel != nullptr; }, [this]() { m_HierarchyPanel->RequestFilterFocus(); } });
+		registerCommand({ "editor.project.cancel_rename", "Cancel Rename", "Project", [this]() { return m_ProjectPanel && m_ProjectPanel->IsRenaming(); }, [this]() { m_ProjectPanel->CancelRename(); } });
+		registerCommand({ "editor.console.copy", "Copy", "Edit", [this]() { return m_Concole && m_Concole->HasSelectedLog(); }, [this]() { m_Concole->CopySelectedLog(); } });
 
 		const auto ctrl = InputModifiers::Control;
 		const auto ctrlShift = InputModifiers::Control | InputModifiers::Shift;
@@ -599,11 +575,13 @@ namespace HE {
 		(void)input.Bindings().RegisterDefaultCommand({ "redo", "editor.redo", "Global", { KeyboardControl(Key::Y), ctrl, InputTrigger::Pressed, true }, 0, true });
 		(void)input.Bindings().RegisterDefaultCommand({ "entity.create", "editor.entity.create", "Global", { KeyboardControl(Key::N), ctrlShift, InputTrigger::Pressed, true }, 0, true });
 		(void)input.Bindings().RegisterDefaultCommand({ "entity.delete", "editor.entity.delete", "Global", { KeyboardControl(Key::Delete), InputModifiers::None, InputTrigger::Pressed, true }, 0, true });
-		(void)input.Bindings().RegisterDefaultCommand({ "scene.save", "editor.scene.save", "Global", { KeyboardControl(Key::S), ctrl, InputTrigger::Pressed, true }, 0, true });
+		(void)input.Bindings().RegisterDefaultCommand({ "document.save_all", "editor.document.save_all", "Global", { KeyboardControl(Key::S), ctrl, InputTrigger::Pressed, true }, 0, true });
 		(void)input.Bindings().RegisterDefaultCommand({ "gizmo.translate", "editor.gizmo.translate", "SceneViewport", { KeyboardControl(Key::W), InputModifiers::None, InputTrigger::Pressed, true }, 0, true });
 		(void)input.Bindings().RegisterDefaultCommand({ "gizmo.rotate", "editor.gizmo.rotate", "SceneViewport", { KeyboardControl(Key::E), InputModifiers::None, InputTrigger::Pressed, true }, 0, true });
 		(void)input.Bindings().RegisterDefaultCommand({ "gizmo.scale", "editor.gizmo.scale", "SceneViewport", { KeyboardControl(Key::R), InputModifiers::None, InputTrigger::Pressed, true }, 0, true });
 		(void)input.Bindings().RegisterDefaultCommand({ "hierarchy.focus_filter", "editor.hierarchy.focus_filter", "Hierarchy", { KeyboardControl(Key::F), ctrl, InputTrigger::Pressed, true }, 0, true });
+		(void)input.Bindings().RegisterDefaultCommand({ "project.cancel_rename", "editor.project.cancel_rename", "TextInput", { KeyboardControl(Key::Escape), InputModifiers::None, InputTrigger::Pressed, true }, 0, true });
+		(void)input.Bindings().RegisterDefaultCommand({ "console.copy", "editor.console.copy", "Console", { KeyboardControl(Key::C), ctrl, InputTrigger::Pressed, true }, 0, true });
 		auto registerAction = [&](Editor::EditorActionBinding binding) { (void)input.Bindings().RegisterDefaultAction(std::move(binding)); };
 		registerAction({ .Id = "camera.forward", .ActionId = "editor.camera.forward", .ContextId = "SceneViewport", .Gesture = { KeyboardControl(Key::W), InputModifiers::None, InputTrigger::Held, true }, .Scale = 1.0f });
 		registerAction({ .Id = "camera.backward", .ActionId = "editor.camera.forward", .ContextId = "SceneViewport", .Gesture = { KeyboardControl(Key::S), InputModifiers::None, InputTrigger::Held, true }, .Scale = -1.0f });
@@ -692,28 +670,6 @@ namespace HE {
 		m_ProjectPanel->SetInputService(&input);
     }
 
-
-    void EditorLayer::RefreshCommandInputs() {
-        CopyToBuffer(m_Specification.InitialSceneName, m_NewSceneNameInput.data(), m_NewSceneNameInput.size());
-
-        if (!m_ProjectSession.IsLoaded()) {
-            m_SceneOpenPathInput[0] = '\0';
-            m_SceneSaveAsPathInput[0] = '\0';
-            return;
-        }
-
-        const auto sceneRoot = m_ProjectSession.Context.GetAssetRootPath();
-        const auto defaultOpenPath = !m_SceneDocument.ScenePath.empty() ? m_SceneDocument.ScenePath : sceneRoot;
-        const auto defaultSaveAsPath = !m_SceneDocument.ScenePath.empty()
-            ? m_SceneDocument.ScenePath
-            : (sceneRoot / MakeSceneFileName(m_SceneDocument.DisplayName.empty() ? m_Specification.InitialSceneName : m_SceneDocument.DisplayName));
-
-        CopyToBuffer(defaultOpenPath.generic_string(), m_SceneOpenPathInput.data(), m_SceneOpenPathInput.size());
-        CopyToBuffer(defaultSaveAsPath.generic_string(), m_SceneSaveAsPathInput.data(), m_SceneSaveAsPathInput.size());
-        if (m_SceneDocument.IsLoaded() && !m_SceneDocument.DisplayName.empty()) {
-            CopyToBuffer(m_SceneDocument.DisplayName, m_NewSceneNameInput.data(), m_NewSceneNameInput.size());
-        }
-    }
 
 	bool EditorLayer::RefreshAssetPickerCatalog() {
 		if (!m_ProjectSession.IsLoaded()) {
@@ -853,33 +809,22 @@ namespace HE {
         return true;
     }
 
-    bool EditorLayer::CreateNewSceneDocument(std::string_view sceneName) {
+    bool EditorLayer::CreateInitialSceneAsset() {
         if (!m_ProjectSession.IsLoaded()) {
-            auto result = ResultEnvelope::Failure("editor.workbench.new_scene", "editor.workbench", "A project session is required before creating a scene");
-            result.AddDetail({ DiagnosticSeverity::Error, "editor.workbench.new_scene.project_missing", "Open or create a project before creating a scene document", {} });
+			auto result = ResultEnvelope::Failure("editor.workbench.seed_scene", "editor.workbench", "A project session is required before creating the initial scene");
             CaptureOperationResult(result);
             return false;
         }
 
-        Ref<Scene> scene;
-        CaptureOperationResult(Application::GetInstance().GetOperations().CreateScene(sceneName, scene));
-        if (!m_LastOperationResult.Succeeded() || !scene) {
-            return false;
-        }
-
-		m_EditorCameraController->ResetPose();
-        SetSceneDocument(scene, {}, SceneDocumentSource::NewScene);
-        m_SceneDocument.DisplayName = sceneName.empty() ? m_Specification.InitialSceneName : std::string(sceneName);
-        m_ProjectSession.LastOpenedScenePath.clear();
-        SyncSceneDocumentState();
-        SyncWorkbenchSessionState();
-        CaptureOperationResult(m_InteractionHost.MarkExternalSceneMutation(
-            "editor.scene.create_new_document",
-            "scene:new",
-            "Created a new unsaved scene document"));
-        RefreshWorkbenchValidation();
-        PersistCurrentProjectSession();
-        return true;
+		const auto scenePath = Editor::GenerateUniqueAssetPath(
+			m_ProjectSession.Context.GetAssetRootPath(),
+			m_Specification.InitialSceneName,
+			".scene");
+		AssetGuid guid;
+		CaptureOperationResult(Application::GetInstance().GetOperations().CreateSceneAsset(m_ProjectSession.Context, scenePath, &guid));
+		if (!m_LastOperationResult.Succeeded()) return false;
+		if (!RefreshAssetPickerCatalog()) return false;
+		return OpenSceneDocument(scenePath);
     }
 
     bool EditorLayer::OpenSceneDocument(const std::filesystem::path& scenePath) {
@@ -899,7 +844,7 @@ namespace HE {
 
 		PersistCurrentProjectSession();
 		RestoreSceneCameraPose(resolvedPath);
-        SetSceneDocument(scene, resolvedPath, SceneDocumentSource::LoadedFromDisk);
+		SetSceneDocument(scene, resolvedPath);
         m_ProjectSession.LastOpenedScenePath = resolvedPath;
         SyncWorkbenchSessionState();
         m_InteractionHost.MarkSaved();
@@ -916,45 +861,128 @@ namespace HE {
             return false;
         }
 
-        if (!m_SceneDocument.ScenePath.empty()) {
-            return SaveActiveSceneDocumentAs(m_SceneDocument.ScenePath);
-        }
-
-        const auto defaultPath = m_ProjectSession.Context.GetAssetRootPath() / MakeSceneFileName(m_SceneDocument.DisplayName);
-        return SaveActiveSceneDocumentAs(defaultPath);
-    }
-
-    bool EditorLayer::SaveActiveSceneDocumentAs(const std::filesystem::path& scenePath) {
-        if (!m_ProjectSession.IsLoaded() || !m_SceneDocument.SceneRef) {
-            auto result = ResultEnvelope::Failure("editor.workbench.save_scene_as", "editor.workbench", "A loaded project and scene document are required before saving");
-            result.AddDetail({ DiagnosticSeverity::Error, "editor.workbench.save_scene_as.scene_missing", "Create or open a scene before saving it", {} });
-            CaptureOperationResult(result);
-            return false;
-        }
-
-        auto resolvedPath = ResolveScenePathInput(scenePath);
-        if (resolvedPath.extension() != ".scene") {
-            resolvedPath += ".scene";
-        }
-
-        CaptureOperationResult(Application::GetInstance().GetOperations().SaveScene(*m_SceneDocument.SceneRef, resolvedPath));
+		CaptureOperationResult(Application::GetInstance().GetOperations().SaveScene(*m_SceneDocument.SceneRef, m_SceneDocument.ScenePath));
         if (!m_LastOperationResult.Succeeded()) {
             return false;
         }
-		CaptureOperationResult(Application::GetInstance().GetOperations().RegisterSceneAsset(m_ProjectSession.Context, resolvedPath));
-		if (!m_LastOperationResult.Succeeded()) return false;
 
-        m_SceneDocument.MarkSaved(resolvedPath);
+		m_SceneDocument.MarkSaved(m_SceneDocument.ScenePath);
         m_InteractionHost.MarkSaved();
-        m_ProjectSession.LastOpenedScenePath = resolvedPath;
+		m_ProjectSession.LastOpenedScenePath = m_SceneDocument.ScenePath;
         SyncSceneDocumentState();
         SyncWorkbenchSessionState();
-        RefreshCommandInputs();
-		RefreshAssetPickerCatalog();
         RefreshWorkbenchValidation();
         PersistCurrentProjectSession();
         return true;
     }
+
+	bool EditorLayer::SaveAllDocuments() {
+		if (m_AssetInspectorEditor->HasDirtyEdit()) {
+			AssetApplyState state = AssetApplyState::ValidationFailed;
+			const auto result = m_AssetInspectorEditor->Apply(&state);
+			if (!result.Succeeded() || !IsAssetAuthoringDataSaved(state)) {
+				CaptureOperationResult(result);
+				return false;
+			}
+		}
+		if (m_SceneDocument.IsLoaded() && m_SceneDocument.Dirty && !SaveActiveSceneDocument()) {
+			return false;
+		}
+
+		CaptureOperationResult(ResultEnvelope::Success("editor.document.save_all", "editor.workbench", "All modified documents were saved"));
+		return true;
+	}
+
+	void EditorLayer::CreateProjectAsset(std::string_view typeId, const std::filesystem::path& targetDirectory) {
+		if (m_AssetInspectorEditor->RequestDirtyResolution([this, typeId = std::string(typeId), targetDirectory]() {
+			CreateProjectAsset(typeId, targetDirectory);
+		})) return;
+
+		auto mutation = m_AssetWorkspaceController.CreateAsset(m_AssetCreationRegistry, typeId, targetDirectory);
+		CaptureOperationResult(mutation.Result);
+		if (!mutation.Result.Succeeded()) return;
+		if (!RefreshAssetPickerCatalog()) return;
+		Selection::SelectAsset(mutation.Guid);
+		m_ProjectPanel->SetSelectedAssetGuid(mutation.Guid);
+		if (mutation.BeginRename) m_ProjectPanel->BeginRename(mutation.Guid);
+		RefreshWorkbenchValidation();
+	}
+
+	void EditorLayer::RenameProjectAsset(const AssetGuid& guid, std::string_view newBaseName) {
+		if (m_AssetInspectorEditor->HasDirtyEdit() && m_AssetInspectorEditor->GetEditingAssetGuid() == guid) {
+			if (m_AssetInspectorEditor->RequestDirtyResolution([this, guid, name = std::string(newBaseName)]() {
+				RenameProjectAsset(guid, name);
+			}, [this, guid, name = std::string(newBaseName)]() {
+				m_ProjectPanel->RetryRename(guid, name);
+			})) {
+				return;
+			}
+		}
+
+		auto mutation = m_AssetWorkspaceController.RenameAsset(guid, newBaseName);
+		CaptureOperationResult(mutation.Result);
+		if (!mutation.Result.Succeeded()) {
+			m_ProjectPanel->RetryRename(guid, newBaseName);
+			return;
+		}
+		m_ProjectPanel->CompleteRename(guid);
+		SynchronizeRenamedScenePath(mutation.OldPath, mutation.NewPath);
+		if (!RefreshAssetPickerCatalog()) return;
+		m_AssetInspectorEditor->Reload(guid);
+		Selection::SelectAsset(guid);
+		m_ProjectPanel->SetSelectedAssetGuid(guid);
+		RefreshWorkbenchValidation();
+	}
+
+	void EditorLayer::DeleteProjectAsset(const AssetGuid& guid) {
+		if (!m_ProjectSession.IsLoaded()) {
+			CaptureOperationResult(ResultEnvelope::Failure("editor.asset.delete", guid, "A loaded project is required"));
+			return;
+		}
+
+		std::vector<AssetRecord> records;
+		auto listResult = Application::GetInstance().GetOperations().ListAssets(m_ProjectSession.Context, records);
+		if (!listResult.Succeeded()) {
+			CaptureOperationResult(listResult);
+			return;
+		}
+		const auto target = std::find_if(records.begin(), records.end(), [&guid](const AssetRecord& record) { return record.Guid == guid; });
+		if (target == records.end() || target->Source != AssetSource::File) {
+			CaptureOperationResult(ResultEnvelope::Failure("editor.asset.delete", guid, "Only project file assets can be deleted"));
+			return;
+		}
+		if (m_SceneDocument.IsLoaded() && NormalizePath(target->AbsolutePath) == NormalizePath(m_SceneDocument.ScenePath)) {
+			auto result = ResultEnvelope::Failure("editor.asset.delete", guid, "The active scene cannot be deleted");
+			result.AddDetail({ DiagnosticSeverity::Error, "editor.asset.delete.active_scene", "Open another scene before deleting this asset", target->AbsolutePath.generic_string() });
+			CaptureOperationResult(result);
+			return;
+		}
+		if (m_AssetInspectorEditor->HasDirtyEdit() && m_AssetInspectorEditor->GetEditingAssetGuid() == guid) {
+			if (m_AssetInspectorEditor->RequestDirtyResolution([this, guid]() { DeleteProjectAsset(guid); })) return;
+		}
+
+		auto mutation = m_AssetWorkspaceController.DeleteAsset(guid);
+		CaptureOperationResult(mutation.Result);
+		if (!mutation.Result.Succeeded()) return;
+		if (Selection::HasAssetSelection() && Selection::GetSelectedAssetGuid() == guid) Selection::SelectAsset({});
+		m_ProjectPanel->SetSelectedAssetGuid({});
+		(void)RefreshAssetPickerCatalog();
+		RefreshWorkbenchValidation();
+	}
+
+	void EditorLayer::SynchronizeRenamedScenePath(
+		const std::filesystem::path& oldPath,
+		const std::filesystem::path& newPath) {
+		if (!m_SceneDocument.IsLoaded() || NormalizePath(m_SceneDocument.ScenePath) != NormalizePath(oldPath)) return;
+
+		m_SceneDocument.RenamePath(NormalizePath(newPath));
+		m_ProjectSession.LastOpenedScenePath = m_SceneDocument.ScenePath;
+		m_PersistedSession.RenameScenePath(NormalizePath(oldPath), m_SceneDocument.ScenePath);
+		m_ProjectPanel->SetCurrentScenePath(m_SceneDocument.ScenePath);
+		SyncSceneDocumentState();
+		SyncWorkbenchSessionState();
+		PersistCurrentProjectSession();
+	}
 
     void EditorLayer::RequestWorkbenchAction(const WorkbenchActionRequest& action) {
         if (action.Type == WorkbenchActionType::None) {
@@ -963,7 +991,7 @@ namespace HE {
 
 		const bool hasUnsavedChanges = (m_SceneDocument.IsLoaded() && m_SceneDocument.Dirty) || (m_AssetInspectorEditor && m_AssetInspectorEditor->HasDirtyEdit());
 		const bool actionLeavesDocument = action.Type == WorkbenchActionType::OpenProject || action.Type == WorkbenchActionType::CloseProject ||
-			action.Type == WorkbenchActionType::NewScene || action.Type == WorkbenchActionType::OpenScene || action.Type == WorkbenchActionType::Exit;
+			action.Type == WorkbenchActionType::OpenScene || action.Type == WorkbenchActionType::Exit;
 		if (hasUnsavedChanges && actionLeavesDocument) {
 			m_PendingAction = action;
 			m_OpenUnsavedChangesPopup = true;
@@ -980,8 +1008,6 @@ namespace HE {
             case WorkbenchActionType::CloseProject:
                 CloseProjectSession(true, "Project session was closed");
                 return true;
-            case WorkbenchActionType::NewScene:
-                return CreateNewSceneDocument(action.Name.empty() ? m_Specification.InitialSceneName : action.Name);
             case WorkbenchActionType::OpenScene:
                 return OpenSceneDocument(action.Path);
 			case WorkbenchActionType::Exit:
@@ -1341,6 +1367,15 @@ namespace HE {
 					case ProjectPanelActionType::SelectAsset:
 						Selection::SelectAsset(action->Guid);
 						break;
+					case ProjectPanelActionType::CreateAsset:
+						CreateProjectAsset(action->TypeId, action->Path);
+						break;
+					case ProjectPanelActionType::RenameAsset:
+						RenameProjectAsset(action->Guid, action->Name);
+						break;
+					case ProjectPanelActionType::DeleteAsset:
+						DeleteProjectAsset(action->Guid);
+						break;
                     default:
                         break;
                 }
@@ -1503,6 +1538,11 @@ namespace HE {
 
         if (ImGui::BeginMenuBar())
         {
+			if (ImGui::BeginMenu("File")) {
+				DrawCommandMenuItem("editor.document.save_all");
+				ImGui::EndMenu();
+			}
+
             if (ImGui::BeginMenu("Project")) {
 				DrawCommandMenuItem("editor.project.resume");
 				DrawCommandMenuItem("editor.project.close");
@@ -1510,16 +1550,6 @@ namespace HE {
 				DrawCommandMenuItem("editor.project.refresh");
                 ImGui::EndMenu();
             }
-
-            if (ImGui::BeginMenu("Scene")) {
-				DrawCommandMenuItem("editor.scene.new");
-				DrawCommandMenuItem("editor.scene.open");
-				DrawCommandMenuItem("editor.scene.save", "Save Scene");
-				DrawCommandMenuItem("editor.scene.save_as");
-				DrawCommandMenuItem("editor.scene.validate");
-                ImGui::EndMenu();
-            }
-
             if (ImGui::BeginMenu("Edit")) {
                 const auto undoLabel = m_InteractionHost.GetUndoLabel();
                 const auto redoLabel = m_InteractionHost.GetRedoLabel();
@@ -1563,60 +1593,7 @@ namespace HE {
             ImGui::EndMenuBar();
         }
 
-		if (m_RequestNewScenePopup) {
-			ImGui::OpenPopup("New Scene");
-			m_RequestNewScenePopup = false;
-		}
-		if (m_RequestOpenScenePopup) {
-			ImGui::OpenPopup("Open Scene");
-			m_RequestOpenScenePopup = false;
-		}
-		if (m_RequestSaveSceneAsPopup) {
-			ImGui::OpenPopup("Save Scene As");
-			m_RequestSaveSceneAsPopup = false;
-		}
-		m_IsModalOpen = ImGui::IsPopupOpen("New Scene") || ImGui::IsPopupOpen("Open Scene") ||
-			ImGui::IsPopupOpen("Save Scene As") || ImGui::IsPopupOpen("Unsaved Changes");
-
-        if (ImGui::BeginPopupModal("New Scene", nullptr, ImGuiWindowFlags_AlwaysAutoResize)) {
-            ImGui::InputText("Scene Name", m_NewSceneNameInput.data(), static_cast<int>(m_NewSceneNameInput.size()));
-            if (ImGui::Button("Create")) {
-                RequestWorkbenchAction({ WorkbenchActionType::NewScene, {}, m_NewSceneNameInput.data() });
-                ImGui::CloseCurrentPopup();
-            }
-            ImGui::SameLine();
-            if (ImGui::Button("Cancel")) {
-                ImGui::CloseCurrentPopup();
-            }
-            ImGui::EndPopup();
-        }
-
-        if (ImGui::BeginPopupModal("Open Scene", nullptr, ImGuiWindowFlags_AlwaysAutoResize)) {
-            ImGui::InputText("Scene Path", m_SceneOpenPathInput.data(), static_cast<int>(m_SceneOpenPathInput.size()));
-            if (ImGui::Button("Open")) {
-                RequestWorkbenchAction({ WorkbenchActionType::OpenScene, m_SceneOpenPathInput.data() });
-                ImGui::CloseCurrentPopup();
-            }
-            ImGui::SameLine();
-            if (ImGui::Button("Cancel")) {
-                ImGui::CloseCurrentPopup();
-            }
-            ImGui::EndPopup();
-        }
-
-        if (ImGui::BeginPopupModal("Save Scene As", nullptr, ImGuiWindowFlags_AlwaysAutoResize)) {
-            ImGui::InputText("Scene Path", m_SceneSaveAsPathInput.data(), static_cast<int>(m_SceneSaveAsPathInput.size()));
-            if (ImGui::Button("Save")) {
-                if (SaveActiveSceneDocumentAs(m_SceneSaveAsPathInput.data())) {
-                    ImGui::CloseCurrentPopup();
-                }
-            }
-            ImGui::SameLine();
-            if (ImGui::Button("Cancel")) {
-                ImGui::CloseCurrentPopup();
-            }
-            ImGui::EndPopup();
-        }
+		m_IsModalOpen = ImGui::IsPopupOpen(nullptr, ImGuiPopupFlags_AnyPopupId);
 
 		OnUnsavedChangesPopup();
         ImGui::End();
@@ -1663,7 +1640,6 @@ namespace HE {
         ImGui::Begin("Scene");
         if (!m_SceneDocument.SceneRef) {
             ImGui::TextUnformatted("No scene loaded.");
-            ImGui::TextWrapped("Use the Scene menu or the Project panel to create or open a scene document inside the current project.");
             ImGui::End();
             ImGui::PopStyleVar();
             return;

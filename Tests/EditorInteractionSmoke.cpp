@@ -126,18 +126,22 @@ int main() {
     auto checkStatus = operations.CheckProjectStatus(context, &status);
     Require(checkStatus.Succeeded() && status.IsOperational(), "Expected project.status to report an operational project");
 
-    HE::Ref<HE::Scene> scene;
-    auto createScene = operations.CreateScene("InteractionScene", scene);
-    Require(createScene.Succeeded() && scene, "Expected scene.create to succeed for editor interaction smoke");
+	const auto scenePath = context.GetAssetRootPath() / "InteractionScene.scene";
+	HE::AssetGuid sceneGuid;
+	Require(operations.CreateSceneAsset(context, scenePath, &sceneGuid).Succeeded(), "Expected persisted scene asset creation for editor interaction smoke");
+	HE::Ref<HE::Scene> scene;
+	Require(operations.LoadScene(scenePath, scene).Succeeded() && scene, "Expected persisted scene asset to load for editor interaction smoke");
 
     HE::EditorWorkbenchState workbenchState;
     HE::ProjectSession projectSession;
     projectSession.Context = context;
-    projectSession.LastStatus = status;
-    projectSession.Loaded = true;
+	projectSession.LastStatus = status;
+	projectSession.LastOpenedScenePath = scenePath;
+	projectSession.Loaded = true;
 
-    HE::SceneDocument sceneDocument;
-    sceneDocument.SceneRef = scene;
+	HE::SceneDocument sceneDocument;
+	sceneDocument.SceneRef = scene;
+	sceneDocument.ScenePath = scenePath;
     sceneDocument.DisplayName = "InteractionScene";
 
     HE::EditorInteractionHost interactionHost;

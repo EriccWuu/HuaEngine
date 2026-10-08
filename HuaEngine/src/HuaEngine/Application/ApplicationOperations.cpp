@@ -2,12 +2,15 @@
 #include "ApplicationOperations.h"
 
 #include "ApplicationServices.h"
+#include "SceneAssetCreationCleanup.h"
 #include "HuaEngine/ECS/Components.h"
 #include "HuaEngine/Project/ProjectContext.h"
 #include "HuaEngine/Project/ProjectService.h"
 #include "HuaEngine/Scene/Scene.h"
 #include "HuaEngine/Scene/SceneService.h"
 #include "HuaEngine/Asset/AssetService.h"
+#include "HuaEngine/Asset/AssetSourcePath.h"
+#include "HuaEngine/Asset/Metadata/AssetMeta.h"
 #include "HuaEngine/Rendering/RHI/RenderTarget.h"
 #include "HuaEngine/Rendering/RenderPipeline/RenderTypes.h"
 #include "HuaEngine/Validation/ValidationService.h"
@@ -102,6 +105,55 @@ namespace {
 				diagnostic.PassName
 			});
 		}
+	}
+
+	bool TryResolveNewSceneAssetPath(
+		const HE::ProjectContext& context,
+		const std::filesystem::path& requestedPath,
+		std::filesystem::path& outPath,
+		HE::ResultEnvelope& outError) {
+		if (!context.IsLoaded()) {
+			outError = HE::ResultEnvelope::Failure("asset.scene.create", requestedPath.generic_string(), "A loaded project context is required");
+			return false;
+		}
+		if (requestedPath.empty()) {
+			outError = HE::ResultEnvelope::Failure("asset.scene.create", {}, "Scene asset path is empty");
+			return false;
+		}
+
+		std::error_code errorCode;
+		const auto assetRoot = std::filesystem::weakly_canonical(context.GetAssetRootPath(), errorCode);
+		if (errorCode) {
+			outError = HE::ResultEnvelope::Failure("asset.scene.create", requestedPath.generic_string(), "Project asset root could not be resolved");
+			outError.AddDetail({ HE::DiagnosticSeverity::Error, "asset.root.resolve_failed", errorCode.message(), context.GetAssetRootPath().generic_string() });
+			return false;
+		}
+
+		const auto candidate = requestedPath.is_absolute() ? requestedPath : assetRoot / requestedPath;
+		outPath = std::filesystem::weakly_canonical(candidate, errorCode);
+		const auto relativePath = outPath.lexically_relative(assetRoot);
+		if (errorCode || !HE::IsSafeAssetRelativePath(relativePath)) {
+			outError = HE::ResultEnvelope::Failure("asset.scene.create", requestedPath.generic_string(), "Scene asset path must remain under the project Assets directory");
+			outError.AddDetail({ HE::DiagnosticSeverity::Error, "asset.path.outside_root", errorCode ? errorCode.message() : "Path escapes the asset root", requestedPath.generic_string() });
+			return false;
+		}
+		if (outPath.extension() != ".scene") {
+			outError = HE::ResultEnvelope::Failure("asset.scene.create", relativePath.generic_string(), "Scene asset path must use the .scene extension");
+			return false;
+		}
+
+		errorCode.clear();
+		const auto metaPath = HE::GetAssetMetaPath(outPath);
+		if (std::filesystem::exists(outPath, errorCode) || std::filesystem::exists(metaPath, errorCode)) {
+			outError = HE::ResultEnvelope::Failure("asset.scene.create", relativePath.generic_string(), "Scene asset target already exists");
+			return false;
+		}
+		if (errorCode) {
+			outError = HE::ResultEnvelope::Failure("asset.scene.create", relativePath.generic_string(), "Scene asset target could not be inspected");
+			outError.AddDetail({ HE::DiagnosticSeverity::Error, "asset.scene.target_inspection_failed", errorCode.message(), outPath.generic_string() });
+			return false;
+		}
+		return true;
 	}
 }
 
@@ -462,6 +514,58 @@ namespace HE {
 		return m_Services->Assets().RegisterSceneAsset(context, sourcePath, outGuid);
 	}
 
+	ResultEnvelope ApplicationOperations::CreateSceneAsset(
+		const ProjectContext& context,
+		const std::filesystem::path& assetPath,
+		AssetGuid* outGuid) const
+	{
+		std::filesystem::path resolvedPath;
+		ResultEnvelope pathError;
+		if (!TryResolveNewSceneAssetPath(context, assetPath, resolvedPath, pathError)) {
+			return pathError;
+		}
+
+		Ref<Scene> scene;
+		auto createResult = m_Services->Scenes().CreateScene(resolvedPath.stem().string(), scene);
+		if (!createResult.Succeeded()) {
+			createResult.Operation = "asset.scene.create";
+			return createResult;
+		}
+
+		auto saveResult = m_Services->Scenes().SaveScene(*scene, resolvedPath);
+		if (!saveResult.Succeeded()) {
+			const std::array createdPaths{ resolvedPath };
+			return CleanupSceneAssetCreationFailure(std::move(saveResult), createdPaths);
+		}
+
+		AssetGuid guid;
+		auto registerResult = m_Services->Assets().RegisterSceneAsset(context, resolvedPath, &guid);
+		if (!registerResult.Succeeded()) {
+			const std::array createdPaths{ resolvedPath };
+			return CleanupSceneAssetCreationFailure(std::move(registerResult), createdPaths);
+		}
+
+		if (outGuid) {
+			*outGuid = guid;
+		}
+		registerResult.Operation = "asset.scene.create";
+		registerResult.Summary = "Scene asset created";
+		return registerResult;
+	}
+
+	ResultEnvelope ApplicationOperations::RenameAsset(
+		const ProjectContext& context,
+		const AssetGuid& guid,
+		std::string_view newBaseName,
+		AssetRecord* outRecord) const
+	{
+		return m_Services->Assets().RenameAsset(context, guid, newBaseName, outRecord);
+	}
+
+	ResultEnvelope ApplicationOperations::DeleteAsset(const ProjectContext& context, const AssetGuid& guid) const {
+		return m_Services->Assets().DeleteAsset(context, guid);
+	}
+
 	ResultEnvelope ApplicationOperations::InspectAsset(const AssetGuid& guid, AssetInspectionSnapshot& outSnapshot) const {
 		return m_Services->Assets().InspectAsset(guid, outSnapshot);
 	}
@@ -683,6 +787,8 @@ namespace HE {
 		m_Registry.Register({ "asset.initialize", OperationDomain::Asset, "Initialize the project asset Library and import missing artifacts" });
 		m_Registry.Register({ "asset.import", OperationDomain::Asset, "Import a single project asset into the manifest" });
 		m_Registry.Register({ "asset.reimport", OperationDomain::Asset, "Reimport project asset files into the Library" });
+		m_Registry.Register({ "asset.scene.create", OperationDomain::Asset, "Create and register a persisted scene asset" });
+		m_Registry.Register({ "asset.delete", OperationDomain::Asset, "Delete a project asset and generated artifacts" });
 		m_Registry.Register({ "asset.list", OperationDomain::Asset, "List project manifest assets" });
 		m_Registry.Register({ "asset.resolve", OperationDomain::Asset, "Resolve an asset record by GUID, handle, or asset id" });
 		m_Registry.Register({ "asset.validate", OperationDomain::Asset, "Validate project asset registry health" });

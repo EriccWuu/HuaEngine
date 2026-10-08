@@ -22,9 +22,13 @@ namespace HE::Editor {
 		void DrawModals();
 
 		[[nodiscard]] bool HasDirtyEdit() const;
+		[[nodiscard]] const AssetGuid& GetEditingAssetGuid() const;
 		[[nodiscard]] ResultEnvelope Apply(AssetApplyState* outState = nullptr);
 		void Revert();
-		bool RequestDirtyResolution(std::function<void()> continuation);
+		void Reload(const AssetGuid& guid);
+		bool RequestDirtyResolution(
+			std::function<void()> continuation,
+			std::function<void()> cancellation = {});
 		void CheckExternalModification();
 
 		void BindProject(const ProjectContext* projectContext);
@@ -41,6 +45,7 @@ namespace HE::Editor {
 		EditorWorkbenchState* m_WorkbenchState = nullptr;
 		const ProjectContext* m_ProjectContext = nullptr;
 		std::function<void()> m_DirtyContinuation;
+		std::function<void()> m_DirtyCancellation;
 		std::function<void(const std::filesystem::path&)> m_OpenSceneCallback;
 		std::optional<AssetGuid> m_PendingReloadGuid;
 		bool m_OpenDirtyPopup = false;

@@ -41,6 +41,7 @@ namespace HE {
 			const AssetGuid& guid,
 			std::string_view importFingerprint,
 			const std::vector<DiagnosticEntry>& diagnostics);
+		ResultEnvelope RemoveAsset(const AssetGuid& guid);
 
 		ResultEnvelope ReadArtifact(
 			const AssetGuid& guid,

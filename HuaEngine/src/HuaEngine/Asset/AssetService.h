@@ -93,6 +93,14 @@ namespace HE {
 			const ProjectContext& context,
 			const std::filesystem::path& sourcePath,
 			AssetGuid* outGuid = nullptr);
+		[[nodiscard]] ResultEnvelope RenameAsset(
+			const ProjectContext& context,
+			const AssetGuid& guid,
+			std::string_view newBaseName,
+			AssetRecord* outRecord = nullptr);
+		[[nodiscard]] ResultEnvelope DeleteAsset(
+			const ProjectContext& context,
+			const AssetGuid& guid);
 
 		[[nodiscard]] ResultEnvelope CreateBuiltinMeshAsset(
 			const ProjectContext& context,

@@ -1,10 +1,26 @@
 #pragma once
 
+#include <optional>
+#include <span>
+#include <string>
+
 #include "HuaEngine/Core/Log.h"
 #include "Workbench/EditorWorkbenchState.h"
 #include "imgui.h"
 
 namespace HE {
+	struct ConsoleLogFilter {
+		bool Info = true;
+		bool Warning = true;
+		bool Error = true;
+
+		[[nodiscard]] bool Allows(spdlog::level::level_enum level) const;
+	};
+
+	[[nodiscard]] std::string BuildConsoleLogText(
+		std::span<const LogSink::LogLine> lines,
+		const ConsoleLogFilter& filter = {});
+
 	class ConcolePanel {
     public:
         ConcolePanel() = default;
@@ -15,12 +31,17 @@ namespace HE {
         void SetAutoScroll(bool enable) { m_AutoScroll = enable; }
 		[[nodiscard]] bool IsFocused() const { return m_IsFocused; }
 		[[nodiscard]] bool IsHovered() const { return m_IsHovered; }
+		[[nodiscard]] bool HasSelectedLog() const;
+		void CopySelectedLog() const;
+		void CopyAllLogs() const;
 
     private:
         bool m_AutoScroll = true;
         const EditorWorkbenchState* m_WorkbenchState = nullptr;
 		bool m_IsFocused = false;
 		bool m_IsHovered = false;
+		std::optional<size_t> m_SelectedLogIndex;
+		ConsoleLogFilter m_LogFilter;
 
         ImVec4 LevelToColor(spdlog::level::level_enum level);
         ImVec4 SeverityToColor(DiagnosticSeverity severity);

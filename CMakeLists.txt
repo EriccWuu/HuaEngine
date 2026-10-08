@@ -915,6 +915,30 @@ if(WIN32)
 endif()
 configure_smoke_target(ProjectWorkbenchSmoke)
 
+add_executable(EditorLaunchSmoke
+    Tests/EditorLaunchSmoke.cpp
+    Editor/src/Launch/EditorLaunch.cpp
+)
+target_include_directories(EditorLaunchSmoke PRIVATE
+    ${CMAKE_SOURCE_DIR}/Editor/src
+    ${CMAKE_SOURCE_DIR}/HuaEngine/src
+    ${SPDLOG_INCLUDE_DIR}
+    ${GLM_INCLUDE_DIR}
+    ${IMGUI_INCLUDE_DIR}
+    ${STB_IMAGE_INCLUDE_DIR}
+)
+target_link_libraries(EditorLaunchSmoke PRIVATE HuaEngine)
+if(WIN32)
+    target_compile_definitions(EditorLaunchSmoke PRIVATE GLFW_INCLUDE_NONE)
+    if(MSVC)
+        set_target_properties(EditorLaunchSmoke PROPERTIES
+            MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>"
+        )
+        target_compile_options(EditorLaunchSmoke PRIVATE /utf-8)
+    endif()
+endif()
+configure_smoke_target(EditorLaunchSmoke)
+
 add_executable(EditorInteractionSmoke
     Tests/EditorInteractionSmoke.cpp
 	Editor/src/Assets/AssetPickerCatalog.cpp
@@ -1042,6 +1066,10 @@ configure_smoke_target(AssetEditingSmoke)
 
 add_executable(ProjectPanelActionSmoke
     Tests/ProjectPanelActionSmoke.cpp
+	Editor/src/Assets/AssetCreationRegistry.cpp
+	Editor/src/Assets/AssetWorkspaceController.cpp
+	Editor/src/Panels/ConsolePanel.cpp
+	Editor/src/Panels/ProjectAssetNaming.cpp
     Editor/src/Panels/ProjectPanel.cpp
 	Editor/src/Input/EditorCommandRegistry.cpp
 	Editor/src/Input/EditorInputBindingRegistry.cpp
@@ -1114,6 +1142,7 @@ set_property(TARGET RHICommandListBindingSmoke PROPERTY FOLDER "Tests")
 set_property(TARGET RenderingOperationsSmoke PROPERTY FOLDER "Tests")
 set_property(TARGET HostConsistencySmoke PROPERTY FOLDER "Tests")
 set_property(TARGET ProjectWorkbenchSmoke PROPERTY FOLDER "Tests")
+set_property(TARGET EditorLaunchSmoke PROPERTY FOLDER "Tests")
 set_property(TARGET EditorInteractionSmoke PROPERTY FOLDER "Tests")
 set_property(TARGET EditorInspectorRuntimeSmoke PROPERTY FOLDER "Tests")
 set_property(TARGET EditorAssetPickerSmoke PROPERTY FOLDER "Tests")

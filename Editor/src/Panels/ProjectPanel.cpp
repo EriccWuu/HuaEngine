@@ -9,6 +9,10 @@
 #include "Input/EditorInputService.h"
 
 namespace {
+	bool IsAsciiDigit(char value) {
+		return value >= '0' && value <= '9';
+	}
+
 	bool IsSceneFile(const std::filesystem::path& path) {
 		return path.extension() == ".scene";
 	}
@@ -17,6 +21,13 @@ namespace {
 		auto extension = path.extension().string();
 		std::transform(extension.begin(), extension.end(), extension.begin(), [](unsigned char value) { return static_cast<char>(std::tolower(value)); });
 		return extension == ".shader";
+	}
+
+	bool ProjectAssetEntryLess(
+		const std::filesystem::directory_entry& lhs,
+		const std::filesystem::directory_entry& rhs) {
+		if (lhs.is_directory() != rhs.is_directory()) return lhs.is_directory();
+		return HE::ProjectAssetNameLess(lhs.path().filename().string(), rhs.path().filename().string());
 	}
 }
 
@@ -30,10 +41,78 @@ namespace HE {
 		};
 	}
 
+	ProjectPanelAction MakeProjectCreateAssetAction(
+		std::string typeId,
+		const std::filesystem::path& targetDirectory) {
+		return {
+			.Type = ProjectPanelActionType::CreateAsset,
+			.Path = targetDirectory,
+			.TypeId = std::move(typeId)
+		};
+	}
+
+	ProjectPanelAction MakeProjectRenameAssetAction(AssetGuid guid, std::string newBaseName) {
+		return {
+			.Type = ProjectPanelActionType::RenameAsset,
+			.Guid = std::move(guid),
+			.Name = std::move(newBaseName)
+		};
+	}
+
+	ProjectPanelAction MakeProjectDeleteAssetAction(AssetGuid guid) {
+		return {
+			.Type = ProjectPanelActionType::DeleteAsset,
+			.Guid = std::move(guid)
+		};
+	}
+
 	bool IsProjectPanelVisibleFile(const std::filesystem::path& path) {
 		auto extension = path.extension().string();
 		std::transform(extension.begin(), extension.end(), extension.begin(), [](unsigned char value) { return static_cast<char>(std::tolower(value)); });
 		return extension != ".meta";
+	}
+
+	bool ProjectAssetNameLess(std::string_view lhs, std::string_view rhs) {
+		size_t lhsIndex = 0;
+		size_t rhsIndex = 0;
+		int numericWidthTieBreak = 0;
+		while (lhsIndex < lhs.size() && rhsIndex < rhs.size()) {
+			if (IsAsciiDigit(lhs[lhsIndex]) && IsAsciiDigit(rhs[rhsIndex])) {
+				const auto lhsRunStart = lhsIndex;
+				const auto rhsRunStart = rhsIndex;
+				while (lhsIndex < lhs.size() && lhs[lhsIndex] == '0') ++lhsIndex;
+				while (rhsIndex < rhs.size() && rhs[rhsIndex] == '0') ++rhsIndex;
+				const auto lhsSignificantStart = lhsIndex;
+				const auto rhsSignificantStart = rhsIndex;
+				while (lhsIndex < lhs.size() && IsAsciiDigit(lhs[lhsIndex])) ++lhsIndex;
+				while (rhsIndex < rhs.size() && IsAsciiDigit(rhs[rhsIndex])) ++rhsIndex;
+
+				const auto lhsSignificantLength = lhsIndex - lhsSignificantStart;
+				const auto rhsSignificantLength = rhsIndex - rhsSignificantStart;
+				if (lhsSignificantLength != rhsSignificantLength) return lhsSignificantLength < rhsSignificantLength;
+				for (size_t offset = 0; offset < lhsSignificantLength; ++offset) {
+					if (lhs[lhsSignificantStart + offset] != rhs[rhsSignificantStart + offset]) {
+						return lhs[lhsSignificantStart + offset] < rhs[rhsSignificantStart + offset];
+					}
+				}
+
+				const auto lhsRunLength = lhsIndex - lhsRunStart;
+				const auto rhsRunLength = rhsIndex - rhsRunStart;
+				if (numericWidthTieBreak == 0 && lhsRunLength != rhsRunLength) {
+					numericWidthTieBreak = lhsRunLength < rhsRunLength ? -1 : 1;
+				}
+				continue;
+			}
+
+			const auto lhsCharacter = static_cast<unsigned char>(std::tolower(static_cast<unsigned char>(lhs[lhsIndex])));
+			const auto rhsCharacter = static_cast<unsigned char>(std::tolower(static_cast<unsigned char>(rhs[rhsIndex])));
+			if (lhsCharacter != rhsCharacter) return lhsCharacter < rhsCharacter;
+			++lhsIndex;
+			++rhsIndex;
+		}
+		if (lhsIndex != lhs.size() || rhsIndex != rhs.size()) return lhsIndex == lhs.size();
+		if (numericWidthTieBreak != 0) return numericWidthTieBreak < 0;
+		return lhs < rhs;
 	}
 
 	void ProjectPanel::SetAssetRecords(std::span<const AssetRecord> records) {
@@ -42,6 +121,58 @@ namespace HE {
 			if (record.Source != AssetSource::File || record.AbsolutePath.empty()) continue;
 			m_AssetsByPath[record.AbsolutePath.lexically_normal().generic_string()] = record;
 		}
+	}
+
+	void ProjectPanel::BeginRename(const AssetGuid& guid) {
+		m_RenamingAssetGuid = guid;
+		m_RenameBuffer.clear();
+		for (const auto& [path, record] : m_AssetsByPath) {
+			if (record.Guid != guid) continue;
+			m_RenameBuffer = std::filesystem::path(path).stem().string();
+			break;
+		}
+		m_RequestRenameFocus = true;
+		m_RenameSubmissionPending = false;
+	}
+
+	void ProjectPanel::RetryRename(const AssetGuid& guid, std::string_view draft) {
+		m_RenamingAssetGuid = guid;
+		m_RenameBuffer = draft;
+		m_RequestRenameFocus = true;
+		m_RenameSubmissionPending = false;
+	}
+
+	void ProjectPanel::CompleteRename(const AssetGuid& guid) {
+		if (m_RenamingAssetGuid != guid) return;
+		m_RenamingAssetGuid.clear();
+		m_RenameBuffer.clear();
+		m_RequestRenameFocus = false;
+		m_RenameSubmissionPending = false;
+		if (m_DeferredSelectionAction) {
+			m_PendingAction = std::move(m_DeferredSelectionAction);
+			m_DeferredSelectionAction.reset();
+		}
+	}
+
+	void ProjectPanel::CancelRename() {
+		m_RenamingAssetGuid.clear();
+		m_RenameBuffer.clear();
+		m_RequestRenameFocus = false;
+		m_RenameSubmissionPending = false;
+		m_DeferredSelectionAction.reset();
+	}
+
+	void ProjectPanel::QueueAssetSelection(AssetGuid guid, std::filesystem::path path) {
+		ProjectPanelAction action{
+			.Type = ProjectPanelActionType::SelectAsset,
+			.Path = std::move(path),
+			.Guid = std::move(guid)
+		};
+		if (IsRenaming()) {
+			m_DeferredSelectionAction = std::move(action);
+			return;
+		}
+		m_PendingAction = std::move(action);
 	}
 
 	std::optional<ProjectPanelAction> ProjectPanel::ConsumePendingAction() {
@@ -91,8 +222,34 @@ namespace HE {
 		}
 
 		DrawDirectorySection("Assets", m_ProjectRoot / "Assets");
+		DrawDeleteConfirmation();
 
 		ImGui::End();
+	}
+
+	void ProjectPanel::DrawDeleteConfirmation() {
+		if (m_OpenDeleteConfirmation) {
+			ImGui::OpenPopup("Delete Asset");
+			m_OpenDeleteConfirmation = false;
+		}
+		if (!ImGui::BeginPopupModal("Delete Asset", nullptr, ImGuiWindowFlags_AlwaysAutoResize)) return;
+
+		ImGui::TextWrapped("Delete '%s' from the project?", m_DeleteConfirmationName.c_str());
+		ImGui::TextDisabled("The source file, metadata, and imported artifacts will be removed.");
+		ImGui::Spacing();
+		if (ImGui::Button("Delete")) {
+			m_PendingAction = MakeProjectDeleteAssetAction(m_DeleteConfirmationGuid);
+			m_DeleteConfirmationGuid.clear();
+			m_DeleteConfirmationName.clear();
+			ImGui::CloseCurrentPopup();
+		}
+		ImGui::SameLine();
+		if (ImGui::Button("Cancel")) {
+			m_DeleteConfirmationGuid.clear();
+			m_DeleteConfirmationName.clear();
+			ImGui::CloseCurrentPopup();
+		}
+		ImGui::EndPopup();
 	}
 
 	void ProjectPanel::DrawDirectorySection(const char* label, const std::filesystem::path& rootPath) {
@@ -100,6 +257,7 @@ namespace HE {
 		ImGui::PushID(rootId.c_str());
 		const bool open = ImGui::CollapsingHeader(label, ImGuiTreeNodeFlags_DefaultOpen);
 		if (ImGui::BeginPopupContextItem("AssetsHeaderContext")) {
+			DrawCreateMenu(rootPath);
 			if (ImGui::MenuItem("Reimport All")) {
 				m_PendingAction = MakeProjectReimportAction({}, true);
 			}
@@ -122,13 +280,7 @@ namespace HE {
 			entries.push_back(entry);
 		}
 
-		std::sort(entries.begin(), entries.end(), [](const auto& lhs, const auto& rhs) {
-			if (lhs.is_directory() != rhs.is_directory()) {
-				return lhs.is_directory() > rhs.is_directory();
-			}
-
-			return lhs.path().filename().string() < rhs.path().filename().string();
-		});
+		std::sort(entries.begin(), entries.end(), ProjectAssetEntryLess);
 
 		for (const auto& entry : entries) {
 			DrawEntry(entry);
@@ -137,12 +289,23 @@ namespace HE {
 		if (ImGui::BeginPopupContextWindow(
 			"AssetsBrowserContext",
 			ImGuiPopupFlags_MouseButtonRight | ImGuiPopupFlags_NoOpenOverItems)) {
+			DrawCreateMenu(rootPath);
 			if (ImGui::MenuItem("Reimport All")) {
 				m_PendingAction = MakeProjectReimportAction({}, true);
 			}
 			ImGui::EndPopup();
 		}
 		ImGui::EndChild();
+	}
+
+	void ProjectPanel::DrawCreateMenu(const std::filesystem::path& targetDirectory) {
+		if (!m_CreationRegistry || !ImGui::BeginMenu("Create")) return;
+		for (const auto& descriptor : m_CreationRegistry->GetAll()) {
+			if (ImGui::MenuItem(descriptor.MenuLabel.c_str())) {
+				m_PendingAction = MakeProjectCreateAssetAction(descriptor.TypeId, targetDirectory);
+			}
+		}
+		ImGui::EndMenu();
 	}
 
 	void ProjectPanel::DrawEntry(const std::filesystem::directory_entry& entry) {
@@ -152,6 +315,7 @@ namespace HE {
 		if (entry.is_directory()) {
 			const bool open = ImGui::TreeNode(fileName.c_str());
 			if (ImGui::BeginPopupContextItem("DirectoryContext")) {
+				DrawCreateMenu(entry.path());
 				if (ImGui::MenuItem("Reimport")) {
 					m_PendingAction = MakeProjectReimportAction(entry.path(), false);
 				}
@@ -164,13 +328,7 @@ namespace HE {
 					children.push_back(child);
 				}
 
-				std::sort(children.begin(), children.end(), [](const auto& lhs, const auto& rhs) {
-					if (lhs.is_directory() != rhs.is_directory()) {
-						return lhs.is_directory() > rhs.is_directory();
-					}
-
-					return lhs.path().filename().string() < rhs.path().filename().string();
-				});
+				std::sort(children.begin(), children.end(), ProjectAssetEntryLess);
 
 				for (const auto& child : children) {
 					DrawEntry(child);
@@ -182,9 +340,39 @@ namespace HE {
 		}
 
 		const auto asset = m_AssetsByPath.find(entry.path().lexically_normal().generic_string());
-		const bool selected = asset != m_AssetsByPath.end() && asset->second.Guid == m_SelectedAssetGuid;
-		if (ImGui::Selectable(fileName.c_str(), selected) && asset != m_AssetsByPath.end()) {
-			m_PendingAction = ProjectPanelAction{ .Type = ProjectPanelActionType::SelectAsset, .Path = entry.path(), .Guid = asset->second.Guid };
+		DrawFileEntry(entry, asset != m_AssetsByPath.end() ? &asset->second : nullptr);
+		ImGui::PopID();
+	}
+
+	void ProjectPanel::DrawFileEntry(const std::filesystem::directory_entry& entry, const AssetRecord* asset) {
+		const auto fileName = entry.path().filename().string();
+		const bool renaming = asset && asset->Guid == m_RenamingAssetGuid;
+		if (renaming) {
+			if (m_RequestRenameFocus) {
+				ImGui::SetKeyboardFocusHere();
+				m_RequestRenameFocus = false;
+			}
+
+			m_RenameBuffer.resize(256, '\0');
+			ImGui::BeginDisabled(m_RenameSubmissionPending);
+			const bool submitted = ImGui::InputText(
+				"##Rename",
+				m_RenameBuffer.data(),
+				m_RenameBuffer.size(),
+				ImGuiInputTextFlags_EnterReturnsTrue | ImGuiInputTextFlags_AutoSelectAll);
+			const bool commitAfterFocusLoss = ImGui::IsItemDeactivated();
+			ImGui::EndDisabled();
+			m_RenameBuffer.resize(std::char_traits<char>::length(m_RenameBuffer.c_str()));
+			if (!m_RenameSubmissionPending && (submitted || commitAfterFocusLoss)) {
+				m_PendingAction = MakeProjectRenameAssetAction(asset->Guid, m_RenameBuffer);
+				m_RenameSubmissionPending = true;
+			}
+		}
+		else {
+			const bool selected = asset && asset->Guid == m_SelectedAssetGuid;
+			if (ImGui::Selectable(fileName.c_str(), selected) && asset) {
+				QueueAssetSelection(asset->Guid, entry.path());
+			}
 		}
 
 		if (ImGui::IsItemHovered() && m_Input && m_Input->WasActionTriggered("editor.project.open_item") && IsSceneFile(entry.path())) {
@@ -195,6 +383,16 @@ namespace HE {
 		}
 
 		if (ImGui::BeginPopupContextItem("FileContext")) {
+			ImGui::BeginDisabled(!asset);
+			if (ImGui::MenuItem("Rename") && asset) {
+				BeginRename(asset->Guid);
+			}
+			if (ImGui::MenuItem("Delete") && asset) {
+				m_DeleteConfirmationGuid = asset->Guid;
+				m_DeleteConfirmationName = fileName;
+				m_OpenDeleteConfirmation = true;
+			}
+			ImGui::EndDisabled();
 			const bool canReimport = m_CanReimport && m_CanReimport(entry.path());
 			ImGui::BeginDisabled(!canReimport);
 			if (ImGui::MenuItem("Reimport")) {
@@ -206,6 +404,5 @@ namespace HE {
 			}
 			ImGui::EndPopup();
 		}
-		ImGui::PopID();
 	}
 }
