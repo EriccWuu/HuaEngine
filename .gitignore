@@ -105,6 +105,7 @@ Tests/*/Library/
 # AI workspace artifacts
 _agent-workspace/
 .workspace/
+_agent-workspace/
 .workflow/
 .tasks/
 
